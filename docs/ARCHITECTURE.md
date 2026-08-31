@@ -97,18 +97,56 @@ troisième fois :
   et un exemple de chaque CSV membre du zip.
 - **CLI `observador import-manuel inspecter --source-id <id> --chemin <fichier>`**
   : appelle `inspect_file` et affiche le résultat, sans toucher à la base.
-- **Garde-fou dans `_iter_csv_rows`** : un `.zip` contenant plus d'un CSV lève
-  maintenant une `RuntimeError` explicite au lieu d'être traité comme un
-  fichier plat unique — sans cette garde, le code initial aurait concaténé les
-  six CSV comme s'ils avaient le même schéma, produisant des données mal
-  interprétées en silence (violation directe du principe "aucune donnée
-  fictive/mal interprétée, jamais"). La vraie jointure multi-fichiers
-  (Entreprise.csv + Etablissements.csv + décodage via DomaineValeur.csv) reste
-  à écrire une fois les vraies colonnes confirmées via l'inspecteur — voir
-  `docs/STATUT_RESEAU.md` pour la séquence complète.
+- **Garde-fou dans `_iter_csv_rows`** : un `.zip` à plusieurs CSV NON reconnu
+  comme le vrai fichier REQ (`FICHIERS_REQ_REELS`) lève une `RuntimeError`
+  explicite au lieu d'être traité comme un fichier plat unique — sans cette
+  garde, le code initial aurait concaténé des fichiers au schéma différent,
+  produisant des données mal interprétées en silence (violation directe du
+  principe "aucune donnée fictive/mal interprétée, jamais").
 - Généralisable : n'importe quelle source `import_manuel` future dont le fichier
   a une structure relationnelle similaire peut implémenter `inspect_file` de la
   même façon, sans toucher au moteur ni à `manual_import.py`.
+
+### Quatrième extension : jointure multi-fichiers réelle + bornage propagé (REQ, 2026-08-31)
+
+Une fois les vraies colonnes confirmées via l'inspecteur ci-dessus (fichier
+mis en release GitHub par Alexandre, SHA-256 vérifié avant utilisation), la
+vraie jointure a été écrite et validée avec de vraies données :
+
+- **`_ingest_zip_req_reel`** (`observador/sources/req.py`) : charge d'abord
+  `Nom.csv` et `Etablissements.csv` en index mémoire NEQ→(nom|établissements)
+  — bornés au nombre d'entités distinctes, pas au nombre de lignes brutes —
+  puis balaie `Entreprise.csv` en flux, une seule fois, en joignant chaque
+  ligne aux deux index. `ingest_snapshot` route automatiquement vers ce chemin
+  quand le fichier importé contient les 3 CSV requis (`FICHIERS_REQ_REELS`).
+- **`REQEtablissementEntry`** (nouveau modèle, miroir par établissement,
+  clé composite NEQ + NO_SUF_ETAB) : nécessaire pour distinguer un NOUVEL
+  établissement SECONDAIRE d'une entreprise déjà connue (signal fort, spec
+  Signal 4) d'un simple changement d'adresse du siège (signal moyen, déjà géré
+  par `REQEntry` seul) — un miroir à une seule ligne par NEQ ne peut pas faire
+  cette distinction. Le signal fort ne se déclenche QUE pour un établissement
+  secondaire apparu chez une entreprise DÉJÀ connue à un import précédent —
+  jamais pour le tout premier établissement d'une toute nouvelle
+  immatriculation (voir la correction de calibration ci-dessous).
+- **Correction de calibration découverte en cours de route** : le code écrit
+  avant confirmation du schéma traitait à tort toute NOUVELLE immatriculation
+  comme un signal ("nouvelle immatriculation au REQ") — une entreprise qui
+  vient de naître n'est pas une entreprise EN croissance (principe #3). Cette
+  génération de signal a été retirée du chemin réel ; seuls "nouvel
+  établissement secondaire" et "changement d'adresse du siège" restent des
+  signaux, conformément à la table Signal 4 de la spec.
+- **Bogue de bornage trouvé et corrigé pendant la validation** :
+  `SourceConnector.detect_from_file` accepte maintenant `limit: int | None`,
+  transmis jusqu'à `ingest_snapshot` — auparavant `REQConnector.
+  detect_from_file` appelait `ingest_snapshot(limit=None)` sans égard au
+  `--limit` demandé, puisque le chemin réel ne produit ses signaux qu'APRÈS
+  avoir traité tout `Entreprise.csv` (contrairement à un générateur
+  ligne-par-ligne) ; borner seulement les signaux produits (ce que fait
+  `manual_import.importer_fichier_source` en filet de sécurité) ne réduisait
+  donc pas le volume réellement lu. Voir `docs/STATUT_RESEAU.md` pour le
+  déroulé complet de la découverte et les résultats de validation contre de
+  vraies données (résolution nom/statut/adresse confirmée correcte, limite
+  réelle de complétude d'adresse selon l'ancienneté du dossier).
 
 ## Les "Principes directeurs" (bloc ajouté en tête de la spec le 2026-08-31)
 

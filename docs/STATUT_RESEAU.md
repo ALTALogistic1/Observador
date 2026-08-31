@@ -314,24 +314,101 @@ initial le supposait :
   `observador import-manuel inspecter --source-id req --chemin <zip>`.
 - La vraie jointure multi-fichiers (Entreprise.csv comme table de base,
   Etablissements.csv pour l'adresse/le signal "nouvel établissement",
-  DomaineValeur.csv pour décoder les codes) **reste à écrire** — volontairement
-  pas devinée à l'aveugle sur 3 fichiers relationnels avant d'avoir les vraies
-  colonnes.
+  DomaineValeur.csv pour décoder les codes) a été écrite contre les vraies
+  colonnes confirmées ci-dessous, une fois inspectées — voir section suivante.
+
+## Vraies colonnes confirmées et jointure implémentée (2026-08-31)
+
+Alexandre a mis le fichier réel (267 Mo, SHA-256 vérifié) en release GitHub
+(`ALTALogistic1/Observador`, tag `req-data-2026-08-31`) ; téléchargé et
+inspecté dans cette session via `import-manuel inspecter`. Vraies colonnes
+retenues (`observador/sources/req.py`) :
+
+- **`Entreprise.csv`** (37 colonnes réelles) : `NEQ`, `COD_STAT_IMMAT`,
+  `DAT_MAJ_INDEX_NOM`, `COD_ACT_ECON_CAE`/`DESC_ACT_ECON_ASSUJ` (repli secteur),
+  `ADR_DOMCL_ADR_DISP`/`ADR_DOMCL_LIGN1-4_ADR` (repli adresse — souvent
+  `ADR_DOMCL_ADR_DISP='N'`, adresse alors absente même si les lignes sont
+  remplies). **Ne contient PAS le nom** de l'entreprise.
+- **`Nom.csv`** : `NEQ`, `NOM_ASSUJ`, `STAT_NOM`, `TYP_NOM_ASSUJ`,
+  `DAT_INIT_NOM_ASSUJ`, `DAT_FIN_NOM_ASSUJ` — historique de noms, plusieurs
+  lignes possibles par NEQ. Codes `STAT_IMMAT`/`STAT_NOM`/`TYP_NOM` décodés via
+  `DomaineValeur.csv` (`IM`=Immatriculée, `RD`/`RO`/`RX`=Radiée [sur
+  demande/d'office/d'office art. 59] → statut "radiee" ; `V`=nom en vigueur,
+  `A`=antérieur, `M`=dénomination sociale, `N`=nom).
+- **`Etablissements.csv`** : `NEQ`, `NO_SUF_ETAB`, `IND_ETAB_PRINC` (`O`=siège),
+  `LIGN1-4_ADR`, `COD_ACT_ECON`/`DESC_ACT_ECON_ETAB`, `NOM_ETAB`. Plusieurs
+  lignes possibles par NEQ — source du signal "nouvel établissement secondaire".
+
+**Découverte de calibration en cours de route** : une NOUVELLE IMMATRICULATION
+seule (sans changement d'adresse ni nouvel établissement secondaire) ne
+produit PLUS de signal — une entreprise qui vient de naître n'est pas une
+entreprise EN croissance (principe #3). Le code initial (avant confirmation du
+vrai schéma) traitait à tort toute nouvelle ligne NEQ comme un signal
+"nouvelle immatriculation" ; corrigé en même temps que la jointure réelle.
+`REQEtablissementEntry` (nouveau modèle, miroir par établissement) permet de
+distinguer un nouvel établissement SECONDAIRE d'une entreprise déjà connue
+(fort) d'un changement d'adresse du siège (moyen) — deux signaux désormais
+détectés séparément et correctement, alors que le code précédent ne pouvait
+détecter qu'un changement d'adresse (miroir à une seule ligne par NEQ).
+
+**Validé avec de vraies données** (session, `--limit 3000` sur le vrai fichier
+après correction du bogue de bornage ci-dessous) :
+- Résolution nom + statut + adresse/secteur confirmée correcte contre des
+  entrées réelles (ex. NEQ 1140030355 → "LIGN'ELLE PLUS INC.", statut
+  "radiee", cohérent avec une vérification manuelle indépendante du fichier).
+- Décodage des 6 codes `COD_STAT_IMMAT` réels validé.
+- Priorité de sélection du nom (en vigueur > antérieur le plus récent) validée
+  sur un vrai NEQ radié n'ayant plus aucun nom "en vigueur".
+- **Complétude d'adresse partielle, confirmée sur de vraies données — limite
+  réelle, pas un bogue** : sur un échantillon de 3000 entreprises actives (NEQ
+  très anciens, immatriculés en 1994), seulement 17 % avaient une adresse
+  résolue (via `Etablissements.csv` ou repli domicile) ; sur un échantillon
+  plus tardif dans le fichier (immatriculations ~1995), ce taux monte à 52 %
+  pour les entreprises actives. Hypothèse la plus probable : la déclaration
+  d'établissement est une exigence plus récente que l'immatriculation de base,
+  donc les plus vieux dossiers actifs n'ont souvent jamais déposé cette
+  information. Le code laisse `adresse`/`ville`/`code_postal` à `None` plutôt
+  que d'inventer une valeur — cohérent avec le reste du pipeline (une
+  entreprise sans adresse résolue via le REQ peut encore l'être via
+  l'enrichissement web, section 10, ou une autre source qui la fournit
+  directement).
+
+**Bogue de bornage trouvé et corrigé en cours de validation** :
+`REQConnector.detect_from_file` appelait `ingest_snapshot(limit=None)` sans
+égard au `--limit` demandé — le paramètre `limite_lignes` de
+`importer_fichier_source` ne bornait que le nombre de SIGNAUX produits après
+coup, pas le volume réellement lu/inséré en amont (le vrai fichier REQ ne
+produit ses signaux qu'après avoir traité tout `Entreprise.csv`, contrairement
+à un connecteur simple ligne-par-ligne). Un premier essai `--limit 2000` a
+donc en réalité traité le fichier ENTIER (~16 minutes dans cet environnement,
+interrompu manuellement avant le commit final → 0 ligne persistée, aucune
+perte de données réelles puisque rien n'avait encore été validé). Corrigé :
+`SourceConnector.detect_from_file` accepte maintenant `limit` et le transmet
+jusqu'à `ingest_snapshot` ; un deuxième essai `--limit 3000` a pris 27
+secondes et produit exactement 3000 entrées, confirmant le correctif.
 
 ## Prochaine étape
 
 Toutes les sources actives de la Phase 1 sont validées avec de vraies
-données, sauf le REQ. Séquence pour le premier import réel :
-1. Alexandre lance `observador import-manuel inspecter --source-id req --chemin <zip>`
-   sur le vrai fichier téléchargé, et communique la sortie (colonnes + exemple
-   de chaque CSV pertinent — au minimum `Entreprise.csv`, `Etablissements.csv`,
-   `DomaineValeur.csv`).
-2. La jointure multi-fichiers est écrite contre les vraies colonnes confirmées
-   (pas devinée), avec les tests correspondants.
-3. `observador import-manuel fichier --source-id req --chemin <zip>` peut alors
-   tourner sur le vrai fichier ; `resolve_columns` échouera encore explicitement
-   si un détail reste mal deviné, plutôt que de mal interpréter en silence.
-4. Une fois l'import réussi : lancer une recherche ponctuelle complète
-   (`observador scan ponctuel`) pour obtenir la première notification
-   consolidée de bout en bout avec de vraies données sur les 8 sources actives,
-   incluant une résolution NEQ réussie et un enrichissement web réel.
+données, y compris le REQ (mécanique ET schéma désormais confirmés). Reste
+pour Alexandre : lancer le premier import RÉEL et COMPLET (sans `--limit`)
+depuis son propre poste, probablement plus rapide que dans cet environnement
+(voir note de performance ci-dessous) :
+
+```
+observador import-manuel fichier --source-id req --chemin <fichier réel>
+```
+
+**Note de performance** : le fichier complet (`Entreprise.csv` seul fait
+~630 Mo, plusieurs millions de lignes) est traité ligne par ligne via l'ORM —
+dans CET environnement, l'extrapolation à partir du test borné à 3000 lignes
+suggère un import complet de l'ordre de l'heure ou plus. Un poste personnel
+non contraint sera vraisemblablement plus rapide, mais un import complet
+restera une opération de plusieurs minutes, pas quelques secondes — normal
+pour une tâche bi-mensuelle, mais à lancer en arrière-plan plutôt qu'en
+attendant activement. Une optimisation par insertion en lot (bulk insert)
+resterait possible plus tard si la durée réelle s'avère un irritant récurrent.
+
+Une fois l'import complet réussi : lancer une recherche ponctuelle
+(`observador scan ponctuel`) pour obtenir la première notification consolidée
+de bout en bout avec de vraies données sur les 8 sources actives.

@@ -44,15 +44,16 @@ mis à jour deux fois par mois — tâche récurrente légère) :
 ```bash
 python -m observador.cli import-manuel lien --source-id req   # lien direct vers le fichier en vrac
 
-# Le vrai fichier REQ est un .zip de 6 CSV liés entre eux (découvert le
-# 2026-08-31 — voir docs/STATUT_RESEAU.md), pas un fichier plat : avant le
-# premier import réel, inspecter ses vraies colonnes plutôt que deviner.
-python -m observador.cli import-manuel inspecter \
-  --source-id req --chemin ~/Téléchargements/registre-entreprises.zip
-
 python -m observador.cli import-manuel fichier \
   --source-id req --chemin ~/Téléchargements/registre-entreprises.zip
 ```
+
+Le vrai fichier REQ est un `.zip` de 6 CSV liés entre eux (`Entreprise.csv`,
+`Nom.csv`, `Etablissements.csv` + 3 non utilisés pour l'instant), pas un
+fichier plat — schéma confirmé et jointure implémentée et validée avec de
+vraies données le 2026-08-31 (voir `docs/STATUT_RESEAU.md`). Pour inspecter
+la structure d'un fichier avant import (utile pour une future source à
+structure similaire) : `import-manuel inspecter --source-id req --chemin <fichier>`.
 
 ## Installation
 
@@ -108,7 +109,7 @@ pytest -q
 
 Les tests couvrent la logique pure (scoring, vérifications, correspondance,
 résolution) sans appel réseau. La validation de bout en bout avec les vraies
-sources (SEAO validé ; REQ et Guichet-Emplois en cours — voir
+sources (SEAO et REQ validés ; Guichet-Emplois repassé à `à développer` — voir
 `docs/STATUT_RESEAU.md`) se fait manuellement via la CLI, une fois l'accès réseau
 aux portails de données ouvertes confirmé pour l'environnement d'exécution.
 

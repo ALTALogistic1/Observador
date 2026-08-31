@@ -155,7 +155,16 @@ def importer_fichier_source(
     déjà écrite pour le chemin automatisé — seule la provenance du fichier
     change. Chaque signal produit est dédupliqué par source_ref exactement
     comme le ferait engine.ingest_source, pour qu'un import répété du même
-    fichier ne crée pas de doublons."""
+    fichier ne crée pas de doublons.
+
+    `limite_lignes` est transmis au connecteur (`detect_from_file(...,
+    limit=...)`) pour borner le volume RÉELLEMENT traité en amont, pas
+    seulement le nombre de signaux persistés ici — un connecteur dont le
+    traitement n'est pas un simple générateur ligne-par-ligne (ex. REQ, dont
+    la jointure multi-fichiers traite tout le fichier avant de produire le
+    moindre signal) ignorerait sinon `limite_lignes` de fait. La boucle
+    ci-dessous garde quand même son propre bornage en filet de sécurité pour
+    un connecteur qui ignorerait le paramètre `limit`."""
     registry = registry or get_registry()
     source_def = registry.sources.get(source_id)
     if source_def is None:
@@ -172,7 +181,7 @@ def importer_fichier_source(
 
     signaux: list[Signal] = []
     n = 0
-    for raw in connector.detect_from_file(chemin_fichier, db_session):
+    for raw in connector.detect_from_file(chemin_fichier, db_session, limit=limite_lignes):
         if limite_lignes is not None and n >= limite_lignes:
             break
         n += 1

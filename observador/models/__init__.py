@@ -11,6 +11,7 @@ from observador.models.notification import (  # noqa: F401
 )
 from observador.models.profile import Profile, ProfileNeed  # noqa: F401
 from observador.models.req_entry import REQEntry  # noqa: F401
+from observador.models.req_etablissement_entry import REQEtablissementEntry  # noqa: F401
 from observador.models.run_log import SourceRunLog  # noqa: F401
 from observador.models.signal import Signal  # noqa: F401
 from observador.models.sphere import Sphere  # noqa: F401
@@ -26,6 +27,7 @@ __all__ = [
     "Profile",
     "ProfileNeed",
     "REQEntry",
+    "REQEtablissementEntry",
     "SourceRunLog",
     "Signal",
     "Sphere",

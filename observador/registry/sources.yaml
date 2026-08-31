@@ -129,13 +129,15 @@ sources:
     connecteur: observador.sources.req  # conservé pour detect_from_file — pas appelé par la boucle automatisée (methode_acces=import_manuel)
     regle_calibration: >
       Seuls deux types de changement génèrent un signal : nouvel établissement
-      secondaire, ou changement d'adresse du siège social — toute autre mise à jour
-      (déclaration annuelle, correction mineure, renouvellement) est explicitement
-      exclue. Implémenté dans observador/sources/req.py:_upsert_row (seuls
-      stats.nouveaux_etablissements et stats.changements_adresse produisent des
-      RawSignal) — identique que l'ingestion vienne du réseau ou d'un fichier importé
-      manuellement (voir _stats_vers_signaux, partagé par REQConnector.detect et
-      REQConnector.detect_from_file).
+      SECONDAIRE d'une entreprise déjà connue (fort), ou changement d'adresse du
+      siège social (moyen) — toute autre mise à jour (déclaration annuelle,
+      correction mineure, renouvellement, ET une NOUVELLE immatriculation elle-même)
+      est explicitement exclue. Implémenté dans
+      observador/sources/req.py:_ingest_zip_req_reel/_diff_etablissements_secondaires
+      (le tout premier établissement d'une toute nouvelle entreprise ne déclenche
+      jamais le signal fort — sinon toute nouvelle immatriculation serait à tort
+      traitée comme une expansion). Voir _stats_vers_signaux pour la conversion en
+      RawSignal.
     notes: >
       BASCULÉE en import manuel le 2026-08-31 (décision d'Alexandre, suite à une
       analyse détaillée du blocage réseau — voir docs/STATUT_RESEAU.md). Le
@@ -162,6 +164,14 @@ sources:
       chemin réseau automatisé (REQConnector.detect) reste codé et fonctionnel, gardé
       au cas où l'accès redeviendrait praticable, mais n'est plus appelé par la
       boucle automatisée du moteur tant que methode_acces=import_manuel.
+      SCHÉMA RÉEL CONFIRMÉ le 2026-08-31 (fichier réel inspecté, SHA-256 vérifié) :
+      le fichier en vrac est un .zip de 6 CSV liés par NEQ, pas un fichier plat
+      (Entreprise.csv, Nom.csv, Etablissements.csv utilisés ; DomaineValeur.csv pour
+      confirmer les codes ; FusionScissions.csv/ContinuationsTransformations.csv hors
+      périmètre). Jointure écrite et validée contre de vraies données (nom/statut/
+      adresse résolus correctement) — voir docs/STATUT_RESEAU.md pour le détail,
+      dont une limite réelle de complétude d'adresse (dossiers anciens souvent sans
+      établissement déclaré).
 
   # ---------------------------------------------------------------------
   # Phase 2 — gratuites, à développer (section 8 : toute source gratuite de

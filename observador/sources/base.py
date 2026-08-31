@@ -98,7 +98,7 @@ class SourceConnector(ABC):
             "utilisez directement 'import-manuel fichier'."
         )
 
-    def detect_from_file(self, path, db_session: "Session") -> Iterator[RawSignal]:
+    def detect_from_file(self, path, db_session: "Session", *, limit: int | None = None) -> Iterator[RawSignal]:
         """Optionnel — pour une source en `methode_acces: import_manuel` dont
         l'import se fait par FICHIER COMPLET plutôt que par résultat individuel
         (ex. REQ : Alexandre télécharge lui-même le fichier en vrac, bloqué en
@@ -108,7 +108,17 @@ class SourceConnector(ABC):
         fichier = potentiellement des milliers d'entreprises", en réutilisant la
         même logique de parsing/diff qu'un connecteur automatisé (ex.
         req.py:ingest_snapshot) sans dupliquer de mécanique. Un connecteur qui ne
-        supporte pas ce mode lève NotImplementedError explicitement."""
+        supporte pas ce mode lève NotImplementedError explicitement.
+
+        `limit` borne le volume RÉELLEMENT traité en amont (ex. lignes du
+        fichier source lues), pas seulement le nombre de signaux produits —
+        important pour un connecteur dont le traitement n'est pas un simple
+        générateur ligne-par-ligne (ex. REQ : la jointure multi-fichiers traite
+        tout le fichier avant de produire le moindre signal, voir
+        req.py:_ingest_zip_req_reel). Un connecteur qui ignore `limit` (aucune
+        notion de bornage utile) peut l'accepter sans l'utiliser — le bornage
+        best-effort de manual_import.importer_fichier_source sur les signaux
+        produits reste un filet de sécurité dans tous les cas."""
         raise NotImplementedError(
             f"{type(self).__name__} ne supporte pas l'import manuel par fichier "
             "(detect_from_file non implémenté)."

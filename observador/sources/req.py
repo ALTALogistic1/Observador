@@ -10,32 +10,42 @@ Double rôle, comme documenté dans registry/sources.yaml :
      successifs du miroir local (REQEntry). Les mises à jour purement
      administratives (aucun changement d'adresse/statut) sont exclues.
 
-IMPORTANT — structure et schéma réels non encore confirmés :
-- Le format exact des colonnes n'a pas pu être inspecté par cette session (accès
-  réseau bloqué — voir docs/STATUT_RESEAU.md). COLUMN_ALIASES ci-dessous liste les
-  noms de colonnes les plus probables d'après la documentation publique du jeu de
-  données; resolve_columns() échoue avec un message explicite (colonnes attendues
-  vs colonnes réellement présentes) si aucun alias ne correspond, plutôt que de mal
-  interpréter silencieusement les données.
-- Découverte du 2026-08-31 (par Alexandre, inspection réelle du ZIP) : le fichier en
-  vrac n'est PAS un CSV plat — c'est une archive de SIX CSV liés entre eux
-  (Entreprise.csv, Etablissements.csv, Nom.csv, DomaineValeur.csv, FusionScissions.csv,
-  ContinuationsTransformations.csv). `_iter_csv_rows`/`ingest_snapshot` ci-dessous
-  restent écrits pour UN SEUL CSV (ou un .zip n'en contenant qu'un) — un .zip
-  multi-CSV comme le vrai fichier REQ lève une erreur explicite plutôt que de
-  concaténer des fichiers au schéma différent comme s'ils étaient identiques (voir
-  `_iter_csv_rows`). `REQConnector.inspect_file` (voir plus bas) sert à obtenir les
-  vraies colonnes de chaque CSV membre — sans deviner — avant d'écrire la vraie
-  logique de jointure (Entreprise.csv comme table de base, Etablissements.csv pour
-  l'adresse/les établissements, DomaineValeur.csv pour décoder les codes) : à faire
-  une fois qu'Alexandre aura communiqué le résultat de
-  `import-manuel inspecter --source-id req --chemin <zip>`.
+STRUCTURE RÉELLE CONFIRMÉE le 2026-08-31 (Alexandre a téléchargé le vrai fichier
+depuis son navigateur et inspecté son contenu réel via `import-manuel inspecter`
+— voir docs/STATUT_RESEAU.md pour le détail complet) : le fichier en vrac n'est
+PAS un CSV plat, c'est une archive de SIX CSV liés entre eux par NEQ :
+  - `Entreprise.csv` (~630 Mo) : une ligne par entreprise — NEQ, statut
+    (COD_STAT_IMMAT, codes confirmés ci-dessous), secteur/adresse de repli.
+  - `Nom.csv` (~280 Mo) : historique des noms par NEQ (plusieurs lignes possibles
+    par entreprise) — voir STAT_NOM/TYP_NOM_ASSUJ ci-dessous pour choisir le nom
+    légal actuel.
+  - `Etablissements.csv` (~35 Mo) : un ou plusieurs établissements par NEQ
+    (IND_ETAB_PRINC='O' pour le siège, 'N' pour un établissement secondaire) —
+    adresse/secteur les plus fiables, et source du signal "nouvel établissement
+    secondaire" (spec section 7, Signal 4).
+  - `DomaineValeur.csv` (~90 Ko) : table de décodage code→libellé générique,
+    utilisée ici pour confirmer les codes STAT_IMMAT/STAT_NOM/TYP_NOM (les
+    descriptions de secteur d'activité sont déjà en texte dans Entreprise.csv/
+    Etablissements.csv, pas besoin de décodage supplémentaire).
+  - `FusionScissions.csv`, `ContinuationsTransformations.csv` : événements
+    corporatifs hors des 5 champs requis par la spec section 7 (NEQ, nom,
+    secteur, adresse, statut) — non utilisés pour l'instant.
+
+La vraie jointure (Entreprise.csv + Nom.csv + Etablissements.csv) est
+implémentée dans `_ingest_zip_req_reel`/`_upsert_entreprise_reelle` ci-dessous,
+routée automatiquement par `ingest_snapshot` quand le fichier importé contient
+ces 3 CSV (`FICHIERS_REQ_REELS`). Le chemin "fichier plat" historique
+(`_iter_csv_rows`/`_upsert_row`/`COLUMN_ALIASES`) reste en place uniquement pour
+(1) le repli réseau `REQConnector.detect` (dormant en Phase 1) et (2) des tests
+de mécanique avec un CSV synthétique à une seule table — le vrai fichier REQ ne
+passera plus jamais par ce chemin.
 """
 from __future__ import annotations
 
 import csv
 import io
 import logging
+import re
 import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -47,6 +57,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from observador.models.req_entry import REQEntry
+from observador.models.req_etablissement_entry import REQEtablissementEntry
 from observador.sources.base import RawSignal, SourceConnector
 from observador.sources.ckan_client import DONNEES_QUEBEC_BASE, CKANClient
 from observador.sources.column_mapping import normaliser as _normaliser
@@ -56,8 +67,17 @@ logger = logging.getLogger(__name__)
 
 REQ_PACKAGE_ID = "registre-des-entreprises"
 
-# Chaque valeur est une liste de motifs (sous-chaîne, insensible à la casse/accents)
-# essayés dans l'ordre contre les en-têtes réelles du CSV.
+# Les 3 CSV qui portent les champs requis par la spec (NEQ, nom, secteur, adresse,
+# statut) — leur présence simultanée dans un .zip déclenche le chemin de jointure
+# réelle (_ingest_zip_req_reel) plutôt que le chemin "fichier plat" legacy.
+FICHIERS_REQ_REELS = {"Entreprise.csv", "Nom.csv", "Etablissements.csv"}
+
+# --- Chemin "fichier plat" legacy (mécanique/tests + repli réseau dormant) -----
+# Ces alias/valeurs étaient des HYPOTHÈSES avant l'inspection réelle du 2026-08-31
+# et NE CORRESPONDENT PAS au vrai fichier REQ (qui n'est jamais un CSV plat) —
+# gardés seulement pour ne pas casser REQConnector.detect() et les tests de
+# mécanique existants. Chaque valeur est une liste de motifs (sous-chaîne,
+# insensible à la casse/accents) essayés dans l'ordre contre les en-têtes réelles.
 COLUMN_ALIASES: dict[str, list[str]] = {
     "neq": ["neq"],
     "nom": ["nom_assujetti", "nom_entreprise", "nomassujetti", "nom"],
@@ -77,6 +97,147 @@ STATUTS_RADIES = {"radiee", "radié", "radiée", "rad", "fermee", "fermée", "di
 def _parse_statut(raw: str) -> str:
     n = _normaliser(raw or "")
     return "radiee" if n in STATUTS_RADIES else "immatriculee"
+
+
+# --- Chemin réel (Entreprise.csv + Nom.csv + Etablissements.csv) --------------
+# Codes confirmés par inspection réelle de DomaineValeur.csv (TYP_DOM_VAL=
+# 'STAT_IMMAT') le 2026-08-31 : IM=Immatriculée, AI=Avis d'intention de
+# constitution, NI=Non immatriculée, RD=Radiée sur demande, RO=Radiée d'office,
+# RX=Radiée d'office (article 59). Seul RD/RO/RX correspond à la vérification
+# obligatoire "radiée" (spec section 6) — AI/NI ne sont ni l'un ni l'autre et
+# gardent leur code brut plutôt que d'être devinés vers une catégorie non confirmée.
+STATUTS_RADIES_CODES_REELS = {"RD", "RO", "RX"}
+
+
+def _decoder_statut_reel(code: str | None) -> str:
+    code = (code or "").strip().upper()
+    if code in STATUTS_RADIES_CODES_REELS:
+        return "radiee"
+    if code == "IM":
+        return "immatriculee"
+    return code.lower() or "inconnu"
+
+
+_VILLE_PROVINCE_RE = re.compile(r"^(?P<ville>.+?)\s*\((?P<province>[^)]+)\)\s*$")
+
+
+def _decouper_adresse(lign1: str, lign2: str, lign3: str, lign4: str) -> tuple[str | None, str | None, str | None]:
+    """Découpe les 4 lignes d'adresse réelles du REQ — confirmé par inspection
+    réelle (Etablissements.csv/Entreprise.csv, 2026-08-31) : LIGN1 est la rue,
+    LIGN2 est typiquement "Ville (Province)", LIGN3 est presque toujours vide,
+    LIGN4 est le code postal sans espace (ex. 'H1J1Z1')."""
+    lign1, lign2, lign3, lign4 = lign1.strip(), lign2.strip(), lign3.strip(), lign4.strip()
+
+    ville = None
+    if lign2:
+        m = _VILLE_PROVINCE_RE.match(lign2)
+        ville = m.group("ville").strip() if m else lign2  # forme inattendue -> garder tel quel
+
+    parties_adresse = [p for p in (lign1, lign3) if p]
+    adresse = ", ".join(parties_adresse) if parties_adresse else None
+    return adresse, ville, (lign4 or None)
+
+
+def _desc_secteur(desc: str | None) -> str | None:
+    """DESC_ACT_ECON_ETAB/DESC_ACT_ECON_ASSUJ sont déjà du texte lisible dans le
+    vrai fichier (ex. 'FABRICATION DE JOUETS DE BOIS') — pas besoin de décoder
+    via DomaineValeur.csv. '-' signifie "non précisé" dans le vrai fichier."""
+    desc = (desc or "").strip()
+    return desc if desc and desc != "-" else None
+
+
+@dataclass
+class _EtabLeger:
+    """Un établissement, réduit aux champs utiles — pour garder l'index
+    Etablissements.csv (potentiellement des centaines de milliers de lignes)
+    léger en mémoire plutôt que d'y garder les 17 colonnes brutes de chaque
+    ligne."""
+
+    no_suf_etab: str
+    principal: bool
+    adresse: str | None
+    ville: str | None
+    code_postal: str | None
+    secteur_code: str | None
+    secteur_libelle: str | None
+    nom_etablissement: str | None
+
+
+def _en_tete_csv(zf: zipfile.ZipFile, nom: str) -> list[str]:
+    with zf.open(nom) as raw:
+        text = io.TextIOWrapper(raw, encoding="utf-8-sig", errors="replace")
+        return next(csv.reader(text), [])
+
+
+def _charger_index_noms(zf: zipfile.ZipFile) -> dict[str, str]:
+    """Construit l'index NEQ -> nom légal actuel en lisant Nom.csv en flux, avec
+    une mémoire bornée au nombre d'ENTREPRISES distinctes (pas au nombre total de
+    lignes d'historique de noms). Priorité confirmée par inspection réelle du
+    2026-08-31 : un nom STAT_NOM='V' (en vigueur) est préféré, avec
+    TYP_NOM_ASSUJ='M' (dénomination sociale) > 'N' (nom) > autre type. À défaut
+    d'un nom en vigueur (ex. entreprise radiée, dont le dernier nom repasse à
+    STAT_NOM='A' — confirmé sur un vrai NEQ radié), on retient le nom antérieur
+    le plus récent comme meilleur effort : l'entreprise sera de toute façon
+    exclue par la vérification de statut (section 6), mais garde un nom pour la
+    résolution par les AUTRES sources qui l'auraient connue sous ce nom."""
+    meilleurs: dict[str, tuple[int, str, str]] = {}  # neq -> (rang, date_tri, nom)
+    with zf.open("Nom.csv") as raw:
+        text = io.TextIOWrapper(raw, encoding="utf-8-sig", errors="replace")
+        for row in csv.DictReader(text):
+            neq = (row.get("NEQ") or "").strip()
+            nom = (row.get("NOM_ASSUJ") or "").strip()
+            if not neq or not nom:
+                continue
+            stat = (row.get("STAT_NOM") or "").strip().upper()
+            typ = (row.get("TYP_NOM_ASSUJ") or "").strip().upper()
+            if stat == "V":
+                rang = 0 if typ == "M" else (1 if typ == "N" else 2)
+                date_tri = ""
+            else:
+                rang = 3
+                date_tri = (row.get("DAT_FIN_NOM_ASSUJ") or row.get("DAT_INIT_NOM_ASSUJ") or "").strip()
+
+            actuel = meilleurs.get(neq)
+            if actuel is None:
+                meilleurs[neq] = (rang, date_tri, nom)
+                continue
+            rang_actuel, date_actuelle, _ = actuel
+            if rang < rang_actuel or (rang == rang_actuel == 3 and date_tri > date_actuelle):
+                meilleurs[neq] = (rang, date_tri, nom)
+    return {neq: nom for neq, (_, _, nom) in meilleurs.items()}
+
+
+def _charger_index_etablissements(zf: zipfile.ZipFile) -> dict[str, list[_EtabLeger]]:
+    """Construit l'index NEQ -> liste d'établissements en lisant Etablissements.csv
+    en flux — réduit à _EtabLeger (7 champs) par ligne plutôt que de garder les 17
+    colonnes brutes, pour limiter la mémoire sur un fichier à potentiellement des
+    centaines de milliers de lignes."""
+    index: dict[str, list[_EtabLeger]] = {}
+    with zf.open("Etablissements.csv") as raw:
+        text = io.TextIOWrapper(raw, encoding="utf-8-sig", errors="replace")
+        for row in csv.DictReader(text):
+            neq = (row.get("NEQ") or "").strip()
+            if not neq:
+                continue
+            adresse, ville, code_postal = _decouper_adresse(
+                row.get("LIGN1_ADR") or "",
+                row.get("LIGN2_ADR") or "",
+                row.get("LIGN3_ADR") or "",
+                row.get("LIGN4_ADR") or "",
+            )
+            index.setdefault(neq, []).append(
+                _EtabLeger(
+                    no_suf_etab=(row.get("NO_SUF_ETAB") or "").strip(),
+                    principal=(row.get("IND_ETAB_PRINC") or "").strip().upper() == "O",
+                    adresse=adresse,
+                    ville=ville,
+                    code_postal=code_postal,
+                    secteur_code=(row.get("COD_ACT_ECON") or "").strip() or None,
+                    secteur_libelle=_desc_secteur(row.get("DESC_ACT_ECON_ETAB")),
+                    nom_etablissement=(row.get("NOM_ETAB") or "").strip() or None,
+                )
+            )
+    return index
 
 
 def _parse_date(raw: str | None) -> datetime | None:
@@ -158,27 +319,194 @@ class IngestStats:
     entrees_nouvelles: int = 0
     entrees_mises_a_jour: int = 0
     changements_adresse: list[dict] | None = None
-    nouveaux_etablissements: list[dict] | None = None
+    nouveaux_etablissements: list[dict] | None = None  # chemin plat legacy uniquement (voir docstring)
+    nouveaux_etablissements_secondaires: list[dict] | None = None  # chemin réel — signal "fort"
 
     def __post_init__(self):
         self.changements_adresse = self.changements_adresse or []
         self.nouveaux_etablissements = self.nouveaux_etablissements or []
+        self.nouveaux_etablissements_secondaires = self.nouveaux_etablissements_secondaires or []
+
+
+def _upsert_entreprise_reelle(
+    db_session: Session,
+    row: dict,
+    noms: dict[str, str],
+    etablissements: dict[str, list[_EtabLeger]],
+    stats: IngestStats,
+) -> None:
+    """Traite une ligne d'Entreprise.csv en la joignant aux index NEQ->nom
+    (Nom.csv) et NEQ->établissements (Etablissements.csv) déjà chargés en
+    mémoire par `_ingest_zip_req_reel`."""
+    neq = (row.get("NEQ") or "").strip()
+    if not neq:
+        return
+
+    nom = noms.get(neq)
+    if not nom:
+        # Ne devrait pas arriver (chaque NEQ d'Entreprise.csv a un historique dans
+        # Nom.csv) mais REQEntry.nom est non-nullable — ignorer plutôt que
+        # deviner un nom, conforme au principe de ne jamais interpréter en silence.
+        logger.warning("REQ: NEQ %s présent dans Entreprise.csv mais absent de Nom.csv, ignoré", neq)
+        return
+
+    statut = _decoder_statut_reel(row.get("COD_STAT_IMMAT"))
+    date_maj = _parse_date(row.get("DAT_MAJ_INDEX_NOM"))
+
+    etabs = etablissements.get(neq, [])
+    principal = next((e for e in etabs if e.principal), etabs[0] if etabs else None)
+
+    if principal is not None:
+        adresse, ville, code_postal = principal.adresse, principal.ville, principal.code_postal
+        secteur_code, secteur_libelle = principal.secteur_code, principal.secteur_libelle
+    elif (row.get("ADR_DOMCL_ADR_DISP") or "").strip().upper() == "O":
+        # Repli sur l'adresse du domicile (Entreprise.csv) — seulement quand aucun
+        # établissement n'est trouvé ET qu'elle est marquée disponible (confirmé
+        # réel : ADR_DOMCL_ADR_DISP='N' est fréquent, l'adresse est alors absente
+        # même remplie, donc on ne l'utilise QUE si disponible='O').
+        adresse, ville, code_postal = _decouper_adresse(
+            row.get("ADR_DOMCL_LIGN1_ADR") or "",
+            row.get("ADR_DOMCL_LIGN2_ADR") or "",
+            row.get("ADR_DOMCL_LIGN3_ADR") or "",
+            row.get("ADR_DOMCL_LIGN4_ADR") or "",
+        )
+        secteur_code = (row.get("COD_ACT_ECON_CAE") or "").strip() or None
+        secteur_libelle = _desc_secteur(row.get("DESC_ACT_ECON_ASSUJ"))
+    else:
+        adresse, ville, code_postal = None, None, None
+        secteur_code = (row.get("COD_ACT_ECON_CAE") or "").strip() or None
+        secteur_libelle = _desc_secteur(row.get("DESC_ACT_ECON_ASSUJ"))
+
+    existing = db_session.get(REQEntry, neq)
+    entreprise_deja_connue = existing is not None
+
+    if existing is None:
+        db_session.add(
+            REQEntry(
+                neq=neq,
+                nom=nom,
+                nom_normalise=_normaliser(nom),
+                adresse=adresse,
+                ville=ville,
+                region=None,  # pas de région administrative dans le vrai schéma REQ — voir docstring module
+                code_postal=code_postal,
+                secteur_code=secteur_code,
+                secteur_libelle=secteur_libelle,
+                statut=statut,
+                date_maj_req=date_maj,
+            )
+        )
+        stats.entrees_nouvelles += 1
+    else:
+        changement_adresse = adresse is not None and adresse != existing.adresse and existing.adresse is not None
+        if changement_adresse:
+            stats.changements_adresse.append(
+                {"neq": neq, "nom": nom, "ancienne_adresse": existing.adresse, "nouvelle_adresse": adresse}
+            )
+        if existing.nom != nom or existing.adresse != adresse or existing.statut != statut:
+            stats.entrees_mises_a_jour += 1
+        existing.nom = nom
+        existing.nom_normalise = _normaliser(nom)
+        existing.adresse = adresse
+        existing.ville = ville
+        existing.code_postal = code_postal
+        existing.secteur_code = secteur_code
+        existing.secteur_libelle = secteur_libelle
+        existing.statut = statut
+        existing.date_maj_req = date_maj
+
+    _diff_etablissements_secondaires(db_session, neq, etabs, entreprise_deja_connue=entreprise_deja_connue, stats=stats)
+
+
+def _diff_etablissements_secondaires(
+    db_session: Session,
+    neq: str,
+    etabs: list[_EtabLeger],
+    *,
+    entreprise_deja_connue: bool,
+    stats: IngestStats,
+) -> None:
+    """Signal "nouvel établissement secondaire" (fort, spec section 7, Signal 4) —
+    distinct du changement d'adresse du siège (moyen, géré dans
+    _upsert_entreprise_reelle ci-dessus). Ne se déclenche QUE pour un
+    établissement SECONDAIRE (IND_ETAB_PRINC='N') apparu chez une entreprise
+    DÉJÀ connue lors d'un import précédent — sinon la toute première
+    immatriculation d'une entreprise (avec son tout premier établissement)
+    déclencherait à tort ce signal fort, ce qui violerait le principe de
+    calibration (une nouvelle entreprise n'est pas une entreprise EN croissance)."""
+    for etab in etabs:
+        existant = db_session.get(REQEtablissementEntry, (neq, etab.no_suf_etab))
+        if existant is None:
+            if entreprise_deja_connue and not etab.principal:
+                stats.nouveaux_etablissements_secondaires.append(
+                    {
+                        "neq": neq,
+                        "no_suf_etab": etab.no_suf_etab,
+                        "adresse": etab.adresse,
+                        "nom_etablissement": etab.nom_etablissement,
+                    }
+                )
+            db_session.add(
+                REQEtablissementEntry(
+                    neq=neq,
+                    no_suf_etab=etab.no_suf_etab,
+                    principal=etab.principal,
+                    adresse=etab.adresse,
+                    ville=etab.ville,
+                    code_postal=etab.code_postal,
+                    secteur_libelle=etab.secteur_libelle,
+                    nom_etablissement=etab.nom_etablissement,
+                )
+            )
+        else:
+            existant.principal = etab.principal
+            existant.adresse = etab.adresse
+            existant.ville = etab.ville
+            existant.code_postal = etab.code_postal
+            existant.secteur_libelle = etab.secteur_libelle
+            existant.nom_etablissement = etab.nom_etablissement
+
+
+def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | None) -> IngestStats:
+    """Ingestion du VRAI fichier REQ (Entreprise.csv + Nom.csv + Etablissements.csv
+    joints par NEQ — voir docstring du module pour la structure confirmée le
+    2026-08-31). Charge d'abord les deux index (Nom.csv, Etablissements.csv,
+    ~280 Mo + ~35 Mo) en mémoire — bornés au nombre d'entreprises/établissements
+    distincts, pas au nombre de lignes brutes — puis balaie Entreprise.csv
+    (~630 Mo) en flux, une seule fois."""
+    noms = _charger_index_noms(zf)
+    etablissements = _charger_index_etablissements(zf)
+
+    stats = IngestStats()
+    with zf.open("Entreprise.csv") as raw:
+        text = io.TextIOWrapper(raw, encoding="utf-8-sig", errors="replace")
+        for row in csv.DictReader(text):
+            if limit is not None and stats.lignes_lues >= limit:
+                break
+            stats.lignes_lues += 1
+            _upsert_entreprise_reelle(db_session, row, noms, etablissements, stats)
+
+    db_session.commit()
+    return stats
 
 
 def ingest_snapshot(
     db_session: Session, limit: int | None = None, fichier_local: str | None = None
 ) -> IngestStats:
-    """Met à jour le miroir local (REQEntry) à partir du fichier REQ en vrac
-    (mise à jour deux fois par mois — spec section 7), en détectant au passage
-    les changements pertinents (nouvel établissement, changement d'adresse) par
-    comparaison à l'état précédemment connu. Toute résolution nom->NEQ ou
-    NEQ->fiche pour les AUTRES sources (resolve_neq_by_name, get_by_neq)
-    n'interroge QUE ce miroir local — jamais une requête réseau par entreprise
-    (spec section 7 : le fichier en vrac est la méthode principale, pas des
-    requêtes individuelles sur le site de consultation). `limit` borne le
-    nombre de lignes traitées — utile pour un premier test raisonnable plutôt
-    que le registre complet (accepté comme limite de volume, pas comme donnée
-    fictive : chaque ligne traitée reste une vraie ligne du REQ).
+    """Met à jour le miroir local (REQEntry + REQEtablissementEntry) à partir du
+    fichier REQ en vrac (mise à jour deux fois par mois — spec section 7), en
+    détectant au passage les changements pertinents (nouvel établissement
+    secondaire, changement d'adresse du siège) par comparaison à l'état
+    précédemment connu. Toute résolution nom->NEQ ou NEQ->fiche pour les AUTRES
+    sources (resolve_neq_by_name, get_by_neq) n'interroge QUE ce miroir local —
+    jamais une requête réseau par entreprise (spec section 7 : le fichier en
+    vrac est la méthode principale, pas des requêtes individuelles sur le site
+    de consultation). `limit` borne le nombre de lignes d'Entreprise.csv
+    traitées — utile pour un premier test raisonnable plutôt que le registre
+    complet (accepté comme limite de volume, pas comme donnée fictive : chaque
+    ligne traitée reste une vraie ligne du REQ) ; les index Nom.csv/
+    Etablissements.csv sont chargés en entier quel que soit `limit` (ils sont
+    nécessaires pour joindre n'importe quelle ligne d'Entreprise.csv).
 
     `fichier_local` : chemin d'un fichier déjà téléchargé PAR L'UTILISATEUR
     (spec section 9, "Import manuel de documents sources") — voir
@@ -186,9 +514,17 @@ def ingest_snapshot(
     docs/STATUT_RESEAU.md (le téléchargement automatisé depuis cette session
     est bloqué par une règle Cloudflare visant les plages IP infonuagiques,
     pas un problème de méthode d'accès — voir REQConnector.detect ci-dessous,
-    conservé documenté mais plus branché dans le registre pour la Phase 1).
-    Si omis, retombe sur le téléchargement automatisé via CKAN."""
+    conservé documenté mais plus branché dans le registre pour la Phase 1). Si
+    omis, retombe sur le téléchargement automatisé via CKAN (chemin plat legacy
+    — voir docstring du module : le vrai fichier REQ n'est jamais un CSV plat,
+    ce repli réseau n'a donc plus de vraie utilité pratique en Phase 1, gardé
+    documenté au cas où l'accès redeviendrait praticable)."""
     if fichier_local is not None:
+        if str(fichier_local).lower().endswith(".zip"):
+            with zipfile.ZipFile(fichier_local) as zf:
+                noms_csv = {n for n in zf.namelist() if n.lower().endswith(".csv")}
+                if FICHIERS_REQ_REELS.issubset(noms_csv):
+                    return _ingest_zip_req_reel(db_session, zf, limit)
         resources = [{"_local_path": fichier_local}]
     else:
         client = CKANClient(DONNEES_QUEBEC_BASE)
@@ -242,6 +578,10 @@ def _chain_one(first, rest: Iterator[dict]) -> Iterator[dict]:
 
 
 def _upsert_row(db_session: Session, row: dict, columns: dict[str, str], stats: IngestStats) -> None:
+    """Chemin "fichier plat" legacy — voir docstring du module : le vrai fichier
+    REQ n'est jamais un CSV plat, cette fonction ne sert plus qu'au repli réseau
+    dormant (REQConnector.detect) et aux tests de mécanique avec un CSV
+    synthétique à une seule table."""
     neq = (row.get(columns["neq"]) or "").strip()
     if not neq:
         return
@@ -370,19 +710,28 @@ def _stats_vers_signaux(stats: IngestStats) -> Iterator[RawSignal]:
     """Convertit les diffs détectés par ingest_snapshot en RawSignal — factorisé
     pour être identique que l'ingestion vienne du réseau (REQConnector.detect,
     dormant en Phase 1) ou d'un fichier importé manuellement
-    (REQConnector.detect_from_file, actif en Phase 1 — voir docs/STATUT_RESEAU.md)."""
+    (REQConnector.detect_from_file, actif en Phase 1 — voir docs/STATUT_RESEAU.md).
+
+    Une NOUVELLE IMMATRICULATION (stats.nouveaux_etablissements, chemin plat
+    legacy uniquement) n'est PAS un signal — une entreprise qui vient de
+    naître n'est pas une entreprise EN croissance, et la traiter comme un
+    signal violerait le principe de calibration (spec section 6 : distinguer
+    un vrai signal de croissance du bruit). Seul le chemin réel (Entreprise.csv
+    + Nom.csv + Etablissements.csv) produit les deux signaux confirmés par la
+    spec (section 7, Signal 4) : nouvel établissement SECONDAIRE d'une
+    entreprise déjà connue (fort) et changement d'adresse du siège (moyen)."""
     now = datetime.now(timezone.utc)
 
-    for nouveau in stats.nouveaux_etablissements:
+    for etab in stats.nouveaux_etablissements_secondaires:
         yield RawSignal(
             signal_type_id="registre_corporatif",
-            nom_entreprise=nouveau["nom"],
+            nom_entreprise=etab.get("nom_etablissement") or "",
             detected_at=now,
-            source_ref=f"req:nouvel_etablissement:{nouveau['neq']}",
-            neq=nouveau["neq"],
-            adresse=nouveau["adresse"],
-            titre_ou_description="Nouvelle immatriculation au REQ",
-            champs={"type_changement": "nouvel_etablissement", **nouveau},
+            source_ref=f"req:etablissement_secondaire:{etab['neq']}:{etab['no_suf_etab']}",
+            neq=etab["neq"],
+            adresse=etab.get("adresse"),
+            titre_ou_description="Nouvel établissement secondaire au REQ",
+            champs={"type_changement": "nouvel_etablissement_secondaire", **etab},
         )
 
     for chgt in stats.changements_adresse:
@@ -430,7 +779,9 @@ class REQConnector(SourceConnector):
         2026-08-31, voir docs/STATUT_RESEAU.md)."""
         return inspect_zip(path)
 
-    def detect_from_file(self, path, db_session: Session) -> Iterator[RawSignal]:
+    def detect_from_file(
+        self, path, db_session: Session, *, limit: int | None = None
+    ) -> Iterator[RawSignal]:
         """Chemin ACTIF en Phase 1 (spec section 9, "Import manuel de documents
         sources") : Alexandre télécharge lui-même le fichier en vrac depuis
         https://www.donneesquebec.ca/recherche/dataset/registre-des-entreprises
@@ -438,8 +789,16 @@ class REQConnector(SourceConnector):
         registry/sources.yaml) et l'importe via
         `observador import-manuel req --fichier <chemin>`. Réutilise EXACTEMENT
         la même logique de parsing/diff que le chemin automatisé
-        (ingest_snapshot), seule la provenance du fichier change."""
-        stats = ingest_snapshot(db_session, limit=None, fichier_local=path)
+        (ingest_snapshot), seule la provenance du fichier change.
+
+        `limit` est transmis tel quel à `ingest_snapshot` — CRITIQUE pour le
+        chemin réel (`_ingest_zip_req_reel`) : celui-ci ne produit ses signaux
+        qu'APRÈS avoir traité tout Entreprise.csv (pas un générateur
+        ligne-par-ligne), donc un bornage appliqué seulement aux signaux
+        produits par l'appelant (comme le fait manual_import.
+        importer_fichier_source en filet de sécurité) ne réduirait pas le
+        volume réellement lu — seul `ingest_snapshot(limit=...)` le fait."""
+        stats = ingest_snapshot(db_session, limit=limit, fichier_local=path)
         logger.info(
             "REQ (fichier importé): %s lignes lues, %s nouvelles, %s mises à jour, %s changements d'adresse retenus",
             stats.lignes_lues,
