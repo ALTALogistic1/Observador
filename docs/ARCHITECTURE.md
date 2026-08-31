@@ -3,6 +3,38 @@
 Ce document explique comment le code répond à chaque exigence structurelle du
 README de démarrage et de `repereur-entreprises-croissance-specs.md`.
 
+## Import manuel de documents sources (spec section 9, ajouté le 2026-08-31)
+
+`observador/manual_import.py` implémente le mécanisme générique demandé :
+activer une source dont l'automatisation impliquerait un coût récurrent (ex.
+RDPRM, payant à l'unité) sans engagement — l'utilisateur fait lui-même la
+recherche ponctuelle sur le site de la source, puis l'importe.
+
+- **Généralisé, pas codé en dur pour le RDPRM** : `importer_document_manuel(db_session,
+  source_id, nom_entreprise, ...)` fonctionne pour N'IMPORTE QUELLE source du
+  registre dont `methode_acces == "import_manuel"`. RDPRM en est la première
+  instance, pas la seule prévue.
+- **Même pipeline qu'une source automatisée** : le document importé passe par
+  `resolve_company` (résolution NEQ, section 9) exactement comme un `RawSignal`
+  produit par un connecteur, puis `traiter_apres_import` appelle la MÊME
+  fonction que le moteur (`engine._traiter_entreprise_pour_profil`) pour les
+  vérifications de base, le score et la notification — "sans distinction de
+  traitement une fois à l'intérieur du pipeline" (spec).
+- **Lien direct de recherche obligatoire** : `SourceDef.lien_recherche` doit
+  être renseigné pour toute source active en `import_manuel` —
+  `Registry.valider_calibration()` lève une erreur sinon (même mécanisme de
+  garde-fou que la règle de calibration). RDPRM :
+  `https://www.rdprm.gouv.qc.ca/Consultation/`.
+- **Traçabilité** : chaque `Signal` porte `methode_acces` (la méthode
+  RÉELLEMENT utilisée pour CE signal, capturée à l'ingestion — donnees_ouvertes,
+  api, import_manuel...) et `importe_par` (courriel de la personne qui a fait
+  l'import, pour un signal en import manuel) — spec : "le registre garde une
+  trace de la méthode d'accès utilisée pour chaque entrée traitée de cette
+  façon".
+- **Calibration reste la responsabilité de l'utilisateur au moment de choisir
+  quoi importer** (le code ne peut pas juger un document arbitraire) — voir
+  `regle_calibration` de l'entrée `rdprm` dans `registry/sources.yaml`.
+
 ## Les "Principes directeurs" (bloc ajouté en tête de la spec le 2026-08-31)
 
 La spec ouvre maintenant sur 9 principes directeurs, présentés comme la grille de

@@ -6,12 +6,37 @@ notifie l'utilisateur des prospects probables — voir
 `docs/spec/repereur-entreprises-croissance-specs.md` pour les spécifications
 complètes et `docs/spec/README-demarrage.md` pour les consignes de démarrage.
 
-**Phase 1** (en cours) : chemin complet de bout en bout avec 4 sources — **SEAO**
-(appels d'offres), **RDPRM** (financement, en attente — voir plus bas), **REQ**
-(registre corporatif + pivot de résolution NEQ), **Guichet-Emplois** (recrutement).
-Objectif : valider tout le pipeline, pas la couverture complète. Voir
-`docs/ARCHITECTURE.md` pour le détail et `docs/STATUT_RESEAU.md` pour l'état des
-accès réseau et les découvertes faites en construisant cette phase.
+**Phase 1** (en cours) : chemin complet de bout en bout, avec 8 sources actives
+au registre (état au 2026-08-31, voir `observador registry sources`) —
+**SEAO** et **contrats fédéraux** (appels d'offres), **REQ** et **Corporations
+Canada** (registre corporatif + pivot de résolution NEQ pour le Québec),
+**EIMT positive** (recrutement, avec nom d'employeur), **subventions
+fédérales** et **Investissement Québec** (financement), et **RDPRM**
+(financement, activé via import manuel — voir plus bas). **Guichet-Emplois**
+est repassé à `à développer` : le fichier en vrac ne donne pas le nom de
+l'employeur (voir `docs/STATUT_RESEAU.md`). Objectif de la phase : valider
+tout le pipeline, pas la couverture complète. Voir `docs/ARCHITECTURE.md`
+pour le détail et `docs/STATUT_RESEAU.md` pour l'état des accès réseau et les
+découvertes faites en construisant cette phase (2 sources — Corporations
+Canada, Investissement Québec — sont actives au registre mais pas encore
+validées avec de vraies données, en attente de deux domaines réseau).
+
+### Import manuel (RDPRM)
+
+Le RDPRM est payant à l'unité (11 $/nom) sans accès gratuit en vrac. Plutôt
+que d'attendre une décision d'abonnement, il s'active via un mécanisme
+générique d'import manuel (spec section 9) : vous faites la recherche
+vous-même, puis l'importez — elle entre alors dans le même pipeline qu'une
+source automatisée (résolution NEQ, vérifications, score, corroboration).
+
+```bash
+python -m observador.cli import-manuel lien --source-id rdprm   # lien direct vers la recherche RDPRM
+
+python -m observador.cli import-manuel ajouter \
+  --source-id rdprm --entreprise "Nom légal exact (REQ)" \
+  --valeur 75000 --nature-bien "équipement de production" \
+  --date-evenement 2026-08-15 --institution "Nom de l'institution créancière"
+```
 
 ## Installation
 

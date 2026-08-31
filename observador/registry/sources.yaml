@@ -18,16 +18,24 @@
 #                         section 8 — ou une décision budgétaire qui revient à Alexandre, par
 #                         opposition à une source simplement pas encore développée)
 #   methode_acces         api | donnees_ouvertes | scraping | agregateur_tiers | payant_unitaire
+#                         | import_manuel (spec section 9, "Import manuel de documents
+#                         sources" — activer une source payante à l'unité sans engagement
+#                         récurrent ; voir observador/manual_import.py, générique pour
+#                         n'importe quelle source dans cette situation, pas que le RDPRM)
 #   champs_pertinents     liste des champs à extraire et conserver (section 7)
 #   cout                  gratuit | payant + détail
 #   region                region couverte
 #   connecteur            chemin du module connecteur (observador/sources/<module>.py) ;
-#                         null pour une source sans connecteur codé pour l'instant
+#                         null pour une source sans connecteur codé pour l'instant, ou pour
+#                         une source en import_manuel (pas de boucle de découverte automatisée)
 #   regle_calibration      la règle concrète et vérifiable qui distingue un vrai signal
 #                         de croissance du bruit pour CETTE source (Principes directeurs
 #                         #3, non négociable) ; null tant qu'elle n'est pas définie — une
 #                         source ne peut avoir statut=actif sans elle (voir
 #                         Registry.valider_calibration, appelé avant tout scan réel)
+#   lien_recherche         obligatoire quand methode_acces == import_manuel : lien direct
+#                         vers la page de RECHERCHE de la source (pas sa page d'accueil),
+#                         présenté à l'utilisateur au moment de l'import (voir CLI)
 #   notes                 contexte libre (limites connues, contacts, découvertes)
 
 sources:
@@ -64,9 +72,10 @@ sources:
   - id: rdprm
     nom: "RDPRM (Registre des droits personnels et réels mobiliers)"
     signal_associe: [financement_expansion]
-    statut: a_developper
+    statut: actif
     blocage_type: null
-    methode_acces: payant_unitaire
+    methode_acces: import_manuel
+    lien_recherche: "https://www.rdprm.gouv.qc.ca/Consultation/"
     champs_pertinents:
       - nom_entreprise_debitrice
       - adresse_entreprise_debitrice        # résolue via REQ à défaut
@@ -76,23 +85,30 @@ sources:
       - institution_creancière
     cout: "Payant à l'unité — tarif réglementé : 11 $ par recherche par nom d'entreprise, 4 $ par NIV. Pas d'abonnement en vrac ni d'API publique."
     region: "Québec"
-    connecteur: observador.sources.rdprm
+    connecteur: null  # pas de boucle de découverte automatisée — voir observador/manual_import.py
     regle_calibration: >
-      Requise avant activation, pas encore implémentée (source volontairement laissée
-      `a_developper` pour cette raison, conformément au Principe directeur #3) : ne
-      retenir qu'une garantie sur bien d'entreprise à valeur significative, en
-      excluant les garanties sur biens personnels et les garanties qui ressemblent à
-      un refinancement ou un achat de routine (véhicule isolé) plutôt qu'à une réelle
-      expansion (équipement/inventaire de production). Voir spec section 6/8.
+      Appliquée par Alexandre au moment de CHOISIR de faire l'import (pas
+      vérifiable par le code sur un document arbitraire) : ne retenir qu'une
+      garantie sur bien d'entreprise à valeur significative, en excluant les
+      garanties sur biens personnels et les garanties qui ressemblent à un
+      refinancement ou un achat de routine (véhicule isolé) plutôt qu'à une
+      réelle expansion (équipement/inventaire de production) — spec section
+      6/7. Une fois importée, la valeur et la nature du bien passent par le même
+      barème de score que documenté (observador/scoring.py:_score_financement_expansion).
     notes: >
-      DÉCOUVERTE (contredit l'hypothèse du README) : aucun accès gratuit en vrac ni API
-      publique — seulement une consultation payante à l'unité, une recherche à la fois,
-      carte de crédit (voir rdprm.gouv.qc.ca). Décision (2026-08-31, Alexandre) : rester
-      `a_developper` pour la Phase 1, pas de blocage — le tarif est prévisible et pas
-      prohibitif à l'échelle d'un déclenchement CIBLÉ sur des entreprises déjà détectées
-      par une autre source (jamais un balayage en vrac). Le connecteur Phase 2 devra donc
-      être appelé depuis le moteur après une détection existante, pas depuis une boucle
-      de découverte indépendante.
+      ACTIVÉE le 2026-08-31 via le mécanisme générique d'import manuel (spec
+      section 9, "Import manuel de documents sources") plutôt qu'une automatisation
+      complète — aucun abonnement ni engagement récurrent : Alexandre paie
+      seulement les recherches RDPRM qu'il choisit de faire, au moment où il les
+      fait (11 $/nom), et les importe via `observador import-manuel --source-id
+      rdprm` (voir observador/manual_import.py et observador/cli.py). Le résultat
+      importé suit ensuite exactement le même pipeline qu'un signal automatisé
+      (résolution NEQ, vérifications de base, score, corroboration,
+      notification). DÉCOUVERTE antérieure (contredit l'hypothèse du README) :
+      aucun accès gratuit en vrac ni API publique — seulement cette consultation
+      payante à l'unité, une recherche à la fois, carte de crédit (voir
+      rdprm.gouv.qc.ca) — d'où le choix de l'import manuel plutôt que
+      l'automatisation.
 
   - id: req
     nom: "Registre des entreprises du Québec (REQ)"
@@ -127,14 +143,18 @@ sources:
       voir observador/sources/req.py. Les actionnaires/administrateurs sont anonymisés
       dans les données ouvertes.
 
+  # ---------------------------------------------------------------------
+  # Phase 2 — gratuites, à développer (section 8 : toute source gratuite de
+  # bonne qualité fait partie du prototype, séquencée après la Phase 1)
+  # ---------------------------------------------------------------------
   - id: guichet_emplois
     nom: "Guichet-Emplois (Job Bank Canada)"
     signal_associe: [recrutement_massif]
-    statut: actif
+    statut: a_developper
     blocage_type: null
     methode_acces: donnees_ouvertes
     champs_pertinents:
-      - nom_employeur
+      - nom_employeur   # NON DISPONIBLE dans le fichier réel — voir notes
       - titre_poste          # texte intégral, pour l'analyse qualitative des mots-clés
       - profession_cnp
       - nombre_postes
@@ -145,27 +165,38 @@ sources:
     region: "Canada"
     connecteur: observador.sources.guichet_emplois
     regle_calibration: >
-      Deux mécanismes de calibration distincts (spec section 7, Signal 3) : (1) le
-      signal qualitatif ne retient un poste que si son titre contient un mot-clé de
-      transformation/implantation, générique ou propre au profil — voir
+      Deux mécanismes de calibration DÉJÀ IMPLÉMENTÉS et prêts si la source est un
+      jour réactivée (spec section 7, Signal 3) : (1) le signal qualitatif ne
+      retient un poste que si son titre contient un mot-clé de transformation/
+      implantation, générique ou propre au profil — voir
       observador/matching.py:correspondance_qualitative_titre ; (2) le signal
       volumétrique se calibre par paliers de nombre de postes simultanés — voir
-      observador/scoring.py:_score_recrutement_massif. Une simple offre isolée sans
-      titre qualitatif ne franchit ni l'un ni l'autre.
+      observador/scoring.py:_score_recrutement_massif. Ni l'un ni l'autre ne
+      suffit cependant à réactiver cette source : voir la découverte bloquante
+      ci-dessous, indépendante de la calibration.
     notes: >
-      Données ouvertes via CKAN (open.canada.ca), CSV/TSV/JSON/XML, mise à jour mensuelle
-      (délai à considérer — moins réactif qu'un flux temps réel). Ne couvre que les offres
-      publiées sur le Guichet-Emplois ou partagées par ses partenaires — pas 100% du
-      marché.
+      RETIRÉE DE LA PHASE 1 ACTIVE le 2026-08-31 (décision d'Alexandre). Découverte
+      bloquante en testant le vrai fichier (téléchargement réussi une fois
+      opencanada.blob.core.windows.net autorisé) : les 65 colonnes réelles du CSV
+      (encodé UTF-16, tabulé — pas UTF-8/virgule comme supposé) ne contiennent
+      AUCUN nom d'employeur, confirmé aussi par la description officielle du jeu
+      de données sur open.canada.ca, qui énumère les champs inclus sans jamais
+      mentionner l'identité de l'employeur. Aucune colonne URL/permalien vers
+      l'offre non plus. Sans nom d'employeur, resolve_company n'a rien à résoudre
+      — voir docs/STATUT_RESEAU.md pour le détail complet. Le connecteur
+      (observador/sources/guichet_emplois.py) reste tel quel (pas de correctif de
+      parsing appliqué, la découverte rend la question du format secondaire) ;
+      resterait à réévaluer si un jour Job Bank publie l'identité de l'employeur
+      dans ce jeu de données, ou en dernier recours via une recherche ciblée sur
+      le site public par offre déjà qualifiée (pas un balayage en vrac — même
+      principe que le RDPRM). Le signal recrutement pour la Phase 1 repose donc
+      uniquement sur des sources Phase 2 non encore actives (EIMT, qui donne le
+      nom de l'employeur par construction ; agrégateur tiers payant).
 
-  # ---------------------------------------------------------------------
-  # Phase 2 — gratuites, à développer (section 8 : toute source gratuite de
-  # bonne qualité fait partie du prototype, séquencée après la Phase 1)
-  # ---------------------------------------------------------------------
   - id: eimt
     nom: "Employeurs avec EIMT positive (EDSC)"
     signal_associe: [recrutement_massif]
-    statut: a_developper
+    statut: actif
     blocage_type: null
     methode_acces: donnees_ouvertes
     champs_pertinents:
@@ -177,19 +208,41 @@ sources:
       - trimestre
     cout: gratuit
     region: "Canada"
-    connecteur: null
+    connecteur: observador.sources.eimt
+    regle_calibration: >
+      Aucun filtrage de bruit nécessaire : chaque ligne du fichier est déjà une
+      EIMT effectivement approuvée par Service Canada (pas une demande ou une
+      intention) — signal fort par construction. Les limites inhérentes au jeu de
+      données (exclusion des employeurs à nom personnel, ne couvre que le
+      recours à des travailleurs étrangers temporaires) sont documentées mais ne
+      sont pas des filtres que nous appliquons — elles viennent de la source
+      elle-même. Score dédié (plus généreux qu'un simple affichage de poste) dans
+      observador/scoring.py:_score_recrutement_massif (branche source_id=="eimt").
     notes: >
-      Publié trimestriellement en CSV sur open.canada.ca. Signal de très haute qualité
-      (pénurie de main-d'œuvre confirmée officiellement). Exclut les employeurs à nom
-      personnel; ne couvre que les employeurs recourant à des travailleurs étrangers
-      temporaires.
+      PROMUE en source active Phase 1 le 2026-08-31 (mise à jour de spec, remplace
+      Guichet-Emplois pour le signal recrutement). Testé avec de vraies données le
+      2026-08-31 : téléchargement et parsing réels réussis (ex. "Barry Group Inc",
+      Terre-Neuve-et-Labrador, 106 postes approuvés, profession "94142-Ouvriers...
+      transformation du poisson"). DEUX découvertes techniques par rapport à la
+      spec d'origine : (1) format réel = XLSX pour les trimestres récents (CSV
+      seulement pour les plus anciens, ~2021 et avant) — le connecteur gère les
+      deux ; (2) le fichier a une ligne de titre fusionnée avant la vraie ligne
+      d'en-têtes, qui contient elle-même le mot "employeurs" — un piège pour un
+      détecteur d'en-tête basé sur une simple sous-chaîne (corrigé en exigeant une
+      correspondance EXACTE sur la cellule, pas une sous-chaîne — voir
+      observador/sources/eimt.py:_find_header_row). Couvre tout le Canada ; en
+      Phase 1, seules les entreprises résolvables via le REQ (Québec) produisent
+      une notification, les autres restent `non_trouve` et sont exclues
+      silencieusement — comportement attendu tant que Corporations Canada/autres
+      registres provinciaux ne sont pas actifs (voir Généralisation du pivot
+      d'identité, docs/ARCHITECTURE.md).
 
   - id: subventions_federales
     nom: "Subventions et contributions gouvernementales — divulgation proactive fédérale"
     signal_associe: [financement_expansion]
-    statut: a_developper
+    statut: actif
     blocage_type: null
-    methode_acces: donnees_ouvertes
+    methode_acces: api  # API Datastore CKAN — voir notes
     champs_pertinents:
       - nom_beneficiaire
       - montant
@@ -199,16 +252,32 @@ sources:
       - localisation_beneficiaire   # résolue via REQ si absente
     cout: gratuit
     region: "Canada"
-    connecteur: null
+    connecteur: observador.sources.subventions_federales
+    regle_calibration: >
+      Aucun filtrage de bruit nécessaire : chaque enregistrement est déjà une
+      entente de subvention/contribution effectivement signée et divulguée
+      (pas une demande), même logique que SEAO — voir seao.regle_calibration.
+      Le type d'entente (agreement_type: G=subvention, C=contribution, O=autre)
+      et le programme sont conservés pour affiner le scoring plus tard si besoin.
     notes: >
-      open.canada.ca, tous ministères fédéraux. Absorbe DEC, PARI-CNRC, CanExport,
-      FedDev Ontario, FedNor, APECA, PrairiesCan, PacifiCan comme des filtres à configurer
-      sur cette même source, pas des sources séparées.
+      ACTIVÉE en source Phase 1 le 2026-08-31 (demande d'Alexandre — les 4
+      nouvelles sources de la mise à jour de spec sont activées directement,
+      pas laissées à développer). Absorbe DEC, PARI-CNRC, CanExport, FedDev
+      Ontario, FedNor, APECA, PrairiesCan, PacifiCan comme des filtres sur
+      cette même source, pas des sources séparées. TESTÉ avec de vraies
+      données le 2026-08-31 : le fichier CSV brut pèse ~2,3 Go (tout
+      l'historique fédéral) — ingérable en entier ; utilise plutôt l'API
+      Datastore CKAN (`datastore_search`, déjà indexée sur cette ressource),
+      filtrée et triée par date. Exemple réel : "Le Festival International de
+      Jazz de Montréal inc.", 249 999 $, Développement économique Canada pour
+      les régions du Québec, 2026-07-28. Aucun nouveau domaine réseau requis
+      (même infrastructure open.canada.ca/opencanada.blob.core.windows.net
+      que le Guichet-Emplois et l'EIMT, déjà autorisée).
 
   - id: investissement_quebec
     nom: "Investissement Québec — divulgation publique"
     signal_associe: [financement_expansion]
-    statut: a_developper
+    statut: actif
     blocage_type: null
     methode_acces: donnees_ouvertes
     champs_pertinents:
@@ -220,17 +289,30 @@ sources:
       - secteur_activite       # résolu via REQ si absent
     cout: gratuit
     region: "Québec"
-    connecteur: null
-    regle_calibration: null  # à définir en Phase 2 : distinguer financement d'expansion vs maintien/formation (voir critères section 6)
+    connecteur: observador.sources.investissement_quebec
+    regle_calibration: >
+      Aucun filtrage de bruit nécessaire : chaque ligne de la liste de
+      divulgation est déjà une intervention financière effectivement accordée
+      (pas une demande) — même logique que SEAO. La distinction "expansion
+      explicite vs formation/maintien" (spec section 6) demanderait de connaître
+      le programme précis par ligne, non confirmé dans la structure réelle du
+      PDF (non validé — voir notes) ; en son absence, le montant seul calibre le
+      score (observador/scoring.py:_score_financement_expansion), ce qui reste
+      cohérent avec le critère "montant relatif à la taille de l'entreprise".
     notes: >
-      Liste de divulgation publique gratuite, cible PME. Découverte (mise à jour de
-      la spec, 2026-08-31) : la liste est publiée en PDF, pas en CSV/API structuré —
-      hébergée sur www.investquebec.com (ex.
-      investquebec.com/sites/default/files/.../interventions-financieres-2025.pdf),
-      mise à jour annuellement. Extraction Phase 2 : traitement PDF plutôt qu'un
-      simple parsing de fichier structuré. Domaine réseau distinct de
-      donneesquebec.ca/open.canada.ca — à ajouter à la liste Custom seulement à
-      l'activation (ne pas ajouter par anticipation, voir docs/STATUT_RESEAU.md).
+      ACTIVÉE en source Phase 1 le 2026-08-31 (demande d'Alexandre). ⚠️ NON
+      VALIDÉE avec de vraies données : `www.investquebec.com` (domaine du PDF)
+      pas encore autorisé dans l'environnement — voir docs/STATUT_RESEAU.md.
+      URL réelle trouvée par recherche : investquebec.com/sites/default/files/
+      2026-02/investissement-quebec-interventions-financieres-2025.pdf ("Liste
+      de divulgation 2024-2025 — Nom de l'entreprise, Montant de financement").
+      Format PDF, pas CSV/API — extraction par pdfplumber (tableaux), en-tête
+      détectée dynamiquement plutôt que supposée à une position fixe, mais
+      structure interne non confirmée. Mise à jour annuelle : l'URL change
+      chaque année (mois/année dans le chemin) — à ajuster à la main une fois
+      par an (OBSERVADOR_IQ_PDF_URL ou paramètre `url` du connecteur), aucune
+      découverte dynamique possible faute de portail structuré pour cette
+      source.
 
   - id: deloitte_fast50
     nom: "Deloitte Technology Fast 50 (Canada/Québec)"
@@ -336,7 +418,7 @@ sources:
   - id: corporations_canada
     nom: "Corporations Canada (ISED) — registre fédéral"
     signal_associe: [registre_corporatif]
-    statut: a_developper
+    statut: actif
     blocage_type: null
     methode_acces: donnees_ouvertes  # + api (temps réel, plus complet qu'un simple bulk)
     champs_pertinents:
@@ -348,30 +430,41 @@ sources:
       - loi_constitutive
     cout: gratuit
     region: "Canada"
-    connecteur: null
+    connecteur: observador.sources.corporations_canada
     regle_calibration: >
-      Même logique que le REQ (voir req.regle_calibration) : ne retenir qu'un nouvel
-      enregistrement ou un changement d'adresse du bureau enregistré, exclure les
-      mises à jour administratives de routine. À vérifier une fois l'accès testé
-      (structure des mises à jour peut différer du REQ).
+      Même logique que le REQ (voir req.regle_calibration) : seule une NOUVELLE
+      corporation active (détectée par diff entre deux rafraîchissements du
+      miroir local) génère un signal — voir
+      observador/sources/corporations_canada.py:ingest_snapshot. Pas encore de
+      détection de changement d'adresse (contrairement au REQ) faute d'avoir pu
+      valider la structure réelle des mises à jour — limitation documentée,
+      pas un filtre de bruit manquant.
     notes: >
-      Découverte (mise à jour de la spec, 2026-08-31) : équivalent fédéral du REQ,
-      mais pancanadien — répond au besoin de couverture Canada anglais. Téléchargement
-      gratuit en vrac mis à jour QUOTIDIENNEMENT (plus fréquent que le REQ), plus une
-      vraie API temps réel. Ne couvre que les entreprises incorporées fédéralement
-      (pas la majorité des PME, incorporées provincialement) — complète le REQ sans le
-      remplacer. Identifiant pivot : numéro de corporation fédérale, PAS un NEQ — voir
-      docs/ARCHITECTURE.md, section sur la généralisation du pivot d'identité hors
-      Québec. Accès aux registres provinciaux hors Québec inégal si activé plus tard
-      (gratuit ON/NS pour la recherche de base, payant C.-B., fermé Alberta) — à
+      ACTIVÉE en source Phase 1 le 2026-08-31 (demande d'Alexandre). ⚠️ NON
+      VALIDÉE avec de vraies données : les ressources CSV du jeu de données CKAN
+      sont hébergées sur `d4bf66bykfyaf.cloudfront.net` (AWS CloudFront), domaine
+      pas encore autorisé dans l'environnement au moment de l'écriture — voir
+      docs/STATUT_RESEAU.md. Le connecteur est écrit contre la documentation
+      publique du jeu de données (colonnes estimées, pas confirmées) avec le même
+      garde-fou que req.py (resolve_columns échoue explicitement plutôt que de
+      mal interpréter). Équivalent fédéral du REQ, mais pancanadien — répond au
+      besoin de couverture Canada anglais. Téléchargement gratuit en vrac mis à
+      jour QUOTIDIENNEMENT (plus fréquent que le REQ), plus une vraie API temps
+      réel (non utilisée ici — le bulk suffit pour un signal de type "nouvelle
+      incorporation"). Ne couvre que les entreprises incorporées fédéralement —
+      complète le REQ sans le remplacer. Identifiant pivot : numéro de
+      corporation fédérale, PAS un NEQ — pas de pivot partagé en Phase 1, voir
+      docs/ARCHITECTURE.md, "Généralisation du pivot d'identité". Accès aux
+      registres provinciaux hors Québec inégal si activé plus tard (gratuit
+      ON/NS pour la recherche de base, payant C.-B., fermé Alberta) — à
       documenter au cas par cas.
 
   - id: contrats_federaux
     nom: "Divulgation proactive des contrats fédéraux"
     signal_associe: [appel_offres]
-    statut: a_developper
+    statut: actif
     blocage_type: null
-    methode_acces: donnees_ouvertes
+    methode_acces: api  # API Datastore CKAN — voir notes
     champs_pertinents:
       - entreprise_adjudicataire
       - valeur_contrat
@@ -380,18 +473,22 @@ sources:
       - description_sommaire
     cout: gratuit
     region: "Canada"
-    connecteur: null
+    connecteur: observador.sources.contrats_federaux
     regle_calibration: >
       Même logique que SEAO (voir seao.regle_calibration) : chaque enregistrement de
       divulgation proactive est déjà un contrat effectivement attribué (>10 000$ par
       seuil de divulgation), pas une soumission — aucun filtrage de bruit additionnel
-      attendu, à confirmer une fois le format réel inspecté.
+      nécessaire.
     notes: >
-      Découverte (mise à jour de la spec, 2026-08-31) : équivalent fédéral pancanadien
-      du SEAO — répond au besoin de couverture Canada anglais pour ce signal. Contrats
-      de plus de 10 000$ accordés par les ministères fédéraux, CSV gratuit sur
-      open.canada.ca — probable même infrastructure/redirection que le Guichet-Emplois
-      (opencanada.blob.core.windows.net, déjà autorisé depuis la Phase 1).
+      ACTIVÉE en source Phase 1 le 2026-08-31 (demande d'Alexandre). Équivalent
+      fédéral pancanadien du SEAO — répond au besoin de couverture Canada
+      anglais pour ce signal. TESTÉ avec de vraies données le 2026-08-31 :
+      fichier CSV brut ~640 Mo (tout l'historique fédéral) — utilise l'API
+      Datastore CKAN plutôt que le téléchargement complet, comme pour les
+      subventions fédérales. Exemple réel : "Real Time Networks Inc",
+      120 518,57 $, contrat 2026-12-01. Aucun nouveau domaine réseau requis
+      (même infrastructure open.canada.ca/opencanada.blob.core.windows.net
+      déjà autorisée).
 
   - id: licences_affaires_municipales
     nom: "Licences d'affaires municipales (ex. Vancouver, Toronto)"

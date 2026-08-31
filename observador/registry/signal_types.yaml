@@ -65,7 +65,7 @@ signal_types:
       Volume de postes ouverts simultanément, récurrence sur plusieurs mois, OU
       un signal qualitatif indépendant du volume : un titre de poste orienté
       transformation/implantation (signal fort même avec un seul poste).
-    sources_associees: [guichet_emplois, eimt, quebec_emploi, agregateur_recrutement_tiers]
+    sources_associees: [eimt, guichet_emplois, quebec_emploi, agregateur_recrutement_tiers]
     criteres_confiance:
       - "Nombre de postes ouverts simultanément"
       - "Vitesse de publication (plusieurs postes en peu de temps)"

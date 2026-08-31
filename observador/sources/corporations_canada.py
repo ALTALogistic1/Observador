@@ -1,0 +1,162 @@
+"""Connecteur Corporations Canada (ISED) — spec section 7, Signal 4. Équivalent
+fédéral du REQ, mais pancanadien — couvre les entreprises incorporées sous une
+loi fédérale partout au Canada (répond au besoin de couverture Canada anglais).
+
+Jeu de données CKAN "Federal Corporations" (0032ce54-c5dd-4b66-99a0-320a7b5e99f2)
+sur open.canada.ca, dont les ressources (CSV, 4 sous-ensembles : sociétés par
+actions actives/inactives, autres corporations actives/inactives) sont en
+réalité hébergées sur `d4bf66bykfyaf.cloudfront.net` (CloudFront/AWS) —
+DOMAINE NON ENCORE AUTORISÉ dans l'environnement au moment de l'écriture (voir
+docs/STATUT_RESEAU.md). Ce connecteur n'a donc PAS pu être validé avec de
+vraies données — `COLUMN_ALIASES` est une meilleure estimation d'après la
+documentation publique du jeu de données (Corporation Number, Corporate Name,
+Status, Registered Office Address, Incorporation Date, Governing Act), pas une
+confirmation. `resolve_columns` échoue explicitement si les vraies en-têtes ne
+correspondent pas, plutôt que de mal interpréter les données — même garde-fou
+que pour req.py avant sa propre validation.
+
+Rôle en Phase 1 : SOURCE DE SIGNAL en soi, par diff entre deux rafraîchissements
+du miroir local (CorporationFederaleEntry) — même mécanique que REQ pour
+"nouvel établissement" (une nouvelle corporation active détectée = signal).
+Ce n'est PAS un pivot de résolution partagé avec les autres sources en Phase 1
+(voir docs/ARCHITECTURE.md, "Généralisation du pivot d'identité") : seules les
+entreprises par ailleurs résolvables via le REQ (Québec) produisent une
+notification tant que cette extension n'est pas construite.
+"""
+from __future__ import annotations
+
+import csv
+import logging
+from collections.abc import Iterator
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+
+from dateutil import parser as dateutil_parser
+from sqlalchemy.orm import Session
+
+from observador.models.corp_federale_entry import CorporationFederaleEntry
+from observador.sources.base import RawSignal, SourceConnector
+from observador.sources.ckan_client import OPEN_CANADA_BASE, CKANClient
+from observador.sources.column_mapping import resolve_columns
+
+logger = logging.getLogger(__name__)
+
+CORPORATIONS_PACKAGE_ID = "0032ce54-c5dd-4b66-99a0-320a7b5e99f2"
+
+COLUMN_ALIASES: dict[str, list[str]] = {
+    "numero": ["corporation_number", "numero_de_corporation", "numero"],
+    "nom": ["corporate_name", "nom_de_la_societe", "denomination"],
+    "statut": ["status", "statut"],
+    "adresse": ["registered_office_address", "adresse_du_bureau_enregistre", "adresse"],
+    "date_incorporation": ["incorporation_date", "date_de_constitution", "date_incorporation"],
+    "loi": ["governing_act", "loi_habilitante", "loi_constitutive"],
+}
+
+STATUTS_ACTIFS = {"active", "actif", "active corporation"}
+
+
+def _parse_date(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        dt = dateutil_parser.parse(raw)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except (ValueError, OverflowError):
+        return None
+
+
+@dataclass
+class IngestStats:
+    lignes_lues: int = 0
+    nouvelles_corporations_actives: list[dict] = field(default_factory=list)
+
+
+def ingest_snapshot(db_session: Session, limit: int | None = None) -> IngestStats:
+    """Télécharge les ressources "corporations actives" (une par langue/type) et
+    met à jour le miroir local, en détectant les nouvelles corporations actives
+    (signal) par comparaison à l'état précédemment connu."""
+    client = CKANClient(OPEN_CANADA_BASE)
+    resources = client.resources(CORPORATIONS_PACKAGE_ID, format_filter="CSV", name_contains="active")
+    if not resources:
+        raise RuntimeError(
+            f"Aucune ressource CSV 'active' trouvée pour {CORPORATIONS_PACKAGE_ID!r} — "
+            "le jeu de données a peut-être changé de structure."
+        )
+
+    stats = IngestStats()
+    columns: dict[str, str] | None = None
+
+    for resource in resources:
+        path = client.download(resource)
+        with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
+            reader = csv.DictReader(f)
+            if columns is None:
+                columns = resolve_columns(reader.fieldnames or [], COLUMN_ALIASES)
+
+            for row in reader:
+                if limit is not None and stats.lignes_lues >= limit:
+                    break
+                stats.lignes_lues += 1
+                _upsert_row(db_session, row, columns, stats)
+
+        if limit is not None and stats.lignes_lues >= limit:
+            break
+
+    db_session.commit()
+    return stats
+
+
+def _upsert_row(db_session: Session, row: dict, columns: dict[str, str], stats: IngestStats) -> None:
+    numero = (row.get(columns["numero"]) or "").strip()
+    if not numero:
+        return
+    nom = (row.get(columns["nom"]) or "").strip()
+    statut_brut = (row.get(columns["statut"]) or "").strip()
+    adresse = (row.get(columns["adresse"]) or "").strip() or None
+    date_inc = _parse_date(row.get(columns["date_incorporation"]))
+    loi = (row.get(columns["loi"]) or "").strip() or None
+
+    existing = db_session.get(CorporationFederaleEntry, numero)
+    if existing is None:
+        entry = CorporationFederaleEntry(
+            numero_corporation=numero,
+            nom=nom,
+            statut=statut_brut,
+            adresse=adresse,
+            loi_constitutive=loi,
+            date_incorporation=date_inc,
+        )
+        db_session.add(entry)
+        if statut_brut.lower() in STATUTS_ACTIFS:
+            stats.nouvelles_corporations_actives.append({"numero": numero, "nom": nom, "adresse": adresse})
+        return
+
+    existing.nom = nom
+    existing.statut = statut_brut
+    existing.adresse = adresse
+    existing.loi_constitutive = loi
+    existing.date_incorporation = date_inc
+
+
+class CorporationsCanadaConnector(SourceConnector):
+    def detect(self, since, db_session: Session) -> Iterator[RawSignal]:
+        stats = ingest_snapshot(db_session, limit=None)
+        logger.info(
+            "Corporations Canada: %s lignes lues, %s nouvelles corporations actives",
+            stats.lignes_lues,
+            len(stats.nouvelles_corporations_actives),
+        )
+        now = datetime.now(timezone.utc)
+        for nouvelle in stats.nouvelles_corporations_actives:
+            yield RawSignal(
+                signal_type_id="registre_corporatif",
+                nom_entreprise=nouvelle["nom"],
+                detected_at=now,
+                source_ref=f"corporations_canada:{nouvelle['numero']}",
+                adresse=nouvelle["adresse"],
+                titre_ou_description="Nouvelle corporation fédérale active",
+                champs={"type_changement": "nouvel_etablissement", **nouvelle},
+            )
+
+
+CONNECTOR_CLASS = CorporationsCanadaConnector

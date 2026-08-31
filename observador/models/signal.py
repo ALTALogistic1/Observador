@@ -26,6 +26,19 @@ class Signal(Base):
     detected_at: Mapped[datetime] = mapped_column(nullable=False)  # date de l'évènement source
     ingested_at: Mapped[datetime] = mapped_column(default=utcnow)   # date de notre collecte
 
+    # Méthode d'accès EFFECTIVEMENT utilisée pour CE signal (donnees_ouvertes, api,
+    # import_manuel, ...) — spec section 9, "Import manuel de documents sources" :
+    # "le registre garde une trace de la méthode d'accès utilisée pour chaque entrée
+    # traitée de cette façon". Capturée par signal plutôt que déduite du registre au
+    # moment de la lecture, pour rester exacte même si le registre change plus tard
+    # (ex. une source passe d'import manuel à automatisée).
+    methode_acces: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+    # Renseigné uniquement pour un signal importé manuellement : qui a fait l'import
+    # (courriel du profil, spec : "Alexandre effectue lui-même la recherche... et
+    # l'importe"). Sert de trace d'audit, pas utilisé par le scoring.
+    importe_par: Mapped[str | None] = mapped_column(String(320), nullable=True)
+
     # Valeur générique (montant $, nombre de postes, rang, etc. selon le signal) utilisée
     # par observador/scoring.py — l'unité dépend du signal_type_id, pas figée ici.
     valeur_associee: Mapped[float | None] = mapped_column(Float, nullable=True)

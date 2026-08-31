@@ -42,10 +42,19 @@ class SourceDef:
     # tant qu'elle n'est pas définie, auquel cas la source doit rester `a_developper`
     # (voir Registry.valider_calibration ci-dessous, qui l'impose).
     regle_calibration: str | None = None
+    # Lien direct vers la page de recherche/consultation de la source (spec section 9,
+    # "Import manuel de documents sources") — obligatoire quand methode_acces ==
+    # "import_manuel", pour que le système présente à l'utilisateur le bon endroit où
+    # faire sa recherche ponctuelle plutôt que la page d'accueil générique du site.
+    lien_recherche: str | None = None
 
     @property
     def est_actif(self) -> bool:
         return self.statut == "actif"
+
+    @property
+    def est_import_manuel(self) -> bool:
+        return self.methode_acces == "import_manuel"
 
     def charger_connecteur(self):
         """Importe et instancie la classe SourceConnector associée.
@@ -153,6 +162,17 @@ class Registry:
                 f"règle de calibration documentée (regle_calibration) : {sans_regle}. "
                 "Documenter la règle dans registry/sources.yaml ou repasser le statut "
                 "à `a_developper`."
+            )
+
+        # Spec section 9, "Import manuel de documents sources" : chaque source en
+        # import manuel doit avoir un lien direct vers sa page de recherche.
+        sans_lien = [
+            s.id for s in self.sources_actives() if s.est_import_manuel and not s.lien_recherche
+        ]
+        if sans_lien:
+            raise ValueError(
+                f"Source(s) en import manuel sans lien_recherche documenté : {sans_lien}. "
+                "Voir registry/sources.yaml."
             )
 
 

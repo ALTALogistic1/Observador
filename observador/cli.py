@@ -33,7 +33,10 @@ def registry_sources():
     reg = get_registry()
     for s in reg.sources.values():
         marqueur = "✅" if s.est_actif else ("💤" if s.statut == "a_developper" else "⛔")
-        click.echo(f"{marqueur} {s.id:35s} statut={s.statut:15s} signal={','.join(s.signal_associe)}")
+        extra = f" — recherche: {s.lien_recherche}" if s.est_import_manuel and s.lien_recherche else ""
+        click.echo(
+            f"{marqueur} {s.id:35s} statut={s.statut:15s} signal={','.join(s.signal_associe)}{extra}"
+        )
 
 
 @registry.command("canaux")
@@ -42,6 +45,92 @@ def registry_canaux():
     for c in sorted(reg.notification_channels.values(), key=lambda c: c.priorite):
         marqueur = "✅" if c.est_actif else "💤"
         click.echo(f"{marqueur} #{c.priorite} {c.id:20s} statut={c.statut}")
+
+
+@cli.group("import-manuel")
+def import_manuel_group():
+    """Importer un document/résultat obtenu hors ligne (spec section 9, "Import
+    manuel de documents sources") — générique pour toute source du registre en
+    `methode_acces: import_manuel` (ex. RDPRM)."""
+
+
+@import_manuel_group.command("lien")
+@click.option("--source-id", required=True)
+def import_manuel_lien(source_id):
+    """Affiche le lien direct de recherche pour cette source, avant d'y aller
+    faire la recherche à importer ensuite."""
+    reg = get_registry()
+    source = reg.sources.get(source_id)
+    if source is None:
+        raise click.ClickException(f"Source inconnue: {source_id}")
+    if not source.est_import_manuel:
+        raise click.ClickException(f"{source_id} n'est pas en import manuel (methode_acces={source.methode_acces}).")
+    click.echo(source.lien_recherche)
+
+
+@import_manuel_group.command("ajouter")
+@click.option("--source-id", required=True, help="Ex. rdprm")
+@click.option("--entreprise", "nom_entreprise", required=True)
+@click.option("--valeur", "valeur_associee", type=float, default=None)
+@click.option("--description", "titre_ou_description", default=None)
+@click.option("--nature-bien", default=None, help="Ex. 'équipement de production' (RDPRM)")
+@click.option("--date-evenement", default=None, help="AAAA-MM-JJ — date de l'inscription/du document")
+@click.option("--adresse", default=None)
+@click.option("--ville", default=None)
+@click.option("--region", default=None)
+@click.option("--institution", default=None, help="Ex. institution créancière (RDPRM)")
+@click.option("--importe-par", default=None, help="Courriel de la personne qui fait l'import")
+@click.option("--profile-id", "profile_ids", multiple=True, type=int, help="Traiter immédiatement pour ces profils (défaut: tous)")
+def import_manuel_ajouter(
+    source_id,
+    nom_entreprise,
+    valeur_associee,
+    titre_ou_description,
+    nature_bien,
+    date_evenement,
+    adresse,
+    ville,
+    region,
+    institution,
+    importe_par,
+    profile_ids,
+):
+    from dateutil import parser as dateutil_parser
+
+    from observador.manual_import import importer_document_manuel, traiter_apres_import
+
+    session = get_session()
+    try:
+        champs = {}
+        if nature_bien:
+            champs["nature_bien"] = nature_bien
+        if institution:
+            champs["institution_creanciere"] = institution
+
+        signal = importer_document_manuel(
+            session,
+            source_id,
+            nom_entreprise,
+            valeur_associee=valeur_associee,
+            titre_ou_description=titre_ou_description,
+            date_evenement=dateutil_parser.parse(date_evenement) if date_evenement else None,
+            adresse=adresse,
+            ville=ville,
+            region=region,
+            champs=champs,
+            importe_par=importe_par,
+        )
+        click.echo(f"Signal #{signal.id} importé pour {nom_entreprise} (company_id={signal.company_id}).")
+
+        query = session.query(Profile)
+        if profile_ids:
+            query = query.filter(Profile.id.in_(profile_ids))
+        profiles = query.all()
+
+        notifications = traiter_apres_import(session, signal, profiles)
+        click.echo(f"Notifications déclenchées immédiatement : {len(notifications)}")
+    finally:
+        session.close()
 
 
 @cli.group()

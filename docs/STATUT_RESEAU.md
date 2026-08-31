@@ -13,10 +13,12 @@ L'environnement cloud (`Default`, accès réseau `Custom`) doit autoriser :
 | `www.donneesquebec.ca` | Portail CKAN — SEAO + REQ (métadonnées et fichiers SEAO) | ✅ Accessible, validé avec de vraies données (voir plus bas) |
 | `open.canada.ca` | Portail CKAN — Guichet-Emplois (métadonnées) | ✅ Accessible |
 | `www.registreentreprises.gouv.qc.ca` | Fichier de données réel du REQ (le CKAN de donneesquebec.ca n'héberge que les métadonnées, le fichier est servi par ce domaine) | ✅ Accès réseau autorisé, mais **le serveur d'origine renvoie une erreur "utilisation excessive"** — voir section REQ ci-dessous, ce n'est pas un problème d'allowlist |
-| `opencanada.blob.core.windows.net` | Le téléchargement CSV du Guichet-Emplois redirige (302) vers ce compte de stockage Azure — découvert seulement à l'exécution, pas visible dans les métadonnées CKAN de premier niveau | ✅ Accessible (confirmé le 2026-08-31) |
+| `opencanada.blob.core.windows.net` | Le téléchargement CSV du Guichet-Emplois redirige (302) vers ce compte de stockage Azure — découvert seulement à l'exécution, pas visible dans les métadonnées CKAN de premier niveau | ✅ Accessible (confirmé le 2026-08-31) — sert aussi EIMT, les subventions fédérales, et les contrats fédéraux (même infrastructure), sans ajout supplémentaire |
+| `d4bf66bykfyaf.cloudfront.net` | Fichiers CSV réels de Corporations Canada (AWS CloudFront) — le CKAN de open.canada.ca n'héberge que les métadonnées | ⛔ **Pas encore autorisé** — Corporations Canada activée au registre mais non validée avec de vraies données (voir plus bas) |
+| `www.investquebec.com` | PDF de la liste de divulgation Investissement Québec | ⛔ **Pas encore autorisé** — Investissement Québec activée au registre mais non validée avec de vraies données (voir plus bas) |
 
 **Note technique** : contrairement à l'accès `Trusted` par défaut, l'accès `Custom`
-s'est appliqué **sans redémarrage de session** — les 3 premiers domaines ont
+s'est appliqué **sans redémarrage de session** — les domaines ajoutés ont
 fonctionné immédiatement après leur ajout par l'utilisateur, dans la même session.
 
 ## SEAO — validé de bout en bout avec de vraies données
@@ -161,9 +163,71 @@ subventions fédérales (même infrastructure Azure que le Guichet-Emplois) sans
 ajout supplémentaire ; Investissement Québec est un PDF sur `www.investquebec.com`,
 un domaine distinct, à ajouter seulement à son activation.
 
+## EIMT positive — validée avec de vraies données, remplace Guichet-Emplois
+
+Testé le 2026-08-31 : téléchargement et parsing réels réussis (fichier XLSX du
+jeu de données `90fed587-1364-4f33-a9ee-208181dc0b97`, trimestre 2026Q1, ~8800
+lignes). Exemple réel : "Barry Group Inc", Terre-Neuve-et-Labrador, 106 postes
+approuvés, profession "94142-Ouvriers... transformation du poisson". Deux
+découvertes techniques : (1) format réel = XLSX pour les trimestres récents
+(CSV seulement pour les plus anciens, ~2021 et avant) ; (2) le fichier a une
+ligne de titre fusionnée qui contient elle-même le mot "employeurs" — piège
+pour un détecteur d'en-tête par sous-chaîne, corrigé en exigeant une
+correspondance EXACTE de cellule. Voir `registry/sources.yaml` (entrée `eimt`)
+pour le détail complet.
+
+## Subventions fédérales et contrats fédéraux — validés via l'API Datastore CKAN
+
+Les deux jeux de données réels (432527ab-7aac-45b5-81d6-7597107a7013 pour les
+subventions, d8f85d91-7dec-4fd1-8055-483b77225d8b pour les contrats) ont un
+fichier CSV brut trop volumineux pour être téléchargé en entier dans une
+session (2,3 Go et 640 Mo respectivement — tout l'historique fédéral depuis
+~2017). Découverte : les deux ressources ont `datastore_active=True`, donc
+interrogeables via l'API Datastore CKAN (`datastore_search`, avec filtres, tri
+et pagination) plutôt que le fichier brut — toujours des données ouvertes
+gratuites au sens de la spec, juste un accès ciblé. Testé avec de vraies
+données le 2026-08-31 :
+- Subventions (filtré Québec, triées par date) : "Le Festival International de
+  Jazz de Montréal inc.", 249 999 $, Développement économique Canada pour les
+  régions du Québec, 2026-07-28.
+- Contrats (triés par date) : "Real Time Networks Inc", 120 518,57 $,
+  2026-12-01.
+
+Aucun nouveau domaine réseau requis pour ces deux sources — même
+infrastructure `open.canada.ca`/`opencanada.blob.core.windows.net` déjà
+autorisée.
+
+## Corporations Canada et Investissement Québec — connecteurs écrits, non encore validés
+
+Les deux nouvelles sources (voir `registry/sources.yaml`) sont actives au
+registre (demande d'Alexandre, 2026-08-31), mais leurs connecteurs n'ont **pas**
+pu être exécutés contre de vraies données — chacun bloqué par un domaine réseau
+distinct pas encore autorisé (voir tableau en haut de ce document) :
+`d4bf66bykfyaf.cloudfront.net` (fichiers CSV de Corporations Canada) et
+`www.investquebec.com` (PDF de la liste de divulgation). Les deux connecteurs
+sont écrits contre la meilleure information publique disponible (structure de
+colonnes estimée pour Corporations Canada, URL réelle confirmée par recherche
+pour Investissement Québec), avec le même garde-fou que req.py : échec
+explicite plutôt que mauvaise interprétation si la structure réelle diverge.
+**Ajouter ces deux domaines pour compléter la validation.**
+
+## Import manuel (RDPRM) — mécanisme testé, source activée
+
+Le mécanisme générique d'import manuel (spec section 9, voir
+`docs/ARCHITECTURE.md`) a été testé de bout en bout le 2026-08-31 avec la CLI
+(`observador import-manuel ajouter`) : création du signal, résolution NEQ
+tentée via le miroir local (REQ), et déclenchement immédiat du reste du
+pipeline pour les profils existants — comportement conforme (0 notification
+en l'absence d'un vrai REQ chargé, exactement le même garde-fou que pour SEAO).
+Aucun appel réseau impliqué dans ce mécanisme — c'est entièrement local une
+fois que l'utilisateur a lui-même obtenu le document RDPRM.
+
 ## Prochaine étape
 
-Dès que `opencanada.blob.core.windows.net` est autorisé et que le rate-limit REQ se
-lève, relancer une recherche ponctuelle complète (`observador scan ponctuel`) pour
-obtenir la première notification consolidée de bout en bout avec de vraies
-données, incluant une résolution NEQ réussie et un enrichissement web réel.
+Domaines réseau encore à ajouter pour compléter la validation Phase 1 :
+`d4bf66bykfyaf.cloudfront.net` (Corporations Canada) et `www.investquebec.com`
+(Investissement Québec). Dès que ces deux domaines sont autorisés et que le
+rate-limit REQ se lève, relancer une recherche ponctuelle complète
+(`observador scan ponctuel`) pour obtenir la première notification consolidée
+de bout en bout avec de vraies données sur les 8 sources actives, incluant une
+résolution NEQ réussie et un enrichissement web réel.

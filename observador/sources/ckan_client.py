@@ -80,6 +80,44 @@ class CKANClient:
         resources.sort(key=lambda r: r.get("last_modified") or r.get("created") or "", reverse=True)
         return resources
 
+    def datastore_search(
+        self,
+        resource_id: str,
+        filters: dict | None = None,
+        q: str | None = None,
+        sort: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict:
+        """Interroge l'API Datastore CKAN (`datastore_search`) pour une ressource
+        avec `datastore_active=True`, plutôt que de télécharger le fichier brut —
+        indispensable pour les jeux de données pancanadiens dont le CSV complet
+        pèse plusieurs centaines de mégaoctets à plusieurs gigaoctets (ex.
+        subventions fédérales, contrats fédéraux : tout l'historique depuis
+        ~2017). `filters` est un dict de correspondance exacte (ex.
+        {"recipient_province": "QC"}), sérialisé en JSON comme l'exige l'API."""
+        import json as _json
+
+        url = f"{self.base_url}/api/3/action/datastore_search"
+        params = {"resource_id": resource_id, "limit": limit, "offset": offset}
+        if filters:
+            params["filters"] = _json.dumps(filters)
+        if q:
+            params["q"] = q
+        if sort:
+            params["sort"] = sort
+
+        try:
+            resp = self.session.get(url, params=params, timeout=self.timeout)
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            raise CKANError(f"Échec de l'appel datastore_search sur {resource_id!r}: {exc}") from exc
+
+        data = resp.json()
+        if not data.get("success"):
+            raise CKANError(f"CKAN a refusé datastore_search({resource_id!r}): {data.get('error')}")
+        return data["result"]
+
     def download(self, resource: dict, force: bool = False) -> Path:
         """Télécharge une ressource en flux (pas tout en mémoire — certains fichiers
         REQ/SEAO peuvent être volumineux) vers le cache local, et retourne le chemin.

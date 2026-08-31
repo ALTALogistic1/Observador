@@ -95,6 +95,7 @@ def ingest_source(
                 titre_ou_description=raw.titre_ou_description,
                 champs=raw.champs,
                 spheres_probables=spheres_probables(raw.signal_type_id, registry),
+                methode_acces=source_def.methode_acces,
             )
             db_session.add(signal)
             db_session.flush()

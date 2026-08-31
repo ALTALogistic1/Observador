@@ -92,6 +92,13 @@ def _score_recrutement_massif(signal: Signal, nb_postes_recents_entreprise: int 
         nb_mots_cles = len(signal.champs.get("mots_cles_trouves") or [])
         return min(100.0, 75.0 + min(15.0, nb_mots_cles * 5.0))
 
+    if signal.source_id == "eimt":
+        # EIMT positive : "signal déjà fort par nature puisque confirmé
+        # officiellement par le gouvernement" (spec section 6, table des
+        # critères) — paliers plus généreux qu'un simple affichage de poste.
+        nb = signal.valeur_associee or nb_postes_recents_entreprise
+        return _palier(float(nb), [(5, 90), (2, 75), (1, 65)])
+
     base = _palier(float(nb_postes_recents_entreprise), [(10, 75), (5, 60), (2, 45), (1, 30)])
     return base
 

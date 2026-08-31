@@ -2,6 +2,7 @@
 (voir observador/db.py:init_db)."""
 from observador.models.base import Base  # noqa: F401
 from observador.models.company import Company  # noqa: F401
+from observador.models.corp_federale_entry import CorporationFederaleEntry  # noqa: F401
 from observador.models.notification import (  # noqa: F401
     Notification,
     NotificationDelivery,
@@ -17,6 +18,7 @@ from observador.models.sphere import Sphere  # noqa: F401
 __all__ = [
     "Base",
     "Company",
+    "CorporationFederaleEntry",
     "Notification",
     "NotificationDelivery",
     "NotificationSignal",
