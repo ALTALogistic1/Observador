@@ -78,6 +78,26 @@ class SourceConnector(ABC):
         avant de lancer un scan complet."""
         return True
 
+    def inspect_file(self, path) -> dict:
+        """Optionnel — pour une source en `methode_acces: import_manuel` dont le
+        fichier importé a une structure interne pas encore confirmée contre de
+        vraies données (ex. REQ : le fichier en vrac réel contient six CSV liés
+        entre eux, pas un seul fichier plat, découvert le 2026-08-31 — voir
+        docs/STATUT_RESEAU.md). Doit lire uniquement l'en-tête (+ éventuellement
+        une ligne d'exemple) de chaque fichier interne, SANS tout charger en
+        mémoire ni tenter d'importer quoi que ce soit — sert à confirmer les
+        vrais noms de colonnes avant d'écrire une logique de jointure/mapping à
+        l'aveugle, ce que ce projet interdit (données réelles non négociables,
+        échec explicite plutôt qu'interprétation silencieuse erronée). Retourne
+        `{nom_de_fichier: {"colonnes": [...], "exemple": {...}, ...}}`. Un
+        connecteur qui ne supporte pas ce mode (structure déjà simple et
+        confirmée) lève NotImplementedError explicitement."""
+        raise NotImplementedError(
+            f"{type(self).__name__} ne supporte pas l'inspection de fichier "
+            "(inspect_file non implémenté) — sa structure est déjà simple/confirmée, "
+            "utilisez directement 'import-manuel fichier'."
+        )
+
     def detect_from_file(self, path, db_session: "Session") -> Iterator[RawSignal]:
         """Optionnel — pour une source en `methode_acces: import_manuel` dont
         l'import se fait par FICHIER COMPLET plutôt que par résultat individuel

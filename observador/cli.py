@@ -68,6 +68,47 @@ def import_manuel_lien(source_id):
     click.echo(source.lien_recherche)
 
 
+@import_manuel_group.command("inspecter")
+@click.option("--source-id", required=True, help="Ex. req")
+@click.option(
+    "--chemin",
+    "chemin_fichier",
+    required=True,
+    type=click.Path(exists=True),
+    help="Fichier téléchargé par vous-même, à inspecter avant un premier import réel",
+)
+def import_manuel_inspecter(source_id, chemin_fichier):
+    """Inspecte la structure réelle d'un fichier importé manuellement (en-têtes
+    de chaque CSV s'il y en a plusieurs dans un .zip, plus une ligne
+    d'exemple) sans tenter de le parser/importer. À utiliser AVANT un premier
+    'import-manuel fichier' sur une source dont la structure interne n'a pas
+    encore été confirmée contre de vraies données (ex. REQ, dont le vrai
+    fichier contient 6 CSV liés entre eux plutôt qu'un seul plat)."""
+    reg = get_registry()
+    source_def = reg.sources.get(source_id)
+    if source_def is None:
+        raise click.ClickException(f"Source inconnue: {source_id!r}")
+
+    connector = source_def.charger_connecteur()
+    if connector is None:
+        raise click.ClickException(f"Aucun connecteur codé pour {source_id!r}.")
+
+    try:
+        infos = connector.inspect_file(chemin_fichier)
+    except NotImplementedError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if not infos:
+        click.echo("Aucun fichier CSV trouvé à inspecter.")
+        return
+
+    for nom, info in infos.items():
+        click.echo(f"\n=== {nom} ({info['taille_decompressee_octets']:,} octets décompressés) ===")
+        click.echo(f"Colonnes ({len(info['colonnes'])}): {info['colonnes']}")
+        if info["exemple"]:
+            click.echo(f"Exemple: {info['exemple']}")
+
+
 @import_manuel_group.command("ajouter")
 @click.option("--source-id", required=True, help="Ex. rdprm")
 @click.option("--entreprise", "nom_entreprise", required=True)
@@ -169,6 +210,11 @@ def import_manuel_fichier(source_id, chemin_fichier, limite_lignes, importe_par,
                 limite_lignes=limite_lignes,
             )
         except ImportManuelError as exc:
+            raise click.ClickException(str(exc)) from exc
+        except RuntimeError as exc:
+            # Couvre notamment le refus explicite d'un .zip à plusieurs CSV liés
+            # (ex. le vrai fichier REQ) tant que la jointure multi-fichiers n'est
+            # pas implémentée — voir observador/sources/req.py:_iter_csv_rows.
             raise click.ClickException(str(exc)) from exc
 
         click.echo(f"{len(signaux)} signal(aux) importé(s) depuis {chemin_fichier}.")

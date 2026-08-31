@@ -10,14 +10,26 @@ Double rôle, comme documenté dans registry/sources.yaml :
      successifs du miroir local (REQEntry). Les mises à jour purement
      administratives (aucun changement d'adresse/statut) sont exclues.
 
-IMPORTANT — schéma CSV non encore confirmé : le format exact des colonnes du fichier
-REQ n'a pas pu être inspecté (accès réseau bloqué au moment de l'écriture — voir
-docs/STATUT_RESEAU.md). COLUMN_ALIASES ci-dessous liste les noms de colonnes les plus
-probables d'après la documentation publique du jeu de données; resolve_columns()
-échoue avec un message explicite (colonnes attendues vs colonnes réellement présentes)
-si aucun alias ne correspond, plutôt que de mal interpréter silencieusement les
-données. Premier réflexe après déblocage réseau : lancer l'ingestion sur un seul
-fichier et ajuster ces alias si l'erreur le demande.
+IMPORTANT — structure et schéma réels non encore confirmés :
+- Le format exact des colonnes n'a pas pu être inspecté par cette session (accès
+  réseau bloqué — voir docs/STATUT_RESEAU.md). COLUMN_ALIASES ci-dessous liste les
+  noms de colonnes les plus probables d'après la documentation publique du jeu de
+  données; resolve_columns() échoue avec un message explicite (colonnes attendues
+  vs colonnes réellement présentes) si aucun alias ne correspond, plutôt que de mal
+  interpréter silencieusement les données.
+- Découverte du 2026-08-31 (par Alexandre, inspection réelle du ZIP) : le fichier en
+  vrac n'est PAS un CSV plat — c'est une archive de SIX CSV liés entre eux
+  (Entreprise.csv, Etablissements.csv, Nom.csv, DomaineValeur.csv, FusionScissions.csv,
+  ContinuationsTransformations.csv). `_iter_csv_rows`/`ingest_snapshot` ci-dessous
+  restent écrits pour UN SEUL CSV (ou un .zip n'en contenant qu'un) — un .zip
+  multi-CSV comme le vrai fichier REQ lève une erreur explicite plutôt que de
+  concaténer des fichiers au schéma différent comme s'ils étaient identiques (voir
+  `_iter_csv_rows`). `REQConnector.inspect_file` (voir plus bas) sert à obtenir les
+  vraies colonnes de chaque CSV membre — sans deviner — avant d'écrire la vraie
+  logique de jointure (Entreprise.csv comme table de base, Etablissements.csv pour
+  l'adresse/les établissements, DomaineValeur.csv pour décoder les codes) : à faire
+  une fois qu'Alexandre aura communiqué le résultat de
+  `import-manuel inspecter --source-id req --chemin <zip>`.
 """
 from __future__ import annotations
 
@@ -78,19 +90,66 @@ def _parse_date(raw: str | None) -> datetime | None:
 
 
 def _iter_csv_rows(path) -> Iterator[dict[str, str]]:
-    """Lit un CSV (ou un .zip contenant un ou plusieurs CSV) en flux, sans tout
-    charger en mémoire — les fichiers REQ complets peuvent être volumineux."""
+    """Lit un CSV (ou un .zip contenant EXACTEMENT un CSV) en flux, sans tout
+    charger en mémoire. Le vrai fichier en vrac du REQ contient en réalité SIX
+    CSV liés entre eux (Entreprise.csv, Etablissements.csv, Nom.csv,
+    DomaineValeur.csv, FusionScissions.csv, ContinuationsTransformations.csv —
+    découvert le 2026-08-31 par inspection réelle, voir docs/STATUT_RESEAU.md),
+    pas un fichier plat — un .zip à plusieurs CSV lève donc une erreur
+    explicite ici plutôt que de les concaténer comme s'ils avaient le même
+    schéma, ce qui produirait des lignes mal interprétées en silence (interdit
+    par ce projet). La vraie jointure multi-fichiers reste à écrire une fois
+    les colonnes confirmées via `REQConnector.inspect_file`/
+    `import-manuel inspecter`."""
     if str(path).lower().endswith(".zip"):
         with zipfile.ZipFile(path) as zf:
-            for name in zf.namelist():
-                if not name.lower().endswith(".csv"):
-                    continue
+            noms_csv = [n for n in zf.namelist() if n.lower().endswith(".csv")]
+        if len(noms_csv) > 1:
+            raise RuntimeError(
+                f"{path!r} contient {len(noms_csv)} fichiers CSV liés entre eux "
+                f"({', '.join(noms_csv)}) plutôt qu'un seul fichier plat — les "
+                "traiter comme un seul schéma produirait des données mal "
+                "interprétées en silence. Lancez d'abord "
+                f"`import-manuel inspecter --source-id req --chemin {path}` pour "
+                "obtenir les vraies colonnes de chaque fichier ; la jointure "
+                "multi-fichiers (Entreprise.csv + Etablissements.csv + "
+                "DomaineValeur.csv) n'est pas encore implémentée."
+            )
+        with zipfile.ZipFile(path) as zf:
+            for name in noms_csv:
                 with zf.open(name) as raw:
                     text = io.TextIOWrapper(raw, encoding="utf-8-sig", errors="replace")
                     yield from csv.DictReader(text)
     else:
         with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
             yield from csv.DictReader(f)
+
+
+def inspect_zip(path) -> dict[str, dict]:
+    """Inspecte un .zip contenant plusieurs CSV liés (le vrai fichier en vrac
+    du REQ) SANS tout décompresser ni tout charger en mémoire : ne lit que
+    l'en-tête et une ligne d'exemple de chaque CSV membre (les gros fichiers,
+    ex. Entreprise.csv ~630 Mo, sont lus en flux — coûte quelques Ko, pas la
+    taille totale). Sert à confirmer les vrais noms de colonnes avant d'écrire
+    la logique de jointure entre fichiers, plutôt que de deviner à l'aveugle
+    sur une structure relationnelle où une mauvaise supposition risquerait une
+    jonction silencieusement erronée (pas seulement une colonne manquante)."""
+    infos: dict[str, dict] = {}
+    with zipfile.ZipFile(path) as zf:
+        for zinfo in zf.infolist():
+            if not zinfo.filename.lower().endswith(".csv"):
+                continue
+            with zf.open(zinfo) as raw:
+                text = io.TextIOWrapper(raw, encoding="utf-8-sig", errors="replace")
+                reader = csv.reader(text)
+                en_tete = next(reader, [])
+                premiere_ligne = next(reader, [])
+            infos[zinfo.filename] = {
+                "colonnes": en_tete,
+                "exemple": dict(zip(en_tete, premiere_ligne)) if premiere_ligne else {},
+                "taille_decompressee_octets": zinfo.file_size,
+            }
+    return infos
 
 
 @dataclass
@@ -363,6 +422,13 @@ class REQConnector(SourceConnector):
             len(stats.changements_adresse),
         )
         yield from _stats_vers_signaux(stats)
+
+    def inspect_file(self, path) -> dict[str, dict]:
+        """Voir inspect_zip ci-dessus — à lancer sur le vrai ZIP téléchargé par
+        Alexandre AVANT le premier `import-manuel fichier`, pour confirmer les
+        vraies colonnes des 6 CSV liés plutôt que de deviner (découverte du
+        2026-08-31, voir docs/STATUT_RESEAU.md)."""
+        return inspect_zip(path)
 
     def detect_from_file(self, path, db_session: Session) -> Iterator[RawSignal]:
         """Chemin ACTIF en Phase 1 (spec section 9, "Import manuel de documents

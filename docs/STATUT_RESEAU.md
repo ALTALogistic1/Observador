@@ -280,14 +280,58 @@ des en-têtes réelles si `COLUMN_ALIASES` (observador/sources/req.py) ne
 correspond pas au premier vrai import — pas une mauvaise interprétation
 silencieuse.
 
+## Structure réelle du ZIP REQ découverte (2026-08-31) — six CSV liés, pas un fichier plat
+
+Alexandre a inspecté le vrai ZIP téléchargé depuis son navigateur : il contient
+**six CSV distincts et liés entre eux**, pas un seul fichier plat comme le code
+initial le supposait :
+
+| Fichier | Taille | Rôle probable |
+|---|---|---|
+| `Entreprise.csv` | ~630 Mo | Table de base : NEQ, nom, statut |
+| `Nom.csv` | ~281 Mo | Noms alternatifs/historiques par NEQ |
+| `Etablissements.csv` | ~34,5 Mo | Adresse(s) par NEQ — probablement plusieurs lignes par entreprise (siège + établissements secondaires), pertinent pour le signal "nouvel établissement" (spec section 7) |
+| `DomaineValeur.csv` | — | Table de décodage (code → libellé) pour des colonnes codées ailleurs (ex. secteur, type de statut) |
+| `FusionScissions.csv` | — | Événements corporatifs (fusions/scissions) — hors des 5 champs requis par la spec (NEQ, nom, secteur, adresse, statut), pas utilisé pour l'instant |
+| `ContinuationsTransformations.csv` | — | Idem, hors périmètre pour l'instant |
+
+**Ce que ça change dans le code, corrigé le même jour :**
+- `_iter_csv_rows` (observador/sources/req.py) concaténait auparavant tous les
+  CSV trouvés dans un `.zip` comme s'ils avaient le même schéma — avec un vrai
+  fichier à 6 CSV différents, ça aurait produit des lignes mal interprétées en
+  silence (violation directe du principe "données réelles non négociables,
+  jamais d'interprétation silencieuse erronée"). **Corrigé immédiatement** :
+  un `.zip` à plusieurs CSV lève maintenant une `RuntimeError` explicite plutôt
+  que de fusionner à l'aveugle — testé (`test_ingest_snapshot_refuse_un_zip_a_
+  plusieurs_csv_plutot_que_de_les_fusionner`).
+- Nouvelle méthode optionnelle `SourceConnector.inspect_file()` (observador/
+  sources/base.py) + `REQConnector.inspect_file`/`inspect_zip` (observador/
+  sources/req.py) : lit en flux (sans tout décompresser) l'en-tête + une ligne
+  d'exemple de chaque CSV interne — pour confirmer les vraies colonnes avant
+  d'écrire la jointure, plutôt que de deviner sur une structure relationnelle à
+  trois fichiers (risque de jonction NEQ→adresse silencieusement erronée, pire
+  qu'une simple colonne manquante). Nouvelle commande CLI :
+  `observador import-manuel inspecter --source-id req --chemin <zip>`.
+- La vraie jointure multi-fichiers (Entreprise.csv comme table de base,
+  Etablissements.csv pour l'adresse/le signal "nouvel établissement",
+  DomaineValeur.csv pour décoder les codes) **reste à écrire** — volontairement
+  pas devinée à l'aveugle sur 3 fichiers relationnels avant d'avoir les vraies
+  colonnes.
+
 ## Prochaine étape
 
 Toutes les sources actives de la Phase 1 sont validées avec de vraies
-données, sauf le REQ — dont le MÉCANISME d'import est testé, mais le SCHÉMA
-réel des colonnes ne sera confirmé qu'au premier import réel par Alexandre
-(voir ci-dessus). Une fois ce premier import fait : vérifier que
-`resolve_columns` n'a levé aucune erreur (sinon ajuster `COLUMN_ALIASES`), puis
-lancer une recherche ponctuelle complète (`observador scan ponctuel`) pour
-obtenir la première notification consolidée de bout en bout avec de vraies
-données sur les 8 sources actives, incluant une résolution NEQ réussie et un
-enrichissement web réel.
+données, sauf le REQ. Séquence pour le premier import réel :
+1. Alexandre lance `observador import-manuel inspecter --source-id req --chemin <zip>`
+   sur le vrai fichier téléchargé, et communique la sortie (colonnes + exemple
+   de chaque CSV pertinent — au minimum `Entreprise.csv`, `Etablissements.csv`,
+   `DomaineValeur.csv`).
+2. La jointure multi-fichiers est écrite contre les vraies colonnes confirmées
+   (pas devinée), avec les tests correspondants.
+3. `observador import-manuel fichier --source-id req --chemin <zip>` peut alors
+   tourner sur le vrai fichier ; `resolve_columns` échouera encore explicitement
+   si un détail reste mal deviné, plutôt que de mal interpréter en silence.
+4. Une fois l'import réussi : lancer une recherche ponctuelle complète
+   (`observador scan ponctuel`) pour obtenir la première notification
+   consolidée de bout en bout avec de vraies données sur les 8 sources actives,
+   incluant une résolution NEQ réussie et un enrichissement web réel.

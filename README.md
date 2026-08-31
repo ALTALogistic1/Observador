@@ -44,6 +44,12 @@ mis à jour deux fois par mois — tâche récurrente légère) :
 ```bash
 python -m observador.cli import-manuel lien --source-id req   # lien direct vers le fichier en vrac
 
+# Le vrai fichier REQ est un .zip de 6 CSV liés entre eux (découvert le
+# 2026-08-31 — voir docs/STATUT_RESEAU.md), pas un fichier plat : avant le
+# premier import réel, inspecter ses vraies colonnes plutôt que deviner.
+python -m observador.cli import-manuel inspecter \
+  --source-id req --chemin ~/Téléchargements/registre-entreprises.zip
+
 python -m observador.cli import-manuel fichier \
   --source-id req --chemin ~/Téléchargements/registre-entreprises.zip
 ```

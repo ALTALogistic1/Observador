@@ -78,6 +78,38 @@ mécanisme générique — pas deux mécanismes séparés :
   fonctionnel — gardé au cas où l'accès redeviendrait praticable — mais n'est
   plus dans la boucle du moteur tant que `methode_acces: import_manuel`.
 
+### Troisième extension : inspection d'un fichier à structure complexe (REQ, 2026-08-31)
+
+Alexandre a inspecté le vrai ZIP téléchargé et découvert qu'il contient **six
+CSV liés entre eux** (`Entreprise.csv`, `Etablissements.csv`, `Nom.csv`,
+`DomaineValeur.csv`, `FusionScissions.csv`, `ContinuationsTransformations.csv`),
+pas un fichier plat comme le code le supposait au départ. Plutôt que de traiter
+ça comme un problème spécifique au REQ, le mécanisme générique a été étendu une
+troisième fois :
+
+- **`SourceConnector.inspect_file(path) -> dict`** (nouvelle méthode optionnelle,
+  `observador/sources/base.py`) : pour une source dont le fichier importé a une
+  structure interne pas encore confirmée. Retourne, par fichier interne,
+  colonnes + une ligne d'exemple — jamais tenter d'importer. Un connecteur qui
+  n'en a pas besoin (structure déjà simple/confirmée) lève `NotImplementedError`.
+- **`REQConnector.inspect_file`/`req.inspect_zip`** : lit en flux (sans tout
+  décompresser — coûte quelques Ko même sur `Entreprise.csv`, ~630 Mo) l'en-tête
+  et un exemple de chaque CSV membre du zip.
+- **CLI `observador import-manuel inspecter --source-id <id> --chemin <fichier>`**
+  : appelle `inspect_file` et affiche le résultat, sans toucher à la base.
+- **Garde-fou dans `_iter_csv_rows`** : un `.zip` contenant plus d'un CSV lève
+  maintenant une `RuntimeError` explicite au lieu d'être traité comme un
+  fichier plat unique — sans cette garde, le code initial aurait concaténé les
+  six CSV comme s'ils avaient le même schéma, produisant des données mal
+  interprétées en silence (violation directe du principe "aucune donnée
+  fictive/mal interprétée, jamais"). La vraie jointure multi-fichiers
+  (Entreprise.csv + Etablissements.csv + décodage via DomaineValeur.csv) reste
+  à écrire une fois les vraies colonnes confirmées via l'inspecteur — voir
+  `docs/STATUT_RESEAU.md` pour la séquence complète.
+- Généralisable : n'importe quelle source `import_manuel` future dont le fichier
+  a une structure relationnelle similaire peut implémenter `inspect_file` de la
+  même façon, sans toucher au moteur ni à `manual_import.py`.
+
 ## Les "Principes directeurs" (bloc ajouté en tête de la spec le 2026-08-31)
 
 La spec ouvre maintenant sur 9 principes directeurs, présentés comme la grille de
