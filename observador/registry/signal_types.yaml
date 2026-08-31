@@ -86,7 +86,7 @@ signal_types:
       permis de construction indiquant une expansion physique. Exclut
       explicitement les mises à jour purement administratives (déclaration
       annuelle, correction mineure, renouvellement).
-    sources_associees: [req, permis_construction_montreal, permis_construction_quebec, permis_construction_laval]
+    sources_associees: [req, corporations_canada, licences_affaires_municipales, permis_construction_montreal, permis_construction_quebec, permis_construction_laval]
     criteres_confiance:
       - "Type de changement : nouvel établissement secondaire = fort; changement d'adresse du siège social = moyen; mise à jour administrative de routine = exclu (voir filtre observador/sources/req.py)"
       - "Valeur du permis de construction, nature des travaux (agrandissement/nouvelle construction = fort; rénovation mineure = faible)"
@@ -104,7 +104,7 @@ signal_types:
     description: >
       Une entreprise décroche un contrat public (gouvernement, éducation,
       santé, municipalités).
-    sources_associees: [seao]
+    sources_associees: [seao, contrats_federaux]
     criteres_confiance:
       - "Valeur du contrat relative à la taille estimée de l'entreprise"
       - "Récurrence de contrats décrochés sur une période courte"

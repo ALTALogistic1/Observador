@@ -3,6 +3,68 @@
 Ce document explique comment le code répond à chaque exigence structurelle du
 README de démarrage et de `repereur-entreprises-croissance-specs.md`.
 
+## Les "Principes directeurs" (bloc ajouté en tête de la spec le 2026-08-31)
+
+La spec ouvre maintenant sur 9 principes directeurs, présentés comme la grille de
+vérification pour toute décision future. Audit fait le jour même contre le code
+déjà construit :
+
+| # | Principe | Statut |
+|---|---|---|
+| 1 | Aucune donnée fictive, jamais | ✅ Aucune donnée de prospect fabriquée nulle part (voir docs/STATUT_RESEAU.md pour les limites d'exécution réelle rencontrées) |
+| 2 | Toute source gratuite fait partie du produit | ✅ Les 24 sources identifiées à ce jour sont dans `sources.yaml`, y compris les 3 nouvelles de cette mise à jour |
+| 3 | **Calibration non négociable** (nouveau) | ✅ Nouveau champ `regle_calibration` + `Registry.valider_calibration()` — voir section dédiée ci-dessous |
+| 4 | Vérifications de base obligatoires | ✅ `verification.py` |
+| 5 | Score unifié, pas de jauges parallèles | ✅ `scoring.py` |
+| 6 | Polyvalence, rien codé en dur pour Alexandre | ✅ Audité et corrigé le 2026-08-31 (voir section dédiée plus bas) |
+| 7 | Architecture modulaire (sources/signaux/type de profil) | ✅ Trois registres + `Profile.type_profil` |
+| 8 | NEQ (ou équivalent) comme pivot | ✅ Voir "Généralisation du pivot d'identité" ci-dessous (nuance introduite par cette mise à jour) |
+| 9 | Ne pas complexifier pour du non confirmé | ✅ Aucune trace de logique de déclin ou d'agrégation régionale |
+
+### Principe de calibration (nouveau, non négociable)
+
+Chaque `SourceDef` a maintenant un champ `regle_calibration` (`observador/registry/
+loader.py`) qui documente la règle concrète distinguant un vrai signal de croissance
+du bruit pour cette source précise. `Registry.valider_calibration()`, appelée par
+`engine.ingest_all_active_sources` avant tout scan réel, **lève une exception** si
+une source `actif` n'a pas cette règle documentée — le principe est donc appliqué
+en code, pas seulement respecté par convention.
+
+Les 3 sources actives de la Phase 1 avaient déjà leur règle implémentée avant cette
+mise à jour (elle est maintenant simplement rendue visible et vérifiable dans le
+registre) :
+- **SEAO** : chaque "award" du fichier est déjà un contrat attribué, aucun filtrage
+  de bruit nécessaire à ce niveau.
+- **REQ** : seuls "nouvel établissement" et "changement d'adresse" génèrent un
+  signal ; tout le reste (déclaration annuelle, correction) est exclu dans
+  `req.py::_upsert_row`.
+- **Guichet-Emplois** : le signal qualitatif (mots-clés dans le titre) et le signal
+  volumétrique (paliers de nombre de postes) sont deux règles de calibration
+  distinctes, implémentées dans `matching.py` et `scoring.py`.
+
+Pour le RDPRM et les licences d'affaires municipales (nouvelle source), la spec
+donne déjà la règle attendue mais elle n'est pas codée — ces sources restent donc
+`a_developper` par construction, pas par choix : `valider_calibration()`
+empêcherait de les passer à `actif` sans implémenter la règle d'abord.
+
+### Généralisation du pivot d'identité (nuance introduite par cette mise à jour)
+
+Le principe 8 dit maintenant "le NEQ (ou l'identifiant équivalent hors Québec)" —
+avant, seul le NEQ était mentionné. Ça vient de l'ajout de Corporations Canada
+(pivot : numéro de corporation fédérale, pas un NEQ) à la Phase 2.
+
+**Décision (2026-08-31) : pas de changement de schéma maintenant.** `Company.neq`
+reste tel quel pour la Phase 1 — toujours Québec (spec section 3), et toute
+entreprise qui y opère, même incorporée fédéralement, doit s'immatriculer au REQ et
+obtient donc un NEQ. La généralisation ne devient un besoin réel qu'à l'activation
+de Corporations Canada ou d'une région hors Québec (Principe 9 : ne pas
+complexifier pour un cas pas encore confirmé). Quand ce moment viendra, l'extension
+prévue est additive, pas une restructuration : soit une colonne
+`numero_corporation_federale` distincte sur `Company`, soit une petite table
+d'identifiants externes (`CompanyExternalId(company_id, type, valeur)`) — dans les
+deux cas, `resolve_company` garde le NEQ comme pivot principal pour le Québec et
+n'a pas besoin d'être réécrit.
+
 ## Le principe central : tout passe par des registres, jamais par du code en dur
 
 Trois registres YAML (`observador/registry/*.yaml`), chargés par

@@ -122,6 +122,7 @@ def ingest_all_active_sources(
     """Boucle sur TOUTES les sources actives du registre — spec section 9 :
     le moteur ne connaît aucune source par son nom, seulement via ce registre."""
     registry = registry or get_registry()
+    registry.valider_calibration()  # principe directeur non négociable #3
     return [ingest_source(db_session, s.id, since, registry, mode) for s in registry.sources_actives()]
 
 

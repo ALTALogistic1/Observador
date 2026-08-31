@@ -36,6 +36,12 @@ class SourceDef:
     region: str | None
     connecteur: str | None
     notes: str | None = None
+    # Principe directeur non négociable (spec, "Principes directeurs" #3) : aucune
+    # source n'est activée sans une règle concrète et vérifiable qui distingue un
+    # vrai signal de croissance du bruit. Ce champ documente CETTE règle — vide
+    # tant qu'elle n'est pas définie, auquel cas la source doit rester `a_developper`
+    # (voir Registry.valider_calibration ci-dessous, qui l'impose).
+    regle_calibration: str | None = None
 
     @property
     def est_actif(self) -> bool:
@@ -133,6 +139,21 @@ class Registry:
 
     def sphere(self, sphere_id: str) -> SphereDef | None:
         return self.spheres.get(sphere_id)
+
+    def valider_calibration(self) -> None:
+        """Applique le principe directeur non négociable : aucune source active
+        sans règle de calibration documentée. Appelé avant tout scan réel
+        (observador/engine.py) plutôt qu'au chargement du registre, pour que
+        consulter/éditer le registre reste toujours possible même en cours
+        d'ajustement d'une règle."""
+        sans_regle = [s.id for s in self.sources_actives() if not s.regle_calibration]
+        if sans_regle:
+            raise ValueError(
+                "Principe directeur non négociable violé : source(s) active(s) sans "
+                f"règle de calibration documentée (regle_calibration) : {sans_regle}. "
+                "Documenter la règle dans registry/sources.yaml ou repasser le statut "
+                "à `a_developper`."
+            )
 
 
 def load_registry() -> Registry:

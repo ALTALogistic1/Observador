@@ -1,5 +1,19 @@
 # Repéreur d'entreprises en croissance — Spécifications du projet
 
+## Principes directeurs — à respecter dans toute proposition future
+
+Ces principes gouvernent l'ensemble du projet. Toute nouvelle source, fonctionnalité, ou modification proposée doit être vérifiée contre cette liste avant d'être ajoutée — pas seulement contre la logique du moment.
+
+1. **Aucune donnée fictive ou simulée, jamais, même temporairement.** Les vraies données réelles sont non négociables, y compris pendant le développement et les tests.
+2. **Toute source gratuite et de bonne qualité fait partie du produit, sans exception de priorisation.** Une source n'est écartée que pour deux raisons précises : elle est légalement inaccessible, ou elle exige un abonnement payant (décision budgétaire qui revient à Alexandre, jamais un choix fait à sa place).
+3. **Principe de calibration, non négociable : aucune source n'est activée sans une règle concrète et vérifiable qui distingue un vrai signal de croissance du bruit.** Une source qui ne peut pas être calibrée reste en réserve, non activée — le nombre de sources actives n'est jamais l'objectif, la précision des résultats l'est.
+4. **Vérifications de base obligatoires avant toute présentation d'un prospect** (statut légal, signe d'activité, cohérence d'identité) — dans tous les modes d'usage, sans exception.
+5. **Un seul indice de confiance unifié par notification** — jamais de jauges parallèles (urgence, gradation séparée par signal, etc.).
+6. **Polyvalence d'utilisation : rien n'est codé en dur pour le cas d'usage d'Alexandre.** Le produit doit rester utilisable par n'importe quel type de fournisseur de service B2B avec la même architecture, sans modification de code.
+7. **Architecture modulaire pour tout ce qui est amené à évoluer** — sources, types de signaux, type de profil (fournisseur/client/les deux) — chacun avec son propre registre extensible, sans jamais nécessiter une restructuration pour ajouter un nouvel élément.
+8. **Le NEQ (ou l'identifiant équivalent hors Québec) sert de pivot** pour dédupliquer, corroborer, et maintenir un dossier cumulatif par entreprise dans le temps — jamais des événements isolés et déconnectés.
+9. **Ne pas complexifier l'architecture en anticipation de cas non confirmés** (ex. logique inversée pour le déclin, agrégation régionale) — rester concentré sur ce qui est demandé, pas sur ce qui pourrait éventuellement l'être.
+
 ## 1. Contexte et origine
 
 Alexandre est en transition vers un positionnement de consultant indépendant en implantation de systèmes de gestion d'inventaire et d'actifs (plateforme Hector). Plutôt que de chercher des offres d'emploi classiques, il cherche à identifier des entreprises en forte croissance — celles qui, en grossissant, perdent le contrôle de leur inventaire ou de leurs actifs — avant même qu'elles publient un appel d'offres ou réalisent elles-mêmes qu'elles ont un problème.
@@ -165,6 +179,8 @@ Lorsqu'une même entreprise est détectée par **plusieurs signaux distincts**, 
 
 Les cinq signaux documentés dans ce chapitre (classements, financement, recrutement, registre corporatif, appels d'offres) ne sont **pas une liste figée** — ce sont les catégories identifiées à ce jour, pas une limite structurelle du système. Le Signal 4 (registre corporatif) a d'ailleurs été ajouté après les trois premiers, ce qui confirme que cette taxonomie va continuer d'évoluer. Le système doit donc traiter le **type de signal** comme un registre extensible, avec le même principe que le registre de sources (section 9) : un nouveau type de signal (ex. changements de dirigeants, si une source s'ouvre un jour; données de propriété intellectuelle; etc.) doit pouvoir être ajouté avec son propre gabarit — nom, sources associées, critères de confiance, sphères de besoin probables, **et une icône représentative pour l'identité visuelle future de l'interface** — sans renuméroter ou restructurer les signaux existants.
 
+**Principe de calibration, non négociable :** aucune source n'est activée sans une règle concrète et vérifiable qui distingue un vrai signal de croissance du bruit administratif ou non pertinent — comme le filtrage déjà exigé pour le RDPRM (garantie de routine vs expansion), le REQ (mise à jour administrative vs nouvel établissement), et les licences d'affaires municipales (démarrage/renouvellement vs nouvel établissement d'une entreprise existante, vérifié par croisement). **Une source qui ne peut pas être calibrée de cette façon reste en réserve, non activée, plutôt que d'être ajoutée "quand même" parce qu'elle est gratuite.** Le nombre de sources actives n'est jamais l'objectif en soi — la précision des résultats l'est.
+
 ### Table de correspondance signal → sphères de besoin probables
 
 Chaque signal détecté doit être associé à une ou plusieurs sphères de besoin probables (voir liste complète en section 4), pour que la notification puisse indiquer non seulement la raison du repérage mais aussi le type de besoin que l'entreprise est susceptible de développer. Cette table est un point de départ à affiner avec l'usage, pas une liste figée.
@@ -234,13 +250,21 @@ Chaque signal détecté doit être associé à une ou plusieurs sphères de beso
   - **Champs pertinents :** NEQ, nom d'entreprise, secteur d'activité (CAE/CTI), adresse(s), statut (immatriculée/radiée), date de la dernière mise à jour
   - **Limite à noter :** les actionnaires et administrateurs sont anonymisés dans les données ouvertes (contrairement à la consultation individuelle payante par NEQ)
   - **Filtrage requis, même logique que le RDPRM :** la grande majorité des mises à jour au REQ sont administratives et routinières (déclaration annuelle obligatoire, correction mineure, renouvellement) et n'indiquent aucune croissance. Seuls certains types de changements doivent être retenus comme signal — notamment l'ajout d'un nouvel établissement secondaire ou un changement d'adresse du siège social — et le filtre doit explicitement exclure les mises à jour de nature purement administrative pour éviter un signal bruyant plutôt que précis
+- **Corporations Canada (ISED)** — **nouvelle découverte, équivalent fédéral du REQ, mais pancanadien** : couvre toutes les entreprises incorporées sous une loi fédérale (partout au Canada, anglais et français), publié en **téléchargement gratuit en vrac, mis à jour quotidiennement**, avec en plus une **vraie API en temps réel** (plus complet que le REQ à cet égard). Répond directement au besoin de couverture en anglais Canada.
+  - **Champs pertinents :** numéro de corporation fédérale, nom, statut, adresse du bureau enregistré, date d'incorporation, loi constitutive
+  - **Limite à noter :** ne couvre que les entreprises incorporées fédéralement — la majorité des PME sont incorporées provincialement, donc cette source complète le REQ (Québec) sans remplacer l'équivalent dans les autres provinces (accès inégal — gratuit en Ontario/Nouvelle-Écosse pour la recherche de base, payant en Colombie-Britannique, fermé en Alberta — à documenter au cas par cas si activé plus tard)
+- **Licences d'affaires municipales** (ex. Vancouver, Toronto — données ouvertes confirmées, gratuites, mises à jour quotidiennement pour Vancouver) — nom d'entreprise, adresse, type d'entreprise, date d'émission.
+  - **Condition de pertinence, non négociable :** une nouvelle licence d'affaires ne devient un signal utile qu'après **vérification croisée avec Corporations Canada ou le registre provincial concerné**, pour confirmer qu'il s'agit d'une entreprise **déjà existante qui ouvre un nouvel établissement** — pas un tout nouveau démarrage (hors cible du produit) ni un simple renouvellement annuel (bruit administratif). Sans cette vérification croisée, la source produit surtout du bruit. Cette vérification suit exactement le même principe que la résolution NEQ/REQ déjà bâtie dans l'architecture (section 9) — pas une nouvelle mécanique, une application de celle qui existe déjà.
+  - **Champs pertinents :** nom d'entreprise, adresse, type d'entreprise, date d'émission de la licence
 - **Registres municipaux de permis de construction** (Montréal, Québec, Laval, etc., disponibles en données ouvertes par ville) — signal potentiel d'expansion physique (nouveaux locaux, agrandissement). Fragmenté par municipalité, à activer progressivement selon la priorité géographique
   - **Champs pertinents :** nom du demandeur/propriétaire, adresse des travaux, nature des travaux (agrandissement/nouvelle construction/rénovation), valeur du permis, date d'émission
 
 ### Signal 5 — Appels d'offres publics décrochés
 - **SEAO (Système électronique d'appel d'offres du Québec)** — la source la plus simple et gratuite : données ouvertes, formats JSON/XML, mise à jour hebdomadaire/mensuelle, aucune autorisation requise (portail Données Québec). Couvre contrats gouvernementaux, réseaux éducation/santé, municipalités.
-- Note : le but n'est pas d'éviter les appels d'offres comme canal, mais aussi de couvrir les entreprises en croissance qui n'y apparaissent jamais (surtout les PME) — le SEAO est une source additionnelle, pas la source principale.
-- **Champs pertinents :** entreprise adjudicataire, **adresse de l'entreprise adjudicataire (résolue via REQ si non fournie directement)**, valeur du contrat, secteur/nature du contrat, date d'attribution, donneur d'ordre
+- **Divulgation proactive des contrats fédéraux** (Portail du gouvernement ouvert, open.canada.ca) — **nouvelle découverte, équivalent pancanadien du SEAO** : contrats de plus de 10 000$ accordés par les ministères fédéraux, publiés en CSV gratuit, couverture partout au Canada. Répond directement au besoin de couverture en anglais Canada pour ce signal.
+  - **Champs pertinents :** entreprise adjudicataire, valeur du contrat, ministère, date d'attribution, description sommaire
+- Note : le but n'est pas d'éviter les appels d'offres comme canal, mais aussi de couvrir les entreprises en croissance qui n'y apparaissent jamais (surtout les PME) — le SEAO et les contrats fédéraux sont des sources additionnelles, pas la source principale.
+- **Champs pertinents (SEAO) :** entreprise adjudicataire, **adresse de l'entreprise adjudicataire (résolue via REQ si non fournie directement)**, valeur du contrat, secteur/nature du contrat, date d'attribution, donneur d'ordre
 
 ## 8. Priorisation pour le prototype v1
 
@@ -260,6 +284,9 @@ Chaque signal détecté doit être associé à une ou plusieurs sphères de beso
 8. **Registre des entreprises du Québec (REQ)** — gratuit, mis à jour deux fois par mois, base de vérification/enrichissement et signal d'expansion via changements d'adresse/nouveaux établissements (Signal 4 : registre corporatif) — **nouvelle découverte**
 9. Québec emploi — statut à confirmer directement avec leur équipe (voir section 7), à activer dès qu'un accès est clarifié
 10. Registres municipaux de permis de construction (Montréal, Québec, Laval, etc.) — gratuit, fragmenté par ville, à activer progressivement (Signal 4)
+11. **Corporations Canada (ISED)** — gratuit, bulk quotidien + API, équivalent fédéral pancanadien du REQ (Signal 4) — **nouvelle découverte, couverture Canada anglais**
+12. **Divulgation proactive des contrats fédéraux** — gratuit, équivalent pancanadien du SEAO (Signal 5) — **nouvelle découverte, couverture Canada anglais**
+13. **Licences d'affaires municipales** (Vancouver, Toronto) — gratuit, mais **activation conditionnelle à la vérification croisée avec Corporations Canada/registre provincial** (voir section 7) pour distinguer un nouvel établissement d'une entreprise existante d'un simple démarrage ou renouvellement (Signal 4)
 
 ### Sources réellement bloquées (non négociables, pas un choix de priorisation)
 

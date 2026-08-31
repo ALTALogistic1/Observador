@@ -23,6 +23,11 @@
 #   region                region couverte
 #   connecteur            chemin du module connecteur (observador/sources/<module>.py) ;
 #                         null pour une source sans connecteur codé pour l'instant
+#   regle_calibration      la règle concrète et vérifiable qui distingue un vrai signal
+#                         de croissance du bruit pour CETTE source (Principes directeurs
+#                         #3, non négociable) ; null tant qu'elle n'est pas définie — une
+#                         source ne peut avoir statut=actif sans elle (voir
+#                         Registry.valider_calibration, appelé avant tout scan réel)
 #   notes                 contexte libre (limites connues, contacts, découvertes)
 
 sources:
@@ -45,6 +50,12 @@ sources:
     cout: gratuit
     region: "Québec"
     connecteur: observador.sources.seao
+    regle_calibration: >
+      Aucun filtrage de bruit nécessaire : chaque enregistrement "award" du fichier
+      SEAO est déjà un contrat effectivement attribué (pas une simple soumission ou
+      un avis administratif) — voir observador/sources/seao.py:_extraire_awards.
+      Le score de confiance distingue ensuite les contrats significatifs des petits
+      contrats par paliers de valeur (observador/scoring.py:_score_appel_offres).
     notes: >
       Données ouvertes via le portail CKAN de Données Québec (donneesquebec.ca), formats
       JSON (depuis mars 2021, inspiré de l'Open Contracting Data Standard) et XML (depuis
@@ -66,6 +77,13 @@ sources:
     cout: "Payant à l'unité — tarif réglementé : 11 $ par recherche par nom d'entreprise, 4 $ par NIV. Pas d'abonnement en vrac ni d'API publique."
     region: "Québec"
     connecteur: observador.sources.rdprm
+    regle_calibration: >
+      Requise avant activation, pas encore implémentée (source volontairement laissée
+      `a_developper` pour cette raison, conformément au Principe directeur #3) : ne
+      retenir qu'une garantie sur bien d'entreprise à valeur significative, en
+      excluant les garanties sur biens personnels et les garanties qui ressemblent à
+      un refinancement ou un achat de routine (véhicule isolé) plutôt qu'à une réelle
+      expansion (équipement/inventaire de production). Voir spec section 6/8.
     notes: >
       DÉCOUVERTE (contredit l'hypothèse du README) : aucun accès gratuit en vrac ni API
       publique — seulement une consultation payante à l'unité, une recherche à la fois,
@@ -92,6 +110,13 @@ sources:
     cout: gratuit
     region: "Québec"
     connecteur: observador.sources.req
+    regle_calibration: >
+      Seuls deux types de changement génèrent un signal : nouvel établissement
+      secondaire, ou changement d'adresse du siège social — toute autre mise à jour
+      (déclaration annuelle, correction mineure, renouvellement) est explicitement
+      exclue. Implémenté dans observador/sources/req.py:_upsert_row (seuls
+      stats.nouveaux_etablissements et stats.changements_adresse produisent des
+      RawSignal, voir REQConnector.detect).
     notes: >
       Données ouvertes via CKAN (donneesquebec.ca), mise à jour deux fois par mois. Double
       usage : (1) base de résolution NEQ/adresse/secteur pour toutes les autres sources —
@@ -119,6 +144,14 @@ sources:
     cout: gratuit
     region: "Canada"
     connecteur: observador.sources.guichet_emplois
+    regle_calibration: >
+      Deux mécanismes de calibration distincts (spec section 7, Signal 3) : (1) le
+      signal qualitatif ne retient un poste que si son titre contient un mot-clé de
+      transformation/implantation, générique ou propre au profil — voir
+      observador/matching.py:correspondance_qualitative_titre ; (2) le signal
+      volumétrique se calibre par paliers de nombre de postes simultanés — voir
+      observador/scoring.py:_score_recrutement_massif. Une simple offre isolée sans
+      titre qualitatif ne franchit ni l'un ni l'autre.
     notes: >
       Données ouvertes via CKAN (open.canada.ca), CSV/TSV/JSON/XML, mise à jour mensuelle
       (délai à considérer — moins réactif qu'un flux temps réel). Ne couvre que les offres
@@ -188,15 +221,16 @@ sources:
     cout: gratuit
     region: "Québec"
     connecteur: null
+    regle_calibration: null  # à définir en Phase 2 : distinguer financement d'expansion vs maintien/formation (voir critères section 6)
     notes: >
-      Découverte (mise à jour de la spec, 2026-08-31) : la liste est publiée en
-      PDF, pas en CSV/API structuré — hébergée sur www.investquebec.com (ex.
+      Liste de divulgation publique gratuite, cible PME. Découverte (mise à jour de
+      la spec, 2026-08-31) : la liste est publiée en PDF, pas en CSV/API structuré —
+      hébergée sur www.investquebec.com (ex.
       investquebec.com/sites/default/files/.../interventions-financieres-2025.pdf),
       mise à jour annuellement. Extraction Phase 2 : traitement PDF plutôt qu'un
       simple parsing de fichier structuré. Domaine réseau distinct de
       donneesquebec.ca/open.canada.ca — à ajouter à la liste Custom seulement à
       l'activation (ne pas ajouter par anticipation, voir docs/STATUT_RESEAU.md).
-    notes: "Liste de divulgation publique gratuite, cible PME."
 
   - id: deloitte_fast50
     nom: "Deloitte Technology Fast 50 (Canada/Québec)"
@@ -298,6 +332,98 @@ sources:
       authentifiés. À valider directement avec le Centre d'assistance au placement
       (1 866 640-3059). L'entente Canada-Québec sur le marché du travail atténue en
       partie l'angle mort via le Guichet-Emplois fédéral (source active en Phase 1).
+
+  - id: corporations_canada
+    nom: "Corporations Canada (ISED) — registre fédéral"
+    signal_associe: [registre_corporatif]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: donnees_ouvertes  # + api (temps réel, plus complet qu'un simple bulk)
+    champs_pertinents:
+      - numero_corporation_federale
+      - nom
+      - statut
+      - adresse_bureau_enregistre
+      - date_incorporation
+      - loi_constitutive
+    cout: gratuit
+    region: "Canada"
+    connecteur: null
+    regle_calibration: >
+      Même logique que le REQ (voir req.regle_calibration) : ne retenir qu'un nouvel
+      enregistrement ou un changement d'adresse du bureau enregistré, exclure les
+      mises à jour administratives de routine. À vérifier une fois l'accès testé
+      (structure des mises à jour peut différer du REQ).
+    notes: >
+      Découverte (mise à jour de la spec, 2026-08-31) : équivalent fédéral du REQ,
+      mais pancanadien — répond au besoin de couverture Canada anglais. Téléchargement
+      gratuit en vrac mis à jour QUOTIDIENNEMENT (plus fréquent que le REQ), plus une
+      vraie API temps réel. Ne couvre que les entreprises incorporées fédéralement
+      (pas la majorité des PME, incorporées provincialement) — complète le REQ sans le
+      remplacer. Identifiant pivot : numéro de corporation fédérale, PAS un NEQ — voir
+      docs/ARCHITECTURE.md, section sur la généralisation du pivot d'identité hors
+      Québec. Accès aux registres provinciaux hors Québec inégal si activé plus tard
+      (gratuit ON/NS pour la recherche de base, payant C.-B., fermé Alberta) — à
+      documenter au cas par cas.
+
+  - id: contrats_federaux
+    nom: "Divulgation proactive des contrats fédéraux"
+    signal_associe: [appel_offres]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: donnees_ouvertes
+    champs_pertinents:
+      - entreprise_adjudicataire
+      - valeur_contrat
+      - ministere
+      - date_attribution
+      - description_sommaire
+    cout: gratuit
+    region: "Canada"
+    connecteur: null
+    regle_calibration: >
+      Même logique que SEAO (voir seao.regle_calibration) : chaque enregistrement de
+      divulgation proactive est déjà un contrat effectivement attribué (>10 000$ par
+      seuil de divulgation), pas une soumission — aucun filtrage de bruit additionnel
+      attendu, à confirmer une fois le format réel inspecté.
+    notes: >
+      Découverte (mise à jour de la spec, 2026-08-31) : équivalent fédéral pancanadien
+      du SEAO — répond au besoin de couverture Canada anglais pour ce signal. Contrats
+      de plus de 10 000$ accordés par les ministères fédéraux, CSV gratuit sur
+      open.canada.ca — probable même infrastructure/redirection que le Guichet-Emplois
+      (opencanada.blob.core.windows.net, déjà autorisé depuis la Phase 1).
+
+  - id: licences_affaires_municipales
+    nom: "Licences d'affaires municipales (ex. Vancouver, Toronto)"
+    signal_associe: [registre_corporatif]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: donnees_ouvertes
+    champs_pertinents:
+      - nom_entreprise
+      - adresse
+      - type_entreprise
+      - date_emission
+    cout: gratuit
+    region: "Vancouver, Toronto (à évaluer au cas par cas ailleurs)"
+    connecteur: null
+    regle_calibration: >
+      NON NÉGOCIABLE avant activation (spec section 7, "Principe de calibration") :
+      une nouvelle licence n'est un signal que si une vérification croisée avec
+      Corporations Canada ou le registre provincial concerné confirme qu'il s'agit
+      d'une entreprise DÉJÀ EXISTANTE qui ouvre un nouvel établissement — pas un
+      nouveau démarrage (hors cible du produit) ni un simple renouvellement annuel
+      (bruit administratif). Cette vérification croisée réutilise exactement la même
+      mécanique de résolution par identifiant pivot déjà bâtie pour le NEQ
+      (observador/resolution.py) — pas une nouvelle mécanique à inventer, seulement
+      son application à un autre registre source. Tant que ce croisement n'est pas
+      implémenté, cette source DOIT rester `a_developper`, même si les données sont
+      gratuites et disponibles.
+    notes: >
+      Découverte (mise à jour de la spec, 2026-08-31). Données ouvertes confirmées,
+      gratuites, mise à jour quotidienne pour Vancouver. Sans la vérification croisée
+      ci-dessus, cette source produit surtout du bruit (la spec est explicite
+      là-dessus) — ne pas l'activer "quand même" parce qu'elle est gratuite.
 
   # ---------------------------------------------------------------------
   # Bloquées ou budgétaires — visibles dans le registre, non prioritaires
