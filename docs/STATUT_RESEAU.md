@@ -69,22 +69,37 @@ Un bug distinct (corrigé au passage, sans lien avec le blocage) : le filtre
 tenté de traiter le PDF du guide comme un CSV. Corrigé pour cibler `ZIP`
 explicitement.
 
-**Cause la plus probable du blocage** : mes propres appels `curl` de diagnostic
-manuel, répétés à plusieurs reprises vers cette même URL en quelques minutes lors
-du dépannage initial de l'accès réseau (avant même que le connecteur Python soit
-exécuté une seule fois) — pas un comportement du pipeline applicatif, qui n'a
-jamais atteint cette étape avec succès. Le blocage a persisté au-delà d'une heure
-malgré l'absence de nouvelles requêtes de ma part dans l'intervalle, ce qui
-suggère soit une fenêtre de blocage Cloudflare plus longue qu'anticipé, soit un
-effet combiné avec d'autres sessions partageant la même IP sortante du pool cloud
-— les deux causes restent plausibles, mais la responsabilité de mes requêtes de
-diagnostic répétées est la plus directe et la plus certaine des deux. Décision :
-ne plus insister par des tests manuels répétés (déjà appliqué) ; une seule
-tentative espacée par le connecteur réel est sans risque d'aggraver la situation.
-À réessayer plus tard, à faible fréquence ; si le blocage persiste au-delà de la
-Phase 1, envisager de contacter le Registraire des entreprises pour un accès non
-bloqué, ou de générer le fichier depuis un réseau différent puis de l'importer
-dans l'environnement.
+**CORRIGÉ le 2026-08-31 (suite à une question précise d'Alexandre)** — l'analyse
+précédente ("mes propres appels curl répétés") ne résiste pas à l'examen des
+preuves brutes. Cinq tentatives réelles capturées sur ~13 heures :
+
+| Heure (UTC) | IP sortante (rapportée par le serveur) | Résultat |
+|---|---|---|
+| 02:50:10 | 160.79.106.**129** | 403, message identique |
+| 02:50:43 | 160.79.106.**128** | 403, message identique |
+| 02:58:29 | 160.79.106.**137** | 403, message identique |
+| 03:03:06 | 160.79.106.**129** | 403, message identique |
+| 15:48:45 | 160.79.106.**136** | 403, message identique |
+
+Deux faits qui pointent vers une **cause d'infrastructure partagée, pas notre
+volume de requêtes** :
+1. **L'IP de sortie change à chaque tentative** (128/129/136/137, même plage
+   /28 environ) — signature d'un pool d'adresses partagé entre plusieurs
+   sessions/tenants cloud, pas une IP dédiée à cette session.
+2. **La toute première tentative (02:50:10, avant tout essai répété)** a déjà
+   échoué avec ce même message — le blocage était présent dès le premier
+   contact, pas apparu après une accumulation de requêtes de notre part
+   (5 tentatives en tout sur 13h, un volume trivial).
+
+**Cause la plus probable** : une règle Cloudflare ciblant la plage/l'ASN
+d'adresses infonuagiques partagées (ou un pool visé par le trafic d'autres
+sessions/tenants), pas un rate-limit déclenché par ce projet. Décision : ne
+pas insister par des tests répétés (déjà appliqué) ; une seule tentative
+espacée par le connecteur réel reste sûre. À réessayer plus tard, à faible
+fréquence ; si le blocage persiste au-delà de la Phase 1, envisager de
+contacter le Registraire des entreprises pour un accès non bloqué (ou signaler
+la plage IP infonuagique bloquée), ou de générer le fichier depuis un réseau
+différent (hors du pool cloud) puis de l'importer dans l'environnement.
 
 **Impact sur la Phase 1** : le connecteur REQ (`observador/sources/req.py`) est
 codé et couvre le format attendu (voir la mise en garde sur le schéma CSV non
