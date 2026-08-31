@@ -684,9 +684,19 @@ def resolve_neq_by_name(
         return []
 
     prefix = nom_norm.split(" ")[0]
+    # GLOB plutôt que LIKE, pour la recherche par préfixe — vérifié (2026-08-31,
+    # après le premier import réel du REQ, ~2,7M lignes) : LIKE 'prefix%' avec un
+    # paramètre lié force SQLite à un SCAN complet de la table (150x plus lent,
+    # confirmé par EXPLAIN QUERY PLAN), parce que la comparaison par défaut de LIKE
+    # est insensible à la casse et l'index n'a pas de collation NOCASE. GLOB est
+    # nativement sensible à la casse, ce qui permet à SQLite d'utiliser l'index en
+    # SEARCH — sans perte de correspondance puisque nom_normalise et prefix sont
+    # déjà tous deux passés par _normaliser() (minuscules uniquement) des deux
+    # côtés. _normaliser() ne produit que [a-z0-9 ] — jamais de métacaractère GLOB
+    # (*, ?, [, ]) — donc aucun échappement n'est nécessaire ici.
     candidates = (
         db_session.execute(
-            select(REQEntry).where(REQEntry.nom_normalise.like(f"{prefix}%")).limit(2000)
+            select(REQEntry).where(REQEntry.nom_normalise.op("GLOB")(f"{prefix}*")).limit(2000)
         )
         .scalars()
         .all()

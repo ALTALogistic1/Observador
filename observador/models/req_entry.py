@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Index, String
+from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from observador.models.base import Base, utcnow
@@ -29,6 +29,11 @@ class REQEntry(Base):
 
     neq: Mapped[str] = mapped_column(String(20), primary_key=True)
     nom: Mapped[str] = mapped_column(String(300), nullable=False)
+    # Un seul index sur cette colonne (index=True) — un second explicite (retiré le
+    # 2026-08-31, redondant) avait été créé en plus par erreur ; sur la base réelle
+    # déjà construite (~2,7M lignes), l'index redondant existant reste en place
+    # (inoffensif, juste un peu de poids en écriture) plutôt que forcer une
+    # reconstruction complète pour l'enlever.
     nom_normalise: Mapped[str] = mapped_column(String(300), nullable=False, index=True)
 
     adresse: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -44,5 +49,3 @@ class REQEntry(Base):
 
     first_seen_at: Mapped[datetime] = mapped_column(default=utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
-
-    __table_args__ = (Index("ix_req_entries_nom_normalise_prefix", "nom_normalise"),)
