@@ -467,13 +467,23 @@ def _diff_etablissements_secondaires(
             existant.nom_etablissement = etab.nom_etablissement
 
 
+_INTERVALLE_COMMIT = 5000  # lignes entre deux commits intermédiaires
+
+
 def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | None) -> IngestStats:
     """Ingestion du VRAI fichier REQ (Entreprise.csv + Nom.csv + Etablissements.csv
     joints par NEQ — voir docstring du module pour la structure confirmée le
     2026-08-31). Charge d'abord les deux index (Nom.csv, Etablissements.csv,
     ~280 Mo + ~35 Mo) en mémoire — bornés au nombre d'entreprises/établissements
     distincts, pas au nombre de lignes brutes — puis balaie Entreprise.csv
-    (~630 Mo) en flux, une seule fois."""
+    (~630 Mo, ~3 millions de lignes réelles) en flux, une seule fois.
+
+    Commit intermédiaire tous les _INTERVALLE_COMMIT lignes (pas seulement à la
+    toute fin) : sur un fichier de cette taille, un import complet peut prendre
+    un temps significatif — un commit périodique borne la perte de travail en
+    cas d'interruption (leçon tirée d'un premier essai interrompu avant son
+    commit final, voir docs/STATUT_RESEAU.md) sans changer le résultat final
+    (les stats/signaux ne sont produits qu'à la toute fin, sur l'ensemble)."""
     noms = _charger_index_noms(zf)
     etablissements = _charger_index_etablissements(zf)
 
@@ -485,6 +495,9 @@ def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | 
                 break
             stats.lignes_lues += 1
             _upsert_entreprise_reelle(db_session, row, noms, etablissements, stats)
+            if stats.lignes_lues % _INTERVALLE_COMMIT == 0:
+                db_session.commit()
+                logger.info("REQ (fichier réel): %s lignes traitées jusqu'ici", stats.lignes_lues)
 
     db_session.commit()
     return stats
