@@ -462,13 +462,17 @@ sources:
     region: "Canada"
     connecteur: observador.sources.corporations_canada
     regle_calibration: >
-      Même logique que le REQ (voir req.regle_calibration) : seule une NOUVELLE
-      corporation active (détectée par diff entre deux rafraîchissements du
-      miroir local) génère un signal — voir
-      observador/sources/corporations_canada.py:ingest_snapshot. Pas encore de
-      détection de changement d'adresse (contrairement au REQ) faute d'avoir pu
-      valider la structure réelle des mises à jour — limitation documentée,
-      pas un filtre de bruit manquant.
+      Seul un changement d'ADRESSE pour une corporation active DÉJÀ connue
+      (détecté par diff entre deux rafraîchissements du miroir local) génère
+      un signal — voir observador/sources/corporations_canada.py:_upsert_row.
+      CORRIGÉ le 2026-08-31 (en validant le premier scan réel après le premier
+      import complet du REQ) : le code d'origine traitait toute NOUVELLE
+      corporation détectée comme un signal, ce qui aurait produit ~695 000
+      signaux sur le tout premier import (la quasi-totalité du registre fédéral
+      actif) — même erreur de calibration que celle corrigée le même jour pour
+      le REQ (une nouvelle incorporation n'est pas une entreprise en
+      croissance). Une nouvelle corporation active est toujours mise en miroir
+      (utile pour la résolution/vérification future), simplement plus signalée.
     notes: >
       ACTIVÉE en source Phase 1 le 2026-08-31 (demande d'Alexandre). VALIDÉE
       avec de vraies données le 2026-08-31, une fois `d4bf66bykfyaf.cloudfront.net`

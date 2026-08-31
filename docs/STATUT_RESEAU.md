@@ -412,3 +412,46 @@ resterait possible plus tard si la durée réelle s'avère un irritant récurren
 Une fois l'import complet réussi : lancer une recherche ponctuelle
 (`observador scan ponctuel`) pour obtenir la première notification consolidée
 de bout en bout avec de vraies données sur les 8 sources actives.
+
+## Import complet réel exécuté, et deux bugs réels trouvés en le validant (2026-08-31)
+
+Le premier import complet du REQ (fichier fourni par Alexandre en release
+GitHub, SHA-256 vérifié) a tourné avec succès : **2 726 312** entrées REQ
+créées (1 006 208 immatriculées, 1 713 476 radiées, 6 581 non immatriculées,
+47 avis d'intention), **236 311** établissements — en ~40 minutes dans cet
+environnement (commit intermédiaire tous les 5000 lignes, ajouté après un
+premier essai interrompu avant son commit final). `0 signal(aux)` produit,
+comme attendu pour un premier import (aucun état antérieur à comparer).
+
+En lançant le premier `scan` réel qui suit, DEUX bugs de performance/calibration
+réels ont été trouvés et corrigés, tous deux invisibles tant que le REQ n'avait
+pas encore de vraies données à cette échelle :
+
+1. **`resolve_neq_by_name` 150x plus lent que nécessaire.** `EXPLAIN QUERY
+   PLAN` a montré un `SCAN` complet de la table (2,7M lignes, ~0,5s par appel)
+   au lieu d'un `SEARCH` indexé — `LIKE 'prefix%'` avec un paramètre lié est
+   insensible à la casse par défaut, et l'index n'a pas de collation NOCASE,
+   donc SQLite ne peut pas garantir que l'index couvre correctement la
+   comparaison. Corrigé en remplaçant `LIKE` par `GLOB` (nativement sensible à
+   la casse, éligible à l'optimisation d'index) — sans perte de correspondance
+   puisque les deux côtés sont déjà normalisés en minuscules. Résultat mesuré :
+   ~500ms → ~30ms par résolution.
+2. **`corporations_canada` : même erreur de calibration que l'ancien code du
+   REQ.** Le connecteur traitait toute NOUVELLE corporation active détectée
+   par le diff comme un signal — sur le premier import réel (~695 000
+   corporations actives dans le fichier fédéral, 111 Mo), ça aurait produit
+   ~695 000 signaux, chacun nécessitant une résolution NEQ (des heures de
+   calcul en pure perte, et un flot de "signaux" qui ne sont pas de vrais
+   signaux de croissance). Corrigé de la même façon que le REQ : seul un
+   changement d'ADRESSE pour une corporation DÉJÀ connue produit un signal —
+   une toute nouvelle incorporation n'en produit plus.
+
+**Découverte de scope, pas un bug corrigé pour l'instant** : `scan ponctuel`
+(`recherche_ponctuelle`, `since=None`) fait actuellement télécharger et
+traiter à SEAO l'intégralité de ses 372 fichiers hebdomadaires/mensuels
+historiques (depuis 2021) plutôt qu'une fenêtre récente — extrapolé à ~12h
+dans cet environnement. `scan veille` (mode veille continue, `--lookback-days`
+borné, 30 jours par défaut) n'a pas ce problème. Pour la première validation
+de bout en bout, `scan veille` a été utilisé à la place — voir la section
+suivante pour discuter si `recherche_ponctuelle` doit avoir un plafond par
+défaut plutôt qu'un historique complet.

@@ -16,12 +16,21 @@ correspondent pas, plutôt que de mal interpréter les données — même garde-
 que pour req.py avant sa propre validation.
 
 Rôle en Phase 1 : SOURCE DE SIGNAL en soi, par diff entre deux rafraîchissements
-du miroir local (CorporationFederaleEntry) — même mécanique que REQ pour
-"nouvel établissement" (une nouvelle corporation active détectée = signal).
+du miroir local (CorporationFederaleEntry).
 Ce n'est PAS un pivot de résolution partagé avec les autres sources en Phase 1
 (voir docs/ARCHITECTURE.md, "Généralisation du pivot d'identité") : seules les
 entreprises par ailleurs résolvables via le REQ (Québec) produisent une
 notification tant que cette extension n'est pas construite.
+
+CORRECTION DE CALIBRATION (2026-08-31, en validant avec le vrai fichier, 111 Mo
+/ ~695 000 corporations actives) : le code d'origine traitait toute NOUVELLE
+corporation détectée par le diff comme un signal — au premier import réel,
+ça aurait produit ~695 000 signaux (une nouvelle incorporation n'est pas une
+entreprise EN croissance, exactement le même problème identifié et corrigé
+pour le REQ le même jour — voir docs/STATUT_RESEAU.md). Corrigé : seul un
+changement d'ADRESSE pour une corporation DÉJÀ connue produit un signal
+(analogue au "changement d'adresse du siège" du REQ) — une toute nouvelle
+incorporation ne produit plus rien.
 """
 from __future__ import annotations
 
@@ -82,7 +91,8 @@ def _parse_date(raw: str | None) -> datetime | None:
 @dataclass
 class IngestStats:
     lignes_lues: int = 0
-    nouvelles_corporations_actives: list[dict] = field(default_factory=list)
+    nouvelles_corporations_actives: list[dict] = field(default_factory=list)  # comptage/audit seulement, pas un signal
+    changements_adresse: list[dict] = field(default_factory=list)
 
 
 def _filtrer_ressources_actives(resources: list[dict]) -> list[dict]:
@@ -171,9 +181,23 @@ def _upsert_row(
             date_incorporation=date_inc,
         )
         db_session.add(entry)
+        # Comptage/audit seulement (ex. logging) — PAS un signal : une toute
+        # nouvelle incorporation n'est pas une entreprise en croissance (voir
+        # correction de calibration dans la docstring du module).
         if statut_brut.lower() in STATUTS_ACTIFS:
             stats.nouvelles_corporations_actives.append({"numero": numero, "nom": nom, "adresse": adresse})
         return
+
+    changement_adresse = (
+        adresse is not None
+        and adresse != existing.adresse
+        and existing.adresse is not None
+        and statut_brut.lower() in STATUTS_ACTIFS
+    )
+    if changement_adresse:
+        stats.changements_adresse.append(
+            {"numero": numero, "nom": nom, "ancienne_adresse": existing.adresse, "nouvelle_adresse": adresse}
+        )
 
     existing.nom = nom
     existing.statut = statut_brut
@@ -186,20 +210,22 @@ class CorporationsCanadaConnector(SourceConnector):
     def detect(self, since, db_session: Session) -> Iterator[RawSignal]:
         stats = ingest_snapshot(db_session, limit=None)
         logger.info(
-            "Corporations Canada: %s lignes lues, %s nouvelles corporations actives",
+            "Corporations Canada: %s lignes lues, %s nouvelles corporations actives (non signalées, "
+            "voir docstring module), %s changements d'adresse retenus",
             stats.lignes_lues,
             len(stats.nouvelles_corporations_actives),
+            len(stats.changements_adresse),
         )
         now = datetime.now(timezone.utc)
-        for nouvelle in stats.nouvelles_corporations_actives:
+        for chgt in stats.changements_adresse:
             yield RawSignal(
                 signal_type_id="registre_corporatif",
-                nom_entreprise=nouvelle["nom"],
+                nom_entreprise=chgt["nom"],
                 detected_at=now,
-                source_ref=f"corporations_canada:{nouvelle['numero']}",
-                adresse=nouvelle["adresse"],
-                titre_ou_description="Nouvelle corporation fédérale active",
-                champs={"type_changement": "nouvel_etablissement", **nouvelle},
+                source_ref=f"corporations_canada:changement_adresse:{chgt['numero']}:{chgt['nouvelle_adresse']}",
+                adresse=chgt["nouvelle_adresse"],
+                titre_ou_description="Changement d'adresse — corporation fédérale",
+                champs={"type_changement": "changement_adresse", **chgt},
             )
 
 
