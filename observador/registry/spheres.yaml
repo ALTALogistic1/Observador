@@ -1,0 +1,77 @@
+# Registre des sphères de besoin (spec section 4).
+#
+# Liste de départ, volontairement large. Extensible : un utilisateur qui ne se reconnaît
+# dans aucune sphère existante peut en proposer une nouvelle (observador/models/profile.py
+# -> Sphere avec est_personnalisee=True) sans casser la structure. Les entrées ci-dessous
+# sont le noyau "curé" chargé au démarrage (observador/registry/loader.py) ; les sphères
+# proposées par les utilisateurs vivent en base de données, pas dans ce fichier.
+
+spheres:
+  - id: gestion_inventaire_actifs
+    nom: "Gestion d'inventaire et d'actifs"
+  - id: rh_recrutement_dotation
+    nom: "Ressources humaines / recrutement / dotation"
+  - id: comptabilite_finance_fiscalite
+    nom: "Comptabilité / finance / fiscalité"
+  - id: juridique_conformite
+    nom: "Juridique / conformité réglementaire"
+  - id: technologie_systemes_ti
+    nom: "Technologie / systèmes / TI"
+  - id: cybersecurite
+    nom: "Cybersécurité"
+  - id: logistique_transport_flotte
+    nom: "Logistique / transport / gestion de flotte"
+  - id: chaine_approvisionnement_achats
+    nom: "Chaîne d'approvisionnement / achats / approvisionnement"
+  - id: marketing_vente_developpement_affaires
+    nom: "Marketing / vente / développement des affaires"
+  - id: securite_physique
+    nom: "Sécurité (physique, surveillance, contrôle d'accès)"
+  - id: immobilier_gestion_espaces
+    nom: "Immobilier / gestion d'espaces / aménagement"
+  - id: construction_renovation_entretien
+    nom: "Construction / rénovation / entretien de bâtiments"
+  - id: sst
+    nom: "Santé et sécurité au travail (SST)"
+  - id: environnement_esg
+    nom: "Environnement / développement durable / ESG"
+  - id: gestion_projet
+    nom: "Gestion de projet"
+  - id: production_operations_manufacturieres
+    nom: "Production / opérations manufacturières"
+  - id: ingenierie_design_industriel
+    nom: "Ingénierie / design industriel"
+  - id: service_clientele_support
+    nom: "Service à la clientèle / support technique"
+  - id: formation_competences
+    nom: "Formation / développement des compétences"
+  - id: traduction_communications_multilingues
+    nom: "Traduction / communications multilingues"
+  - id: relations_publiques_communication
+    nom: "Relations publiques / communication corporative"
+  - id: gestion_documentaire_archivage
+    nom: "Gestion documentaire / archivage"
+  - id: assurance_gestion_risques
+    nom: "Assurance / gestion des risques"
+  - id: import_export_douanes
+    nom: "Import / export / douanes"
+  - id: automatisation_robotique
+    nom: "Automatisation / robotique"
+  - id: analytique_affaires_donnees
+    nom: "Analytique d'affaires / gestion de données"
+  - id: efficacite_energetique
+    nom: "Efficacité énergétique / gestion de l'énergie"
+  - id: franchisage_developpement_reseaux
+    nom: "Franchisage / développement de réseaux"
+  - id: commerce_detail_ecommerce
+    nom: "Commerce de détail / e-commerce"
+  - id: restauration_gestion_alimentaire
+    nom: "Restauration / gestion alimentaire"
+  - id: agriculture_agroalimentaire
+    nom: "Agriculture / agroalimentaire"
+  - id: entretien_menager_conciergerie
+    nom: "Entretien ménager / conciergerie commerciale"
+  - id: gestion_paie_avantages_sociaux
+    nom: "Gestion de la paie / avantages sociaux"
+  - id: planification_strategique_conseil
+    nom: "Planification stratégique / conseil en gestion"

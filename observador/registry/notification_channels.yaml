@@ -1,0 +1,57 @@
+# Registre des canaux de notification.
+#
+# Même principe que le registre de sources (section 9) : un canal actif ou non existe
+# comme entrée structurée ici, avec le même gabarit ; activer/désactiver ou ajouter un
+# canal ne touche jamais au moteur de notification (observador/notifications/base.py),
+# seulement une nouvelle entrée + une classe NotificationChannel dans
+# observador/notifications/. Ce registre n'est pas prévu par la spec (qui ne précise pas
+# le canal de livraison pour le prototype) — décision produit (2026-08-31, Alexandre) :
+# courriel en premier (Phase 1, le plus simple), SMS et WhatsApp en Phase 2 (comptes
+# tiers à configurer), ordre de priorité explicite ci-dessous.
+#
+# Champs du gabarit :
+#   id                       identifiant stable
+#   nom                      nom affichable
+#   statut                    actif | a_developper
+#   priorite                  ordre de préférence choisi par Alexandre (1 = premier)
+#   fournisseur_technique      ex. smtp, twilio_sms, whatsapp_cloud_api
+#   champs_config_requis       noms des variables d'environnement attendues (voir .env.example)
+#   module                     chemin du module (observador/notifications/<module>.py)
+#   notes
+
+channels:
+  - id: email
+    nom: "Courriel"
+    statut: actif
+    priorite: 1
+    fournisseur_technique: smtp
+    champs_config_requis: [SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_ADDR]
+    module: observador.notifications.email_channel
+    notes: "Canal actif en Phase 1 — le plus simple à mettre en place. Identifiants SMTP à configurer par Alexandre."
+
+  - id: sms
+    nom: "SMS"
+    statut: a_developper
+    priorite: 2
+    fournisseur_technique: twilio_sms
+    champs_config_requis: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SMS_FROM_NUMBER]
+    module: observador.notifications.sms_channel
+    notes: "Nécessite un compte Twilio (ou équivalent) — identifiants/compte à régler par Alexandre quand ce sera le temps."
+
+  - id: whatsapp
+    nom: "WhatsApp"
+    statut: a_developper
+    priorite: 3
+    fournisseur_technique: whatsapp_cloud_api
+    champs_config_requis: [WHATSAPP_PROVIDER_TOKEN, WHATSAPP_PHONE_ID]
+    module: observador.notifications.whatsapp_channel
+    notes: "Nécessite un compte WhatsApp Business API (ex. Meta Cloud API ou Twilio) — à régler par Alexandre quand ce sera le temps."
+
+  - id: webhook_generique
+    nom: "Webhook générique (Slack/Discord/autre)"
+    statut: a_developper
+    priorite: 4
+    fournisseur_technique: webhook_http
+    champs_config_requis: [WEBHOOK_URL]
+    module: observador.notifications.webhook_channel
+    notes: "Non demandé pour l'instant — gardé au registre pour démontrer l'extensibilité (n'importe quel canal futur suit ce même gabarit)."

@@ -1,0 +1,92 @@
+"""Interface générique des connecteurs de sources (spec section 9).
+
+Le moteur (observador/engine.py) ne connaît QUE cette interface — jamais une source
+précise. Ajouter une source = écrire une classe qui hérite de SourceConnector,
+l'exposer comme CONNECTOR_CLASS dans son module, et pointer `connecteur:` vers ce
+module dans registry/sources.yaml. Rien d'autre à toucher.
+"""
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from collections.abc import Iterator
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from observador.registry.loader import SourceDef
+
+
+@dataclass
+class RawSignal:
+    """Ce qu'un connecteur produit pour une détection brute, avant résolution NEQ,
+    vérification et scoring (qui sont des étapes génériques du moteur, pas du
+    connecteur — spec section 7 : "chaque source doit capturer ces champs
+    directement quand ils sont disponibles, et sinon le système doit les résoudre
+    via le REQ")."""
+
+    signal_type_id: str
+    nom_entreprise: str
+    detected_at: datetime
+    source_ref: str  # identifiant/URL unique dans la source, pour déduplication
+
+    neq: str | None = None                 # rare : seul REQ le fournit directement
+    adresse: str | None = None
+    ville: str | None = None
+    region: str | None = None
+    secteur_activite: str | None = None
+    site_web: str | None = None
+
+    valeur_associee: float | None = None
+    titre_ou_description: str | None = None
+
+    # Tous les champs pertinents définis dans sources.yaml pour cette source,
+    # conservés intégralement (spec section 7, "principe transversal").
+    champs: dict = field(default_factory=dict)
+
+
+class SourceConnector(ABC):
+    """Base commune. `source_def` donne accès au gabarit du registre (champs
+    pertinents attendus, statut, etc.) sans que le connecteur ait à le redéfinir."""
+
+    def __init__(self, source_def: "SourceDef"):
+        self.source_def = source_def
+
+    @property
+    def source_id(self) -> str:
+        return self.source_def.id
+
+    @abstractmethod
+    def detect(self, since: datetime | None, db_session: "Session") -> Iterator[RawSignal]:
+        """Produit les signaux détectés depuis `since` (None = tout ce que la source
+        expose raisonnablement, ex. le fichier le plus récent). Un connecteur peut
+        ne rien produire (source temporairement indisponible) sans que ce soit une
+        erreur — logguer plutôt que planter le moteur pour les autres sources.
+
+        `db_session` est fourni à TOUS les connecteurs pour rester cohérent, mais
+        seul REQ s'en sert réellement (il maintient un miroir local pour la
+        résolution NEQ et la détection de changement par diff — voir
+        observador/sources/req.py). Les autres connecteurs l'ignorent : ils restent
+        de simples générateurs sans effet de bord sur la base."""
+        raise NotImplementedError
+
+    def disponible(self) -> bool:
+        """Vérification légère (pas de coût réseau significatif) que la source est
+        actuellement joignable. Le moteur peut s'en servir pour un diagnostic rapide
+        avant de lancer un scan complet."""
+        return True
+
+
+class StubConnector(SourceConnector):
+    """Connecteur pour une source au statut `a_developper` : ne renvoie jamais de
+    résultat, mais existe dans le registre (spec section 9 : "Une source 'à
+    développer' ne retourne simplement aucun résultat tant qu'elle n'est pas
+    activée — mais elle est visible et prête à être complétée.")."""
+
+    def detect(self, since: datetime | None, db_session: "Session") -> Iterator[RawSignal]:
+        return iter(())
+
+    def disponible(self) -> bool:
+        return False

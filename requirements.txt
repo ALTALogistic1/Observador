@@ -1,0 +1,13 @@
+# Dépendances d'exécution (voir aussi pyproject.toml, source de vérité pour packaging)
+SQLAlchemy>=2.0
+requests>=2.31
+PyYAML>=6.0
+beautifulsoup4>=4.12
+click>=8.1
+rapidfuzz>=3.6
+python-dateutil>=2.9
+
+# Dépendances de développement / tests
+pytest>=8.0
+pytest-mock>=3.14
+responses>=0.25

@@ -1,0 +1,171 @@
+"""Chargeur générique des registres (sources, types de signaux, sphères, canaux).
+
+Principe central de l'architecture (spec section 9) : ces registres sont la SEULE
+source de vérité sur "quelles sources/signaux/canaux existent et sont actifs". Rien
+dans le moteur (observador/engine.py) ne doit connaître le nom d'une source précise
+en dur — tout passe par ces gabarits chargés dynamiquement.
+"""
+from __future__ import annotations
+
+import importlib
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+REGISTRY_DIR = Path(__file__).parent
+
+
+def _load_yaml(filename: str) -> dict[str, Any]:
+    path = REGISTRY_DIR / filename
+    with path.open("r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+@dataclass(frozen=True)
+class SourceDef:
+    id: str
+    nom: str
+    signal_associe: list[str]
+    statut: str  # actif | inactif | a_developper | en_pause
+    blocage_type: str | None
+    methode_acces: str | None
+    champs_pertinents: list[str]
+    cout: str | None
+    region: str | None
+    connecteur: str | None
+    notes: str | None = None
+
+    @property
+    def est_actif(self) -> bool:
+        return self.statut == "actif"
+
+    def charger_connecteur(self):
+        """Importe et instancie la classe SourceConnector associée.
+
+        Retourne None si aucun connecteur n'est encore codé (statut a_developper
+        sans module) — c'est un état normal du registre, pas une erreur.
+        """
+        if not self.connecteur:
+            return None
+        module = importlib.import_module(self.connecteur)
+        connector_cls = getattr(module, "CONNECTOR_CLASS", None)
+        if connector_cls is None:
+            raise AttributeError(
+                f"Le module {self.connecteur} ne définit pas CONNECTOR_CLASS "
+                f"(voir observador/sources/base.py)."
+            )
+        return connector_cls(source_def=self)
+
+
+@dataclass(frozen=True)
+class SignalTypeDef:
+    id: str
+    nom: str
+    icone: str
+    description: str
+    sources_associees: list[str]
+    criteres_confiance: list[str]
+    spheres_probables: list[str]
+
+
+@dataclass(frozen=True)
+class SphereDef:
+    id: str
+    nom: str
+    est_personnalisee: bool = False
+    proposee_par: str | None = None
+
+
+@dataclass(frozen=True)
+class NotificationChannelDef:
+    id: str
+    nom: str
+    statut: str  # actif | a_developper
+    priorite: int
+    fournisseur_technique: str | None
+    champs_config_requis: list[str]
+    module: str | None
+    notes: str | None = None
+
+    @property
+    def est_actif(self) -> bool:
+        return self.statut == "actif"
+
+    def charger_canal(self):
+        if not self.module:
+            return None
+        module = importlib.import_module(self.module)
+        channel_cls = getattr(module, "CHANNEL_CLASS", None)
+        if channel_cls is None:
+            raise AttributeError(
+                f"Le module {self.module} ne définit pas CHANNEL_CLASS "
+                f"(voir observador/notifications/base.py)."
+            )
+        return channel_cls(channel_def=self)
+
+
+@dataclass
+class Registry:
+    sources: dict[str, SourceDef] = field(default_factory=dict)
+    signal_types: dict[str, SignalTypeDef] = field(default_factory=dict)
+    spheres: dict[str, SphereDef] = field(default_factory=dict)
+    notification_channels: dict[str, NotificationChannelDef] = field(default_factory=dict)
+
+    def sources_actives(self) -> list[SourceDef]:
+        return [s for s in self.sources.values() if s.est_actif]
+
+    def canaux_actifs(self) -> list[NotificationChannelDef]:
+        return sorted(
+            (c for c in self.notification_channels.values() if c.est_actif),
+            key=lambda c: c.priorite,
+        )
+
+    def canal(self, channel_id: str) -> NotificationChannelDef:
+        return self.notification_channels[channel_id]
+
+    def source(self, source_id: str) -> SourceDef:
+        return self.sources[source_id]
+
+    def signal_type(self, signal_type_id: str) -> SignalTypeDef:
+        return self.signal_types[signal_type_id]
+
+    def sphere(self, sphere_id: str) -> SphereDef | None:
+        return self.spheres.get(sphere_id)
+
+
+def load_registry() -> Registry:
+    sources_raw = _load_yaml("sources.yaml")["sources"]
+    signals_raw = _load_yaml("signal_types.yaml")["signal_types"]
+    spheres_raw = _load_yaml("spheres.yaml")["spheres"]
+    channels_raw = _load_yaml("notification_channels.yaml")["channels"]
+
+    sources = {s["id"]: SourceDef(**s) for s in sources_raw}
+    signal_types = {s["id"]: SignalTypeDef(**s) for s in signals_raw}
+    spheres = {s["id"]: SphereDef(**s) for s in spheres_raw}
+    notification_channels = {c["id"]: NotificationChannelDef(**c) for c in channels_raw}
+
+    return Registry(
+        sources=sources,
+        signal_types=signal_types,
+        spheres=spheres,
+        notification_channels=notification_channels,
+    )
+
+
+_registry_singleton: Registry | None = None
+
+
+def get_registry() -> Registry:
+    """Retourne le registre chargé une seule fois par processus (rechargeable via reload)."""
+    global _registry_singleton
+    if _registry_singleton is None:
+        _registry_singleton = load_registry()
+    return _registry_singleton
+
+
+def reload_registry() -> Registry:
+    global _registry_singleton
+    _registry_singleton = load_registry()
+    return _registry_singleton

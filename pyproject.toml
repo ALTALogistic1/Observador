@@ -1,0 +1,35 @@
+[project]
+name = "observador"
+version = "0.1.0"
+description = "Repereur d'entreprises en croissance - Phase 1 (SEAO, RDPRM, REQ, Guichet-Emplois)"
+requires-python = ">=3.11"
+readme = "README.md"
+dependencies = [
+    "SQLAlchemy>=2.0",
+    "requests>=2.31",
+    "PyYAML>=6.0",
+    "beautifulsoup4>=4.12",
+    "click>=8.1",
+    "rapidfuzz>=3.6",
+    "python-dateutil>=2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.14",
+    "responses>=0.25",
+]
+
+[project.scripts]
+observador = "observador.cli:cli"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["observador*"]
+
+[tool.setuptools.package-data]
+observador = ["registry/*.yaml"]

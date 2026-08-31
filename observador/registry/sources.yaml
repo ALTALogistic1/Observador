@@ -1,0 +1,391 @@
+# Registre des sources (spec section 9, "Architecture des sources — modularité obligatoire").
+#
+# Chaque source, active ou non, existe comme une entrée structurée ici, avec le même
+# gabarit. Le moteur (observador/engine.py) boucle sur les sources dont
+# statut == "actif" et charge leur connecteur via observador/sources/registry_loader.py.
+# Activer/désactiver une source = changer `statut` ici, jamais toucher au moteur.
+# Ajouter une source = ajouter une entrée + un connecteur dans observador/sources/,
+# jamais modifier le reste du système.
+#
+# Champs du gabarit (section 9) :
+#   id                   identifiant stable
+#   nom                  nom affichable
+#   signal_associe       liste d'ids de types de signaux (voir signal_types.yaml)
+#   statut                actif | inactif | a_developper | en_pause
+#   blocage_type          null | legal | budgetaire
+#                         (extension additive, non prévue par le gabarit initial : distingue,
+#                         pour une source non "actif", si le blocage est structurel — légal,
+#                         section 8 — ou une décision budgétaire qui revient à Alexandre, par
+#                         opposition à une source simplement pas encore développée)
+#   methode_acces         api | donnees_ouvertes | scraping | agregateur_tiers | payant_unitaire
+#   champs_pertinents     liste des champs à extraire et conserver (section 7)
+#   cout                  gratuit | payant + détail
+#   region                region couverte
+#   connecteur            chemin du module connecteur (observador/sources/<module>.py) ;
+#                         null pour une source sans connecteur codé pour l'instant
+#   notes                 contexte libre (limites connues, contacts, découvertes)
+
+sources:
+  # ---------------------------------------------------------------------
+  # Phase 1 — actives
+  # ---------------------------------------------------------------------
+  - id: seao
+    nom: "SEAO (Système électronique d'appel d'offres du Québec)"
+    signal_associe: [appel_offres]
+    statut: actif
+    blocage_type: null
+    methode_acces: donnees_ouvertes
+    champs_pertinents:
+      - entreprise_adjudicataire
+      - adresse_entreprise_adjudicataire   # résolue via REQ si non fournie directement
+      - valeur_contrat
+      - secteur_nature_contrat
+      - date_attribution
+      - donneur_ordre
+    cout: gratuit
+    region: "Québec"
+    connecteur: observador.sources.seao
+    notes: >
+      Données ouvertes via le portail CKAN de Données Québec (donneesquebec.ca), formats
+      JSON (depuis mars 2021, inspiré de l'Open Contracting Data Standard) et XML (depuis
+      2009). Mise à jour hebdomadaire/mensuelle. Aucune clé d'API requise.
+
+  - id: rdprm
+    nom: "RDPRM (Registre des droits personnels et réels mobiliers)"
+    signal_associe: [financement_expansion]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: payant_unitaire
+    champs_pertinents:
+      - nom_entreprise_debitrice
+      - adresse_entreprise_debitrice        # résolue via REQ à défaut
+      - nature_bien
+      - valeur_garantie
+      - date_inscription
+      - institution_creancière
+    cout: "Payant à l'unité — tarif réglementé : 11 $ par recherche par nom d'entreprise, 4 $ par NIV. Pas d'abonnement en vrac ni d'API publique."
+    region: "Québec"
+    connecteur: observador.sources.rdprm
+    notes: >
+      DÉCOUVERTE (contredit l'hypothèse du README) : aucun accès gratuit en vrac ni API
+      publique — seulement une consultation payante à l'unité, une recherche à la fois,
+      carte de crédit (voir rdprm.gouv.qc.ca). Décision (2026-08-31, Alexandre) : rester
+      `a_developper` pour la Phase 1, pas de blocage — le tarif est prévisible et pas
+      prohibitif à l'échelle d'un déclenchement CIBLÉ sur des entreprises déjà détectées
+      par une autre source (jamais un balayage en vrac). Le connecteur Phase 2 devra donc
+      être appelé depuis le moteur après une détection existante, pas depuis une boucle
+      de découverte indépendante.
+
+  - id: req
+    nom: "Registre des entreprises du Québec (REQ)"
+    signal_associe: [registre_corporatif]
+    statut: actif
+    blocage_type: null
+    methode_acces: donnees_ouvertes
+    champs_pertinents:
+      - neq
+      - nom_entreprise
+      - secteur_activite   # CAE/CTI
+      - adresses
+      - statut             # immatriculee | radiee
+      - date_derniere_maj
+    cout: gratuit
+    region: "Québec"
+    connecteur: observador.sources.req
+    notes: >
+      Données ouvertes via CKAN (donneesquebec.ca), mise à jour deux fois par mois. Double
+      usage : (1) base de résolution NEQ/adresse/secteur pour toutes les autres sources —
+      voir observador/resolution.py — et vérification obligatoire du statut légal
+      (observador/verification.py) ; (2) source de signal en soi (nouvel établissement
+      secondaire, changement d'adresse du siège social). Filtrage requis pour exclure les
+      mises à jour purement administratives (déclaration annuelle, correction mineure) —
+      voir observador/sources/req.py. Les actionnaires/administrateurs sont anonymisés
+      dans les données ouvertes.
+
+  - id: guichet_emplois
+    nom: "Guichet-Emplois (Job Bank Canada)"
+    signal_associe: [recrutement_massif]
+    statut: actif
+    blocage_type: null
+    methode_acces: donnees_ouvertes
+    champs_pertinents:
+      - nom_employeur
+      - titre_poste          # texte intégral, pour l'analyse qualitative des mots-clés
+      - profession_cnp
+      - nombre_postes
+      - salaire_offert
+      - ville_region
+      - date_publication
+    cout: gratuit
+    region: "Canada"
+    connecteur: observador.sources.guichet_emplois
+    notes: >
+      Données ouvertes via CKAN (open.canada.ca), CSV/TSV/JSON/XML, mise à jour mensuelle
+      (délai à considérer — moins réactif qu'un flux temps réel). Ne couvre que les offres
+      publiées sur le Guichet-Emplois ou partagées par ses partenaires — pas 100% du
+      marché.
+
+  # ---------------------------------------------------------------------
+  # Phase 2 — gratuites, à développer (section 8 : toute source gratuite de
+  # bonne qualité fait partie du prototype, séquencée après la Phase 1)
+  # ---------------------------------------------------------------------
+  - id: eimt
+    nom: "Employeurs avec EIMT positive (EDSC)"
+    signal_associe: [recrutement_massif]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: donnees_ouvertes
+    champs_pertinents:
+      - nom_employeur
+      - lieu_affaires
+      - profession_cnp
+      - nombre_postes
+      - volet_programme
+      - trimestre
+    cout: gratuit
+    region: "Canada"
+    connecteur: null
+    notes: >
+      Publié trimestriellement en CSV sur open.canada.ca. Signal de très haute qualité
+      (pénurie de main-d'œuvre confirmée officiellement). Exclut les employeurs à nom
+      personnel; ne couvre que les employeurs recourant à des travailleurs étrangers
+      temporaires.
+
+  - id: subventions_federales
+    nom: "Subventions et contributions gouvernementales — divulgation proactive fédérale"
+    signal_associe: [financement_expansion]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: donnees_ouvertes
+    champs_pertinents:
+      - nom_beneficiaire
+      - montant
+      - ministere_programme
+      - date
+      - description_projet
+      - localisation_beneficiaire   # résolue via REQ si absente
+    cout: gratuit
+    region: "Canada"
+    connecteur: null
+    notes: >
+      open.canada.ca, tous ministères fédéraux. Absorbe DEC, PARI-CNRC, CanExport,
+      FedDev Ontario, FedNor, APECA, PrairiesCan, PacifiCan comme des filtres à configurer
+      sur cette même source, pas des sources séparées.
+
+  - id: investissement_quebec
+    nom: "Investissement Québec — divulgation publique"
+    signal_associe: [financement_expansion]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: donnees_ouvertes
+    champs_pertinents:
+      - nom_entreprise
+      - montant
+      - date
+      - programme_type_financement
+      - adresse_region        # résolue via REQ si absente
+      - secteur_activite       # résolu via REQ si absent
+    cout: gratuit
+    region: "Québec"
+    connecteur: null
+    notes: >
+      Découverte (mise à jour de la spec, 2026-08-31) : la liste est publiée en
+      PDF, pas en CSV/API structuré — hébergée sur www.investquebec.com (ex.
+      investquebec.com/sites/default/files/.../interventions-financieres-2025.pdf),
+      mise à jour annuellement. Extraction Phase 2 : traitement PDF plutôt qu'un
+      simple parsing de fichier structuré. Domaine réseau distinct de
+      donneesquebec.ca/open.canada.ca — à ajouter à la liste Custom seulement à
+      l'activation (ne pas ajouter par anticipation, voir docs/STATUT_RESEAU.md).
+    notes: "Liste de divulgation publique gratuite, cible PME."
+
+  - id: deloitte_fast50
+    nom: "Deloitte Technology Fast 50 (Canada/Québec)"
+    signal_associe: [classement_croissance]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: scraping
+    champs_pertinents: [nom_entreprise, secteur, taux_croissance, rang, annee_publication, region_ville, site_web, nombre_employes]
+    cout: gratuit
+    region: "Québec/Canada"
+    connecteur: null
+    notes: "Pages web publiques standards, scraping léger, information destinée à large diffusion."
+
+  - id: growth500
+    nom: "Growth 500 (anciennement Croissance 500/PROFIT, Canadian Business)"
+    signal_associe: [classement_croissance]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: scraping
+    champs_pertinents: [nom_entreprise, secteur, taux_croissance, rang, annee_publication, region_ville, site_web, nombre_employes]
+    cout: gratuit
+    region: "Québec/Canada"
+    connecteur: null
+    notes: null
+
+  - id: rob_top_growing
+    nom: "Globe and Mail Report on Business — Top Growing Companies"
+    signal_associe: [classement_croissance]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: scraping
+    champs_pertinents: [nom_entreprise, secteur, taux_croissance, rang, annee_publication, region_ville, site_web, nombre_employes]
+    cout: gratuit
+    region: "Québec/Canada"
+    connecteur: null
+    notes: null
+
+  - id: inc5000
+    nom: "Inc. 5000 (US)"
+    signal_associe: [classement_croissance]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: scraping
+    champs_pertinents: [nom_entreprise, secteur, taux_croissance, rang, annee_publication, region_ville, site_web, nombre_employes]
+    cout: gratuit
+    region: "international"
+    connecteur: null
+    notes: "Hors scope v1, réservé à l'extension géographique future hors Québec/Canada."
+
+  - id: permis_construction_montreal
+    nom: "Permis de construction — Ville de Montréal"
+    signal_associe: [registre_corporatif]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: donnees_ouvertes
+    champs_pertinents: [nom_demandeur, adresse_travaux, nature_travaux, valeur_permis, date_emission]
+    cout: gratuit
+    region: "Montréal"
+    connecteur: null
+    notes: "Fragmenté par municipalité — à activer progressivement selon la priorité géographique."
+
+  - id: permis_construction_quebec
+    nom: "Permis de construction — Ville de Québec"
+    signal_associe: [registre_corporatif]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: donnees_ouvertes
+    champs_pertinents: [nom_demandeur, adresse_travaux, nature_travaux, valeur_permis, date_emission]
+    cout: gratuit
+    region: "Québec (ville)"
+    connecteur: null
+    notes: null
+
+  - id: permis_construction_laval
+    nom: "Permis de construction — Ville de Laval"
+    signal_associe: [registre_corporatif]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: donnees_ouvertes
+    champs_pertinents: [nom_demandeur, adresse_travaux, nature_travaux, valeur_permis, date_emission]
+    cout: gratuit
+    region: "Laval"
+    connecteur: null
+    notes: null
+
+  - id: quebec_emploi
+    nom: "Québec emploi (anciennement Placement en ligne)"
+    signal_associe: [recrutement_massif]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: api
+    champs_pertinents: [nom_employeur, titre_poste, nombre_postes, ville_region, date_publication]
+    cout: gratuit
+    region: "Québec"
+    connecteur: null
+    notes: >
+      Aucune API publique de lecture documentée pour un tiers — un sous-domaine
+      partenaires.api.quebecemploi.gouv.qc.ca existe mais semble réservé aux partenaires
+      authentifiés. À valider directement avec le Centre d'assistance au placement
+      (1 866 640-3059). L'entente Canada-Québec sur le marché du travail atténue en
+      partie l'angle mort via le Guichet-Emplois fédéral (source active en Phase 1).
+
+  # ---------------------------------------------------------------------
+  # Bloquées ou budgétaires — visibles dans le registre, non prioritaires
+  # (section 8 : une source n'est écartée que pour raison légale ou budgétaire,
+  # jamais par simple choix de priorisation)
+  # ---------------------------------------------------------------------
+  - id: bdc
+    nom: "BDC (Banque de développement du Canada)"
+    signal_associe: [financement_expansion]
+    statut: inactif
+    blocage_type: legal
+    methode_acces: null
+    champs_pertinents: []
+    cout: null
+    region: "Canada"
+    connecteur: null
+    notes: >
+      Bloqué de façon permanente : assujettie à la Loi sur l'accès à l'information et à
+      la Loi sur la protection des renseignements personnels, comme une institution
+      financière privée. Ne divulgue pas ses prêts individuels.
+
+  - id: prets_bancaires_prives
+    nom: "Prêts bancaires privés"
+    signal_associe: [financement_expansion]
+    statut: inactif
+    blocage_type: legal
+    methode_acces: null
+    champs_pertinents: []
+    cout: null
+    region: null
+    notes: "Secret bancaire, inaccessible par nature. Le RDPRM reste le meilleur proxy public."
+    connecteur: null
+
+  - id: crunchbase
+    nom: "Crunchbase"
+    signal_associe: [financement_expansion]
+    statut: a_developper
+    blocage_type: budgetaire
+    methode_acces: api
+    champs_pertinents: []
+    cout: "Payant, 49-99 $ US/mois"
+    region: "international"
+    connecteur: null
+    notes: >
+      Décision budgétaire (pas technique/légale) laissée à Alexandre. Comble un angle
+      mort réel : levées de fonds privées/institutionnelles hors RDPRM/subvention/contrat
+      public.
+
+  - id: agregateur_recrutement_tiers
+    nom: "Agrégateur tiers LinkedIn/Indeed (ex. TheirStack, Apify)"
+    signal_associe: [recrutement_massif]
+    statut: a_developper
+    blocage_type: budgetaire
+    methode_acces: agregateur_tiers
+    champs_pertinents: []
+    cout: "Payant, variable selon fournisseur"
+    region: "Canada/international"
+    connecteur: null
+    notes: >
+      LinkedIn : aucune API publique de recherche d'emploi. Indeed : Publisher API fermée
+      depuis 2025/2026. Décision budgétaire laissée à Alexandre.
+
+  - id: pme_mtl_futurpreneur_evol_mosaique
+    nom: "PME MTL / Futurpreneur / EVOL / Fonds Mosaïque"
+    signal_associe: [financement_expansion]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: null
+    champs_pertinents: []
+    cout: gratuit
+    region: "Québec"
+    connecteur: null
+    notes: >
+      Aucune divulgation structurée des bénéficiaires trouvée à ce jour, contrairement à
+      Investissement Québec. À réévaluer si une liste publique équivalente apparaît (ex.
+      rapports annuels).
+
+  - id: cdpq
+    nom: "CDPQ (Caisse de dépôt et placement du Québec)"
+    signal_associe: [financement_expansion]
+    statut: a_developper
+    blocage_type: null
+    methode_acces: null
+    champs_pertinents: []
+    cout: gratuit
+    region: "Québec"
+    connecteur: null
+    notes: >
+      Écarté comme source principale (cible des entreprises trop grandes). Gardé en note
+      comme signal secondaire possible (effet de ruissellement vers sous-traitants d'une
+      grande entreprise financée).

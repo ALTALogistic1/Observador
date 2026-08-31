@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Base de données locale et fichiers d'exécution
+*.sqlite3
+*.db
+/data/
+/.env
+.env.*
+!.env.example
+
+# Cache de connecteurs (snapshots téléchargés des sources ouvertes)
+/cache/
