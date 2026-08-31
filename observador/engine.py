@@ -120,11 +120,17 @@ def ingest_source(
 def ingest_all_active_sources(
     db_session: Session, since: datetime | None, registry: Registry | None = None, mode: str = "veille_continue"
 ) -> list[IngestReport]:
-    """Boucle sur TOUTES les sources actives du registre — spec section 9 :
-    le moteur ne connaît aucune source par son nom, seulement via ce registre."""
+    """Boucle sur les sources actives AUTOMATISÉES du registre — spec section 9 :
+    le moteur ne connaît aucune source par son nom, seulement via ce registre.
+    Exclut les sources en `methode_acces: import_manuel` (ex. RDPRM, REQ) :
+    celles-ci ne produisent des signaux que via une action explicite de
+    l'utilisateur (observador/manual_import.py), jamais dans cette boucle."""
     registry = registry or get_registry()
     registry.valider_calibration()  # principe directeur non négociable #3
-    return [ingest_source(db_session, s.id, since, registry, mode) for s in registry.sources_actives()]
+    return [
+        ingest_source(db_session, s.id, since, registry, mode)
+        for s in registry.sources_actives_automatisees()
+    ]
 
 
 def _signaux_deja_couverts(db_session: Session, company_id: int, profile_id: int) -> set[int]:

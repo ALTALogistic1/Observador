@@ -78,6 +78,22 @@ class SourceConnector(ABC):
         avant de lancer un scan complet."""
         return True
 
+    def detect_from_file(self, path, db_session: "Session") -> Iterator[RawSignal]:
+        """Optionnel — pour une source en `methode_acces: import_manuel` dont
+        l'import se fait par FICHIER COMPLET plutôt que par résultat individuel
+        (ex. REQ : Alexandre télécharge lui-même le fichier en vrac, bloqué en
+        téléchargement automatisé pour cette session — voir docs/STATUT_RESEAU.md
+        — puis l'importe). Complète observador/manual_import.py, qui couvre le cas
+        "un document = une entreprise" (ex. RDPRM) ; ce chemin-ci couvre "un
+        fichier = potentiellement des milliers d'entreprises", en réutilisant la
+        même logique de parsing/diff qu'un connecteur automatisé (ex.
+        req.py:ingest_snapshot) sans dupliquer de mécanique. Un connecteur qui ne
+        supporte pas ce mode lève NotImplementedError explicitement."""
+        raise NotImplementedError(
+            f"{type(self).__name__} ne supporte pas l'import manuel par fichier "
+            "(detect_from_file non implémenté)."
+        )
+
 
 class StubConnector(SourceConnector):
     """Connecteur pour une source au statut `a_developper` : ne renvoie jamais de

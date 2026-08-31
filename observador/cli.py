@@ -133,6 +133,60 @@ def import_manuel_ajouter(
         session.close()
 
 
+@import_manuel_group.command("fichier")
+@click.option("--source-id", required=True, help="Ex. req — doit avoir un connecteur supportant detect_from_file")
+@click.option("--chemin", "chemin_fichier", required=True, type=click.Path(exists=True), help="Fichier téléchargé par vous-même (voir 'import-manuel lien')")
+@click.option("--limit", "limite_lignes", type=int, default=None, help="Borner le nombre de lignes traitées (test)")
+@click.option("--importe-par", default=None, help="Courriel de la personne qui fait l'import")
+@click.option("--profile-id", "profile_ids", multiple=True, type=int, help="Retraiter les notifications pour ces profils (défaut: tous)")
+@click.option(
+    "--reprocess-tout/--pas-de-reprocess",
+    default=True,
+    help="Après l'import, retraiter TOUTES les entreprises connues (pas seulement celles touchées par ce fichier) — "
+    "utile pour un registre comme le REQ dont l'import débloque la résolution NEQ d'entreprises déjà détectées "
+    "par d'autres sources. Désactiver pour un import volumineux si vous préférez lancer 'scan veille' séparément.",
+)
+def import_manuel_fichier(source_id, chemin_fichier, limite_lignes, importe_par, profile_ids, reprocess_tout):
+    """Importer un FICHIER COMPLET obtenu hors ligne (ex. le fichier en vrac du
+    REQ, téléchargé manuellement — voir 'import-manuel lien --source-id req')
+    — spec section 9. Contrairement à 'ajouter' (un document = une
+    entreprise), cette commande délègue à
+    SourceConnector.detect_from_file du connecteur de la source, qui peut
+    produire des signaux pour des milliers d'entreprises en une seule
+    importation."""
+    from observador.engine import generer_notifications
+    from observador.manual_import import ImportManuelError, importer_fichier_source
+    from observador.models.notification import ModeUsage
+
+    session = get_session()
+    try:
+        try:
+            signaux = importer_fichier_source(
+                session,
+                source_id,
+                chemin_fichier,
+                importe_par=importe_par,
+                limite_lignes=limite_lignes,
+            )
+        except ImportManuelError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+        click.echo(f"{len(signaux)} signal(aux) importé(s) depuis {chemin_fichier}.")
+
+        query = session.query(Profile)
+        if profile_ids:
+            query = query.filter(Profile.id.in_(profile_ids))
+        profiles = query.all()
+
+        if reprocess_tout:
+            notifications = generer_notifications(session, profiles, ModeUsage.VEILLE_CONTINUE)
+            click.echo(
+                f"Notifications déclenchées (retraitement complet, toutes entreprises) : {len(notifications)}"
+            )
+    finally:
+        session.close()
+
+
 @cli.group()
 def profile():
     """Gestion des profils utilisateur (spec section 4)."""

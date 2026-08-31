@@ -106,43 +106,56 @@ class IngestStats:
         self.nouveaux_etablissements = self.nouveaux_etablissements or []
 
 
-def ingest_snapshot(db_session: Session, limit: int | None = None) -> IngestStats:
-    """Télécharge LE fichier REQ en vrac (une seule requête HTTP vers la ressource
-    CKAN, mise à jour deux fois par mois — spec section 7) et met à jour le miroir
-    local (REQEntry) à partir de son contenu, en détectant au passage les
-    changements pertinents (nouvel établissement, changement d'adresse) par
-    comparaison à l'état précédemment connu. Toute résolution nom->NEQ ou NEQ->fiche
-    pour les AUTRES sources (resolve_neq_by_name, get_by_neq) n'interroge QUE ce
-    miroir local — jamais une requête réseau par entreprise (spec section 7 : le
-    fichier en vrac est la méthode principale, pas des requêtes individuelles sur
-    le site de consultation). `limit` borne le nombre de lignes traitées — utile
-    pour un premier test raisonnable plutôt que le registre complet (accepté comme
-    limite de volume, pas comme donnée fictive : chaque ligne traitée reste une
-    vraie ligne du REQ)."""
-    client = CKANClient(DONNEES_QUEBEC_BASE)
-    # Le jeu de données réel n'a que 2 ressources : le fichier de données en vrac
-    # (format ZIP, contenant le/les CSV) et un guide d'utilisation (format PDF) —
-    # confirmé en inspectant la vraie réponse CKAN. On cible explicitement le ZIP ;
-    # ne JAMAIS retomber sur "toutes les ressources" (ça inclurait le PDF, qui
-    # casserait le parsing CSV en aval) ni interroger autre chose qu'UN téléchargement
-    # en vrac par exécution — spec section 7 : le fichier en vrac de Données Québec
-    # est la méthode principale, pas des requêtes individuelles par entreprise (voir
-    # docs/STATUT_RESEAU.md pour la confirmation qu'aucune requête par entreprise
-    # n'existe ailleurs dans ce connecteur).
-    resources = client.resources(REQ_PACKAGE_ID, format_filter="ZIP") or client.resources(
-        REQ_PACKAGE_ID, format_filter="CSV"
-    )
-    if not resources:
-        raise RuntimeError(
-            f"Aucune ressource ZIP ou CSV trouvée pour le jeu de données CKAN {REQ_PACKAGE_ID!r} "
-            "(le format du jeu de données a peut-être changé — vérifier avec package_show)."
+def ingest_snapshot(
+    db_session: Session, limit: int | None = None, fichier_local: str | None = None
+) -> IngestStats:
+    """Met à jour le miroir local (REQEntry) à partir du fichier REQ en vrac
+    (mise à jour deux fois par mois — spec section 7), en détectant au passage
+    les changements pertinents (nouvel établissement, changement d'adresse) par
+    comparaison à l'état précédemment connu. Toute résolution nom->NEQ ou
+    NEQ->fiche pour les AUTRES sources (resolve_neq_by_name, get_by_neq)
+    n'interroge QUE ce miroir local — jamais une requête réseau par entreprise
+    (spec section 7 : le fichier en vrac est la méthode principale, pas des
+    requêtes individuelles sur le site de consultation). `limit` borne le
+    nombre de lignes traitées — utile pour un premier test raisonnable plutôt
+    que le registre complet (accepté comme limite de volume, pas comme donnée
+    fictive : chaque ligne traitée reste une vraie ligne du REQ).
+
+    `fichier_local` : chemin d'un fichier déjà téléchargé PAR L'UTILISATEUR
+    (spec section 9, "Import manuel de documents sources") — voir
+    observador/manual_import.py:importer_fichier_source et
+    docs/STATUT_RESEAU.md (le téléchargement automatisé depuis cette session
+    est bloqué par une règle Cloudflare visant les plages IP infonuagiques,
+    pas un problème de méthode d'accès — voir REQConnector.detect ci-dessous,
+    conservé documenté mais plus branché dans le registre pour la Phase 1).
+    Si omis, retombe sur le téléchargement automatisé via CKAN."""
+    if fichier_local is not None:
+        resources = [{"_local_path": fichier_local}]
+    else:
+        client = CKANClient(DONNEES_QUEBEC_BASE)
+        # Le jeu de données réel n'a que 2 ressources : le fichier de données en vrac
+        # (format ZIP, contenant le/les CSV) et un guide d'utilisation (format PDF) —
+        # confirmé en inspectant la vraie réponse CKAN. On cible explicitement le ZIP ;
+        # ne JAMAIS retomber sur "toutes les ressources" (ça inclurait le PDF, qui
+        # casserait le parsing CSV en aval) ni interroger autre chose qu'UN téléchargement
+        # en vrac par exécution — spec section 7 : le fichier en vrac de Données Québec
+        # est la méthode principale, pas des requêtes individuelles par entreprise (voir
+        # docs/STATUT_RESEAU.md pour la confirmation qu'aucune requête par entreprise
+        # n'existe ailleurs dans ce connecteur).
+        resources = client.resources(REQ_PACKAGE_ID, format_filter="ZIP") or client.resources(
+            REQ_PACKAGE_ID, format_filter="CSV"
         )
+        if not resources:
+            raise RuntimeError(
+                f"Aucune ressource ZIP ou CSV trouvée pour le jeu de données CKAN {REQ_PACKAGE_ID!r} "
+                "(le format du jeu de données a peut-être changé — vérifier avec package_show)."
+            )
 
     stats = IngestStats()
     columns: dict[str, str] | None = None
 
     for resource in resources:
-        path = client.download(resource)
+        path = resource["_local_path"] if "_local_path" in resource else client.download(resource)
         rows_iter = _iter_csv_rows(path)
         try:
             first_row = next(rows_iter)
@@ -294,47 +307,81 @@ def resolve_neq_by_name(
     return sorted(matches, key=lambda m: m.score, reverse=True)
 
 
+def _stats_vers_signaux(stats: IngestStats) -> Iterator[RawSignal]:
+    """Convertit les diffs détectés par ingest_snapshot en RawSignal — factorisé
+    pour être identique que l'ingestion vienne du réseau (REQConnector.detect,
+    dormant en Phase 1) ou d'un fichier importé manuellement
+    (REQConnector.detect_from_file, actif en Phase 1 — voir docs/STATUT_RESEAU.md)."""
+    now = datetime.now(timezone.utc)
+
+    for nouveau in stats.nouveaux_etablissements:
+        yield RawSignal(
+            signal_type_id="registre_corporatif",
+            nom_entreprise=nouveau["nom"],
+            detected_at=now,
+            source_ref=f"req:nouvel_etablissement:{nouveau['neq']}",
+            neq=nouveau["neq"],
+            adresse=nouveau["adresse"],
+            titre_ou_description="Nouvelle immatriculation au REQ",
+            champs={"type_changement": "nouvel_etablissement", **nouveau},
+        )
+
+    for chgt in stats.changements_adresse:
+        yield RawSignal(
+            signal_type_id="registre_corporatif",
+            nom_entreprise=chgt["nom"],
+            detected_at=now,
+            source_ref=f"req:changement_adresse:{chgt['neq']}:{chgt['nouvelle_adresse']}",
+            neq=chgt["neq"],
+            adresse=chgt["nouvelle_adresse"],
+            titre_ou_description="Changement d'adresse au REQ",
+            champs={"type_changement": "changement_adresse", **chgt},
+        )
+
+
 class REQConnector(SourceConnector):
-    """Utilisé par le moteur comme n'importe quel autre connecteur pour le signal
-    `registre_corporatif`. L'ingestion (téléchargement + diff) se fait ici; la
-    résolution NEQ pour les AUTRES sources passe par resolve_neq_by_name/get_by_neq
-    ci-dessus, appelées directement par observador/resolution.py (pas via detect())."""
+    """La résolution NEQ pour les AUTRES sources passe par
+    resolve_neq_by_name/get_by_neq ci-dessus, appelées directement par
+    observador/resolution.py (pas via detect()/detect_from_file()).
+
+    `detect()` (téléchargement automatisé réseau) reste implémenté et
+    fonctionnel, mais REQ n'est PLUS branché sur `detect()` dans le registre
+    pour la Phase 1 (`methode_acces: import_manuel`, `connecteur` conservé
+    uniquement pour `detect_from_file`) — le téléchargement automatisé depuis
+    cette session cloud est bloqué par une règle Cloudflare visant les plages
+    IP infonuagiques partagées, pas un problème avec cette méthode d'accès en
+    soi (voir docs/STATUT_RESEAU.md pour l'analyse complète). Gardé au cas où
+    l'accès redeviendrait praticable (réseau différent, levée du blocage)."""
 
     def detect(self, since, db_session: Session) -> Iterator[RawSignal]:
         stats = ingest_snapshot(db_session, limit=None)
         logger.info(
-            "REQ: %s lignes lues, %s nouvelles, %s mises à jour, %s changements d'adresse retenus",
+            "REQ (réseau): %s lignes lues, %s nouvelles, %s mises à jour, %s changements d'adresse retenus",
             stats.lignes_lues,
             stats.entrees_nouvelles,
             stats.entrees_mises_a_jour,
             len(stats.changements_adresse),
         )
+        yield from _stats_vers_signaux(stats)
 
-        now = datetime.now(timezone.utc)
-
-        for nouveau in stats.nouveaux_etablissements:
-            yield RawSignal(
-                signal_type_id="registre_corporatif",
-                nom_entreprise=nouveau["nom"],
-                detected_at=now,
-                source_ref=f"req:nouvel_etablissement:{nouveau['neq']}",
-                neq=nouveau["neq"],
-                adresse=nouveau["adresse"],
-                titre_ou_description="Nouvelle immatriculation au REQ",
-                champs={"type_changement": "nouvel_etablissement", **nouveau},
-            )
-
-        for chgt in stats.changements_adresse:
-            yield RawSignal(
-                signal_type_id="registre_corporatif",
-                nom_entreprise=chgt["nom"],
-                detected_at=now,
-                source_ref=f"req:changement_adresse:{chgt['neq']}:{chgt['nouvelle_adresse']}",
-                neq=chgt["neq"],
-                adresse=chgt["nouvelle_adresse"],
-                titre_ou_description="Changement d'adresse au REQ",
-                champs={"type_changement": "changement_adresse", **chgt},
-            )
+    def detect_from_file(self, path, db_session: Session) -> Iterator[RawSignal]:
+        """Chemin ACTIF en Phase 1 (spec section 9, "Import manuel de documents
+        sources") : Alexandre télécharge lui-même le fichier en vrac depuis
+        https://www.donneesquebec.ca/recherche/dataset/registre-des-entreprises
+        (lien direct vers la ressource ZIP, voir SourceDef.lien_recherche dans
+        registry/sources.yaml) et l'importe via
+        `observador import-manuel req --fichier <chemin>`. Réutilise EXACTEMENT
+        la même logique de parsing/diff que le chemin automatisé
+        (ingest_snapshot), seule la provenance du fichier change."""
+        stats = ingest_snapshot(db_session, limit=None, fichier_local=path)
+        logger.info(
+            "REQ (fichier importé): %s lignes lues, %s nouvelles, %s mises à jour, %s changements d'adresse retenus",
+            stats.lignes_lues,
+            stats.entrees_nouvelles,
+            stats.entrees_mises_a_jour,
+            len(stats.changements_adresse),
+        )
+        yield from _stats_vers_signaux(stats)
 
 
 CONNECTOR_CLASS = REQConnector

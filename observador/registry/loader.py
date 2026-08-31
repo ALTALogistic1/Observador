@@ -129,7 +129,17 @@ class Registry:
     notification_channels: dict[str, NotificationChannelDef] = field(default_factory=dict)
 
     def sources_actives(self) -> list[SourceDef]:
+        """TOUTES les sources actives, y compris celles en import manuel (utile
+        pour l'affichage/l'inventaire — ex. `observador registry sources`)."""
         return [s for s in self.sources.values() if s.est_actif]
+
+    def sources_actives_automatisees(self) -> list[SourceDef]:
+        """Sources actives que le moteur doit boucler dessus AUTOMATIQUEMENT
+        (spec section 9) — exclut celles en `methode_acces: import_manuel`,
+        qui ne produisent des signaux que via une action explicite de
+        l'utilisateur (observador/manual_import.py), jamais dans la boucle de
+        scan planifiée. Utilisée par engine.ingest_all_active_sources."""
+        return [s for s in self.sources_actives() if not s.est_import_manuel]
 
     def canaux_actifs(self) -> list[NotificationChannelDef]:
         return sorted(

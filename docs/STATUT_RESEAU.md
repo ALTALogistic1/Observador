@@ -253,12 +253,41 @@ en l'absence d'un vrai REQ chargé, exactement le même garde-fou que pour SEAO)
 Aucun appel réseau impliqué dans ce mécanisme — c'est entièrement local une
 fois que l'utilisateur a lui-même obtenu le document RDPRM.
 
+## REQ basculé en import manuel (décision du 2026-08-31)
+
+Suite à l'analyse détaillée ci-dessus (IP de sortie changeante à chaque
+tentative, blocage dès la toute première requête, message Cloudflare
+identique sur ~13h) : Alexandre a tranché que ce n'est pas quelque chose à
+contourner par du code — c'est vraisemblablement une règle Cloudflare visant
+les plages IP infonuagiques partagées. Plutôt que de chercher un
+contournement technique, le REQ est passé en `methode_acces: import_manuel`
+(le même mécanisme générique déjà construit pour le RDPRM, étendu pour couvrir
+le cas "fichier complet" — voir `docs/ARCHITECTURE.md`). Alexandre télécharge
+lui-même le fichier depuis son navigateur (tâche récurrente légère, deux fois
+par mois — le fichier n'est pas mis à jour plus souvent) puis l'importe via
+`observador import-manuel fichier --source-id req --chemin <fichier>`.
+
+Le lien exact (identique à celui découvert dynamiquement par le code, jamais
+codé en dur différemment) :
+`https://www.registreentreprises.gouv.qc.ca/RQAnonymeGR/GR/GR03/GR03A2_22A_PIU_RecupDonnPub_PC/FichierDonneesOuvertes.aspx`
+
+Mécanique testée de bout en bout (CLI + tests automatisés,
+`tests/test_req_manual_import.py`) avec un fichier local minimal — mais le
+VRAI schéma de colonnes du fichier REQ reste non confirmé (le blocage empêche
+aussi bien Alexandre que cette session d'inspecter un vrai fichier depuis
+l'environnement). `resolve_columns()` échouera explicitement avec le détail
+des en-têtes réelles si `COLUMN_ALIASES` (observador/sources/req.py) ne
+correspond pas au premier vrai import — pas une mauvaise interprétation
+silencieuse.
+
 ## Prochaine étape
 
-Toutes les sources actives de la Phase 1 sont maintenant validées avec de
-vraies données, sauf le REQ (bloqué par le rate-limit d'origine, pas un
-problème d'allowlist — voir plus haut). Dès que ce rate-limit se lève,
-relancer une recherche ponctuelle complète (`observador scan ponctuel`) pour
+Toutes les sources actives de la Phase 1 sont validées avec de vraies
+données, sauf le REQ — dont le MÉCANISME d'import est testé, mais le SCHÉMA
+réel des colonnes ne sera confirmé qu'au premier import réel par Alexandre
+(voir ci-dessus). Une fois ce premier import fait : vérifier que
+`resolve_columns` n'a levé aucune erreur (sinon ajuster `COLUMN_ALIASES`), puis
+lancer une recherche ponctuelle complète (`observador scan ponctuel`) pour
 obtenir la première notification consolidée de bout en bout avec de vraies
 données sur les 8 sources actives, incluant une résolution NEQ réussie et un
 enrichissement web réel.

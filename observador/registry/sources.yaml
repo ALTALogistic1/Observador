@@ -115,7 +115,8 @@ sources:
     signal_associe: [registre_corporatif]
     statut: actif
     blocage_type: null
-    methode_acces: donnees_ouvertes
+    methode_acces: import_manuel
+    lien_recherche: "https://www.registreentreprises.gouv.qc.ca/RQAnonymeGR/GR/GR03/GR03A2_22A_PIU_RecupDonnPub_PC/FichierDonneesOuvertes.aspx"
     champs_pertinents:
       - neq
       - nom_entreprise
@@ -125,23 +126,42 @@ sources:
       - date_derniere_maj
     cout: gratuit
     region: "Québec"
-    connecteur: observador.sources.req
+    connecteur: observador.sources.req  # conservé pour detect_from_file — pas appelé par la boucle automatisée (methode_acces=import_manuel)
     regle_calibration: >
       Seuls deux types de changement génèrent un signal : nouvel établissement
       secondaire, ou changement d'adresse du siège social — toute autre mise à jour
       (déclaration annuelle, correction mineure, renouvellement) est explicitement
       exclue. Implémenté dans observador/sources/req.py:_upsert_row (seuls
       stats.nouveaux_etablissements et stats.changements_adresse produisent des
-      RawSignal, voir REQConnector.detect).
+      RawSignal) — identique que l'ingestion vienne du réseau ou d'un fichier importé
+      manuellement (voir _stats_vers_signaux, partagé par REQConnector.detect et
+      REQConnector.detect_from_file).
     notes: >
-      Données ouvertes via CKAN (donneesquebec.ca), mise à jour deux fois par mois. Double
-      usage : (1) base de résolution NEQ/adresse/secteur pour toutes les autres sources —
-      voir observador/resolution.py — et vérification obligatoire du statut légal
-      (observador/verification.py) ; (2) source de signal en soi (nouvel établissement
-      secondaire, changement d'adresse du siège social). Filtrage requis pour exclure les
-      mises à jour purement administratives (déclaration annuelle, correction mineure) —
-      voir observador/sources/req.py. Les actionnaires/administrateurs sont anonymisés
-      dans les données ouvertes.
+      BASCULÉE en import manuel le 2026-08-31 (décision d'Alexandre, suite à une
+      analyse détaillée du blocage réseau — voir docs/STATUT_RESEAU.md). Le
+      téléchargement automatisé du fichier en vrac échoue systématiquement (HTTP 403,
+      "utilisation excessive", Cloudflare) depuis cette session — preuve détaillée
+      (IP de sortie différente à chaque tentative, échec dès le tout premier essai)
+      pointant vers une règle Cloudflare visant les plages IP infonuagiques
+      partagées, PAS un problème avec cette méthode d'accès en tant que telle ni un
+      excès de requêtes de notre part (une seule requête par exécution, jamais par
+      entreprise — confirmé par audit du code). Solution retenue : le même mécanisme
+      générique d'import manuel déjà construit pour le RDPRM
+      (observador/manual_import.py), étendu pour couvrir le cas "fichier complet"
+      (SourceConnector.detect_from_file, pas seulement "un document = une
+      entreprise") — voir docs/ARCHITECTURE.md. Alexandre télécharge lui-même le
+      fichier via lien_recherche (le même lien découvert dynamiquement par le code,
+      pas une URL différente), puis l'importe via `observador import-manuel fichier
+      --source-id req --chemin <fichier>`. Tâche récurrente légère : le fichier n'est
+      mis à jour que deux fois par mois. Données ouvertes via CKAN
+      (donneesquebec.ca) à l'origine, double usage inchangé : (1) base de résolution
+      NEQ/adresse/secteur pour toutes les autres sources — voir
+      observador/resolution.py — et vérification obligatoire du statut légal
+      (observador/verification.py) ; (2) source de signal en soi. Les
+      actionnaires/administrateurs sont anonymisés dans les données ouvertes. Le
+      chemin réseau automatisé (REQConnector.detect) reste codé et fonctionnel, gardé
+      au cas où l'accès redeviendrait praticable, mais n'est plus appelé par la
+      boucle automatisée du moteur tant que methode_acces=import_manuel.
 
   # ---------------------------------------------------------------------
   # Phase 2 — gratuites, à développer (section 8 : toute source gratuite de

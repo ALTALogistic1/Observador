@@ -35,6 +35,49 @@ recherche ponctuelle sur le site de la source, puis l'importe.
   quoi importer** (le code ne peut pas juger un document arbitraire) — voir
   `regle_calibration` de l'entrée `rdprm` dans `registry/sources.yaml`.
 
+### Deuxième forme : import par fichier complet (REQ, ajouté le 2026-08-31)
+
+RDPRM (un document = une entreprise) et REQ (un fichier = potentiellement des
+milliers d'entreprises) sont deux SITUATIONS différentes sous le même
+mécanisme générique — pas deux mécanismes séparés :
+
+- `SourceConnector.detect_from_file(path, db_session)` (nouvelle méthode
+  optionnelle sur l'interface de base, `observador/sources/base.py`) : un
+  connecteur qui sait ingérer un fichier local l'implémente. `REQConnector`
+  le fait en appelant `req.ingest_snapshot(fichier_local=path)` — EXACTEMENT
+  la même logique de parsing/diff/upsert que le chemin réseau automatisé
+  (`REQConnector.detect`), factorisée dans `_stats_vers_signaux` pour ne
+  jamais dupliquer cette mécanique entre les deux chemins.
+- `manual_import.importer_fichier_source(db_session, source_id, chemin, ...)` :
+  le pendant "fichier" de `importer_document_manuel` — délègue à
+  `detect_from_file`, déduplique par `source_ref` (comme `engine.ingest_source`
+  le ferait pour une source automatisée), puis persiste via le même
+  `persist_raw_signal` factorisé (utilisé aussi par `importer_document_manuel`
+  — un seul endroit qui sait transformer un `RawSignal` en `Signal`).
+- **Pourquoi le REQ est passé par ce mécanisme** : le téléchargement automatisé
+  échoue systématiquement (HTTP 403 Cloudflare, "utilisation excessive")
+  depuis cette session — l'IP de sortie change à chaque tentative (pool
+  partagé entre sessions cloud) et le blocage était déjà présent dès la toute
+  première tentative, avant tout essai répété — signature d'une règle visant
+  une plage IP infonuagique, pas notre volume de requêtes (une seule requête
+  par exécution, jamais par entreprise). Voir `docs/STATUT_RESEAU.md` pour le
+  détail complet avec preuves (horodatage + IP de sortie par tentative).
+- **`Registry.sources_actives_automatisees()`** (nouveau) exclut les sources
+  en `import_manuel` de la boucle que `engine.ingest_all_active_sources`
+  parcourt à chaque `scan veille`/`scan ponctuel` — sans ça, le REQ tenterait
+  quand même le téléchargement réseau bloqué à chaque scan malgré
+  `methode_acces: import_manuel`. `registry.sources_actives()` (sans suffixe)
+  continue de tout lister (utile pour `observador registry sources`).
+- Après un import REQ, `observador import-manuel fichier --source-id req`
+  retraite par défaut TOUTES les entreprises connues (pas seulement celles
+  touchées par ce fichier) — un rafraîchissement du REQ peut débloquer la
+  résolution NEQ d'entreprises déjà détectées par SEAO/EIMT/etc. qui étaient
+  jusque-là `non_trouve`. Désactivable (`--pas-de-reprocess`) pour un gros
+  import si on préfère lancer `scan veille` séparément.
+- Le chemin réseau automatisé (`REQConnector.detect`) reste codé et
+  fonctionnel — gardé au cas où l'accès redeviendrait praticable — mais n'est
+  plus dans la boucle du moteur tant que `methode_acces: import_manuel`.
+
 ## Les "Principes directeurs" (bloc ajouté en tête de la spec le 2026-08-31)
 
 La spec ouvre maintenant sur 9 principes directeurs, présentés comme la grille de
