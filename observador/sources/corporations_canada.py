@@ -43,13 +43,27 @@ logger = logging.getLogger(__name__)
 
 CORPORATIONS_PACKAGE_ID = "0032ce54-c5dd-4b66-99a0-320a7b5e99f2"
 
+# Alias vérifiés contre les vraies en-têtes du fichier réel (2026-08-31) :
+# 'Numéro de société', 'Dénomination sociale - version 1', 'Régime législatif',
+# 'Statut', 'Rue', 'Municipalité/ville', 'Province/territoire', 'Code postal'.
+# PAS de colonne "date d'incorporation" dans le fichier réel (seulement "Date
+# d'anniversaire", "Année du dernier dépôt annuel" — aucune n'est fiablement la
+# date de constitution) : ce champ n'est donc PAS extrait, plutôt que de
+# deviner un mapping incorrect vers un champ qui ne veut pas dire la même
+# chose. L'adresse est composée à partir de plusieurs colonnes (pas une seule
+# colonne "adresse" comme espéré à l'origine) — voir _upsert_row.
 COLUMN_ALIASES: dict[str, list[str]] = {
-    "numero": ["corporation_number", "numero_de_corporation", "numero"],
-    "nom": ["corporate_name", "nom_de_la_societe", "denomination"],
-    "statut": ["status", "statut"],
-    "adresse": ["registered_office_address", "adresse_du_bureau_enregistre", "adresse"],
-    "date_incorporation": ["incorporation_date", "date_de_constitution", "date_incorporation"],
-    "loi": ["governing_act", "loi_habilitante", "loi_constitutive"],
+    "numero": ["numero_de_societe"],
+    "nom": ["denomination_sociale_version_1"],
+    "statut": ["statut"],
+    "rue": ["rue"],
+    "ville": ["municipalite_ville"],
+    "province": ["province_territoire"],
+    "code_postal": ["code_postal"],
+}
+# Alias optionnels — best-effort, ne bloquent pas l'ingestion s'ils sont absents.
+COLUMN_ALIASES_OPTIONNELS: dict[str, list[str]] = {
+    "loi": ["regime_legislatif"],
 }
 
 STATUTS_ACTIFS = {"active", "actif", "active corporation"}
@@ -71,12 +85,23 @@ class IngestStats:
     nouvelles_corporations_actives: list[dict] = field(default_factory=list)
 
 
+def _filtrer_ressources_actives(resources: list[dict]) -> list[dict]:
+    """Exclut les ressources "inactive" d'une liste déjà filtrée par
+    name_contains="active" — DÉCOUVERTE (2026-08-31) : "inactive" contient la
+    sous-chaîne "active", donc un simple name_contains="active" attrape aussi
+    "Other inactive corporations"/"Inactive business corporations", d'où des
+    lignes "Dissoute" dans les résultats sans cette exclusion explicite."""
+    return [r for r in resources if "inactive" not in (r.get("name") or "").lower()]
+
+
 def ingest_snapshot(db_session: Session, limit: int | None = None) -> IngestStats:
     """Télécharge les ressources "corporations actives" (une par langue/type) et
     met à jour le miroir local, en détectant les nouvelles corporations actives
     (signal) par comparaison à l'état précédemment connu."""
     client = CKANClient(OPEN_CANADA_BASE)
-    resources = client.resources(CORPORATIONS_PACKAGE_ID, format_filter="CSV", name_contains="active")
+    resources = _filtrer_ressources_actives(
+        client.resources(CORPORATIONS_PACKAGE_ID, format_filter="CSV", name_contains="active")
+    )
     if not resources:
         raise RuntimeError(
             f"Aucune ressource CSV 'active' trouvée pour {CORPORATIONS_PACKAGE_ID!r} — "
@@ -85,19 +110,26 @@ def ingest_snapshot(db_session: Session, limit: int | None = None) -> IngestStat
 
     stats = IngestStats()
     columns: dict[str, str] | None = None
+    colonnes_optionnelles: dict[str, str] = {}
 
     for resource in resources:
         path = client.download(resource)
         with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
             reader = csv.DictReader(f)
             if columns is None:
-                columns = resolve_columns(reader.fieldnames or [], COLUMN_ALIASES)
+                fieldnames = reader.fieldnames or []
+                columns = resolve_columns(fieldnames, COLUMN_ALIASES)
+                for logical, aliases in COLUMN_ALIASES_OPTIONNELS.items():
+                    try:
+                        colonnes_optionnelles.update(resolve_columns(fieldnames, {logical: aliases}))
+                    except ValueError:
+                        pass  # champ optionnel absent — pas bloquant
 
             for row in reader:
                 if limit is not None and stats.lignes_lues >= limit:
                     break
                 stats.lignes_lues += 1
-                _upsert_row(db_session, row, columns, stats)
+                _upsert_row(db_session, row, columns, colonnes_optionnelles, stats)
 
         if limit is not None and stats.lignes_lues >= limit:
             break
@@ -106,15 +138,27 @@ def ingest_snapshot(db_session: Session, limit: int | None = None) -> IngestStat
     return stats
 
 
-def _upsert_row(db_session: Session, row: dict, columns: dict[str, str], stats: IngestStats) -> None:
+def _upsert_row(
+    db_session: Session, row: dict, columns: dict[str, str], colonnes_optionnelles: dict[str, str], stats: IngestStats
+) -> None:
     numero = (row.get(columns["numero"]) or "").strip()
     if not numero:
         return
     nom = (row.get(columns["nom"]) or "").strip()
     statut_brut = (row.get(columns["statut"]) or "").strip()
-    adresse = (row.get(columns["adresse"]) or "").strip() or None
-    date_inc = _parse_date(row.get(columns["date_incorporation"]))
-    loi = (row.get(columns["loi"]) or "").strip() or None
+
+    parties_adresse = [
+        (row.get(columns["rue"]) or "").strip(),
+        (row.get(columns["ville"]) or "").strip(),
+        (row.get(columns["province"]) or "").strip(),
+        (row.get(columns["code_postal"]) or "").strip(),
+    ]
+    adresse = ", ".join(p for p in parties_adresse if p) or None
+
+    date_inc = None  # pas de colonne fiable pour la date de constitution — voir COLUMN_ALIASES
+    loi = None
+    if "loi" in colonnes_optionnelles:
+        loi = (row.get(colonnes_optionnelles["loi"]) or "").strip() or None
 
     existing = db_session.get(CorporationFederaleEntry, numero)
     if existing is None:

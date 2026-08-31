@@ -300,19 +300,19 @@ sources:
       score (observador/scoring.py:_score_financement_expansion), ce qui reste
       cohérent avec le critère "montant relatif à la taille de l'entreprise".
     notes: >
-      ACTIVÉE en source Phase 1 le 2026-08-31 (demande d'Alexandre). ⚠️ NON
-      VALIDÉE avec de vraies données : `www.investquebec.com` (domaine du PDF)
-      pas encore autorisé dans l'environnement — voir docs/STATUT_RESEAU.md.
-      URL réelle trouvée par recherche : investquebec.com/sites/default/files/
-      2026-02/investissement-quebec-interventions-financieres-2025.pdf ("Liste
-      de divulgation 2024-2025 — Nom de l'entreprise, Montant de financement").
-      Format PDF, pas CSV/API — extraction par pdfplumber (tableaux), en-tête
-      détectée dynamiquement plutôt que supposée à une position fixe, mais
-      structure interne non confirmée. Mise à jour annuelle : l'URL change
-      chaque année (mois/année dans le chemin) — à ajuster à la main une fois
-      par an (OBSERVADOR_IQ_PDF_URL ou paramètre `url` du connecteur), aucune
-      découverte dynamique possible faute de portail structuré pour cette
-      source.
+      ACTIVÉE en source Phase 1 le 2026-08-31 (demande d'Alexandre). VALIDÉE
+      avec de vraies données le 2026-08-31, une fois `www.investquebec.com`
+      autorisé dans l'environnement — téléchargement et extraction de tableaux
+      PDF réels réussis (pdfplumber). Exemples réels : "13548082 Canada Inc",
+      3 000 000 $ ; "11888935 Canada Inc. (Workstaff)", 289 058 $. URL utilisée :
+      investquebec.com/sites/default/files/2026-02/investissement-quebec-interventions-financieres-2025.pdf
+      ("Liste de divulgation 2024-2025 — Nom de l'entreprise, Montant de
+      financement"). La table ne contient que nom et montant (pas de date par
+      ligne, pas de secteur/région — résolus via REQ comme prévu par la spec).
+      Mise à jour annuelle : l'URL change chaque année (mois/année dans le
+      chemin) — à ajuster à la main une fois par an (OBSERVADOR_IQ_PDF_URL ou
+      paramètre `url` du connecteur), aucune découverte dynamique possible
+      faute de portail structuré pour cette source.
 
   - id: deloitte_fast50
     nom: "Deloitte Technology Fast 50 (Canada/Québec)"
@@ -440,24 +440,34 @@ sources:
       valider la structure réelle des mises à jour — limitation documentée,
       pas un filtre de bruit manquant.
     notes: >
-      ACTIVÉE en source Phase 1 le 2026-08-31 (demande d'Alexandre). ⚠️ NON
-      VALIDÉE avec de vraies données : les ressources CSV du jeu de données CKAN
-      sont hébergées sur `d4bf66bykfyaf.cloudfront.net` (AWS CloudFront), domaine
-      pas encore autorisé dans l'environnement au moment de l'écriture — voir
-      docs/STATUT_RESEAU.md. Le connecteur est écrit contre la documentation
-      publique du jeu de données (colonnes estimées, pas confirmées) avec le même
-      garde-fou que req.py (resolve_columns échoue explicitement plutôt que de
-      mal interpréter). Équivalent fédéral du REQ, mais pancanadien — répond au
-      besoin de couverture Canada anglais. Téléchargement gratuit en vrac mis à
-      jour QUOTIDIENNEMENT (plus fréquent que le REQ), plus une vraie API temps
-      réel (non utilisée ici — le bulk suffit pour un signal de type "nouvelle
-      incorporation"). Ne couvre que les entreprises incorporées fédéralement —
-      complète le REQ sans le remplacer. Identifiant pivot : numéro de
-      corporation fédérale, PAS un NEQ — pas de pivot partagé en Phase 1, voir
-      docs/ARCHITECTURE.md, "Généralisation du pivot d'identité". Accès aux
-      registres provinciaux hors Québec inégal si activé plus tard (gratuit
-      ON/NS pour la recherche de base, payant C.-B., fermé Alberta) — à
-      documenter au cas par cas.
+      ACTIVÉE en source Phase 1 le 2026-08-31 (demande d'Alexandre). VALIDÉE
+      avec de vraies données le 2026-08-31, une fois `d4bf66bykfyaf.cloudfront.net`
+      (AWS CloudFront, héberge les CSV réels du jeu de données CKAN) autorisé
+      dans l'environnement. Deux corrections apportées après inspection du
+      fichier réel : (1) les vraies colonnes diffèrent de l'estimation initiale
+      (pas de champ "date d'incorporation" direct — seulement "Date
+      d'anniversaire"/"Année du dernier dépôt annuel", aucun fiable, donc non
+      extrait plutôt que deviné ; l'adresse est composée à partir de
+      Rue/Municipalité/Province/Code postal, pas une seule colonne) ; (2) le
+      filtre `name_contains="active"` attrapait aussi les ressources
+      "inactive" (la sous-chaîne "active" y est contenue), produisant des
+      entrées "Dissoute" — corrigé par une exclusion explicite. Exemple réel
+      après correction : "The Huntsman Marine Science Centre", 1 Lower Campus
+      Road, St. Andrews, NB. Équivalent fédéral du REQ, mais pancanadien —
+      répond au besoin de couverture Canada anglais. Téléchargement gratuit en
+      vrac mis à jour QUOTIDIENNEMENT (plus fréquent que le REQ), plus une
+      vraie API temps réel (non utilisée ici — le bulk suffit pour un signal de
+      type "nouvelle incorporation"). Ne couvre que les entreprises incorporées
+      fédéralement — complète le REQ sans le remplacer. Identifiant pivot :
+      numéro de corporation fédérale, PAS un NEQ — pas de pivot partagé en
+      Phase 1, voir docs/ARCHITECTURE.md, "Généralisation du pivot d'identité".
+      Accès aux registres provinciaux hors Québec inégal si activé plus tard
+      (gratuit ON/NS pour la recherche de base, payant C.-B., fermé Alberta) —
+      à documenter au cas par cas. Note opérationnelle : le premier
+      rafraîchissement du miroir local produit un signal pour CHAQUE
+      corporation active du fichier (des centaines de milliers) puisque le
+      miroir part vide — comportement attendu d'une détection par diff, pas un
+      bug ; seuls les rafraîchissements suivants seront réellement incrémentaux.
 
   - id: contrats_federaux
     nom: "Divulgation proactive des contrats fédéraux"

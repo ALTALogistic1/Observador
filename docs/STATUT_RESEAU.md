@@ -14,8 +14,8 @@ L'environnement cloud (`Default`, accès réseau `Custom`) doit autoriser :
 | `open.canada.ca` | Portail CKAN — Guichet-Emplois (métadonnées) | ✅ Accessible |
 | `www.registreentreprises.gouv.qc.ca` | Fichier de données réel du REQ (le CKAN de donneesquebec.ca n'héberge que les métadonnées, le fichier est servi par ce domaine) | ✅ Accès réseau autorisé, mais **le serveur d'origine renvoie une erreur "utilisation excessive"** — voir section REQ ci-dessous, ce n'est pas un problème d'allowlist |
 | `opencanada.blob.core.windows.net` | Le téléchargement CSV du Guichet-Emplois redirige (302) vers ce compte de stockage Azure — découvert seulement à l'exécution, pas visible dans les métadonnées CKAN de premier niveau | ✅ Accessible (confirmé le 2026-08-31) — sert aussi EIMT, les subventions fédérales, et les contrats fédéraux (même infrastructure), sans ajout supplémentaire |
-| `d4bf66bykfyaf.cloudfront.net` | Fichiers CSV réels de Corporations Canada (AWS CloudFront) — le CKAN de open.canada.ca n'héberge que les métadonnées | ⛔ **Pas encore autorisé** — Corporations Canada activée au registre mais non validée avec de vraies données (voir plus bas) |
-| `www.investquebec.com` | PDF de la liste de divulgation Investissement Québec | ⛔ **Pas encore autorisé** — Investissement Québec activée au registre mais non validée avec de vraies données (voir plus bas) |
+| `d4bf66bykfyaf.cloudfront.net` | Fichiers CSV réels de Corporations Canada (AWS CloudFront) — le CKAN de open.canada.ca n'héberge que les métadonnées | ✅ Accessible (autorisé et validé avec de vraies données le 2026-08-31 — voir plus bas) |
+| `www.investquebec.com` | PDF de la liste de divulgation Investissement Québec | ✅ Accessible (autorisé et validé avec de vraies données le 2026-08-31 — voir plus bas) |
 
 **Note technique** : contrairement à l'accès `Trusted` par défaut, l'accès `Custom`
 s'est appliqué **sans redémarrage de session** — les domaines ajoutés ont
@@ -197,19 +197,35 @@ Aucun nouveau domaine réseau requis pour ces deux sources — même
 infrastructure `open.canada.ca`/`opencanada.blob.core.windows.net` déjà
 autorisée.
 
-## Corporations Canada et Investissement Québec — connecteurs écrits, non encore validés
+## Corporations Canada et Investissement Québec — validées avec de vraies données
 
-Les deux nouvelles sources (voir `registry/sources.yaml`) sont actives au
-registre (demande d'Alexandre, 2026-08-31), mais leurs connecteurs n'ont **pas**
-pu être exécutés contre de vraies données — chacun bloqué par un domaine réseau
-distinct pas encore autorisé (voir tableau en haut de ce document) :
-`d4bf66bykfyaf.cloudfront.net` (fichiers CSV de Corporations Canada) et
-`www.investquebec.com` (PDF de la liste de divulgation). Les deux connecteurs
-sont écrits contre la meilleure information publique disponible (structure de
-colonnes estimée pour Corporations Canada, URL réelle confirmée par recherche
-pour Investissement Québec), avec le même garde-fou que req.py : échec
-explicite plutôt que mauvaise interprétation si la structure réelle diverge.
-**Ajouter ces deux domaines pour compléter la validation.**
+Les deux domaines requis (`d4bf66bykfyaf.cloudfront.net`,
+`www.investquebec.com`) ont été autorisés le 2026-08-31 ; les deux connecteurs
+ont ensuite été validés contre de vraies données le même jour.
+
+**Corporations Canada** — deux bugs trouvés et corrigés à l'inspection du
+fichier réel :
+1. Les colonnes réelles diffèrent de l'estimation initiale : pas de champ
+   "date d'incorporation" direct (seulement "Date d'anniversaire"/"Année du
+   dernier dépôt annuel", aucun fiable — donc non extrait plutôt que deviné) ;
+   l'adresse est composée à partir de 4 colonnes (Rue, Municipalité/ville,
+   Province/territoire, Code postal), pas une seule colonne "adresse".
+2. `name_contains="active"` attrapait aussi les ressources "**in**active"
+   (la sous-chaîne "active" y est contenue) — le premier essai a ingéré des
+   corporations "Dissoute". Corrigé par une exclusion explicite
+   (`_filtrer_ressources_actives`, avec test de régression dans
+   `tests/test_corporations_canada.py`).
+
+Résultat après corrections : "The Huntsman Marine Science Centre", 1 Lower
+Campus Road, St. Andrews, NB — une vraie corporation fédérale active.
+
+**Investissement Québec** — téléchargement et extraction de tableaux PDF
+réels réussis (pdfplumber). Un problème d'environnement distinct rencontré et
+résolu en cours de route : le module `cffi` (dépendance de `cryptography`,
+utilisée par `pdfminer`/`pdfplumber`) était cassé dans l'image de base,
+réinstallé avec `pip install --ignore-installed cffi cryptography`. Exemples
+réels extraits : "13548082 Canada Inc", 3 000 000 $ ; "11888935 Canada Inc.
+(Workstaff)", 289 058 $.
 
 ## Import manuel (RDPRM) — mécanisme testé, source activée
 
@@ -224,10 +240,10 @@ fois que l'utilisateur a lui-même obtenu le document RDPRM.
 
 ## Prochaine étape
 
-Domaines réseau encore à ajouter pour compléter la validation Phase 1 :
-`d4bf66bykfyaf.cloudfront.net` (Corporations Canada) et `www.investquebec.com`
-(Investissement Québec). Dès que ces deux domaines sont autorisés et que le
-rate-limit REQ se lève, relancer une recherche ponctuelle complète
-(`observador scan ponctuel`) pour obtenir la première notification consolidée
-de bout en bout avec de vraies données sur les 8 sources actives, incluant une
-résolution NEQ réussie et un enrichissement web réel.
+Toutes les sources actives de la Phase 1 sont maintenant validées avec de
+vraies données, sauf le REQ (bloqué par le rate-limit d'origine, pas un
+problème d'allowlist — voir plus haut). Dès que ce rate-limit se lève,
+relancer une recherche ponctuelle complète (`observador scan ponctuel`) pour
+obtenir la première notification consolidée de bout en bout avec de vraies
+données sur les 8 sources actives, incluant une résolution NEQ réussie et un
+enrichissement web réel.
