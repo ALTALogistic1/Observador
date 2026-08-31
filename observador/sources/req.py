@@ -107,18 +107,36 @@ class IngestStats:
 
 
 def ingest_snapshot(db_session: Session, limit: int | None = None) -> IngestStats:
-    """Télécharge le(s) fichier(s) REQ les plus récents et met à jour le miroir
-    local (REQEntry), en détectant au passage les changements pertinents (nouvel
-    établissement, changement d'adresse) par comparaison à l'état précédemment
-    connu. `limit` borne le nombre de lignes traitées — utile pour un premier test
-    raisonnable plutôt que le registre complet (accepté comme limite de volume,
-    pas comme donnée fictive : chaque ligne traitée reste une vraie ligne du REQ)."""
+    """Télécharge LE fichier REQ en vrac (une seule requête HTTP vers la ressource
+    CKAN, mise à jour deux fois par mois — spec section 7) et met à jour le miroir
+    local (REQEntry) à partir de son contenu, en détectant au passage les
+    changements pertinents (nouvel établissement, changement d'adresse) par
+    comparaison à l'état précédemment connu. Toute résolution nom->NEQ ou NEQ->fiche
+    pour les AUTRES sources (resolve_neq_by_name, get_by_neq) n'interroge QUE ce
+    miroir local — jamais une requête réseau par entreprise (spec section 7 : le
+    fichier en vrac est la méthode principale, pas des requêtes individuelles sur
+    le site de consultation). `limit` borne le nombre de lignes traitées — utile
+    pour un premier test raisonnable plutôt que le registre complet (accepté comme
+    limite de volume, pas comme donnée fictive : chaque ligne traitée reste une
+    vraie ligne du REQ)."""
     client = CKANClient(DONNEES_QUEBEC_BASE)
-    resources = client.resources(REQ_PACKAGE_ID, format_filter="CSV") or client.resources(
-        REQ_PACKAGE_ID
+    # Le jeu de données réel n'a que 2 ressources : le fichier de données en vrac
+    # (format ZIP, contenant le/les CSV) et un guide d'utilisation (format PDF) —
+    # confirmé en inspectant la vraie réponse CKAN. On cible explicitement le ZIP ;
+    # ne JAMAIS retomber sur "toutes les ressources" (ça inclurait le PDF, qui
+    # casserait le parsing CSV en aval) ni interroger autre chose qu'UN téléchargement
+    # en vrac par exécution — spec section 7 : le fichier en vrac de Données Québec
+    # est la méthode principale, pas des requêtes individuelles par entreprise (voir
+    # docs/STATUT_RESEAU.md pour la confirmation qu'aucune requête par entreprise
+    # n'existe ailleurs dans ce connecteur).
+    resources = client.resources(REQ_PACKAGE_ID, format_filter="ZIP") or client.resources(
+        REQ_PACKAGE_ID, format_filter="CSV"
     )
     if not resources:
-        raise RuntimeError(f"Aucune ressource trouvée pour le jeu de données CKAN {REQ_PACKAGE_ID!r}")
+        raise RuntimeError(
+            f"Aucune ressource ZIP ou CSV trouvée pour le jeu de données CKAN {REQ_PACKAGE_ID!r} "
+            "(le format du jeu de données a peut-être changé — vérifier avec package_show)."
+        )
 
     stats = IngestStats()
     columns: dict[str, str] | None = None
