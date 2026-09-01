@@ -1,12 +1,12 @@
-"""Tests de la résolution NEQ (observador/resolution.py) contre un miroir REQ local
+"""Tests de la résolution NEQ (falkye/resolution.py) contre un miroir REQ local
 minimal inséré directement en base de test — pas d'appel réseau, pas de données
 fabriquées présentées comme des détections réelles : juste des entrées REQ
 plausibles utilisées pour vérifier l'algorithme de correspondance."""
 from datetime import datetime, timezone
 
-from observador.models.req_entry import REQEntry
-from observador.resolution import resolve_company
-from observador.sources.base import RawSignal
+from falkye.models.req_entry import REQEntry
+from falkye.resolution import resolve_company
+from falkye.sources.base import RawSignal
 
 
 def _raw(nom, source_ref="ref-1", ville=None):

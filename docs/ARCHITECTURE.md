@@ -1,11 +1,11 @@
-# Architecture — Phase 2
+# FALKYE — Architecture (Phase 2)
 
 Ce document explique comment le code répond à chaque exigence structurelle du
 README de démarrage et de `repereur-entreprises-croissance-specs.md`.
 
 ## Import manuel de documents sources (spec section 9, ajouté le 2026-08-31)
 
-`observador/manual_import.py` implémente le mécanisme générique demandé :
+`falkye/manual_import.py` implémente le mécanisme générique demandé :
 activer une source dont l'automatisation impliquerait un coût récurrent (ex.
 RDPRM, payant à l'unité) sans engagement — l'utilisateur fait lui-même la
 recherche ponctuelle sur le site de la source, puis l'importe.
@@ -42,7 +42,7 @@ milliers d'entreprises) sont deux SITUATIONS différentes sous le même
 mécanisme générique — pas deux mécanismes séparés :
 
 - `SourceConnector.detect_from_file(path, db_session)` (nouvelle méthode
-  optionnelle sur l'interface de base, `observador/sources/base.py`) : un
+  optionnelle sur l'interface de base, `falkye/sources/base.py`) : un
   connecteur qui sait ingérer un fichier local l'implémente. `REQConnector`
   le fait en appelant `req.ingest_snapshot(fichier_local=path)` — EXACTEMENT
   la même logique de parsing/diff/upsert que le chemin réseau automatisé
@@ -67,8 +67,8 @@ mécanisme générique — pas deux mécanismes séparés :
   parcourt à chaque `scan veille`/`scan ponctuel` — sans ça, le REQ tenterait
   quand même le téléchargement réseau bloqué à chaque scan malgré
   `methode_acces: import_manuel`. `registry.sources_actives()` (sans suffixe)
-  continue de tout lister (utile pour `observador registry sources`).
-- Après un import REQ, `observador import-manuel fichier --source-id req`
+  continue de tout lister (utile pour `falkye registry sources`).
+- Après un import REQ, `falkye import-manuel fichier --source-id req`
   retraite par défaut TOUTES les entreprises connues (pas seulement celles
   touchées par ce fichier) — un rafraîchissement du REQ peut débloquer la
   résolution NEQ d'entreprises déjà détectées par SEAO/EIMT/etc. qui étaient
@@ -88,14 +88,14 @@ pas un fichier plat comme le code le supposait au départ. Plutôt que de traite
 troisième fois :
 
 - **`SourceConnector.inspect_file(path) -> dict`** (nouvelle méthode optionnelle,
-  `observador/sources/base.py`) : pour une source dont le fichier importé a une
+  `falkye/sources/base.py`) : pour une source dont le fichier importé a une
   structure interne pas encore confirmée. Retourne, par fichier interne,
   colonnes + une ligne d'exemple — jamais tenter d'importer. Un connecteur qui
   n'en a pas besoin (structure déjà simple/confirmée) lève `NotImplementedError`.
 - **`REQConnector.inspect_file`/`req.inspect_zip`** : lit en flux (sans tout
   décompresser — coûte quelques Ko même sur `Entreprise.csv`, ~630 Mo) l'en-tête
   et un exemple de chaque CSV membre du zip.
-- **CLI `observador import-manuel inspecter --source-id <id> --chemin <fichier>`**
+- **CLI `falkye import-manuel inspecter --source-id <id> --chemin <fichier>`**
   : appelle `inspect_file` et affiche le résultat, sans toucher à la base.
 - **Garde-fou dans `_iter_csv_rows`** : un `.zip` à plusieurs CSV NON reconnu
   comme le vrai fichier REQ (`FICHIERS_REQ_REELS`) lève une `RuntimeError`
@@ -113,7 +113,7 @@ Une fois les vraies colonnes confirmées via l'inspecteur ci-dessus (fichier
 mis en release GitHub par Alexandre, SHA-256 vérifié avant utilisation), la
 vraie jointure a été écrite et validée avec de vraies données :
 
-- **`_ingest_zip_req_reel`** (`observador/sources/req.py`) : charge d'abord
+- **`_ingest_zip_req_reel`** (`falkye/sources/req.py`) : charge d'abord
   `Nom.csv` et `Etablissements.csv` en index mémoire NEQ→(nom|établissements)
   — bornés au nombre d'entités distinctes, pas au nombre de lignes brutes —
   puis balaie `Entreprise.csv` en flux, une seule fois, en joignant chaque
@@ -168,7 +168,7 @@ déjà construit :
 
 ### Principe de calibration (nouveau, non négociable)
 
-Chaque `SourceDef` a maintenant un champ `regle_calibration` (`observador/registry/
+Chaque `SourceDef` a maintenant un champ `regle_calibration` (`falkye/registry/
 loader.py`) qui documente la règle concrète distinguant un vrai signal de croissance
 du bruit pour cette source précise. `Registry.valider_calibration()`, appelée par
 `engine.ingest_all_active_sources` avant tout scan réel, **lève une exception** si
@@ -212,8 +212,8 @@ n'a pas besoin d'être réécrit.
 
 ## Le principe central : tout passe par des registres, jamais par du code en dur
 
-Trois registres YAML (`observador/registry/*.yaml`), chargés par
-`observador/registry/loader.py` :
+Trois registres YAML (`falkye/registry/*.yaml`), chargés par
+`falkye/registry/loader.py` :
 
 | Registre | Fichier | Gabarit (spec) |
 |---|---|---|
@@ -222,15 +222,15 @@ Trois registres YAML (`observador/registry/*.yaml`), chargés par
 | Sphères de besoin | `spheres.yaml` | section 4 |
 | Canaux de notification | `notification_channels.yaml` | (décision produit, même principe) |
 
-`observador/engine.py` (le moteur) ne contient **aucune mention d'une source, d'un
+`falkye/engine.py` (le moteur) ne contient **aucune mention d'une source, d'un
 type de signal ou d'un canal précis**. Il boucle sur `registry.sources_actives()`
 et `registry.canaux_actifs()`, et instancie les classes concrètes via les
 conventions `CONNECTOR_CLASS` / `CHANNEL_CLASS` déclarées dans chaque module de
-`observador/sources/` et `observador/notifications/`. Conséquence directe : la
+`falkye/sources/` et `falkye/notifications/`. Conséquence directe : la
 Phase 2 (ajouter EIMT, subventions fédérales, Investissement Québec, classements de
 croissance, permis de construction, Québec emploi) consiste à :
 
-1. Écrire un connecteur (`observador/sources/<nouvelle_source>.py`) qui implémente
+1. Écrire un connecteur (`falkye/sources/<nouvelle_source>.py`) qui implémente
    `SourceConnector.detect()`.
 2. Changer `statut: a_developper` → `statut: actif` et pointer `connecteur:` vers ce
    module dans `sources.yaml`.
@@ -252,20 +252,20 @@ notification consolidée (engine._traiter_entreprise_pour_profil) → livraison
 (notifications/*)
 ```
 
-Implémenté dans `observador/engine.py::_traiter_entreprise_pour_profil`, appelée
+Implémenté dans `falkye/engine.py::_traiter_entreprise_pour_profil`, appelée
 pour chaque (Company, Profile) par `generer_notifications`, elle-même appelée par
 `run_veille_continue` (mode 1) et `run_recherche_ponctuelle` (mode 2) — **même
 moteur pour les deux modes**, comme l'exige la spec section 5.
 
 ## Le NEQ comme pivot (spec section 9)
 
-`observador/models/req_entry.py` (`REQEntry`) est un miroir local du REQ,
-rafraîchi par `observador/sources/req.py::ingest_snapshot`. Il sert à deux choses
+`falkye/models/req_entry.py` (`REQEntry`) est un miroir local du REQ,
+rafraîchi par `falkye/sources/req.py::ingest_snapshot`. Il sert à deux choses
 indépendantes :
 
 1. **Résolution nom → NEQ** pour SEAO, RDPRM et Guichet-Emplois (aucune des trois
    ne fournit le NEQ directement) — `resolve_neq_by_name` dans `req.py`, appelée par
-   `observador/resolution.py::resolve_company` pour chaque signal brut.
+   `falkye/resolution.py::resolve_company` pour chaque signal brut.
 2. **Signal en soi** (nouvel établissement, changement d'adresse) — en comparant
    deux rafraîchissements successifs (`_upsert_row` dans `req.py`).
 
@@ -277,7 +277,7 @@ légal non-`radiee` peut atteindre `est_presentable() == True` (voir
 
 ## Vérifications de base obligatoires (spec section 6)
 
-`observador/verification.py` implémente les 3 vérifications de la spec comme deux
+`falkye/verification.py` implémente les 3 vérifications de la spec comme deux
 passes (avant/après enrichissement, puisque la vérification #2 dépend du site web) :
 
 1. Statut REQ `radiee` → `EXCLU_RADIEE`
@@ -291,7 +291,7 @@ au-delà de ce point — exclusion silencieuse, jamais un avertissement affiché
 
 ## Score de confiance unifié (spec section 6)
 
-`observador/scoring.py::calculer_score` retourne UN SEUL score composite :
+`falkye/scoring.py::calculer_score` retourne UN SEUL score composite :
 
 - **Base par signal** (le plus fort des signaux contributifs, pas une somme —
   évite qu'un grand nombre de signaux faibles gonfle artificiellement le score) :
@@ -319,7 +319,7 @@ fonctionnalité à livrer maintenant").
 
 ## Extensibilité des sphères de besoin
 
-`observador/models/sphere.py::Sphere` est une table DB (pas seulement le YAML),
+`falkye/models/sphere.py::Sphere` est une table DB (pas seulement le YAML),
 synchronisée au démarrage (`db.seed_spheres_from_registry`). Un utilisateur qui
 propose une sphère hors liste s'ajoute avec `est_personnalisee=True` sans migration.
 
@@ -386,7 +386,7 @@ Aucune trace de ces deux cas dans le code — confirmé par l'audit du 2026-08-3
 ## Canaux de notification (décision produit du 2026-08-31)
 
 Même principe que le registre de sources. `registry/notification_channels.yaml` :
-courriel actif (SMTP, `observador/notifications/email_channel.py`), SMS/WhatsApp/
+courriel actif (SMTP, `falkye/notifications/email_channel.py`), SMS/WhatsApp/
 webhook au statut `a_developper` (`StubChannel` — échoue explicitement plutôt que
 de simuler un envoi). Activer un canal Phase 2 = configurer les variables d'env
 listées dans le registre + changer son statut, sans toucher `engine.py`.

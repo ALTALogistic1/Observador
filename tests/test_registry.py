@@ -2,7 +2,7 @@
 #3 ("aucune source n'est activée sans règle de calibration documentée")."""
 import pytest
 
-from observador.registry.loader import Registry, SourceDef, load_registry
+from falkye.registry.loader import Registry, SourceDef, load_registry
 
 
 def _source(id_, statut, regle_calibration=None):

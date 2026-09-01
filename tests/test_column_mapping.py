@@ -1,9 +1,9 @@
-"""Tests des utilitaires de résolution de colonnes CSV (observador/sources/column_mapping.py)
+"""Tests des utilitaires de résolution de colonnes CSV (falkye/sources/column_mapping.py)
 — importants car REQ et Guichet-Emplois dépendent de cette résolution robuste plutôt
 que de noms de colonnes codés en dur (voir notes dans req.py/guichet_emplois.py)."""
 import pytest
 
-from observador.sources.column_mapping import normaliser, resolve_columns
+from falkye.sources.column_mapping import normaliser, resolve_columns
 
 
 def test_normaliser_enleve_accents_et_ponctuation():

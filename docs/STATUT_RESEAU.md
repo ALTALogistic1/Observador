@@ -1,4 +1,4 @@
-# Statut réseau et découvertes
+# FALKYE — Statut réseau et découvertes
 
 Document de suivi demandé par le README de démarrage ("Si tu découvres le
 contraire en creusant, dis-le") et par la décision produit du 2026-08-31 de valider
@@ -52,7 +52,7 @@ différents) :
 
 **Vérifié le 2026-08-31 (suite à une question directe) : ce n'est PAS une requête
 par entreprise qui cause ce blocage.** Audit du code (`grep` sur tous les appels
-réseau du projet) : `observador/sources/req.py::ingest_snapshot` fait **une seule
+réseau du projet) : `falkye/sources/req.py::ingest_snapshot` fait **une seule
 requête HTTP par exécution**, vers la ressource ZIP en vrac découverte
 dynamiquement via `package_show` (jamais une URL codée en dur) — exactement la
 méthode prévue par la spec section 7 ("fichier en vrac de Données Québec, mis à
@@ -101,7 +101,7 @@ contacter le Registraire des entreprises pour un accès non bloqué (ou signaler
 la plage IP infonuagique bloquée), ou de générer le fichier depuis un réseau
 différent (hors du pool cloud) puis de l'importer dans l'environnement.
 
-**Impact sur la Phase 1** : le connecteur REQ (`observador/sources/req.py`) est
+**Impact sur la Phase 1** : le connecteur REQ (`falkye/sources/req.py`) est
 codé et couvre le format attendu (voir la mise en garde sur le schéma CSV non
 confirmé dans le fichier lui-même), mais n'a pas pu être validé avec le fichier réel
 avant la remise de cette phase. Sans REQ chargé, toute entreprise détectée par une
@@ -153,7 +153,7 @@ posée dans la conversation.
 
 ## RDPRM — confirmé sans accès gratuit en vrac (contredit l'hypothèse du README)
 
-Voir `observador/registry/sources.yaml` (entrée `rdprm`) pour le détail complet :
+Voir `falkye/registry/sources.yaml` (entrée `rdprm`) pour le détail complet :
 consultation payante à l'unité (11 $/nom, 4 $/NIV), aucune API publique, aucun flux
 en vrac. Décision produit (Alexandre, 2026-08-31) : statut `a_developper`,
 activation Phase 2 avec déclenchement ciblé par entreprise déjà détectée — jamais
@@ -161,7 +161,7 @@ un balayage en vrac.
 
 ## Bug de performance corrigé pendant la validation
 
-`observador/resolution.py::_find_unresolved_company` comparait en Python, à
+`falkye/resolution.py::_find_unresolved_company` comparait en Python, à
 CHAQUE signal ingéré, le nom normalisé contre TOUTES les entreprises non résolues
 déjà en base — quadratique sur le volume. Corrigé en ajoutant une colonne indexée
 `Company.nom_detecte_normalise` et en interrogeant directement la base. Validé :
@@ -246,7 +246,7 @@ réels extraits : "13548082 Canada Inc", 3 000 000 $ ; "11888935 Canada Inc.
 
 Le mécanisme générique d'import manuel (spec section 9, voir
 `docs/ARCHITECTURE.md`) a été testé de bout en bout le 2026-08-31 avec la CLI
-(`observador import-manuel ajouter`) : création du signal, résolution NEQ
+(`falkye import-manuel ajouter`) : création du signal, résolution NEQ
 tentée via le miroir local (REQ), et déclenchement immédiat du reste du
 pipeline pour les profils existants — comportement conforme (0 notification
 en l'absence d'un vrai REQ chargé, exactement le même garde-fou que pour SEAO).
@@ -265,7 +265,7 @@ contournement technique, le REQ est passé en `methode_acces: import_manuel`
 le cas "fichier complet" — voir `docs/ARCHITECTURE.md`). Alexandre télécharge
 lui-même le fichier depuis son navigateur (tâche récurrente légère, deux fois
 par mois — le fichier n'est pas mis à jour plus souvent) puis l'importe via
-`observador import-manuel fichier --source-id req --chemin <fichier>`.
+`falkye import-manuel fichier --source-id req --chemin <fichier>`.
 
 Le lien exact (identique à celui découvert dynamiquement par le code, jamais
 codé en dur différemment) :
@@ -276,7 +276,7 @@ Mécanique testée de bout en bout (CLI + tests automatisés,
 VRAI schéma de colonnes du fichier REQ reste non confirmé (le blocage empêche
 aussi bien Alexandre que cette session d'inspecter un vrai fichier depuis
 l'environnement). `resolve_columns()` échouera explicitement avec le détail
-des en-têtes réelles si `COLUMN_ALIASES` (observador/sources/req.py) ne
+des en-têtes réelles si `COLUMN_ALIASES` (falkye/sources/req.py) ne
 correspond pas au premier vrai import — pas une mauvaise interprétation
 silencieuse.
 
@@ -296,7 +296,7 @@ initial le supposait :
 | `ContinuationsTransformations.csv` | — | Idem, hors périmètre pour l'instant |
 
 **Ce que ça change dans le code, corrigé le même jour :**
-- `_iter_csv_rows` (observador/sources/req.py) concaténait auparavant tous les
+- `_iter_csv_rows` (falkye/sources/req.py) concaténait auparavant tous les
   CSV trouvés dans un `.zip` comme s'ils avaient le même schéma — avec un vrai
   fichier à 6 CSV différents, ça aurait produit des lignes mal interprétées en
   silence (violation directe du principe "données réelles non négociables,
@@ -304,14 +304,14 @@ initial le supposait :
   un `.zip` à plusieurs CSV lève maintenant une `RuntimeError` explicite plutôt
   que de fusionner à l'aveugle — testé (`test_ingest_snapshot_refuse_un_zip_a_
   plusieurs_csv_plutot_que_de_les_fusionner`).
-- Nouvelle méthode optionnelle `SourceConnector.inspect_file()` (observador/
-  sources/base.py) + `REQConnector.inspect_file`/`inspect_zip` (observador/
+- Nouvelle méthode optionnelle `SourceConnector.inspect_file()` (falkye/
+  sources/base.py) + `REQConnector.inspect_file`/`inspect_zip` (falkye/
   sources/req.py) : lit en flux (sans tout décompresser) l'en-tête + une ligne
   d'exemple de chaque CSV interne — pour confirmer les vraies colonnes avant
   d'écrire la jointure, plutôt que de deviner sur une structure relationnelle à
   trois fichiers (risque de jonction NEQ→adresse silencieusement erronée, pire
   qu'une simple colonne manquante). Nouvelle commande CLI :
-  `observador import-manuel inspecter --source-id req --chemin <zip>`.
+  `falkye import-manuel inspecter --source-id req --chemin <zip>`.
 - La vraie jointure multi-fichiers (Entreprise.csv comme table de base,
   Etablissements.csv pour l'adresse/le signal "nouvel établissement",
   DomaineValeur.csv pour décoder les codes) a été écrite contre les vraies
@@ -320,9 +320,11 @@ initial le supposait :
 ## Vraies colonnes confirmées et jointure implémentée (2026-08-31)
 
 Alexandre a mis le fichier réel (267 Mo, SHA-256 vérifié) en release GitHub
-(`ALTALogistic1/Observador`, tag `req-data-2026-08-31`) ; téléchargé et
+(`ALTALogistic1/Observador`, tag `req-data-2026-08-31` — nom du dépôt GitHub
+inchangé par le renommage du produit/package en FALKYE, voir plus bas) ;
+téléchargé et
 inspecté dans cette session via `import-manuel inspecter`. Vraies colonnes
-retenues (`observador/sources/req.py`) :
+retenues (`falkye/sources/req.py`) :
 
 - **`Entreprise.csv`** (37 colonnes réelles) : `NEQ`, `COD_STAT_IMMAT`,
   `DAT_MAJ_INDEX_NOM`, `COD_ACT_ECON_CAE`/`DESC_ACT_ECON_ASSUJ` (repli secteur),
@@ -396,7 +398,7 @@ depuis son propre poste, probablement plus rapide que dans cet environnement
 (voir note de performance ci-dessous) :
 
 ```
-observador import-manuel fichier --source-id req --chemin <fichier réel>
+falkye import-manuel fichier --source-id req --chemin <fichier réel>
 ```
 
 **Note de performance** : le fichier complet (`Entreprise.csv` seul fait
@@ -410,7 +412,7 @@ attendant activement. Une optimisation par insertion en lot (bulk insert)
 resterait possible plus tard si la durée réelle s'avère un irritant récurrent.
 
 Une fois l'import complet réussi : lancer une recherche ponctuelle
-(`observador scan ponctuel`) pour obtenir la première notification consolidée
+(`falkye scan ponctuel`) pour obtenir la première notification consolidée
 de bout en bout avec de vraies données sur les 8 sources actives.
 
 ## Import complet réel exécuté, et deux bugs réels trouvés en le validant (2026-08-31)
@@ -525,7 +527,7 @@ réellement disponible — pas "pas de données pour cette période", un vrai
 bogue. Corrigé en retirant ce filtre par ligne : le sélecteur de ressources
 (`cibles = resources[:1 ou :4]`, déjà calibré pour la granularité trimestrielle
 réelle de cette source) et le dédoublonnage par `source_ref` dans
-`observador.engine.ingest_source` suffisent déjà à borner le volume et éviter
+`falkye.engine.ingest_source` suffisent déjà à borner le volume et éviter
 les doublons d'un scan à l'autre — le filtre par date supplémentaire était
 redondant et, en pratique, silencieusement destructeur. **Validé contre de
 vraies données après correction** : plus de 200 signaux réels obtenus
@@ -597,7 +599,7 @@ piste elle-même) :**
 1. `COLUMN_ALIASES` était écrit avec des alias à ESPACES (ex. `"id wic"`,
    `"appellation d emploi"`) alors que `resolve_columns` normalise les
    en-têtes du CSV avec des UNDERSCORES (voir
-   `observador/sources/column_mapping.py`, même convention déjà utilisée
+   `falkye/sources/column_mapping.py`, même convention déjà utilisée
    dans `eimt.py`) — un alias multi-mots à espaces ne correspondait donc
    jamais à un en-tête réel. Trouvé en validant contre les vraies en-têtes
    (`ID WIC Lieu emploi`, `Provinces/Territoires`, etc.), corrigé en
@@ -655,7 +657,7 @@ avec Alexandre, puisque même une clé API payante ne contournerait pas
 Cloudflare pour un classement qui n'existe peut-être plus.
 
 **Globe and Mail Top Growing Companies — ACTIVÉ, aucun blocage rencontré.**
-Découverte réelle en construisant le connecteur (`observador/sources/
+Découverte réelle en construisant le connecteur (`falkye/sources/
 rob_top_growing.py`) :
 - La page-hub stable
   (`theglobeandmail.com/business/rob-magazine/top-growing-companies/`) liste
@@ -739,7 +741,7 @@ inventer quand la donnée source n'en contient tout simplement pas.
 **Laval — ACTIVÉE**, seule des trois à exposer une identité d'entreprise :
 le champ `ENTREPRENEUR` (172 168 lignes, 1991 au 2026-03-31). Nuance
 importante documentée dans le connecteur
-(`observador/sources/permis_construction_laval.py`) : ce champ identifie
+(`falkye/sources/permis_construction_laval.py`) : ce champ identifie
 l'entreprise de CONSTRUCTION qui exécute les travaux, pas le propriétaire du
 bâtiment qui s'agrandit — la spec visait plutôt ce dernier ("nouveaux
 locaux, agrandissement"), mais aucun champ demandeur/propriétaire n'existe
@@ -755,7 +757,7 @@ Deux découvertes supplémentaires en validant avec de vraies données :
   forfaitaire — ex. plusieurs lignes à 270,00$ pour des travaux visiblement
   très différents), PAS le coût des travaux — pas fiable comme proxy de
   l'ampleur du chantier, donc volontairement PAS utilisé par le score
-  (`observador/scoring.py:_score_permis_construction`, calé sur les 4
+  (`falkye/scoring.py:_score_permis_construction`, calé sur les 4
   catégories réelles de `TYPE_PERMIS_DESCR` à la place).
 - Le fichier est republié occasionnellement (dernière publication confirmée
   le 2026-03-31 via les métadonnées CKAN), pas en continu — un scan à
@@ -884,7 +886,7 @@ pour 2026), et le jeu de données ne couvre qu'une fenêtre glissante de 3 ans
 Corporations Canada qui remontent sur des décennies. Nouveau miroir local
 persistant `LicenceMunicipaleEntry` (partagé entre villes, clé =
 municipalité+nom normalisé+adresse normalisée) et helper commun
-`observador/sources/licences_municipales_communes.py:detecter_nouvelles_licences`
+`falkye/sources/licences_municipales_communes.py:detecter_nouvelles_licences`
 — accumule les entreprises+adresses déjà vues d'un scan à l'autre, avec la
 MÊME précaution "premier scan ne produit aucun signal" que REQ/Corporations
 Canada avant leurs propres corrections de calibration (sinon ~168 000

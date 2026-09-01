@@ -6,7 +6,7 @@ noms d'entreprises avec parenthèses/esperluettes/apostrophes) — voir
 docs/STATUT_RESEAU.md. Les fragments de texte ci-dessous reproduisent le VRAI
 format confirmé (motif "AAAA <Catégorie> ranking" + "<rang> <nom> – <ville>
 <province> <taux>%"), pas des données inventées au hasard."""
-from observador.sources.deloitte_fast50 import (
+from falkye.sources.deloitte_fast50 import (
     _RE_PDF_HREF,
     _categorie_et_annee,
     _iter_entrees,

@@ -1,6 +1,6 @@
 """Tests du chemin d'import manuel par fichier pour le REQ (spec section 9) —
-observador/sources/req.py:ingest_snapshot(fichier_local=...) et
-observador/manual_import.py:importer_fichier_source.
+falkye/sources/req.py:ingest_snapshot(fichier_local=...) et
+falkye/manual_import.py:importer_fichier_source.
 
 Deux générations de tests dans ce fichier :
   1. Le chemin "fichier plat" LEGACY (_ecrire_csv_test, COLUMN_ALIASES) — des
@@ -25,10 +25,10 @@ import zipfile
 
 import pytest
 
-from observador.manual_import import ImportManuelError, importer_fichier_source
-from observador.models.req_entry import REQEntry
-from observador.models.req_etablissement_entry import REQEtablissementEntry
-from observador.sources.req import REQConnector, ingest_snapshot, inspect_zip
+from falkye.manual_import import ImportManuelError, importer_fichier_source
+from falkye.models.req_entry import REQEntry
+from falkye.models.req_etablissement_entry import REQEtablissementEntry
+from falkye.sources.req import REQConnector, ingest_snapshot, inspect_zip
 
 # ---------------------------------------------------------------------------
 # Chemin legacy (fichier plat) — mécanique générique uniquement

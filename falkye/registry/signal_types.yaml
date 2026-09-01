@@ -1,0 +1,114 @@
+# Registre des types de signaux (spec section 7, "Extensibilité des types de signaux").
+#
+# Ce registre n'est PAS figé : les 5 types documentés dans la spec au 2026 sont les
+# catégories identifiées à ce jour, pas une limite structurelle. Ajouter un nouveau type
+# de signal = ajouter une entrée ici avec son propre gabarit (nom, sources associées,
+# critères de confiance, sphères probables, icône) — jamais renuméroter ou restructurer
+# les entrées existantes, et jamais toucher au moteur (falkye/engine.py).
+#
+# Champs du gabarit :
+#   id                  identifiant stable, utilisé comme clé étrangère par les sources
+#                        et par le moteur de scoring
+#   nom                  nom affichable
+#   icone                emoji représentatif, pour l'identité visuelle future de l'UI
+#   description          ce que détecte ce type de signal
+#   sources_associees    liste d'ids de sources (voir sources.yaml) qui peuvent produire
+#                        ce type de signal
+#   criteres_confiance   liste de critères texte utilisés par falkye/scoring.py pour
+#                        calculer la composante "signal" du score unifié
+#   spheres_probables    liste d'ids de sphères de besoin (voir spheres.yaml) probables
+#                        quand ce signal est détecté — table de correspondance section 7
+
+signal_types:
+  - id: classement_croissance
+    nom: "Classement de croissance publié"
+    icone: "🏆"
+    description: >
+      Une entreprise apparaît dans un palmarès de croissance (rang, taux de
+      croissance rapporté).
+    sources_associees: [classements_croissance]
+    criteres_confiance:
+      - "Rang dans le palmarès (plus haut = plus fort)"
+      - "Taux de croissance rapporté"
+      - "Fraîcheur de la publication (année en cours vs passée)"
+    spheres_probables:
+      - gestion_projet
+      - planification_strategique_conseil
+      - technologie_systemes_ti
+      - rh_recrutement_dotation
+
+  - id: financement_expansion
+    nom: "Financement et expansion"
+    icone: "💰"
+    description: >
+      Une entreprise obtient un financement (garantie mobilière, subvention,
+      programme d'aide) associé à une expansion plutôt qu'à une opération de
+      routine.
+    sources_associees: [rdprm, subventions_federales, investissement_quebec]
+    criteres_confiance:
+      - "Valeur du bien/montant relative à la taille estimée de l'entreprise"
+      - "Nature du bien ou du programme (équipement/inventaire de production ou expansion explicite = plus fort qu'un véhicule isolé ou de la formation/maintien)"
+      - "Récence de l'inscription ou du versement"
+      - "Confirmation directe (nom + montant précis) vs mention indirecte"
+    spheres_probables:
+      - gestion_inventaire_actifs
+      - logistique_transport_flotte
+      - production_operations_manufacturieres
+      - comptabilite_finance_fiscalite
+      - juridique_conformite
+      - technologie_systemes_ti
+
+  - id: recrutement_massif
+    nom: "Recrutement massif ou qualitatif"
+    icone: "🧑‍🤝‍🧑"
+    description: >
+      Volume de postes ouverts simultanément, récurrence sur plusieurs mois, OU
+      un signal qualitatif indépendant du volume : un titre de poste orienté
+      transformation/implantation (signal fort même avec un seul poste).
+    sources_associees: [eimt, guichet_emplois, quebec_emploi, agregateur_recrutement_tiers]
+    criteres_confiance:
+      - "Nombre de postes ouverts simultanément"
+      - "Vitesse de publication (plusieurs postes en peu de temps)"
+      - "Récurrence sur plusieurs mois ou trimestres"
+      - "Présence de mots-clés de transformation/implantation/amélioration dans le titre du poste (signal qualitatif, indépendant du volume)"
+      - "Correspondance avec les mots-clés/tags du profil utilisateur"
+      - "EIMT positive = déjà confirmé officiellement par le gouvernement, donc signal fort par nature"
+    spheres_probables:
+      - rh_recrutement_dotation
+      # + la sphère associée à la profession recrutée, résolue dynamiquement
+      # à partir du titre/CNP du poste (falkye/matching.py), pas figée ici.
+
+  - id: registre_corporatif
+    nom: "Registre et changements corporatifs"
+    icone: "🏢"
+    description: >
+      Nouvel établissement secondaire, changement d'adresse du siège social, ou
+      permis de construction indiquant une expansion physique. Exclut
+      explicitement les mises à jour purement administratives (déclaration
+      annuelle, correction mineure, renouvellement).
+    sources_associees: [req, corporations_canada, licences_affaires_municipales, permis_construction_montreal, permis_construction_quebec, permis_construction_laval]
+    criteres_confiance:
+      - "Type de changement : nouvel établissement secondaire = fort; changement d'adresse du siège social = moyen; mise à jour administrative de routine = exclu (voir filtre falkye/sources/req.py)"
+      - "Valeur du permis de construction, nature des travaux (agrandissement/nouvelle construction = fort; rénovation mineure = faible)"
+    spheres_probables:
+      - immobilier_gestion_espaces
+      - logistique_transport_flotte
+      - securite_physique
+      - technologie_systemes_ti
+      - construction_renovation_entretien
+      - sst
+
+  - id: appel_offres
+    nom: "Appel d'offres public décroché"
+    icone: "📄"
+    description: >
+      Une entreprise décroche un contrat public (gouvernement, éducation,
+      santé, municipalités).
+    sources_associees: [seao, contrats_federaux]
+    criteres_confiance:
+      - "Valeur du contrat relative à la taille estimée de l'entreprise"
+      - "Récurrence de contrats décrochés sur une période courte"
+    spheres_probables:
+      - gestion_projet
+      # + la sphère directement liée à la nature du contrat, résolue dynamiquement
+      # à partir de la description du contrat (falkye/matching.py).

@@ -1,13 +1,13 @@
-"""Tests de la logique pure de scoring (observador/scoring.py) — spec section 6.
+"""Tests de la logique pure de scoring (falkye/scoring.py) — spec section 6.
 Aucune donnée de prospect ici : uniquement des valeurs numériques arbitraires pour
 vérifier le comportement des fonctions de calcul."""
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from observador.models.notification import NiveauConfiance
-from observador.models.signal import Signal
-from observador.scoring import (
+from falkye.models.notification import NiveauConfiance
+from falkye.models.signal import Signal
+from falkye.scoring import (
     calculer_score,
     franchit_seuil_sensibilite,
     freshness_factor,
@@ -90,7 +90,7 @@ def test_meme_type_de_signal_repete_ne_declenche_pas_de_bonus_corroboration():
 
 def test_permis_construction_nouvelle_construction_plus_fort_qu_une_amelioration():
     """Paliers calés sur les 4 catégories réelles du jeu de données Permis de
-    construction — Ville de Laval (voir observador/sources/
+    construction — Ville de Laval (voir falkye/sources/
     permis_construction_laval.py)."""
     now = datetime.now(timezone.utc)
     nouvelle = calculer_score(

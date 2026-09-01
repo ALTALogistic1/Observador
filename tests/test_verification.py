@@ -1,8 +1,8 @@
-"""Tests des vérifications de base obligatoires (observador/verification.py) —
+"""Tests des vérifications de base obligatoires (falkye/verification.py) —
 spec section 6 : exclusion silencieuse, jamais de présentation avec avertissement."""
-from observador.enrichment import EnrichmentResult
-from observador.models.company import Company, StatutLegal, StatutResolution, StatutVerification
-from observador.verification import (
+from falkye.enrichment import EnrichmentResult
+from falkye.models.company import Company, StatutLegal, StatutResolution, StatutVerification
+from falkye.verification import (
     appliquer_verification,
     verifier_apres_enrichissement,
     verifier_avant_enrichissement,

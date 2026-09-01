@@ -1,4 +1,4 @@
-# Observador — Repéreur d'entreprises en croissance (Phase 2)
+# FALKYE — Repéreur d'entreprises en croissance (Phase 2)
 
 Système qui surveille en continu des signaux publics de croissance d'entreprises
 (appels d'offres décrochés, financement, recrutement, changements corporatifs) et
@@ -13,7 +13,7 @@ voir `docs/STATUT_RESEAU.md` pour le détail complet de la validation.
 **Phase 2 en cours** : ajout des sources gratuites restantes du registre, une
 à la fois (spec section 8), avec priorité aux sources qui élargissent la
 couverture pancanadienne (objectif produit : tout le Canada, pas seulement le
-Québec). 15 sources actives à ce jour (état au 2026-09-01, voir `observador
+Québec). 15 sources actives à ce jour (état au 2026-09-01, voir `falkye
 registry sources`) — les 8 de la Phase 1 (**SEAO** et **contrats fédéraux**
 pour les appels d'offres, **Corporations Canada** [registre corporatif
 pancanadien], **EIMT positive** [recrutement, avec nom d'employeur],
@@ -59,9 +59,9 @@ vérifications, score, corroboration).
 **Un document = une entreprise** (ex. RDPRM, payant à l'unité — 11 $/nom) :
 
 ```bash
-python -m observador.cli import-manuel lien --source-id rdprm   # lien direct vers la recherche RDPRM
+python -m falkye.cli import-manuel lien --source-id rdprm   # lien direct vers la recherche RDPRM
 
-python -m observador.cli import-manuel ajouter \
+python -m falkye.cli import-manuel ajouter \
   --source-id rdprm --entreprise "Nom légal exact (REQ)" \
   --valeur 75000 --nature-bien "équipement de production" \
   --date-evenement 2026-08-15 --institution "Nom de l'institution créancière"
@@ -71,9 +71,9 @@ python -m observador.cli import-manuel ajouter \
 mis à jour deux fois par mois — tâche récurrente légère) :
 
 ```bash
-python -m observador.cli import-manuel lien --source-id req   # lien direct vers le fichier en vrac
+python -m falkye.cli import-manuel lien --source-id req   # lien direct vers le fichier en vrac
 
-python -m observador.cli import-manuel fichier \
+python -m falkye.cli import-manuel fichier \
   --source-id req --chemin ~/Téléchargements/registre-entreprises.zip
 ```
 
@@ -99,36 +99,36 @@ profil de la même façon (spec section 9, "Polyvalence d'utilisation"). Deux
 exemples pour l'illustrer :
 
 ```bash
-python -m observador.cli init-db                     # crée les tables + sphères de base
+python -m falkye.cli init-db                     # crée les tables + sphères de base
 
 # Exemple 1 : consultant en implantation de systèmes de gestion d'inventaire
-python -m observador.cli profile create \
+python -m falkye.cli profile create \
   --courriel vous@exemple.com --nom "Profil A" \
   --ville Montréal --region Montréal --etat-province Québec \
   --rayon-km 100 --sensibilite eleve
-python -m observador.cli profile add-need \
+python -m falkye.cli profile add-need \
   --profile-id 1 --sphere-id gestion_inventaire_actifs \
   --service "Implantation de systèmes de gestion d'inventaire et d'actifs" \
   --mots-cles "implantation,gestion d'inventaire,ERP,WMS"
 
 # Exemple 2 : courtier en assurance commerciale — même mécanique, autre sphère
-python -m observador.cli profile create \
+python -m falkye.cli profile create \
   --courriel autre@exemple.com --nom "Profil B" \
   --ville Québec --region "Capitale-Nationale" --etat-province Québec \
   --rayon-km 75 --sensibilite moyen
-python -m observador.cli profile add-need \
+python -m falkye.cli profile add-need \
   --profile-id 2 --sphere-id assurance_gestion_risques \
   --service "Courtage en assurance commerciale PME" \
   --mots-cles "assurance responsabilité,gestion des risques"
 
-python -m observador.cli registry sources             # état du registre de sources
-python -m observador.cli registry canaux               # état du registre de canaux
+python -m falkye.cli registry sources             # état du registre de sources
+python -m falkye.cli registry canaux               # état du registre de canaux
 
-python -m observador.cli scan ponctuel --profile-id 1  # recherche ponctuelle (spec section 5), fenêtre 60 jours par défaut
-python -m observador.cli scan ponctuel --profile-id 1 --historique-complet  # fenêtre illimitée (peut être long, ex. SEAO)
-python -m observador.cli scan veille                    # veille continue, tous les profils
-python -m observador.cli notifications list
-python -m observador.cli resume envoyer --profile-id 1 --jours 7
+python -m falkye.cli scan ponctuel --profile-id 1  # recherche ponctuelle (spec section 5), fenêtre 60 jours par défaut
+python -m falkye.cli scan ponctuel --profile-id 1 --historique-complet  # fenêtre illimitée (peut être long, ex. SEAO)
+python -m falkye.cli scan veille                    # veille continue, tous les profils
+python -m falkye.cli notifications list
+python -m falkye.cli resume envoyer --profile-id 1 --jours 7
 ```
 
 ## Tests
@@ -146,7 +146,7 @@ de données ouvertes confirmé pour l'environnement d'exécution — voir
 ## Structure du projet
 
 ```
-observador/
+falkye/
   registry/          Registres YAML (sources, types de signaux, sphères, canaux)
                       + loader.py générique — voir docs/ARCHITECTURE.md
   models/             Schéma SQLAlchemy (Profile, Company, Signal, Notification, ...)
@@ -170,11 +170,11 @@ docs/                 ARCHITECTURE.md, STATUT_RESEAU.md
 Ces choix appartiennent à l'implémentation (pas à la spec produit) et peuvent
 évoluer sans redemander d'arbitrage produit :
 
-- **Python 3.11+**, SQLAlchemy 2.0, SQLite par défaut (`OBSERVADOR_DB_URL` pour
+- **Python 3.11+**, SQLAlchemy 2.0, SQLite par défaut (`FALKYE_DB_URL` pour
   passer à PostgreSQL plus tard — le code ORM ne présume pas du moteur).
 - Pas d'outil de migration de schéma pour l'instant (`init_db()` fait un
   `create_all` simple) — à introduire (Alembic) avant tout usage multi-utilisateur.
 - CLI (`click`) comme interface pour l'instant ; une API REST pourra être ajoutée
-  au-dessus des mêmes fonctions (`observador.engine`, `observador.summary`) sans
+  au-dessus des mêmes fonctions (`falkye.engine`, `falkye.summary`) sans
   toucher au moteur, pour une future interface web/mobile (spec section 6,
   "ergonomie web puis mobile").

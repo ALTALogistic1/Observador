@@ -8,7 +8,7 @@ docs/STATUT_RESEAU.md. Les fragments ci-dessous reproduisent le VRAI format
 confirmé (page-hub avec plusieurs années + variante "-provincial", bloc
 `Fusion.globalContent=`, `const sheetID = "..."`), pas des données inventées
 au hasard."""
-from observador.sources.rob_top_growing import (
+from falkye.sources.rob_top_growing import (
     _RE_LIEN_ANNEE,
     _RE_SHEET_ID,
     _extraire_bloc_json,

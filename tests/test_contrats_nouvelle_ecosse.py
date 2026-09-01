@@ -7,7 +7,7 @@ les vraies données du portail (33 290 lignes réelles, avril 2010 à
 le VRAI format confirmé (champs `vendor`/`awarded_amount`/`tender_id`, et le
 cas réel de tender_id partagé par plusieurs entreprises), pas des données
 inventées au hasard."""
-from observador.sources.contrats_nouvelle_ecosse import (
+from falkye.sources.contrats_nouvelle_ecosse import (
     _nature_contrat,
     _parse_date,
     _parse_float,

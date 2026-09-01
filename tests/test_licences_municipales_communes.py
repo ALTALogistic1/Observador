@@ -7,8 +7,8 @@ Régression du même bogue de calibration que REQ/Corporations Canada avant
 leurs corrections (voir docs/STATUT_RESEAU.md) : le tout premier scan d'une
 municipalité ne doit produire AUCUNE candidate — sinon toutes les licences
 déjà anciennes seraient traitées comme "nouvelles"."""
-from observador.models.licence_municipale_entry import LicenceMunicipaleEntry
-from observador.sources.licences_municipales_communes import (
+from falkye.models.licence_municipale_entry import LicenceMunicipaleEntry
+from falkye.sources.licences_municipales_communes import (
     LicenceBrute,
     detecter_nouvelles_licences,
 )

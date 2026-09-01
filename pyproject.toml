@@ -1,7 +1,7 @@
 [project]
-name = "observador"
+name = "falkye"
 version = "0.1.0"
-description = "Repereur d'entreprises en croissance - Phase 1 (SEAO, RDPRM, REQ, Guichet-Emplois)"
+description = "FALKYE - Repereur d'entreprises en croissance (Phase 2)"
 requires-python = ">=3.11"
 readme = "README.md"
 dependencies = [
@@ -25,14 +25,14 @@ dev = [
 ]
 
 [project.scripts]
-observador = "observador.cli:cli"
+falkye = "falkye.cli:cli"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["observador*"]
+include = ["falkye*"]
 
 [tool.setuptools.package-data]
-observador = ["registry/*.yaml"]
+falkye = ["registry/*.yaml"]

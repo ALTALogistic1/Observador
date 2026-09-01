@@ -6,7 +6,7 @@ le vrai portail (205 329 lignes réelles, très à jour) — voir
 docs/STATUT_RESEAU.md. Les fragments ci-dessous reproduisent le VRAI format
 confirmé (champs Opendatasoft `businessname`/`unit`/`house`/`street`/...),
 pas des données inventées au hasard."""
-from observador.sources.licences_vancouver import _composer_adresse, _parse_date
+from falkye.sources.licences_vancouver import _composer_adresse, _parse_date
 
 # Vraie ligne (tronquée) confirmée le 2026-09-01 — "Lululemon Athletica Canada Inc"
 _LIGNE_REELLE_AVEC_UNITE = {

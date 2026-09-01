@@ -1,10 +1,10 @@
-"""Tests du mécanisme générique d'import manuel (observador/manual_import.py)
+"""Tests du mécanisme générique d'import manuel (falkye/manual_import.py)
 — spec section 9, "Import manuel de documents sources". Utilise le vrai
 registre (RDPRM y est configuré en import_manuel) plutôt qu'une source
 fabriquée, pour valider le chemin réel."""
 import pytest
 
-from observador.manual_import import ImportManuelError, importer_document_manuel
+from falkye.manual_import import ImportManuelError, importer_document_manuel
 
 
 def test_import_reussit_pour_une_source_en_import_manuel(db_session, registry):

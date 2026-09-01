@@ -7,7 +7,7 @@ docs/STATUT_RESEAU.md. Les fragments ci-dessous reproduisent le VRAI format
 confirmé (champs `Client Name`/`Licence Address Line 1-3`, et le quirk réel
 où un champ texte vide est encodé par la chaîne littérale "None"), pas des
 données inventées au hasard."""
-from observador.sources.licences_toronto import (
+from falkye.sources.licences_toronto import (
     _composer_adresse,
     _nettoyer,
     _parse_date,

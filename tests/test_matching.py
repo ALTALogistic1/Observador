@@ -1,5 +1,5 @@
-"""Tests de la correspondance signal -> sphère et mots-clés (observador/matching.py)."""
-from observador.matching import correspondance_qualitative_titre, spheres_probables
+"""Tests de la correspondance signal -> sphère et mots-clés (falkye/matching.py)."""
+from falkye.matching import correspondance_qualitative_titre, spheres_probables
 
 
 def test_spheres_probables_appel_offres(registry):

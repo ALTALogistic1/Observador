@@ -8,7 +8,7 @@ Corporations Canada avec de vraies données (2026-08-31) :
    corporations actives), ça aurait produit ~695 000 signaux. Corrigé : seul
    un changement d'adresse pour une corporation DÉJÀ connue produit un
    signal (même correction que pour le REQ le même jour)."""
-from observador.sources.corporations_canada import (
+from falkye.sources.corporations_canada import (
     IngestStats,
     _filtrer_ressources_actives,
     _upsert_row,

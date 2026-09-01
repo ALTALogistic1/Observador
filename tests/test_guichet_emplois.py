@@ -6,14 +6,14 @@ contre une vraie page de détail d'offre (offre 50196187, capturée le
 VRAIE structure confirmée (`job-posting-details-employer-wrapper` > `h2` pour
 le nom, premier `<li><span class="details">` pour le secteur), pas une
 structure inventée."""
-from observador.sources.guichet_emplois import (
+from falkye.sources.guichet_emplois import (
     COLUMN_ALIASES,
     URL_OFFRE_TEMPLATE,
     _extraire_employeur,
     _parse_date,
     _parse_int,
 )
-from observador.sources.column_mapping import resolve_columns
+from falkye.sources.column_mapping import resolve_columns
 
 _FRAGMENT_REEL = """
 <div class="job-posting-details-employer-wrapper">

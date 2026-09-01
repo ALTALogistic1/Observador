@@ -9,8 +9,8 @@ from sqlalchemy.orm import sessionmaker
 def db_session(tmp_path, monkeypatch):
     """Base SQLite en mémoire, tables créées à partir des modèles réels — pas de
     données de prospects fabriquées, seulement le schéma."""
-    from observador.models.base import Base
-    import observador.models  # noqa: F401 -- enregistre tous les modèles
+    from falkye.models.base import Base
+    import falkye.models  # noqa: F401 -- enregistre tous les modèles
 
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -22,6 +22,6 @@ def db_session(tmp_path, monkeypatch):
 
 @pytest.fixture()
 def registry():
-    from observador.registry.loader import load_registry
+    from falkye.registry.loader import load_registry
 
     return load_registry()

@@ -9,7 +9,7 @@ données inventées au hasard."""
 import csv
 import io
 
-from observador.sources.permis_construction_laval import _parse_date, _parse_float
+from falkye.sources.permis_construction_laval import _parse_date, _parse_float
 
 _EN_TETES_REELLES = [
     "NO_PERMIS", "TYPE_PERMIS", "TYPE_PERMIS_DESCR", "CATEGORIE_BATIMENT",
