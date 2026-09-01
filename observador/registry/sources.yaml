@@ -410,25 +410,23 @@ sources:
     region: "Québec/Canada"
     connecteur: null
     notes: >
-      INVESTIGUÉ le 2026-09-01, laissé de côté (décision à confirmer avec
-      Alexandre) : canadianbusiness.com/www.canadianbusiness.com sont bien
-      accessibles depuis cet environnement (domaines déjà autorisés), mais
-      répondent par un vrai blocage anti-bot Cloudflare ("Attention Required!
-      | Cloudflare", cookie __cf_bm de gestion de bots) — même mécanisme, même
+      INVESTIGUÉ le 2026-09-01, ABANDONNÉ — décision confirmée par Alexandre :
+      canadianbusiness.com/www.canadianbusiness.com sont bien accessibles
+      depuis cet environnement (domaines déjà autorisés), mais répondent par
+      un vrai blocage anti-bot Cloudflare ("Attention Required! |
+      Cloudflare", cookie __cf_bm de gestion de bots) — même mécanisme, même
       cause de fond (IP infonuagique/partagée de sortie) que le blocage REQ et
       les 4 moteurs de recherche testés pour l'enrichissement web, voir
       docs/STATUT_RESEAU.md. growth500.ca et l'URL d'archive
       (archiveprod.canadianbusiness.com) ne sont eux-mêmes pas atteignables
       (bloqués au niveau du proxy, domaines non autorisés). Distinct de ce
-      blocage : les résultats de recherche (WebSearch) ne montrent aucune
-      preuve d'un classement Growth 500 actuellement publié pour 2025/2026 —
-      seulement une page d'archive et des mentions tierces (entreprises citant
-      un classement passé) ; PROFIT 500/Growth 500 semble ne plus être
-      activement republié depuis la restructuration de Canadian Business
-      (contrairement à Deloitte Fast 50 et au Globe and Mail Top Growing
-      Companies, tous deux confirmés actifs pour 2025). Aucun changement de
-      code ni de liste réseau ne contournerait le blocage Cloudflare de toute
-      façon (même conclusion que pour DuckDuckGo et consorts).
+      blocage : Alexandre a confirmé de son côté que le classement est
+      figé/archivé, sans édition 2025/2026 active (contrairement à Deloitte
+      Fast 50 et au Globe and Mail Top Growing Companies, tous deux confirmés
+      actifs pour 2025) — l'abandon n'est donc pas motivé seulement par le
+      blocage Cloudflare, mais aussi par l'absence de source à récupérer.
+      Aucun changement de code ni de liste réseau ne contournerait le blocage
+      de toute façon (même conclusion que pour DuckDuckGo et consorts).
 
   - id: rob_top_growing
     nom: "Globe and Mail Report on Business — Top Growing Companies"
