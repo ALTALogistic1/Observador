@@ -775,3 +775,91 @@ même projet).
 à `actif` — 11e source active du prototype, la 4e de la Phase 2.
 `permis_construction_montreal` et `permis_construction_quebec` restent
 `a_developper` (`blocage_type: donnee_manquante`).
+
+## Expansion pancanadienne (2026-09-01) : vérification croisée Corporations Canada, équivalents SEAO/REQ évalués, Nouvelle-Écosse activée
+
+Alexandre a confirmé l'objectif de couverture pancanadienne (pas seulement
+Québec) et demandé de prioriser les sources qui l'élargissent. Trois volets
+traités dans l'ordre : le mécanisme requis pour `licences_affaires_municipales`,
+l'évaluation des équivalents provinciaux à SEAO/REQ, et l'activation de la
+Nouvelle-Écosse (le seul candidat SEAO confirmé viable).
+
+**Vérification croisée Corporations Canada** (préalable "NON NÉGOCIABLE"
+avant d'activer `licences_affaires_municipales`, imposé par le registre) :
+`CorporationFederaleEntry` gagne `nom_normalise` (indexé, même discipline
+GLOB — pas LIKE — que `REQEntry`, voir la section REQ plus haut) et
+`province`. Nouvelle fonction `resolve_corp_federale_by_name` dans
+`corporations_canada.py`, mécanique identique à `resolve_neq_by_name` du REQ.
+Distinction documentée dans les deux fichiers : ceci n'est PAS le pivot de
+résolution de `Company` (qui reste le NEQ, décision inchangée — voir
+"Généralisation du pivot d'identité" dans ARCHITECTURE.md) mais une porte de
+calibration plus étroite, utilisée uniquement pour confirmer qu'un nom
+détecté correspond à une corporation fédérale EXISTANTE avant de produire un
+signal. Validé contre les 694 844 corporations réelles : "Shopify Inc"
+résout à 100.0 (SHOPIFY INC., vraie corporation fédérale) ; un nom inventé
+ne produit aucune correspondance confiante. `EXPLAIN QUERY PLAN` confirme un
+SEARCH via l'index, pas un SCAN complet. Migration ponctuelle appliquée à la
+base de développement existante (ALTER TABLE + backfill des 694 844 lignes).
+Limite documentée : ne détecte que les entreprises incorporées au FÉDÉRAL —
+une entreprise provinciale-seulement ne matchera pas même si elle existe
+réellement (connu, accepté).
+
+**Équivalents SEAO (appels d'offres attribués) évalués** — 7 candidats
+provinciaux, un seul automatisable :
+
+| Source | Verdict |
+|---|---|
+| Nouvelle-Écosse — "Awarded Public Tenders" | ✅ Portail Socrata (data.novascotia.ca), API JSON, aucune authentification |
+| BC Bid, Alberta Purchasing Connection, Ontario Tenders Portal, SaskTenders | ❌ Confirmé : "portails séparés, aucun flux de données public" |
+| NBON (Nouveau-Brunswick) | ❌ Système d'avis web seulement |
+| MERX | ❌ Payant (dès ~15$/mois), aucune API publique documentée |
+
+CanadaBuys (fédéral) exclu de la liste : déjà la même infrastructure que
+`contrats_federaux` (actif), fédéral seulement, aucun apport provincial.
+
+**Équivalents REQ (registre d'entreprises) évalués** — conclusion plus dure
+que la recherche initiale d'Alexandre ne le laissait supposer : **aucune
+province n'offre un équivalent REQ automatisable et gratuit**, une fois
+vérifié :
+
+| Source | Verdict |
+|---|---|
+| Ontario | ❌ Recherche gratuite mais pas de vrac/API — "aucune API publique pour les registres provinciaux majeurs" (confirmé) |
+| Nouvelle-Écosse (registre des sociétés, distinct du portail de contrats ci-dessus) | ❌ Vrac explicitement interdit depuis 2015 (changement des conditions d'utilisation) |
+| Colombie-Britannique, Nouveau-Brunswick | ❌ Payant par recherche |
+| Alberta | ❌ Fermé, agents autorisés seulement |
+| Fédéral (Canada's Business Registries) | ❌ Interdit explicitement l'automatisation dans ses conditions ("I am not allowed to use automated tools to copy data from this service"), 8/13 provinces/territoires seulement |
+
+Corporations Canada (déjà actif) reste donc le seul registre pancanadien en
+vrac, avec sa limite fédérale-seulement déjà connue. Décision confirmée par
+Alexandre : laisser tomber les autres candidats provinciaux. Piste secondaire
+notée, pas prioritaire : StatCan "Open Database of Businesses" (~450 000
+entreprises, licence ouverte) — un agrégat compilé, pas un registre primaire,
+fréquence de mise à jour non confirmée ; à réévaluer comme enrichissement
+futur, pas comme source de détection de signal.
+
+**Nouvelle-Écosse — ACTIVÉE** (`contrats_nouvelle_ecosse`), première source
+hors Québec pour le signal `appel_offres`. Portail Socrata, jeu de données
+"Awarded Public Tenders" (id `m6ps-8j6u`) : 33 290 lignes réelles (avril 2010
+à 2026-08-17, très à jour), couverture d'identité quasi totale (99,9% des
+lignes ont un vendeur ET une date d'attribution). Deux bogues trouvés en
+validant :
+1. `tender_id` seul n'identifie pas une ligne de façon unique — un même
+   appel d'offres peut être attribué à PLUSIEURS entreprises distinctes
+   (contrats à commandes) : confirmé sur de vraies données (tender_id
+   "MET24-04" attribué à la fois à "Miller Waste Systems Inc" et "Royal
+   Environmental Inc"). `source_ref` inclut donc le vendeur — sans ça, le
+   dédoublonnage du moteur aurait silencieusement écrasé le signal d'une
+   vraie entreprise distincte.
+2. `awarded_amount` vaut parfois `"0"` (867/33 290 lignes, ~2,6%) — traité
+   comme valeur INCONNUE (`None`), pas un contrat réellement gratuit.
+
+Validation de bout en bout : 33 267 signaux sur l'historique complet (33 030
+distincts après dédoublonnage — quelques cas réels où la même entreprise
+apparaît plusieurs fois sous le même tender_id avec des montants différents,
+collapsés en un seul signal, même principe que les permis de Laval).
+
+**Statut du registre** : `contrats_nouvelle_ecosse` ajouté et `actif` — 13e
+source active du prototype, la 5e de la Phase 2. `licences_affaires_municipales`
+reste `a_developper` en attendant l'accès aux domaines Vancouver/Toronto
+(demandé, en cours).

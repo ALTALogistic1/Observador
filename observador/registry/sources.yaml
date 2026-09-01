@@ -688,6 +688,48 @@ sources:
       (même infrastructure open.canada.ca/opencanada.blob.core.windows.net
       déjà autorisée).
 
+  - id: contrats_nouvelle_ecosse
+    nom: "Contrats publics attribués — Nouvelle-Écosse"
+    signal_associe: [appel_offres]
+    statut: actif
+    blocage_type: null
+    methode_acces: api  # API SoQL (Socrata) — voir notes
+    champs_pertinents:
+      - entreprise_adjudicataire
+      - valeur_contrat
+      - donneur_ordre
+      - date_attribution
+      - description_sommaire
+    cout: gratuit
+    region: "Nouvelle-Écosse"
+    connecteur: observador.sources.contrats_nouvelle_ecosse
+    regle_calibration: >
+      Même logique que SEAO/contrats_federaux (voir leurs regle_calibration
+      respectives) : chaque ligne du jeu de données "Awarded Public Tenders" est
+      déjà un contrat RÉELLEMENT attribué (0 ligne avec date d'attribution nulle
+      dans les 33 290 lignes réelles), jamais une soumission en cours — aucun
+      filtrage de bruit additionnel nécessaire.
+    notes: >
+      ACTIVÉE en source Phase 2 le 2026-09-01, première source hors Québec pour
+      Signal appel_offres — en réponse à la recherche d'équivalents provinciaux à
+      SEAO demandée par Alexandre. Seul candidat provincial confirmé automatisable
+      parmi 7 évalués (BC Bid, Alberta Purchasing Connection, Ontario Tenders
+      Portal, SaskTenders, NBON, MERX — tous confirmés sans flux de données public
+      ou payants ; voir docs/STATUT_RESEAU.md pour le détail de chaque
+      investigation). Portail de données ouvertes Socrata (data.novascotia.ca),
+      jeu de données "Awarded Public Tenders" (id m6ps-8j6u), API JSON standard
+      (SoQL), aucune authentification. Validé avec de vraies données : 33 290
+      lignes réelles (avril 2010 à 2026-08-17, très à jour), couverture
+      d'identité quasi totale (99,9% des lignes ont un vendeur ET une date
+      d'attribution). Deux découvertes en validant, toutes deux dans
+      observador/sources/contrats_nouvelle_ecosse.py:detect() : (1) un même
+      tender_id peut être attribué à PLUSIEURS entreprises distinctes (contrats à
+      commandes) — source_ref inclut donc le vendeur, sinon le dédoublonnage du
+      moteur écraserait un vrai signal d'une autre entreprise ; (2) awarded_amount
+      vaut parfois "0" (~2,6% des lignes) — traité comme valeur inconnue (None),
+      pas un contrat réellement gratuit. Crawl-delay: 1 dans le robots.txt du
+      portail, aucun chemin /resource/ (l'API utilisée) interdit.
+
   - id: licences_affaires_municipales
     nom: "Licences d'affaires municipales (ex. Vancouver, Toronto)"
     signal_associe: [registre_corporatif]

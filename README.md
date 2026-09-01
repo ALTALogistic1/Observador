@@ -11,25 +11,37 @@ vraies notifications (311, dont l'exemple Sigma-RH) sur 8 sources actives —
 voir `docs/STATUT_RESEAU.md` pour le détail complet de la validation.
 
 **Phase 2 en cours** : ajout des sources gratuites restantes du registre, une
-à la fois (spec section 8). 12 sources actives à ce jour (état au 2026-09-01,
-voir `observador registry sources`) — les 8 de la Phase 1 (**SEAO** et
-**contrats fédéraux** pour les appels d'offres, **Corporations Canada**
-[registre corporatif pancanadien], **EIMT positive** [recrutement, avec nom
-d'employeur], **subventions fédérales** et **Investissement Québec**
-[financement], **REQ** + **RDPRM** [registre corporatif/financement,
-activées via import manuel — voir plus bas ; le téléchargement automatisé du
-REQ est bloqué par une règle Cloudflare visant les IP infonuagiques
-partagées, pas un problème de méthode d'accès — voir `docs/STATUT_RESEAU.md`])
-plus quatre sources de Phase 2 : **Deloitte Technology Fast 50** et **Globe
-and Mail Top Growing Companies** (classements de croissance),
-**Guichet-Emplois**, réactivée via le nom d'employeur des pages de détail
-d'offre individuelle (couverture volontairement partielle), et **permis de
-construction — Ville de Laval** (couverture volontairement partielle : le
-champ disponible identifie l'entrepreneur qui exécute les travaux, pas le
-propriétaire qui s'agrandit — voir `docs/STATUT_RESEAU.md`). **Growth 500**
+à la fois (spec section 8), avec priorité aux sources qui élargissent la
+couverture pancanadienne (objectif produit : tout le Canada, pas seulement le
+Québec). 13 sources actives à ce jour (état au 2026-09-01, voir `observador
+registry sources`) — les 8 de la Phase 1 (**SEAO** et **contrats fédéraux**
+pour les appels d'offres, **Corporations Canada** [registre corporatif
+pancanadien], **EIMT positive** [recrutement, avec nom d'employeur],
+**subventions fédérales** et **Investissement Québec** [financement], **REQ**
++ **RDPRM** [registre corporatif/financement, activées via import manuel —
+voir plus bas ; le téléchargement automatisé du REQ est bloqué par une règle
+Cloudflare visant les IP infonuagiques partagées, pas un problème de méthode
+d'accès — voir `docs/STATUT_RESEAU.md`]) plus cinq sources de Phase 2 :
+**Deloitte Technology Fast 50** et **Globe and Mail Top Growing Companies**
+(classements de croissance), **Guichet-Emplois**, réactivée via le nom
+d'employeur des pages de détail d'offre individuelle (couverture
+volontairement partielle), **permis de construction — Ville de Laval**
+(couverture volontairement partielle : le champ disponible identifie
+l'entrepreneur qui exécute les travaux, pas le propriétaire qui s'agrandit),
+et **contrats publics attribués — Nouvelle-Écosse**, première source hors
+Québec pour les appels d'offres (voir `docs/STATUT_RESEAU.md`). **Growth 500**
 (canadianbusiness.com) est abandonné : bloqué par un vrai anti-bot
 Cloudflare, et le classement lui-même n'est plus activement republié
-(confirmé). **Permis de construction — Montréal et Québec** restent `à
+(confirmé). Équivalents provinciaux à SEAO/REQ évalués (7 candidats
+appels d'offres, 5 candidats registres d'entreprises) : la Nouvelle-Écosse
+est le seul équivalent SEAO automatisable trouvé ; **aucune province n'offre
+d'équivalent REQ automatisable et gratuit** — Corporations Canada reste le
+seul registre pancanadien en vrac (limite connue : fédéral seulement) — voir
+`docs/STATUT_RESEAU.md` pour le détail de chaque investigation.
+**Licences d'affaires municipales — Vancouver/Toronto** en cours de
+construction (mécanisme de vérification croisée avec Corporations Canada
+déjà en place, connecteurs à venir). **Permis de construction — Montréal et
+Québec** restent `à
 développer` : aucune des deux villes n'inclut de nom d'entreprise/demandeur
 dans ses données ouvertes — voir `docs/STATUT_RESEAU.md` pour le détail
 complet de chaque investigation. Voir `docs/ARCHITECTURE.md` pour le détail.
