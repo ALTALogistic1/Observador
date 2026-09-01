@@ -1,7 +1,8 @@
 """Moteur central — spec section 9 : boucle sur les sources actives du registre,
 jamais une source codée en dur ici. Orchestre le pipeline complet (spec section 1) :
 détection → résolution NEQ/REQ → dossier cumulatif → vérifications de base →
-score de confiance → enrichissement web → notification.
+score de confiance ET score de pertinence (deux axes indépendants, spec section 6
+restructurée) → enrichissement web → notification.
 
 Ajouter une source, un type de signal ou un canal de notification ne demande AUCUNE
 modification de ce fichier — seulement une nouvelle entrée dans le registre
@@ -16,9 +17,10 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from falkye import pertinence
 from falkye.db import get_session
 from falkye.enrichment import enrichir_entreprise
-from falkye.matching import match_profile, spheres_probables
+from falkye.matching import MatchResult, match_profile, spheres_probables
 from falkye.models.company import Company, StatutVerification
 from falkye.models.notification import (
     ModeUsage,
@@ -176,7 +178,8 @@ def _traiter_entreprise_pour_profil(
     # sphère générique ou qualitative — spec section 7).
     signaux_pertinents: list[Signal] = []
     justifications: dict[int, str] = {}
-    sphere_choisie: str | None = None
+    matches_par_signal: dict[int, list[MatchResult]] = {}
+    meilleur_global: tuple[float, MatchResult] | None = None  # (base_pertinence, match) — voir plus bas
 
     for signal in company.signals:
         raw = _signal_vers_rawsignal(signal)
@@ -184,18 +187,31 @@ def _traiter_entreprise_pour_profil(
         if not matches:
             continue
         signaux_pertinents.append(signal)
-        meilleur = max(matches, key=lambda m: m.correspondance_qualitative)
-        if meilleur.correspondance_qualitative:
+        matches_par_signal[signal.id] = matches
+
+        meilleur_signal = max(matches, key=lambda m: m.correspondance_qualitative)
+        if meilleur_signal.correspondance_qualitative:
             justifications[signal.id] = (
                 f"{signal.titre_ou_description or ''} — correspond aux mots-clés : "
-                f"{', '.join(meilleur.mots_cles_trouves)}"
+                f"{', '.join(meilleur_signal.mots_cles_trouves)}"
             )
         else:
             justifications[signal.id] = signal.titre_ou_description or "Signal détecté"
-        sphere_choisie = sphere_choisie or meilleur.profile_need.sphere_id
+
+        # Sphère retenue pour LA notification (une seule, même simplification déjà
+        # en place) : le MEILLEUR tier de pertinence toutes correspondances
+        # confondues (AAA > AA > A) plutôt que "le premier signal rencontré" — la
+        # spec introduit maintenant un vrai classement entre ces tiers (section 6),
+        # donc le choix de sphère doit en tenir compte plutôt que d'être arbitraire.
+        for m in matches:
+            base = pertinence.base_match(m, signal.signal_type_id, registry)
+            if meilleur_global is None or base > meilleur_global[0]:
+                meilleur_global = (base, m)
 
     if not signaux_pertinents:
         return None
+
+    sphere_choisie = meilleur_global[1].profile_need.sphere_id
 
     if mode == ModeUsage.VEILLE_CONTINUE:
         deja_couverts = _signaux_deja_couverts(db_session, company.id, profile.id)
@@ -229,8 +245,18 @@ def _traiter_entreprise_pour_profil(
     if not company.est_presentable():
         return None  # exclusion silencieuse (spec section 6)
 
+    # Deux axes indépendants, combinés en MATRICE — pas en moyenne (spec section 6,
+    # restructurée) : un signal peu pertinent n'est jamais montré même si sa
+    # confiance est élevée, et vice-versa. Chaque axe a son propre curseur de
+    # sensibilité (Profile.sensibilite_confiance / sensibilite_pertinence) ; les
+    # DEUX portes doivent s'ouvrir, sans compensation possible de l'une par l'autre.
     score_result = calculer_score(signaux_pertinents)
-    if not franchit_seuil_sensibilite(score_result.niveau, profile.sensibilite.value):
+    pertinence_result = pertinence.calculer_pertinence(
+        company, signaux_pertinents, matches_par_signal, sphere_choisie, registry
+    )
+    if not franchit_seuil_sensibilite(score_result.niveau, profile.sensibilite_confiance.value):
+        return None
+    if not pertinence.franchit_seuil_sensibilite(pertinence_result.niveau, profile.sensibilite_pertinence.value):
         return None
 
     notification = Notification(
@@ -238,11 +264,17 @@ def _traiter_entreprise_pour_profil(
         profile_id=profile.id,
         mode=mode,
         score_confiance=score_result.score_confiance,
-        niveau=score_result.niveau,
+        niveau_confiance=score_result.niveau,
+        score_pertinence=pertinence_result.score_pertinence,
+        niveau_pertinence=pertinence_result.niveau,
         sphere_probable_id=sphere_choisie,
         justification_resumee=(
             f"{len(signaux_pertinents)} signal(aux) détecté(s), "
-            f"bonus de corroboration {score_result.bonus_corroboration:.0f} pts."
+            f"bonus de corroboration {score_result.bonus_corroboration:.0f} pts "
+            f"(confiance), pertinence {pertinence_result.niveau.value}"
+            + (f" (+{pertinence_result.bonus_absence:.0f} absence)" if pertinence_result.bonus_absence else "")
+            + (f" (+{pertinence_result.bonus_velocite:.0f} vélocité)" if pertinence_result.bonus_velocite else "")
+            + "."
         ),
     )
     db_session.add(notification)

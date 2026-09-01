@@ -160,7 +160,7 @@ déjà construit :
 | 2 | Toute source gratuite fait partie du produit | ✅ Les 24 sources identifiées à ce jour sont dans `sources.yaml`, y compris les 3 nouvelles de cette mise à jour |
 | 3 | **Calibration non négociable** (nouveau) | ✅ Nouveau champ `regle_calibration` + `Registry.valider_calibration()` — voir section dédiée ci-dessous |
 | 4 | Vérifications de base obligatoires | ✅ `verification.py` |
-| 5 | Score unifié, pas de jauges parallèles | ✅ `scoring.py` |
+| 5 | Score unifié, pas de jauges parallèles | ✅ `scoring.py` — toujours un seul score composite PAR AXE ; le score de pertinence ajouté le 2026-09-01 (`pertinence.py`) est un second axe voulu par la spec (section 6, restructurée), pas une régression du principe : chaque axe reste unifié en interne, les deux ne sont simplement jamais fusionnés entre eux (voir section dédiée plus bas) |
 | 6 | Polyvalence, rien codé en dur pour Alexandre | ✅ Audité et corrigé le 2026-08-31 (voir section dédiée plus bas) |
 | 7 | Architecture modulaire (sources/signaux/type de profil) | ✅ Trois registres + `Profile.type_profil` |
 | 8 | NEQ (ou équivalent) comme pivot | ✅ Voir "Généralisation du pivot d'identité" ci-dessous (nuance introduite par cette mise à jour) |
@@ -247,7 +247,8 @@ détection (connecteur) → résolution NEQ/REQ (resolution.py) →
 dossier cumulatif (Company + Signal) → vérifications de base AVANT enrichissement
 (verification.verifier_avant_enrichissement) → enrichissement web (enrichment.py) →
 vérifications de base APRÈS enrichissement (verification.verifier_apres_enrichissement)
-→ score de confiance unifié (scoring.py) → filtrage par sensibilité →
+→ score de confiance (scoring.py) ET score de pertinence (pertinence.py), deux axes
+indépendants → filtrage par les DEUX seuils de sensibilité (matrice, pas moyenne) →
 notification consolidée (engine._traiter_entreprise_pour_profil) → livraison
 (notifications/*)
 ```
@@ -305,8 +306,58 @@ au-delà de ce point — exclusion silencieuse, jamais un avertissement affiché
   notion séparée d'urgence, comme l'exige la spec.
 
 `franchit_seuil_sensibilite` traduit le niveau (Faible/Moyen/Élevé) en filtre selon
-`Profile.sensibilite` : sensibilité "élevée" = tout est notifié (filtrage faible),
-"faible" = seuls les signaux Élevé passent (filtrage agressif).
+`Profile.sensibilite_confiance` : sensibilité "élevée" = tout est notifié (filtrage
+faible), "faible" = seuls les signaux Élevé passent (filtrage agressif).
+
+## Score de pertinence (spec section 6, restructurée le 2026-09-01)
+
+Deuxième axe, INDÉPENDANT du score de confiance ci-dessus — la confiance répond à
+"ce signal est-il réel et fort", la pertinence répond à "correspond-il au profil
+précis de CET utilisateur". Implémenté dans `falkye/pertinence.py`, en miroir
+architectural de `scoring.py` (même principe : score numérique interne 0-100,
+quantifié en palier, jamais affiché tel quel) mais avec ses propres paliers et son
+propre curseur de sensibilité :
+
+- **Paliers A / AA / AAA** ("Repéré" / "Aligné" / "Sur mesure"), pas de "non
+  pertinent" — un `MatchResult` existe déjà pour qu'une notification soit
+  envisagée, donc A est un plancher. `base_match` détermine le tier de base à
+  partir du `MatchResult` déjà produit par `matching.py` (aucun nouveau mécanisme
+  de correspondance) :
+  - **AAA** si `correspondance_qualitative` (mot-clé précis du profil trouvé).
+  - **AA** si la sphère du besoin utilisateur est la sphère PRINCIPALE du type de
+    signal — interprétée comme la PREMIÈRE sphère listée dans `spheres_probables`
+    (`registry/signal_types.yaml`), un ordre déjà cohérent avec la table de la
+    spec section 7 ; voir le commentaire de `_sphere_principale` pour le détail
+    de cette décision d'interprétation, la spec ne précisant pas le mécanisme.
+  - **A** sinon (sphère seulement probable/secondaire pour ce type de signal).
+- **Bonus signal-par-absence** (`bonus_signal_absence`, +15 pts fixe) :
+  l'absence d'un signal normalement attendu plus tard peut elle-même être
+  pertinente (persona investisseur providentiel : croissance visible mais
+  aucun financement encore visible = traction précoce). Généralisé via un champ
+  de registre plutôt que codé en dur pour ce seul persona :
+  `SphereDef.signal_absence_pertinent` (`registry/spheres.yaml`) déclare, pour
+  une sphère donnée, l'id du type de signal dont l'absence compte — appliqué
+  seulement si l'entreprise a au moins un autre signal (sinon rien à comparer).
+- **Bonus de vélocité/trajectoire** (`bonus_velocite`, jusqu'à +24 pts, +8/signal
+  rapproché supplémentaire) : plusieurs signaux dans une fenêtre glissante de 60
+  jours pèsent plus lourd qu'un signal isolé, même à confiance égale par signal —
+  cherche la fenêtre la plus dense parmi les dates de détection, pas seulement
+  l'écart min/max, pour ne pas être faussé par un signal isolé loin des autres.
+
+`pertinence.franchit_seuil_sensibilite` filtre selon
+`Profile.sensibilite_pertinence` — curseur INDÉPENDANT de
+`sensibilite_confiance` (deux curseurs, spec section 6), même mécanique de
+traduction niveau→seuil que côté confiance mais sur l'échelle A/AA/AAA.
+
+**Décision matricielle, pas moyenne** (`engine.py::_traiter_entreprise_pour_profil`) :
+les deux seuils de sensibilité doivent être franchis INDÉPENDAMMENT pour qu'une
+notification soit envoyée — un signal peu pertinent n'est jamais montré même si sa
+confiance est élevée, et vice-versa. `Notification` porte donc les deux axes en
+parallèle (`score_confiance`/`niveau_confiance` et `score_pertinence`/
+`niveau_pertinence`), jamais fusionnés en un seul chiffre. Les 311 notifications
+historiques (antérieures à cette restructuration) ont `score_pertinence`/
+`niveau_pertinence` = `NULL` — jamais de valeur inventée pour combler l'historique
+(principe directeur #1) ; affiché comme "non disponible" plutôt qu'un palier.
 
 ## Porte ouverte fournisseur/client (spec section 4/9)
 

@@ -75,3 +75,17 @@ spheres:
     nom: "Gestion de la paie / avantages sociaux"
   - id: planification_strategique_conseil
     nom: "Planification stratégique / conseil en gestion"
+  - id: financement_acces_capital
+    nom: "Financement / accès au capital"
+    # Découverte en croisant des personas (courtiers en cautionnement, prêteurs
+    # alternatifs, investisseurs providentiels, banquiers d'investissement) qui ne
+    # correspondaient à aucune sphère existante (spec section 4, mise à jour).
+    # Premier cas réel du principe du "signal par absence" (spec section 6) : une
+    # entreprise montrant de la croissance (recrutement, nouvel établissement,
+    # classement) mais SANS financement gouvernemental ni classement de croissance
+    # encore visible signale une traction précoce, avant qu'elle soit publique —
+    # exactement le profil qu'un investisseur providentiel ou un prêteur
+    # alternatif cherche à repérer AVANT la concurrence. financement_expansion est
+    # le type de signal dont l'absence est pertinente ici (voir
+    # falkye/pertinence.py:bonus_signal_absence).
+    signal_absence_pertinent: financement_expansion

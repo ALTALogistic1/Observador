@@ -989,3 +989,51 @@ différents) — chacune un nouvel établissement légitime, pas un doublon.
 
 **Statut du registre** : `licences_toronto` passe de `a_developper` à
 `actif` — 15e source active du prototype, la 7e de la Phase 2.
+
+## Mise à jour de spec : sphère financement, score de pertinence A/AA/AAA (2026-09-01)
+
+Alexandre a communiqué trois décisions produit déjà intégrées au document de
+specs général (`docs/spec/repereur-entreprises-croissance-specs.md`, sections
+4, 6 et 9bis). Deux des trois sont maintenant construites, testées et
+commitées (la troisième, la structure tarifaire à trois plans de la section
+9bis, reste une question de portée ouverte — voir plus bas, pas dans ce
+fichier de statut réseau puisqu'elle ne touche aucune source).
+
+**Nouvelle sphère de besoin — Financement / accès au capital** (section 4) :
+ajoutée à `registry/spheres.yaml`, découverte en croisant des personas
+(courtiers en cautionnement, prêteurs alternatifs, investisseurs
+providentiels, banquiers d'investissement) qui ne correspondaient à aucune
+sphère existante. Aucune nouvelle source ni aucun nouveau type de signal
+requis — la sphère utilise `financement_expansion` (déjà actif via
+Investissement Québec et les subventions fédérales) comme signal
+d'appartenance directe, et déclare ce même type comme
+`signal_absence_pertinent` pour le mécanisme de pertinence ci-dessous.
+
+**Score de pertinence, deuxième axe indépendant** (section 6, restructurée) :
+voir `docs/ARCHITECTURE.md` pour le détail complet de la conception
+(`falkye/pertinence.py`). En résumé pour ce journal : trois paliers A/AA/AAA
+calculés à partir du `MatchResult` déjà produit par `matching.py` (aucune
+nouvelle donnée collectée, une nouvelle couche de calcul, comme demandé),
+deux bonus additifs (signal par absence, vélocité/trajectoire), un curseur de
+sensibilité dédié (`Profile.sensibilite_pertinence`, indépendant de
+`sensibilite_confiance`), et une décision de notification en MATRICE (les
+deux seuils doivent être franchis, jamais une moyenne des deux axes).
+
+Migration de la base de développement réelle (1 profil, 311 notifications
+réelles générées avant cette restructuration) : `profiles.sensibilite`
+renommée `sensibilite_confiance` + nouvelle colonne `sensibilite_pertinence`
+(défaut `moyen`) ; `notifications.niveau` renommée `niveau_confiance` +
+nouvelles colonnes `score_pertinence`/`niveau_pertinence`, laissées `NULL`
+pour les 311 notifications historiques — jamais de valeur de pertinence
+inventée pour combler l'historique (principe directeur #1). Affichées comme
+"non disponible" plutôt qu'un palier fabriqué, dans le courriel de
+notification comme dans le résumé périodique et la CLI.
+
+**Non construit, en attente d'une clarification de portée avant de
+commencer** : la structure tarifaire à trois plans (Écho/Radar/Radar+,
+section 9bis) implique un portail de sources payantes avec paiement intégré
+(Radar) et gestion de clés API utilisateur (Radar+) — aucun backend de
+paiement ni aucune source payante n'est encore branché au produit pour
+servir de premier cas concret à construire contre. Question à poser à
+Alexandre avant tout travail d'architecture sur ce point (voir le message de
+suivi de cette session).

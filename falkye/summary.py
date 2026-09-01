@@ -54,8 +54,11 @@ def formatter_resume(
         lignes = []
         for n in sorted(notifications, key=lambda n: n.score_confiance, reverse=True):
             nom = n.company.nom_officiel_req or n.company.nom_detecte
-            niveau = _NIVEAU_AFFICHAGE[n.niveau.value]
-            lignes.append(f"  • {nom} — confiance {niveau} ({n.score_confiance}/100)")
+            niveau = _NIVEAU_AFFICHAGE[n.niveau_confiance.value]
+            pertinence_txt = n.niveau_pertinence.value if n.niveau_pertinence else "n/d"
+            lignes.append(
+                f"  • {nom} — confiance {niveau} ({n.score_confiance}/100), pertinence {pertinence_txt}"
+            )
         corps = f"{len(notifications)} entreprise(s) repérée(s) durant cette période :\n\n" + "\n".join(lignes)
 
     debut = summary.periode_debut.strftime("%Y-%m-%d")

@@ -105,7 +105,7 @@ python -m falkye.cli init-db                     # crée les tables + sphères d
 python -m falkye.cli profile create \
   --courriel vous@exemple.com --nom "Profil A" \
   --ville Montréal --region Montréal --etat-province Québec \
-  --rayon-km 100 --sensibilite eleve
+  --rayon-km 100 --sensibilite-confiance eleve --sensibilite-pertinence moyen
 python -m falkye.cli profile add-need \
   --profile-id 1 --sphere-id gestion_inventaire_actifs \
   --service "Implantation de systèmes de gestion d'inventaire et d'actifs" \
@@ -115,7 +115,7 @@ python -m falkye.cli profile add-need \
 python -m falkye.cli profile create \
   --courriel autre@exemple.com --nom "Profil B" \
   --ville Québec --region "Capitale-Nationale" --etat-province Québec \
-  --rayon-km 75 --sensibilite moyen
+  --rayon-km 75 --sensibilite-confiance moyen --sensibilite-pertinence moyen
 python -m falkye.cli profile add-need \
   --profile-id 2 --sphere-id assurance_gestion_risques \
   --service "Courtage en assurance commerciale PME" \

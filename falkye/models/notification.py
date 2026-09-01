@@ -1,5 +1,10 @@
-"""Notification consolidée (spec section 6) : un seul score de confiance unifié par
-notification, potentiellement corroborée par plusieurs signaux indépendants."""
+"""Notification consolidée (spec section 6, restructurée) : DEUX axes indépendants
+par notification — score de confiance (le signal est-il réel et fort) et score de
+pertinence (ce signal correspond-il au profil précis de cet utilisateur) — combinés
+en matrice, jamais en moyenne, jamais fusionnés en un seul chiffre. Toujours UN SEUL
+indice PAR AXE, pas de jauges parallèles supplémentaires (ex. urgence) à l'intérieur
+d'un même axe — voir falkye/scoring.py (confiance) et falkye/pertinence.py
+(pertinence, nouveau)."""
 from __future__ import annotations
 
 import enum
@@ -17,6 +22,17 @@ class NiveauConfiance(str, enum.Enum):
     ELEVE = "eleve"
 
 
+class NiveauPertinence(str, enum.Enum):
+    """A / AA / AAA (spec section 6, restructurée) — registre positif avec
+    gradation, jamais un niveau "sans pertinence" : un MatchResult (falkye/
+    matching.py) doit déjà exister pour qu'une notification soit envisagée du
+    tout, donc A est le plancher, pas une absence de correspondance."""
+
+    A = "A"
+    AA = "AA"
+    AAA = "AAA"
+
+
 class ModeUsage(str, enum.Enum):
     VEILLE_CONTINUE = "veille_continue"
     RECHERCHE_PONCTUELLE = "recherche_ponctuelle"
@@ -32,8 +48,18 @@ class Notification(Base):
     mode: Mapped[ModeUsage] = mapped_column(Enum(ModeUsage, native_enum=False), nullable=False)
 
     score_confiance: Mapped[float] = mapped_column(Float, nullable=False)  # 0-100
-    niveau: Mapped[NiveauConfiance] = mapped_column(
+    niveau_confiance: Mapped[NiveauConfiance] = mapped_column(
         Enum(NiveauConfiance, native_enum=False), nullable=False
+    )
+
+    # Nullable : les notifications antérieures au 2026-09-01 (avant la
+    # restructuration du score en deux axes) n'ont pas de pertinence calculée
+    # rétroactivement — jamais de valeur inventée pour combler l'historique
+    # (principe directeur #1). NULL = notification antérieure au système de
+    # pertinence, pas une pertinence nulle/manquante à corriger.
+    score_pertinence: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0-100, interne
+    niveau_pertinence: Mapped[NiveauPertinence | None] = mapped_column(
+        Enum(NiveauPertinence, native_enum=False), nullable=True
     )
 
     sphere_probable_id: Mapped[str | None] = mapped_column(ForeignKey("spheres.id"), nullable=True)

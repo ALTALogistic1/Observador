@@ -49,7 +49,16 @@ class Profile(Base):
     pays: Mapped[str] = mapped_column(String(100), nullable=False, default="Canada")
     rayon_km: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    sensibilite: Mapped[Sensibilite] = mapped_column(
+    # Deux curseurs INDÉPENDANTS (spec section 6, restructurée) : confiance (le
+    # signal est-il réel et fort) et pertinence (correspond-il au profil précis de
+    # cet utilisateur) sont deux axes distincts, chacun avec son propre seuil —
+    # "montre-moi seulement AA et AAA, peu importe la confiance" doit être
+    # exprimable sans forcer un compromis sur l'autre axe. Un seul curseur combiné
+    # empêcherait ça.
+    sensibilite_confiance: Mapped[Sensibilite] = mapped_column(
+        Enum(Sensibilite, native_enum=False), nullable=False, default=Sensibilite.MOYEN
+    )
+    sensibilite_pertinence: Mapped[Sensibilite] = mapped_column(
         Enum(Sensibilite, native_enum=False), nullable=False, default=Sensibilite.MOYEN
     )
 

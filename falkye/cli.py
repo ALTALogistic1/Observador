@@ -247,8 +247,23 @@ def profile():
 @click.option("--etat-province", default=None)
 @click.option("--pays", default="Canada")
 @click.option("--rayon-km", type=float, default=None)
-@click.option("--sensibilite", type=click.Choice([s.value for s in Sensibilite]), default="moyen")
-def profile_create(courriel, nom, type_profil, ville, region, etat_province, pays, rayon_km, sensibilite):
+@click.option(
+    "--sensibilite-confiance",
+    type=click.Choice([s.value for s in Sensibilite]),
+    default="moyen",
+    help="Seuil de notification sur l'axe CONFIANCE (le signal est-il réel et fort)",
+)
+@click.option(
+    "--sensibilite-pertinence",
+    type=click.Choice([s.value for s in Sensibilite]),
+    default="moyen",
+    help="Seuil de notification sur l'axe PERTINENCE (le signal correspond-il à votre profil) — "
+    "indépendant du seuil de confiance (spec section 6)",
+)
+def profile_create(
+    courriel, nom, type_profil, ville, region, etat_province, pays, rayon_km,
+    sensibilite_confiance, sensibilite_pertinence,
+):
     session = get_session()
     try:
         p = Profile(
@@ -260,7 +275,8 @@ def profile_create(courriel, nom, type_profil, ville, region, etat_province, pay
             etat_province=etat_province,
             pays=pays,
             rayon_km=rayon_km,
-            sensibilite=Sensibilite(sensibilite),
+            sensibilite_confiance=Sensibilite(sensibilite_confiance),
+            sensibilite_pertinence=Sensibilite(sensibilite_pertinence),
         )
         session.add(p)
         session.commit()
@@ -302,7 +318,11 @@ def profile_list():
     session = get_session()
     try:
         for p in session.query(Profile).all():
-            click.echo(f"#{p.id} {p.nom} <{p.courriel}> type={p.type_profil.value} sensibilite={p.sensibilite.value}")
+            click.echo(
+                f"#{p.id} {p.nom} <{p.courriel}> type={p.type_profil.value} "
+                f"sensibilite_confiance={p.sensibilite_confiance.value} "
+                f"sensibilite_pertinence={p.sensibilite_pertinence.value}"
+            )
             for n in p.besoins:
                 click.echo(f"    - [{n.type_besoin}] {n.sphere_id}: {n.service_precis} (mots-clés: {n.mots_cles})")
     finally:
@@ -379,8 +399,10 @@ def notifications_list(profile_id):
             query = query.filter(Notification.profile_id == profile_id)
         for n in query.order_by(Notification.created_at.desc()).all():
             nom = n.company.nom_officiel_req or n.company.nom_detecte
+            pertinence_txt = n.niveau_pertinence.value if n.niveau_pertinence else "n/d"
             click.echo(
-                f"#{n.id} [{n.created_at:%Y-%m-%d %H:%M}] {nom} — {n.niveau.value} ({n.score_confiance}/100)"
+                f"#{n.id} [{n.created_at:%Y-%m-%d %H:%M}] {nom} — "
+                f"confiance {n.niveau_confiance.value} ({n.score_confiance}/100), pertinence {pertinence_txt}"
             )
     finally:
         session.close()

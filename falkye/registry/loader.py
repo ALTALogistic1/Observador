@@ -91,6 +91,16 @@ class SphereDef:
     nom: str
     est_personnalisee: bool = False
     proposee_par: str | None = None
+    # Principe du "signal par absence" (spec section 6, restructurée) : l'ABSENCE
+    # d'un type de signal normalement attendu à un stade plus avancé peut être un
+    # indicateur de pertinence positif, pas seulement la présence d'un signal —
+    # découvert avec le persona investisseur providentiel (croissance visible mais
+    # AUCUN financement encore visible = traction précoce). Généralisé ici plutôt
+    # que codé en dur pour cette seule sphère : n'importe quelle sphère peut
+    # déclarer l'id d'un type de signal (falkye/registry/signal_types.yaml) dont
+    # l'absence, alors que d'autres signaux existent déjà pour l'entreprise, est
+    # elle-même pertinente — voir falkye/pertinence.py:bonus_signal_absence.
+    signal_absence_pertinent: str | None = None
 
 
 @dataclass(frozen=True)
