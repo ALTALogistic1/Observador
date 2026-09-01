@@ -618,3 +618,83 @@ piste elle-même) :**
 (Signal 1). Couverture volontairement partielle et documentée, pas une
 promesse d'exhaustivité — cohérent avec le principe déjà établi ailleurs dans
 le projet (couverture honnête plutôt que source retenue).
+
+## Classements de croissance (Signal 1) : Growth 500 bloqué (Cloudflare), Globe and Mail activé (2026-09-01)
+
+Suite de la Phase 2 (Signal 1, `classement_croissance`) : les deux sources
+restantes du registre après Deloitte Fast 50, `growth500` et
+`rob_top_growing`, investiguées comme demandé.
+
+**Growth 500 (canadianbusiness.com) — laissé de côté, deux raisons
+indépendantes :**
+1. **Blocage anti-bot réel, pas un problème de liste réseau.**
+   `canadianbusiness.com` et `www.canadianbusiness.com` sont bien accessibles
+   (domaines déjà autorisés) et répondent par une vraie page Cloudflare —
+   confirmé par inspection du corps de la réponse (`<title>Attention
+   Required! | Cloudflare</title>`, cookie `__cf_bm` de gestion de bots,
+   en-tête `server: cloudflare`). Même mécanisme, même cause de fond (IP
+   infonuagique/partagée de sortie de cet environnement) que le blocage
+   Cloudflare du REQ et les 4 moteurs de recherche testés pour
+   l'enrichissement web (voir sections plus haut) — aucun changement de code
+   ni de liste réseau ne le contournerait. `growth500.ca` et l'URL d'archive
+   (`archiveprod.canadianbusiness.com`) ne sont eux-mêmes pas atteignables
+   (bloqués au niveau du proxy — domaines non autorisés, distinct du blocage
+   Cloudflare ci-dessus).
+2. **Le classement lui-même semble ne plus être activement republié.** Une
+   recherche web n'a trouvé aucune preuve d'une édition 2025/2026 en cours —
+   seulement une page d'archive (`archiveprod.canadianbusiness.com`) et des
+   mentions tierces d'entreprises citant un classement passé, contrairement à
+   Deloitte Fast 50 et au Globe and Mail Top Growing Companies, tous deux
+   confirmés actifs pour 2025 avec une méthodologie et un calendrier de
+   publication courants.
+
+Registre : `growth500` reste `a_developper`, `blocage_type` mis à
+`anti_bot` avec le détail ci-dessus — décision de laisser tomber
+complètement (plutôt que budgétaire, comme l'enrichissement web) à confirmer
+avec Alexandre, puisque même une clé API payante ne contournerait pas
+Cloudflare pour un classement qui n'existe peut-être plus.
+
+**Globe and Mail Top Growing Companies — ACTIVÉ, aucun blocage rencontré.**
+Découverte réelle en construisant le connecteur (`observador/sources/
+rob_top_growing.py`) :
+- La page-hub stable
+  (`theglobeandmail.com/business/rob-magazine/top-growing-companies/`) liste
+  les classements annuels ; le lien de l'année courante ("...-of-2025/", pas
+  la variante "...-of-2025-provincial/") est découvert dynamiquement — même
+  discipline que le PDF de Deloitte (jamais une URL annuelle codée en dur).
+- L'article annuel est une page JS (CMS Fusion/Arc XP, `theglobeandmail.com`
+  appartient au même groupe que le Washington Post et utilise son CMS Arc
+  XP) dont le corps visible est vide en HTML brut (`articleWordCount: 0`),
+  mais le CMS embarque tout l'article dans un bloc
+  `Fusion.globalContent={...};` inline — extrait par appariement d'accolades
+  (un simple regex non-gourmand casse dès qu'une valeur contient elle-même
+  des accolades, ex. un blob CSS imbriqué, ce qui arrive réellement dans
+  cette page).
+- Ce bloc contient `content_restrictions.content_code`, l'indicateur
+  officiel de paywall du Globe and Mail — confirmé `"green"` (accès libre)
+  pour ce classement, malgré la réputation générale du site d'être payant.
+  Le connecteur logue un avertissement (sans échouer) si jamais un autre
+  code est rencontré une année future.
+- Le bloc révèle aussi le vrai mécanisme de données : un identifiant Google
+  Sheet (`const sheetID = "..."`) chargé depuis un fichier JSON **public**
+  hébergé sur S3 (`google-sheets-prod-....s3.ca-central-1.amazonaws.com`) —
+  aucune authentification, aucun anti-bot rencontré, à l'opposé total de
+  Growth 500. `sheetID` change chaque année (nouvelle feuille Google
+  Sheets) — découvert dynamiquement depuis l'article de l'année courante,
+  jamais codé en dur.
+- **Validation de bout en bout contre le vrai fichier 2025** : 400
+  entreprises (le nombre annoncé dans la description de l'article,
+  "The 400 companies on this year's list"), avec des entreprises québécoises
+  réelles identifiées (Boreas Technologies, NUAGE Logistics, Evnia
+  Environmental Compliance Group, LOC medical, Ubiweb, entre autres).
+- Champ région irrégulier dans les données sources : les grandes villes sont
+  données seules ("Montreal", "Toronto", "Calgary"), les autres avec un
+  suffixe de province ("Longueuil, Que.", "Bromont, Que.") —
+  `_parse_ville_region` sépare les deux quand le suffixe est présent, laisse
+  la région à `None` sinon plutôt que de deviner (résolue via le REQ comme
+  n'importe quel champ absent).
+
+**Statut du registre** : `rob_top_growing` passe de `a_developper` à
+`actif` — 10e source active du prototype, la 3e de la Phase 2. `growth500`
+reste `a_developper` (`blocage_type: anti_bot`), décision de le laisser
+tomber à confirmer avec Alexandre.
