@@ -696,5 +696,82 @@ rob_top_growing.py`) :
 
 **Statut du registre** : `rob_top_growing` passe de `a_developper` à
 `actif` — 10e source active du prototype, la 3e de la Phase 2. `growth500`
-reste `a_developper` (`blocage_type: anti_bot`), décision de le laisser
-tomber à confirmer avec Alexandre.
+reste `a_developper` (`blocage_type: anti_bot`) — **décision confirmée par
+Alexandre le 2026-09-01** : classement figé/archivé (vérifié de son côté,
+pas seulement le blocage Cloudflare), abandonné définitivement.
+
+## Permis de construction municipaux (Signal 4) : Laval activé, Montréal/Québec bloqués par absence de nom (2026-09-01)
+
+Suite de la Phase 2 (Signal 4, `registre_corporatif`) : les 3 sources de
+permis municipaux du registre (Montréal, Québec, Laval), investiguées comme
+prévu.
+
+**Découverte structurante commune aux trois** : le portail Données Québec
+(`www.donneesquebec.ca`, déjà autorisé pour REQ/SEAO) fédère en fait les
+jeux de données des trois villes — aucun nouveau domaine n'a été nécessaire,
+y compris pour Montréal dont le fichier brut est hébergé sur
+`donnees.montreal.ca` (non autorisé, testé 403 au niveau du proxy) : la même
+donnée est exposée via l'API Datastore CKAN directement sur
+`www.donneesquebec.ca` (`datastore_active: true` sur la ressource), exactement
+le même mécanisme déjà utilisé pour subventions_federales/contrats_federaux.
+
+**Montréal et Québec — laissés à `a_developper`, aucune des deux ne contient
+de nom d'entreprise/demandeur.** Vérifié par inspection directe des vraies
+colonnes (pas une supposition) :
+- Montréal (558 874 lignes, très à jour au 2026-08-24) : 17 colonnes —
+  identifiants, dates, emplacement, arrondissement, type/catégorie de
+  bâtiment, `nature_travaux` en texte libre (ex. "REMPLACEMENT DES FERMES DE
+  TOIT..."), nombre de logements, coordonnées. Aucune ne porte un nom
+  d'entité.
+- Québec (69 197 lignes, très à jour au 2026-08-28) : 10 colonnes —
+  numéro/date/adresse de permis, domaine, type, arrondissement, `RAISON` (motif
+  administratif textuel, ex. "Installation d'un branchement d'aqueduc ou
+  d'égout", "Abattage d'arbre"), coordonnées. Même constat.
+
+Pour Québec, la même piste que Guichet-Emplois (page de détail publique par
+numéro de permis) a été cherchée — infructueuse : l'"Assistant-permis" du
+site de la ville est un outil d'aide au dépôt de demande, pas un annuaire des
+permis émis avec identité du demandeur. Les deux sources restent donc
+`a_developper` (`blocage_type: donnee_manquante`) — même principe que
+Guichet-Emplois avant sa piste des pages individuelles : pas de nom à
+inventer quand la donnée source n'en contient tout simplement pas.
+
+**Laval — ACTIVÉE**, seule des trois à exposer une identité d'entreprise :
+le champ `ENTREPRENEUR` (172 168 lignes, 1991 au 2026-03-31). Nuance
+importante documentée dans le connecteur
+(`observador/sources/permis_construction_laval.py`) : ce champ identifie
+l'entreprise de CONSTRUCTION qui exécute les travaux, pas le propriétaire du
+bâtiment qui s'agrandit — la spec visait plutôt ce dernier ("nouveaux
+locaux, agrandissement"), mais aucun champ demandeur/propriétaire n'existe
+dans ce jeu de données non plus. Retenu quand même, documenté honnêtement
+plutôt que présenté comme autre chose — un entrepreneur en construction actif
+est lui-même un prospect plausible pour un fournisseur B2B au secteur de la
+construction. Couverture partielle : `ENTREPRENEUR` vide sur ~69% des lignes
+(chantiers résidentiels mineurs, souvent exécutés par le propriétaire
+lui-même) — aucun signal produit dans ces cas, pas de nom deviné.
+
+Deux découvertes supplémentaires en validant avec de vraies données :
+- `COUT_PERMIS` est le coût DU PERMIS (souvent un tarif administratif
+  forfaitaire — ex. plusieurs lignes à 270,00$ pour des travaux visiblement
+  très différents), PAS le coût des travaux — pas fiable comme proxy de
+  l'ampleur du chantier, donc volontairement PAS utilisé par le score
+  (`observador/scoring.py:_score_permis_construction`, calé sur les 4
+  catégories réelles de `TYPE_PERMIS_DESCR` à la place).
+- Le fichier est republié occasionnellement (dernière publication confirmée
+  le 2026-03-31 via les métadonnées CKAN), pas en continu — un scan à
+  fenêtre courte (30-60 jours) peut donc légitimement retourner 0 nouveau
+  signal entre deux republications, même catégorie de constat que
+  subventions_federales, pas un bogue.
+
+**Validation de bout en bout contre le vrai fichier** : 53 953 lignes avec
+`ENTREPRENEUR` non vide (entreprises réelles confirmées — ex. "CONSTRUCTION
+LUC MIRON INC.", "LES ENT. V. BRISEBOIS ET FILS INC."), 49 694 permis
+distincts après dédoublonnage (un même `NO_PERMIS` peut couvrir plusieurs
+adresses contiguës — ex. un projet de 5 unités attenantes — collapsé en un
+seul signal par permis via `source_ref`, pas 5 notifications répétées pour le
+même projet).
+
+**Statut du registre** : `permis_construction_laval` passe de `a_developper`
+à `actif` — 11e source active du prototype, la 4e de la Phase 2.
+`permis_construction_montreal` et `permis_construction_quebec` restent
+`a_developper` (`blocage_type: donnee_manquante`).

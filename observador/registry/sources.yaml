@@ -485,37 +485,102 @@ sources:
     nom: "Permis de construction — Ville de Montréal"
     signal_associe: [registre_corporatif]
     statut: a_developper
-    blocage_type: null
+    blocage_type: donnee_manquante
     methode_acces: donnees_ouvertes
     champs_pertinents: [nom_demandeur, adresse_travaux, nature_travaux, valeur_permis, date_emission]
     cout: gratuit
     region: "Montréal"
     connecteur: null
-    notes: "Fragmenté par municipalité — à activer progressivement selon la priorité géographique."
+    notes: >
+      INVESTIGUÉ le 2026-09-01 : contrairement à ce qu'on aurait pu croire, le
+      domaine du fichier brut (donnees.montreal.ca) n'est PAS accessible depuis
+      cet environnement, mais ce n'est pas bloquant — le même jeu de données
+      ("Permis de construction, transformation et démolition", 558 874 lignes,
+      très à jour au 2026-08-24) est aussi exposé via l'API Datastore CKAN sur
+      www.donneesquebec.ca (déjà autorisé pour REQ/SEAO), donc aucun nouveau
+      domaine à demander. Le vrai blocage est ailleurs : les 17 colonnes
+      confirmées (no_demande, id_permis, dates, emplacement, arrondissement,
+      description_type_demande, nature_travaux en texte libre, nb_logements,
+      coordonnées) NE CONTIENNENT AUCUN nom d'entreprise, de demandeur ou
+      d'entrepreneur — contrairement à Laval qui a un champ ENTREPRENEUR
+      dédié. `nature_travaux` est une description textuelle libre des travaux
+      (ex. "REMPLACEMENT DES FERMES DE TOIT..."), jamais un nom d'entité.
+      Laissé à `a_developper`, même principe que Guichet-Emplois avant sa
+      piste des pages individuelles : pas de nom à inventer. Piste future
+      possible mais non explorée : un jeu de données municipal séparé
+      (rôle d'évaluation foncière, permis avec propriétaire) pourrait
+      permettre un jumelage par adresse — coût d'implémentation important
+      pour un gain incertain, à soupeser en Phase 3+ plutôt que maintenant.
 
   - id: permis_construction_quebec
     nom: "Permis de construction — Ville de Québec"
     signal_associe: [registre_corporatif]
     statut: a_developper
-    blocage_type: null
+    blocage_type: donnee_manquante
     methode_acces: donnees_ouvertes
     champs_pertinents: [nom_demandeur, adresse_travaux, nature_travaux, valeur_permis, date_emission]
     cout: gratuit
     region: "Québec (ville)"
     connecteur: null
-    notes: null
+    notes: >
+      INVESTIGUÉ le 2026-09-01, même conclusion que Montréal : jeu de données
+      accessible sans problème (hébergé directement sur www.donneesquebec.ca,
+      déjà autorisé — 69 197 lignes, très à jour au 2026-08-28), mais les 10
+      colonnes réelles confirmées (NUMERO_PERMIS, DATE_DELIVRANCE,
+      ADRESSE_TRAVAUX, DOMAINE, LOTS_IMPACTES, TYPE_PERMIS, ARRONDISSEMENT,
+      RAISON, LONGITUDE, LATITUDE) NE CONTIENNENT AUCUN nom d'entreprise, de
+      propriétaire ou d'entrepreneur. RAISON est un motif administratif
+      textuel (ex. "Installation d'un branchement d'aqueduc ou d'égout",
+      "Abattage d'arbre") — jamais un nom d'entité, vérifié sur un
+      échantillon. Recherche d'une page de détail publique par numéro de
+      permis (même piste que Guichet-Emplois) infructueuse — l'"Assistant-
+      permis" de ville.quebec.qc.ca est un outil d'aide au dépôt de demande,
+      pas un annuaire de permis émis avec identité du demandeur. Laissé à
+      `a_developper` — pas de nom à inventer.
 
   - id: permis_construction_laval
     nom: "Permis de construction — Ville de Laval"
     signal_associe: [registre_corporatif]
-    statut: a_developper
+    statut: actif
     blocage_type: null
     methode_acces: donnees_ouvertes
     champs_pertinents: [nom_demandeur, adresse_travaux, nature_travaux, valeur_permis, date_emission]
     cout: gratuit
     region: "Laval"
-    connecteur: null
-    notes: null
+    connecteur: observador.sources.permis_construction_laval
+    regle_calibration: >
+      Voir observador/scoring.py:_score_permis_construction — paliers calés sur
+      les 4 catégories réelles confirmées dans le jeu de données ("Permis de
+      construction - nouvelle" = fort, "- amélioration" = moyen, "Certificat
+      d'autorisation"/"d'occupation" = plus faible, cohérent avec le critère de
+      confiance déjà défini dans signal_types.yaml pour registre_corporatif :
+      "agrandissement/nouvelle construction = fort; rénovation mineure =
+      faible"). Ne se base volontairement PAS sur `valeur_permis` (coût du
+      PERMIS — un tarif administratif souvent forfaitaire, pas fiable comme
+      proxy de l'ampleur des travaux, voir la note ci-dessous).
+    notes: >
+      ACTIVÉE en source Phase 2 le 2026-09-01, seule des 3 sources de permis
+      municipaux (Montréal, Québec, Laval) à exposer une identité d'entreprise
+      — voir observador/sources/permis_construction_laval.py pour le détail
+      complet. Jeu de données accessible sur www.donneesquebec.ca (déjà
+      autorisé pour REQ/SEAO), package `permis-de-construction`, 172 168
+      lignes (1991-2026-03-31). IMPORTANT : le champ ENTREPRENEUR identifie
+      l'entreprise de CONSTRUCTION qui exécute les travaux, PAS le
+      propriétaire du bâtiment qui s'agrandit (aucun champ demandeur/
+      propriétaire n'existe dans ce jeu de données) — signal légitime mais
+      différent de l'intention initiale de la spec, retenu quand même
+      (couverture honnête plutôt que source abandonnée, même principe que
+      Guichet-Emplois). Couverture partielle : ENTREPRENEUR vide sur ~69% des
+      lignes (chantiers résidentiels mineurs, souvent exécutés par le
+      propriétaire lui-même) — aucun signal produit dans ces cas. Validation
+      de bout en bout contre le vrai fichier : 53 953 lignes avec entrepreneur
+      non vide, 49 694 permis distincts après dédoublonnage (un même NO_PERMIS
+      peut couvrir plusieurs adresses contiguës — collapsé en un seul signal
+      par permis via `source_ref`, pas 5 notifications pour le même projet).
+      FRAÎCHEUR : fichier republié occasionnellement (dernière publication
+      confirmée le 2026-03-31, pas en continu) — un scan à fenêtre courte
+      (30-60 jours) peut légitimement retourner 0 nouveau signal entre deux
+      republications, même catégorie de constat que subventions_federales.
 
   - id: quebec_emploi
     nom: "Québec emploi (anciennement Placement en ligne)"

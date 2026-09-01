@@ -109,7 +109,30 @@ def _score_registre_corporatif(signal: Signal) -> float:
         return 70.0
     if type_changement == "changement_adresse":
         return 50.0
+    if type_changement == "permis_construction":
+        return _score_permis_construction(signal)
     return 20.0  # mise à jour non catégorisée — ne devrait normalement pas être émise
+
+
+def _score_permis_construction(signal: Signal) -> float:
+    """Paliers calés sur les 4 catégories réelles confirmées dans le jeu de
+    données Permis de construction — Ville de Laval (voir observador/sources/
+    permis_construction_laval.py) : une nouvelle construction est un signal
+    d'expansion bien plus fort qu'une simple amélioration, elle-même plus
+    forte qu'un certificat administratif (autorisation/occupation). Ne se
+    base PAS sur `valeur_permis` (coût du PERMIS, pas du chantier — un tarif
+    administratif souvent forfaitaire, pas fiable comme proxy de l'ampleur
+    des travaux, voir la même source pour le détail)."""
+    nature = (signal.champs.get("nature_travaux") or "").lower()
+    if "nouvelle" in nature:
+        return 75.0
+    if "amélioration" in nature or "amelioration" in nature:
+        return 50.0
+    if "autorisation" in nature:
+        return 30.0
+    if "occupation" in nature:
+        return 25.0
+    return 35.0  # catégorie non reconnue (jeu de données futur/étendu) — score prudent
 
 
 def _score_classement_croissance(signal: Signal) -> float:

@@ -88,6 +88,47 @@ def test_meme_type_de_signal_repete_ne_declenche_pas_de_bonus_corroboration():
     assert result.bonus_corroboration == 0
 
 
+def test_permis_construction_nouvelle_construction_plus_fort_qu_une_amelioration():
+    """Paliers calés sur les 4 catégories réelles du jeu de données Permis de
+    construction — Ville de Laval (voir observador/sources/
+    permis_construction_laval.py)."""
+    now = datetime.now(timezone.utc)
+    nouvelle = calculer_score(
+        [_signal("registre_corporatif", detected_at=now, champs={
+            "type_changement": "permis_construction",
+            "nature_travaux": "Permis de construction - nouvelle",
+        })],
+        now=now,
+    )
+    amelioration = calculer_score(
+        [_signal("registre_corporatif", detected_at=now, champs={
+            "type_changement": "permis_construction",
+            "nature_travaux": "Permis de construction - amélioration",
+        })],
+        now=now,
+    )
+    assert nouvelle.score_confiance > amelioration.score_confiance
+
+
+def test_permis_construction_certificat_administratif_plus_faible_qu_une_amelioration():
+    now = datetime.now(timezone.utc)
+    amelioration = calculer_score(
+        [_signal("registre_corporatif", detected_at=now, champs={
+            "type_changement": "permis_construction",
+            "nature_travaux": "Permis de construction - amélioration",
+        })],
+        now=now,
+    )
+    occupation = calculer_score(
+        [_signal("registre_corporatif", detected_at=now, champs={
+            "type_changement": "permis_construction",
+            "nature_travaux": "Certificat d'occupation",
+        })],
+        now=now,
+    )
+    assert occupation.score_confiance < amelioration.score_confiance
+
+
 def test_recrutement_qualitatif_fort_meme_a_un_seul_poste():
     now = datetime.now(timezone.utc)
     s = _signal(
