@@ -67,7 +67,10 @@ sources:
     notes: >
       Données ouvertes via le portail CKAN de Données Québec (donneesquebec.ca), formats
       JSON (depuis mars 2021, inspiré de l'Open Contracting Data Standard) et XML (depuis
-      2009). Mise à jour hebdomadaire/mensuelle. Aucune clé d'API requise.
+      2009). Mise à jour hebdomadaire/mensuelle. Aucune clé d'API requise. 372 fichiers
+      hebdomadaires/mensuels archivés depuis 2021 (confirmé le 2026-08-31) — voir
+      observador.engine.run_recherche_ponctuelle pour le plafond par défaut (60 jours) qui
+      évite de tous les retélécharger/traiter à chaque `scan ponctuel`.
 
   - id: rdprm
     nom: "RDPRM (Registre des droits personnels et réels mobiliers)"

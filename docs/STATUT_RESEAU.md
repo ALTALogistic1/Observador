@@ -446,12 +446,19 @@ pas encore de vraies données à cette échelle :
    changement d'ADRESSE pour une corporation DÉJÀ connue produit un signal —
    une toute nouvelle incorporation n'en produit plus.
 
-**Découverte de scope, pas un bug corrigé pour l'instant** : `scan ponctuel`
-(`recherche_ponctuelle`, `since=None`) fait actuellement télécharger et
-traiter à SEAO l'intégralité de ses 372 fichiers hebdomadaires/mensuels
-historiques (depuis 2021) plutôt qu'une fenêtre récente — extrapolé à ~12h
-dans cet environnement. `scan veille` (mode veille continue, `--lookback-days`
-borné, 30 jours par défaut) n'a pas ce problème. Pour la première validation
-de bout en bout, `scan veille` a été utilisé à la place — voir la section
-suivante pour discuter si `recherche_ponctuelle` doit avoir un plafond par
-défaut plutôt qu'un historique complet.
+## Fenêtre par défaut de `scan ponctuel` corrigée (2026-08-31)
+
+`scan ponctuel` (`recherche_ponctuelle`) téléchargeait et traitait à SEAO
+l'intégralité de ses 372 fichiers hebdomadaires/mensuels historiques (depuis
+2021) plutôt qu'une fenêtre récente, parce que `since=None` était interprété
+littéralement comme "aucune borne" — extrapolé à ~12h dans cet environnement.
+Décision d'Alexandre : plafonner par défaut, comme `scan veille`, avec une
+option pour forcer une fenêtre plus large.
+
+Corrigé : `run_recherche_ponctuelle` accepte maintenant `lookback_days`
+(défaut **60 jours** — le double des 30 jours de `scan veille`, cohérent avec
+la lecture spec "plus large" de la recherche ponctuelle sans retomber dans
+"tout l'historique"). CLI : `scan ponctuel --profile-id N [--lookback-days N]
+[--historique-complet]` — ce dernier retrouve l'ancien comportement
+(`since=None`) pour qui a vraiment besoin d'une recherche exhaustive et est
+prêt à en payer le temps.

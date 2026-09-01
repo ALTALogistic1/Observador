@@ -95,7 +95,8 @@ python -m observador.cli profile add-need \
 python -m observador.cli registry sources             # état du registre de sources
 python -m observador.cli registry canaux               # état du registre de canaux
 
-python -m observador.cli scan ponctuel --profile-id 1  # recherche ponctuelle (spec section 5)
+python -m observador.cli scan ponctuel --profile-id 1  # recherche ponctuelle (spec section 5), fenêtre 60 jours par défaut
+python -m observador.cli scan ponctuel --profile-id 1 --historique-complet  # fenêtre illimitée (peut être long, ex. SEAO)
 python -m observador.cli scan veille                    # veille continue, tous les profils
 python -m observador.cli notifications list
 python -m observador.cli resume envoyer --profile-id 1 --jours 7

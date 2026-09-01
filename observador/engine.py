@@ -319,14 +319,38 @@ def run_veille_continue(profile_ids: list[int] | None = None, lookback_days: int
         db_session.close()
 
 
-def run_recherche_ponctuelle(profile_id: int) -> ScanReport:
+DEFAULT_LOOKBACK_RECHERCHE_PONCTUELLE_DAYS = 60
+
+
+def run_recherche_ponctuelle(
+    profile_id: int, lookback_days: int | None = DEFAULT_LOOKBACK_RECHERCHE_PONCTUELLE_DAYS
+) -> ScanReport:
     """Mode 2 (spec section 5) : plus large, sans lien strict au profil, sans
     notion de nouveau/déjà-vu — mais passe par le MÊME moteur de scan et les
-    MÊMES vérifications de base obligatoires (spec section 6)."""
+    MÊMES vérifications de base obligatoires (spec section 6).
+
+    "Plus large" (spec) veut dire : pas restreint au profil, pas de notion de
+    nouveau/déjà-vu au niveau des NOTIFICATIONS — pas "toute la profondeur
+    historique de chaque source", ce que le code faisait à tort avant cette
+    correction (2026-08-31, découvert en lançant le tout premier scan ponctuel
+    réel après le premier import complet du REQ : SEAO seul a 372 fichiers
+    hebdomadaires/mensuels historiques depuis 2021, `since=None` les
+    téléchargeait et traitait TOUS — extrapolé à ~12h). `lookback_days` borne
+    maintenant la fenêtre par défaut comme pour la veille continue (60 jours,
+    plus large que les 30 jours de veille, cohérent avec "plus large" sans
+    être littéralement tout l'historique) ; `lookback_days=None` explicite
+    retrouve l'ancien comportement (aucune borne, tout l'historique
+    disponible) pour qui a vraiment besoin d'une recherche exhaustive et est
+    prêt à en payer le temps."""
     registry = get_registry()
     db_session = get_session()
     try:
-        ingestion = ingest_all_active_sources(db_session, since=None, registry=registry, mode="recherche_ponctuelle")
+        since = (
+            None
+            if lookback_days is None
+            else datetime.now(timezone.utc) - timedelta(days=lookback_days)
+        )
+        ingestion = ingest_all_active_sources(db_session, since=since, registry=registry, mode="recherche_ponctuelle")
         profile = db_session.get(Profile, profile_id)
         if profile is None:
             raise ValueError(f"Profil {profile_id} introuvable")

@@ -326,10 +326,29 @@ def scan_veille(profile_id, lookback_days):
 
 @scan.command("ponctuel")
 @click.option("--profile-id", required=True, type=int)
-def scan_ponctuel(profile_id):
+@click.option(
+    "--lookback-days",
+    default=60,
+    show_default=True,
+    help="Fenêtre de recherche par source. \"Plus large\" (spec section 5) que la veille "
+    "continue par défaut (60 jours vs 30), mais pas illimité — un historique complet "
+    "peut représenter des centaines de fichiers pour une source comme le SEAO. "
+    "Utiliser --historique-complet pour lever cette borne.",
+)
+@click.option(
+    "--historique-complet",
+    "historique_complet",
+    is_flag=True,
+    default=False,
+    help="Ignore --lookback-days et remonte tout l'historique disponible de chaque source "
+    "(peut représenter plusieurs heures pour une source à large archive, ex. SEAO).",
+)
+def scan_ponctuel(profile_id, lookback_days, historique_complet):
     from observador.engine import run_recherche_ponctuelle
 
-    report = run_recherche_ponctuelle(profile_id=profile_id)
+    report = run_recherche_ponctuelle(
+        profile_id=profile_id, lookback_days=None if historique_complet else lookback_days
+    )
     _afficher_rapport(report)
 
 
