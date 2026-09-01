@@ -183,48 +183,60 @@ sources:
   - id: guichet_emplois
     nom: "Guichet-Emplois (Job Bank Canada)"
     signal_associe: [recrutement_massif]
-    statut: a_developper
+    statut: actif
     blocage_type: null
     methode_acces: donnees_ouvertes
     champs_pertinents:
-      - nom_employeur   # NON DISPONIBLE dans le fichier réel — voir notes
-      - titre_poste          # texte intégral, pour l'analyse qualitative des mots-clés
+      - nom_employeur    # récupéré via la page de détail d'offre individuelle — voir notes
+      - secteur_activite # sous-produit de la même page (bonus, pas garanti)
+      - titre_poste      # texte intégral, pour l'analyse qualitative des mots-clés
       - profession_cnp
       - nombre_postes
-      - salaire_offert
+      - remuneration
       - ville_region
       - date_publication
     cout: gratuit
-    region: "Canada"
+    region: "Canada (filtre Québec par défaut)"
     connecteur: observador.sources.guichet_emplois
     regle_calibration: >
-      Deux mécanismes de calibration DÉJÀ IMPLÉMENTÉS et prêts si la source est un
-      jour réactivée (spec section 7, Signal 3) : (1) le signal qualitatif ne
-      retient un poste que si son titre contient un mot-clé de transformation/
-      implantation, générique ou propre au profil — voir
+      Deux mécanismes de calibration déjà en place (spec section 7, Signal 3) : (1) le
+      signal qualitatif ne retient un poste que si son titre contient un mot-clé de
+      transformation/implantation, générique ou propre au profil — voir
       observador/matching.py:correspondance_qualitative_titre ; (2) le signal
       volumétrique se calibre par paliers de nombre de postes simultanés — voir
-      observador/scoring.py:_score_recrutement_massif. Ni l'un ni l'autre ne
-      suffit cependant à réactiver cette source : voir la découverte bloquante
-      ci-dessous, indépendante de la calibration.
+      observador/scoring.py:_score_recrutement_massif. S'y ajoute désormais une
+      calibration de couverture propre à cette source : une offre expirée (HTTP non-200,
+      ou 200 sans bloc employeur) ne produit AUCUN signal plutôt qu'un signal avec un
+      nom d'employeur deviné ou vide — voir _extraire_employeur/recuperer_employeur.
     notes: >
-      RETIRÉE DE LA PHASE 1 ACTIVE le 2026-08-31 (décision d'Alexandre). Découverte
-      bloquante en testant le vrai fichier (téléchargement réussi une fois
-      opencanada.blob.core.windows.net autorisé) : les 65 colonnes réelles du CSV
-      (encodé UTF-16, tabulé — pas UTF-8/virgule comme supposé) ne contiennent
-      AUCUN nom d'employeur, confirmé aussi par la description officielle du jeu
-      de données sur open.canada.ca, qui énumère les champs inclus sans jamais
-      mentionner l'identité de l'employeur. Aucune colonne URL/permalien vers
-      l'offre non plus. Sans nom d'employeur, resolve_company n'a rien à résoudre
-      — voir docs/STATUT_RESEAU.md pour le détail complet. Le connecteur
-      (observador/sources/guichet_emplois.py) reste tel quel (pas de correctif de
-      parsing appliqué, la découverte rend la question du format secondaire) ;
-      resterait à réévaluer si un jour Job Bank publie l'identité de l'employeur
-      dans ce jeu de données, ou en dernier recours via une recherche ciblée sur
-      le site public par offre déjà qualifiée (pas un balayage en vrac — même
-      principe que le RDPRM). Le signal recrutement pour la Phase 1 repose donc
-      uniquement sur des sources Phase 2 non encore actives (EIMT, qui donne le
-      nom de l'employeur par construction ; agrégateur tiers payant).
+      RÉACTIVÉE le 2026-09-01 (décision d'Alexandre), après avoir été retirée le
+      2026-08-31 : le fichier en vrac (65 colonnes réelles, UTF-16, tabulé) ne contient
+      AUCUN nom d'employeur ni URL/permalien vers l'offre — confirmé par inspection du
+      CSV et par la description officielle du jeu de données sur open.canada.ca.
+      Nouvelle piste validée avec de vraies données : les pages de détail d'offre
+      individuelle sur guichetemplois.gc.ca AFFICHENT le nom de l'employeur (et souvent
+      le secteur d'activité), même si le fichier en vrac ne le donne pas. `ID WIC Lieu
+      emploi` (vraie colonne du fichier) correspond exactement à l'identifiant utilisé
+      dans `https://www.guichetemplois.gc.ca/jobsearch/jobposting/{id}` ; sur une offre
+      active, le nom est dans un `<h2>` sous `class="job-posting-details-employer-wrapper"`.
+      LIMITE RÉELLE CONFIRMÉE (pas un bogue) : le fichier en vrac a un décalage de
+      publication d'environ un mois, et les offres individuelles expirent plus vite que
+      ce décalage — deux échantillons réels du fichier de juillet 2026 (5/5 puis 4/4
+      identifiants) retournent HTTP 410 Gone (redirection vers jobpostingexpired).
+      Validation de bout en bout : 15 offres Québec tentées, 0 signal — cohérent avec
+      cette contrainte, pas un connecteur cassé. Décision d'Alexandre : garder
+      l'architecture fichier-en-vrac (cohérente avec toutes les autres sources) et
+      accepter une couverture PARTIELLE plutôt qu'un scraping des résultats de recherche
+      en direct (risque de blocage anti-bot comme les moteurs de recherche testés pour
+      l'enrichissement web ; architecture différente de toutes les autres sources).
+      COÛT : `Crawl-delay: 5` dans le robots.txt du site (confirmé, aucun chemin
+      interdit) — chaque offre coûte au moins 5 secondes de plus la marge de tentatives
+      de reconnexion (le tunnel TLS se réinitialise occasionnellement, sans rapport avec
+      l'état de l'offre — voir recuperer_employeur). Bornage obligatoire (`limit`,
+      défaut 100) et filtre géographique par défaut (`province="Québec"`, ~10 000
+      offres/mois sur ~52 000 nationalement) pour qu'un scan reste praticable — même
+      principe que subventions_federales. Voir docs/STATUT_RESEAU.md pour le détail
+      complet de la découverte et de la validation.
 
   - id: eimt
     nom: "Employeurs avec EIMT positive (EDSC)"

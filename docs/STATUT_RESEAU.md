@@ -544,3 +544,77 @@ subventions québécoises réelles de fin juillet/début août 2026 seraient
 détectées (festivals de Montréal, corporation portuaire, etc.). Rien à
 corriger dans le code — juste une coïncidence de calendrier entre le moment du
 scan et la fenêtre glissante utilisée ce jour-là.
+
+## Guichet-Emplois — RÉACTIVÉE via une nouvelle piste (nom d'employeur par page de détail) (2026-09-01)
+
+Après le début de la Phase 2 (Deloitte Fast 50 activé pour Signal 1),
+Alexandre a proposé une nouvelle piste pour Guichet-Emplois, retirée le
+2026-08-31 faute de nom d'employeur dans le fichier en vrac (voir section
+plus haut) : les pages de détail d'offre individuelle sur
+guichetemplois.gc.ca affichent le nom de l'employeur, même si le fichier en
+vrac ne le donne pas. Demande explicite : tester avant d'abandonner la
+source, et ne poursuivre que si ça fonctionne sans blocage réseau.
+
+**Piste confirmée avec de vraies données :**
+- `ID WIC Lieu emploi` (une vraie colonne du fichier) correspond exactement à
+  l'identifiant utilisé dans
+  `https://www.guichetemplois.gc.ca/jobsearch/jobposting/{id}` — confirmé par
+  WebSearch puis par une requête directe.
+- Sur une offre encore active (exemple réel utilisé pour la validation : ID
+  `50196187`), le nom de l'employeur est dans un `<h2>` à l'intérieur d'un
+  conteneur `class="job-posting-details-employer-wrapper"`, avec le secteur
+  d'activité juste à côté (`<li><span class="details">`) — valeur réelle
+  capturée : `KAVURU'S INDIAN BISTRO`, secteur `Hébergement et services de
+  restauration`.
+- `robots.txt` du site : `Crawl-delay: 5`, aucun chemin interdit — la
+  consultation individuelle est donc permise, mais coûte au moins 5 secondes
+  par offre.
+
+**Limite réelle confirmée (pas un bogue), qui borne la couverture plutôt que
+de bloquer la source :** le fichier en vrac a un décalage de publication
+d'environ un mois (le plus récent disponible début septembre 2026 est celui
+de juillet 2026), et les offres individuelles expirent plus vite que ce
+décalage. Deux échantillons réels tirés de ce fichier confirment ça : un
+premier échantillon de 5 identifiants, puis un second de 4 identifiants
+(après le correctif d'alias ci-dessous) — tous retournent HTTP 410 Gone, avec
+redirection vers `jobsearch/jobpostingexpired` (une page sans bloc employeur,
+pas une erreur d'identifiant mal formé). Validation de bout en bout du
+connecteur complet : 15 offres québécoises tentées, 0 signal produit —
+cohérent avec cette contrainte, pas un connecteur cassé.
+
+**Décision d'Alexandre** : garder l'architecture fichier-en-vrac (cohérente
+avec toutes les autres sources du registre) et accepter une couverture
+PARTIELLE, plutôt que de basculer vers un scraping des résultats de
+recherche en direct — un tel scraping introduirait un risque de blocage
+anti-bot (comme démontré avec les 4 moteurs de recherche testés pour
+l'enrichissement web, voir section précédente) et casserait la cohérence
+architecturale du registre pour un gain incertain. Une offre expirée ne
+produit simplement aucun signal — même principe qu'un `non_trouve` ailleurs
+dans le pipeline.
+
+**Deux bogues trouvés en construisant/validant cette version (aucun lié à la
+piste elle-même) :**
+1. `COLUMN_ALIASES` était écrit avec des alias à ESPACES (ex. `"id wic"`,
+   `"appellation d emploi"`) alors que `resolve_columns` normalise les
+   en-têtes du CSV avec des UNDERSCORES (voir
+   `observador/sources/column_mapping.py`, même convention déjà utilisée
+   dans `eimt.py`) — un alias multi-mots à espaces ne correspondait donc
+   jamais à un en-tête réel. Trouvé en validant contre les vraies en-têtes
+   (`ID WIC Lieu emploi`, `Provinces/Territoires`, etc.), corrigé en
+   réécrivant tous les alias avec des underscores.
+2. Flakiness réseau distincte de l'expiration des offres : le tunnel TLS vers
+   `guichetemplois.gc.ca` se réinitialise occasionnellement en cours de scan
+   (`SSL_ERROR_SYSCALL` / `RemoteDisconnected`), y compris deux fois de suite
+   sur un même identifiant — confirmé transitoire par un ré-essai qui finit
+   par réussir (curl direct, même identifiant, 3 tentatives : deux échecs de
+   connexion puis un succès). Sans ré-essai, cette flakiness se serait
+   confondue silencieusement avec une vraie offre expirée. `recuperer_employeur`
+   réessaie donc jusqu'à 3 fois sur une erreur RÉSEAU uniquement (jamais sur
+   un statut HTTP non-200, pour ne jamais confondre flakiness et expiration
+   réelle).
+
+**Statut du registre** : `guichet_emplois` passe de `a_developper` à `actif`
+— 9e source active du prototype, la 2e de la Phase 2 après Deloitte Fast 50
+(Signal 1). Couverture volontairement partielle et documentée, pas une
+promesse d'exhaustivité — cohérent avec le principe déjà établi ailleurs dans
+le projet (couverture honnête plutôt que source retenue).
