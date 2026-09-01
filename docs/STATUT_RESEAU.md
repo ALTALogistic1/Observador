@@ -1,4 +1,4 @@
-# Statut réseau et découvertes — Phase 1
+# Statut réseau et découvertes
 
 Document de suivi demandé par le README de démarrage ("Si tu découvres le
 contraire en creusant, dis-le") et par la décision produit du 2026-08-31 de valider

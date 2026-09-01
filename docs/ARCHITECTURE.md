@@ -1,4 +1,4 @@
-# Architecture — Phase 1
+# Architecture — Phase 2
 
 Ce document explique comment le code répond à chaque exigence structurelle du
 README de démarrage et de `repereur-entreprises-croissance-specs.md`.

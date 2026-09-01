@@ -12,7 +12,7 @@ from observador.registry.loader import get_registry
 
 @click.group()
 def cli():
-    """Repéreur d'entreprises en croissance — Phase 1 (SEAO, RDPRM, REQ, Guichet-Emplois)."""
+    """Repéreur d'entreprises en croissance — Phase 2 (10 sources actives, voir `registry sources`)."""
 
 
 @cli.command("init-db")

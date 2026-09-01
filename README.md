@@ -1,4 +1,4 @@
-# Observador — Repéreur d'entreprises en croissance (Phase 1)
+# Observador — Repéreur d'entreprises en croissance (Phase 2)
 
 Système qui surveille en continu des signaux publics de croissance d'entreprises
 (appels d'offres décrochés, financement, recrutement, changements corporatifs) et
@@ -6,18 +6,24 @@ notifie l'utilisateur des prospects probables — voir
 `docs/spec/repereur-entreprises-croissance-specs.md` pour les spécifications
 complètes et `docs/spec/README-demarrage.md` pour les consignes de démarrage.
 
-**Phase 1** (en cours) : chemin complet de bout en bout, avec 8 sources actives
-au registre (état au 2026-08-31, voir `observador registry sources`) —
-**SEAO** et **contrats fédéraux** (appels d'offres), **Corporations Canada**
-(registre corporatif pancanadien), **EIMT positive** (recrutement, avec nom
-d'employeur), **subventions fédérales** et **Investissement Québec**
-(financement), et **REQ** + **RDPRM** (registre corporatif/financement,
+**Phase 1 atteinte** (2026-09-01) : pipeline validé de bout en bout avec de
+vraies notifications (311, dont l'exemple Sigma-RH) sur 8 sources actives —
+voir `docs/STATUT_RESEAU.md` pour le détail complet de la validation.
+
+**Phase 2 en cours** : ajout des sources gratuites restantes du registre, une
+à la fois (spec section 8). 10 sources actives à ce jour (état au 2026-09-01,
+voir `observador registry sources`) — les 8 de la Phase 1 (**SEAO** et
+**contrats fédéraux** pour les appels d'offres, **Corporations Canada**
+[registre corporatif pancanadien], **EIMT positive** [recrutement, avec nom
+d'employeur], **subventions fédérales** et **Investissement Québec**
+[financement], **REQ** + **RDPRM** [registre corporatif/financement,
 activées via import manuel — voir plus bas ; le téléchargement automatisé du
 REQ est bloqué par une règle Cloudflare visant les IP infonuagiques
-partagées, pas un problème de méthode d'accès — voir
-`docs/STATUT_RESEAU.md`). **Guichet-Emplois** est repassé à `à développer` :
-le fichier en vrac ne donne pas le nom de l'employeur. Objectif de la phase :
-valider tout le pipeline, pas la couverture complète. Voir
+partagées, pas un problème de méthode d'accès — voir `docs/STATUT_RESEAU.md`])
+plus deux premières sources de Phase 2 : **Deloitte Technology Fast 50**
+(classement de croissance) et **Guichet-Emplois**, réactivée via le nom
+d'employeur des pages de détail d'offre individuelle (couverture
+volontairement partielle — voir `docs/STATUT_RESEAU.md`). Voir
 `docs/ARCHITECTURE.md` pour le détail.
 
 ### Import manuel (RDPRM, REQ)
@@ -110,9 +116,9 @@ pytest -q
 
 Les tests couvrent la logique pure (scoring, vérifications, correspondance,
 résolution) sans appel réseau. La validation de bout en bout avec les vraies
-sources (SEAO et REQ validés ; Guichet-Emplois repassé à `à développer` — voir
-`docs/STATUT_RESEAU.md`) se fait manuellement via la CLI, une fois l'accès réseau
-aux portails de données ouvertes confirmé pour l'environnement d'exécution.
+sources se fait manuellement via la CLI, une fois l'accès réseau aux portails
+de données ouvertes confirmé pour l'environnement d'exécution — voir
+`docs/STATUT_RESEAU.md` pour le détail de chaque source validée.
 
 ## Structure du projet
 
@@ -136,7 +142,7 @@ tests/                Tests unitaires (logique pure)
 docs/                 ARCHITECTURE.md, STATUT_RESEAU.md
 ```
 
-## Choix techniques (Phase 1)
+## Choix techniques
 
 Ces choix appartiennent à l'implémentation (pas à la spec produit) et peuvent
 évoluer sans redemander d'arbitrage produit :
@@ -145,7 +151,7 @@ Ces choix appartiennent à l'implémentation (pas à la spec produit) et peuvent
   passer à PostgreSQL plus tard — le code ORM ne présume pas du moteur).
 - Pas d'outil de migration de schéma pour l'instant (`init_db()` fait un
   `create_all` simple) — à introduire (Alembic) avant tout usage multi-utilisateur.
-- CLI (`click`) comme interface pour la Phase 1 ; une API REST pourra être ajoutée
+- CLI (`click`) comme interface pour l'instant ; une API REST pourra être ajoutée
   au-dessus des mêmes fonctions (`observador.engine`, `observador.summary`) sans
   toucher au moteur, pour une future interface web/mobile (spec section 6,
   "ergonomie web puis mobile").
