@@ -504,3 +504,43 @@ Search, Google Custom Search, SerpAPI, etc.) est notée comme item budgétaire �
 trancher en Phase 2, aux côtés de Crunchbase et de l'agrégateur de recrutement
 (spec section 8) — ce budget contournerait le blocage anti-bot proprement,
 contrairement au scraping HTML gratuit.
+
+## Phase 1 déclarée atteinte — audit EIMT/subventions fédérales à 0 signal (2026-09-01)
+
+Alexandre a demandé de vérifier, avant de passer à la Phase 2, si les `0
+nouveaux` d'EIMT et de subventions fédérales lors du dernier scan reflétaient
+un vrai manque de données ou un bogue silencieux. Les deux causes sont
+différentes :
+
+**EIMT — vrai bogue de calibration, corrigé.** `detect()` filtrait chaque
+ligne avec `if since and trimestre_date < since: continue`, où
+`trimestre_date` est la date de DÉBUT du trimestre PUBLIÉ (ex. `2026-01-01`
+pour le fichier "2026Q1"), pas la date de l'événement. Confirmé contre les
+vraies ressources CKAN le 2026-09-01 : le trimestre le plus récemment publié
+est 2026Q1 (démarre le 2026-01-01), alors que `now` était le 2026-09-01 — un
+décalage de publication structurel d'environ 8 mois, bien au-delà de
+n'importe quelle fenêtre glissante de 30 ou 60 jours. Ce filtre excluait donc
+TOUJOURS l'intégralité des données, même le trimestre le plus frais
+réellement disponible — pas "pas de données pour cette période", un vrai
+bogue. Corrigé en retirant ce filtre par ligne : le sélecteur de ressources
+(`cibles = resources[:1 ou :4]`, déjà calibré pour la granularité trimestrielle
+réelle de cette source) et le dédoublonnage par `source_ref` dans
+`observador.engine.ingest_source` suffisent déjà à borner le volume et éviter
+les doublons d'un scan à l'autre — le filtre par date supplémentaire était
+redondant et, en pratique, silencieusement destructeur. **Validé contre de
+vraies données après correction** : plus de 200 signaux réels obtenus
+immédiatement (Terre-Neuve-et-Labrador, professions agricoles/transformation
+alimentaire — cohérent avec les données réelles EIMT/TET).
+
+**Subventions fédérales — pas un bogue, une vraie coïncidence de fenêtre.**
+Le filtrage par date ici compare `agreement_start_date` (une vraie date par
+enregistrement, pas un repère grossier) à `since`, trié décroissant avec
+sortie anticipée — logique correcte. Vérifié contre l'API Datastore réelle le
+2026-09-01 : le don le plus récent pour le Québec (`recipient_province=QC`)
+est daté du 2026-08-01, à peine EN DEHORS de la fenêtre de 30 jours de
+`scan veille` (qui remontait au 2026-08-02 — raté d'une seule journée). Avec
+une fenêtre de 60 jours (le nouveau défaut de `scan ponctuel`), au moins 5
+subventions québécoises réelles de fin juillet/début août 2026 seraient
+détectées (festivals de Montréal, corporation portuaire, etc.). Rien à
+corriger dans le code — juste une coïncidence de calendrier entre le moment du
+scan et la fenêtre glissante utilisée ce jour-là.

@@ -159,8 +159,21 @@ class EIMTConnector(SourceConnector):
                     continue  # ligne de note/pied de page plutôt qu'une vraie donnée
                 lignes_lues += 1
 
-                if since and trimestre_date < since:
-                    continue
+                # PAS de filtre `since` par ligne ici (bogue réel trouvé et retiré le
+                # 2026-09-01, voir docs/STATUT_RESEAU.md) : `trimestre_date` est la
+                # date de DÉBUT du trimestre PUBLIÉ, un repère grossier qui accuse
+                # structurellement un décalage de publication (le trimestre le plus
+                # récent disponible est souvent déjà vieux de plusieurs mois quand il
+                # sort) — le comparer à une fenêtre glissante de quelques dizaines de
+                # jours (comme pour subventions_federales/contrats_federaux, dont les
+                # dates SONT celles de l'événement réel, pas d'une publication groupée)
+                # exclut alors systématiquement TOUT, même le trimestre le plus récent
+                # réellement publié. `cibles` ci-dessus borne déjà le nombre de
+                # trimestres traités (calibré pour la granularité réelle de cette
+                # source) ; le dédoublonnage par source_ref (observador/engine.py:
+                # ingest_source) évite déjà de retraiter les mêmes lignes d'un scan à
+                # l'autre — un filtre par date en plus ici était redondant et, pire,
+                # silencieusement destructeur.
 
                 province = str(row.get(columns["province"]) or "").strip() or None
                 profession = str(row.get(columns["profession"]) or "").strip() or None

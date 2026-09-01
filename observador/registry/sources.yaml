@@ -268,7 +268,15 @@ sources:
       une notification, les autres restent `non_trouve` et sont exclues
       silencieusement — comportement attendu tant que Corporations Canada/autres
       registres provinciaux ne sont pas actifs (voir Généralisation du pivot
-      d'identité, docs/ARCHITECTURE.md).
+      d'identité, docs/ARCHITECTURE.md). BOGUE TROUVÉ ET CORRIGÉ le 2026-09-01 :
+      un filtre par ligne comparait la date de DÉBUT du trimestre publié à une
+      fenêtre glissante de 30-60 jours — vu le décalage de publication réel
+      (~8 mois entre le trimestre le plus récent disponible et "aujourd'hui"),
+      ça excluait TOUJOURS toutes les lignes, même les plus fraîches
+      disponibles. Retiré (voir observador/sources/eimt.py) — le sélecteur de
+      ressources (`cibles`) et le dédoublonnage par source_ref suffisent déjà.
+      Validé : >200 signaux réels obtenus immédiatement après correction (voir
+      docs/STATUT_RESEAU.md).
 
   - id: subventions_federales
     nom: "Subventions et contributions gouvernementales — divulgation proactive fédérale"
