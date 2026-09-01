@@ -791,9 +791,9 @@ sources:
   - id: licences_toronto
     nom: "Licences d'affaires — Ville de Toronto"
     signal_associe: [registre_corporatif]
-    statut: a_developper
-    blocage_type: reseau
-    methode_acces: donnees_ouvertes
+    statut: actif
+    blocage_type: null
+    methode_acces: api  # API Datastore CKAN — voir notes
     champs_pertinents:
       - nom_entreprise
       - adresse
@@ -801,23 +801,42 @@ sources:
       - date_emission
     cout: gratuit
     region: "Toronto"
-    connecteur: null
+    connecteur: observador.sources.licences_toronto
     regle_calibration: >
-      Même règle "NON NÉGOCIABLE" que licences_vancouver — voir sa
-      regle_calibration pour le détail complet, applicable telle quelle une fois
-      le connecteur construit (mécanisme commun déjà en place dans
-      observador/sources/licences_municipales_communes.py, réutilisable sans
-      modification).
+      Même règle "NON NÉGOCIABLE" que licences_vancouver (voir sa
+      regle_calibration pour le détail complet) : (1) pas un simple
+      renouvellement — le miroir commun LicenceMunicipaleEntry est réutilisé sans
+      modification, avec la même précaution "premier scan ne produit rien" ;
+      (2) pas un nouveau démarrage — même vérification croisée Corporations
+      Canada (resolve_corp_federale_by_name). Nuance propre à Toronto :
+      contrairement à Vancouver, le numéro de licence est un identifiant
+      PERSISTANT (pas réattribué chaque année), mais une même entreprise obtient
+      quand même parfois plusieurs numéros successifs au fil des décennies
+      (confirmé sur un exemple réel : 4 licences distinctes entre 2002 et 2019)
+      — le miroir reste donc nécessaire, pas seulement pour Vancouver.
     notes: >
-      INVESTIGUÉ le 2026-09-01 : `open.toronto.ca` (autorisé) est seulement la
-      façade web du portail — confirmé par un appel direct à son API CKAN
-      (`/api/3/action/site_read`, HTTP 404 : ce n'est pas la racine de l'API).
-      Le vrai backend CKAN semble hébergé sur un domaine distinct (probablement
-      `ckan0.cf.opendata.inter.prod-toronto.ca`, observé dans les résultats de
-      recherche, à confirmer), non encore autorisé dans cet environnement — même
-      schéma de séparation portail/fichier que Montréal (voir
-      permis_construction_montreal). Domaine supplémentaire à demander avant de
-      pouvoir construire ce connecteur.
+      ACTIVÉE en source Phase 2 le 2026-09-01, 2e ville hors Québec pour le
+      registre corporatif après Vancouver, une fois le 2e domaine
+      (ckan0.cf.opendata.inter.prod-toronto.ca) autorisé par Alexandre —
+      confirmé être le vrai backend CKAN (open.toronto.ca n'est que la façade
+      web, son /api/3/action/* retourne 404). Jeu de données "Municipal
+      Licensing and Standards - Business Licences and Permits", ressource
+      datastore-active 169e90ba-3ae0-43dd-8b2f-919e87002f50 : 159 647 lignes
+      réelles, historique complet depuis 1946 (contrairement à Vancouver qui ne
+      couvre qu'une fenêtre glissante de 3 ans). Champ `Client Name` (nom légal)
+      utilisé comme nom_entreprise plutôt que `Operating Name` (nom commercial),
+      plus fiable pour la vérification croisée Corporations Canada. Licences
+      annulées (`Cancel Date` non vide) exclues. Quirk de qualité de données
+      réel : un champ texte vide est parfois encodé par la chaîne littérale
+      "None" plutôt qu'un JSON null (voir _nettoyer dans le connecteur) —
+      touche aussi de vraies lignes "junk" du jeu de données (catégorie
+      "** Class record not on file"). Validation de bout en bout : premier scan
+      (1 452 licences réelles, fenêtre 90 jours) → 0 signal, confirmant le
+      mécanisme "premier scan" ; deuxième scan simulé → signaux réels produits,
+      dont des compagnies à numéro fédérales évidentes (ex. "18093504 CANADA
+      INC", "9003088 CANADA CORP" — correspondance 100.0 avec Corporations
+      Canada, cette dernière avec plusieurs adresses réellement distinctes
+      confirmées, chacune un nouvel établissement légitime).
 
   # ---------------------------------------------------------------------
   # Bloquées ou budgétaires — visibles dans le registre, non prioritaires

@@ -937,3 +937,53 @@ modification une fois ce domaine confirmé.
 **Statut du registre** : `licences_vancouver` ajoutée et `actif` — 14e
 source active du prototype, la 6e de la Phase 2. `licences_toronto` ajoutée,
 `a_developper` (`blocage_type: reseau`) en attendant le 2e domaine.
+
+## Licences d'affaires — Toronto activée (2e domaine confirmé) (2026-09-01)
+
+Alexandre a autorisé `ckan0.cf.opendata.inter.prod-toronto.ca` — confirmé
+être le vrai backend CKAN de Toronto (`open.toronto.ca`, déjà autorisé,
+n'est que la façade web : son `/api/3/action/*` retourne 404, pas la racine
+de l'API). Même schéma de séparation portail/fichier que Montréal pour les
+permis de construction.
+
+Jeu de données "Municipal Licensing and Standards - Business Licences and
+Permits", ressource datastore-active `169e90ba-3ae0-43dd-8b2f-919e87002f50` :
+159 647 lignes réelles, historique complet depuis 1946 (bien plus profond
+que la fenêtre glissante de 3 ans de Vancouver) — interrogée via l'API
+Datastore CKAN, même principe que subventions_federales/contrats_federaux.
+
+**Différence structurante avec Vancouver, découverte en validant** : le
+numéro de licence de Toronto est un identifiant PERSISTANT (confirmé : 500
+lignes échantillonnées, 0 doublon de `Licence No.`) — pas réattribué chaque
+année comme à Vancouver. Mais le calibrage "pas un simple renouvellement"
+reste nécessaire quand même : une même entreprise obtient parfois plusieurs
+numéros de licence successifs au fil des décennies (confirmé sur un exemple
+réel — une entreprise avec 4 licences distinctes entre 2002 et 2019, chacune
+annulée puis remplacée). Le mécanisme commun
+(`licences_municipales_communes.py:detecter_nouvelles_licences`, même
+miroir `LicenceMunicipaleEntry`) a donc été réutilisé SANS modification,
+avec la même précaution "premier scan ne produit rien" (sinon 159 647
+licences historiques seraient toutes traitées comme "nouvelles").
+
+Autres découvertes réelles en construisant le connecteur :
+- Champ `Client Name` (nom légal) utilisé comme `nom_entreprise` plutôt que
+  `Operating Name` (nom commercial) — plus fiable pour la vérification
+  croisée Corporations Canada.
+- Licences annulées (`Cancel Date` non vide) exclues, même principe que le
+  filtre `status="Issued"` de Vancouver.
+- Quirk de qualité de données réel : un champ texte vide est parfois encodé
+  par la chaîne littérale `"None"` plutôt qu'un JSON `null` — touche aussi
+  de vraies lignes "junk" du jeu de données (catégorie "** Class record not
+  on file"), filtrées explicitement plutôt que de produire un signal avec un
+  nom/une adresse inventés.
+
+**Validation de bout en bout** : premier scan (1 452 licences réelles,
+fenêtre 90 jours) → 0 signal, confirmant le mécanisme "premier scan" ;
+deuxième scan simulé → signaux réels produits, dont des compagnies à numéro
+fédérales évidentes ("18093504 CANADA INC", correspondance 100.0) et une
+entreprise ("9003088 CANADA CORP") avec plusieurs adresses réellement
+distinctes confirmées (panneaux mobiles temporaires à des emplacements
+différents) — chacune un nouvel établissement légitime, pas un doublon.
+
+**Statut du registre** : `licences_toronto` passe de `a_developper` à
+`actif` — 15e source active du prototype, la 7e de la Phase 2.
