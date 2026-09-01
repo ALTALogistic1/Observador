@@ -12,6 +12,7 @@ from observador.sources.corporations_canada import (
     IngestStats,
     _filtrer_ressources_actives,
     _upsert_row,
+    resolve_corp_federale_by_name,
 )
 
 _COLUMNS = {
@@ -86,3 +87,34 @@ def test_corporation_devenue_inactive_ne_declenche_pas_de_signal_meme_avec_chang
     _upsert_row(db_session, _row("1112223", rue="2 rue B", statut="Dissolved"), _COLUMNS, {}, stats2)
 
     assert stats2.changements_adresse == []
+
+
+# --- resolve_corp_federale_by_name : porte de calibration pour licences_affaires_municipales ---
+
+
+def test_resolve_corp_federale_par_nom_trouve_une_correspondance_exacte(db_session):
+    stats = IngestStats()
+    _upsert_row(db_session, _row("9990001", nom="Acme Fabrication Inc."), _COLUMNS, {}, stats)
+
+    matches = resolve_corp_federale_by_name(db_session, "Acme Fabrication Inc.")
+    assert matches
+    assert matches[0].entry.numero_corporation == "9990001"
+    assert matches[0].score == 100.0
+
+
+def test_resolve_corp_federale_par_nom_retourne_vide_si_rien_ne_correspond(db_session):
+    stats = IngestStats()
+    _upsert_row(db_session, _row("9990002", nom="Acme Fabrication Inc."), _COLUMNS, {}, stats)
+
+    matches = resolve_corp_federale_by_name(db_session, "Un nom complètement différent xyz")
+    assert matches == []
+
+
+def test_resolve_corp_federale_par_nom_bonus_si_province_correspond(db_session):
+    stats = IngestStats()
+    _upsert_row(db_session, _row("9990003", nom="Nordik Transport Ltée"), _COLUMNS, {}, stats)
+
+    sans_province = resolve_corp_federale_by_name(db_session, "Nordik Transport")
+    avec_province = resolve_corp_federale_by_name(db_session, "Nordik Transport", province="QC")
+
+    assert avec_province[0].score >= sans_province[0].score

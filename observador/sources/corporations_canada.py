@@ -5,22 +5,21 @@ loi fédérale partout au Canada (répond au besoin de couverture Canada anglais
 Jeu de données CKAN "Federal Corporations" (0032ce54-c5dd-4b66-99a0-320a7b5e99f2)
 sur open.canada.ca, dont les ressources (CSV, 4 sous-ensembles : sociétés par
 actions actives/inactives, autres corporations actives/inactives) sont en
-réalité hébergées sur `d4bf66bykfyaf.cloudfront.net` (CloudFront/AWS) —
-DOMAINE NON ENCORE AUTORISÉ dans l'environnement au moment de l'écriture (voir
-docs/STATUT_RESEAU.md). Ce connecteur n'a donc PAS pu être validé avec de
-vraies données — `COLUMN_ALIASES` est une meilleure estimation d'après la
-documentation publique du jeu de données (Corporation Number, Corporate Name,
-Status, Registered Office Address, Incorporation Date, Governing Act), pas une
-confirmation. `resolve_columns` échoue explicitement si les vraies en-têtes ne
-correspondent pas, plutôt que de mal interpréter les données — même garde-fou
-que pour req.py avant sa propre validation.
+réalité hébergées sur `d4bf66bykfyaf.cloudfront.net` (CloudFront/AWS) — domaine
+autorisé et validé avec le vrai fichier le 2026-08-31 (694 844 corporations
+actives réelles ingérées — voir docs/STATUT_RESEAU.md). `COLUMN_ALIASES`
+reflète les vraies en-têtes confirmées, pas une estimation.
 
-Rôle en Phase 1 : SOURCE DE SIGNAL en soi, par diff entre deux rafraîchissements
-du miroir local (CorporationFederaleEntry).
-Ce n'est PAS un pivot de résolution partagé avec les autres sources en Phase 1
-(voir docs/ARCHITECTURE.md, "Généralisation du pivot d'identité") : seules les
-entreprises par ailleurs résolvables via le REQ (Québec) produisent une
-notification tant que cette extension n'est pas construite.
+Rôle : SOURCE DE SIGNAL en soi, par diff entre deux rafraîchissements du
+miroir local (CorporationFederaleEntry). Ce n'est PAS un pivot de résolution
+de Company partagé avec les autres sources (voir docs/ARCHITECTURE.md,
+"Généralisation du pivot d'identité", décision inchangée) : le NEQ reste le
+seul pivot pour resolve_company. Ce module expose en revanche (2026-09-01,
+pour licences_affaires_municipales) `resolve_corp_federale_by_name`, une
+vérification croisée plus étroite — confirmer qu'un nom détecté correspond à
+une corporation fédérale EXISTANTE, comme porte de calibration pour une
+source hors Québec, jamais pour résoudre un Company — voir la docstring de
+observador/models/corp_federale_entry.py pour la distinction complète.
 
 CORRECTION DE CALIBRATION (2026-08-31, en validant avec le vrai fichier, 111 Mo
 / ~695 000 corporations actives) : le code d'origine traitait toute NOUVELLE
@@ -41,11 +40,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from dateutil import parser as dateutil_parser
+from rapidfuzz import fuzz, process
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from observador.models.corp_federale_entry import CorporationFederaleEntry
 from observador.sources.base import RawSignal, SourceConnector
 from observador.sources.ckan_client import OPEN_CANADA_BASE, CKANClient
+from observador.sources.column_mapping import normaliser as _normaliser
 from observador.sources.column_mapping import resolve_columns
 
 logger = logging.getLogger(__name__)
@@ -156,11 +158,12 @@ def _upsert_row(
         return
     nom = (row.get(columns["nom"]) or "").strip()
     statut_brut = (row.get(columns["statut"]) or "").strip()
+    province = (row.get(columns["province"]) or "").strip() or None
 
     parties_adresse = [
         (row.get(columns["rue"]) or "").strip(),
         (row.get(columns["ville"]) or "").strip(),
-        (row.get(columns["province"]) or "").strip(),
+        province or "",
         (row.get(columns["code_postal"]) or "").strip(),
     ]
     adresse = ", ".join(p for p in parties_adresse if p) or None
@@ -175,8 +178,10 @@ def _upsert_row(
         entry = CorporationFederaleEntry(
             numero_corporation=numero,
             nom=nom,
+            nom_normalise=_normaliser(nom),
             statut=statut_brut,
             adresse=adresse,
+            province=province,
             loi_constitutive=loi,
             date_incorporation=date_inc,
         )
@@ -200,10 +205,80 @@ def _upsert_row(
         )
 
     existing.nom = nom
+    existing.nom_normalise = _normaliser(nom)
     existing.statut = statut_brut
     existing.adresse = adresse
+    existing.province = province
     existing.loi_constitutive = loi
     existing.date_incorporation = date_inc
+
+
+@dataclass
+class CorporationMatch:
+    entry: CorporationFederaleEntry
+    score: float  # 0-100, confiance de correspondance du nom
+
+
+def get_by_numero(db_session: Session, numero: str) -> CorporationFederaleEntry | None:
+    return db_session.get(CorporationFederaleEntry, numero)
+
+
+def resolve_corp_federale_by_name(
+    db_session: Session, nom: str, province: str | None = None, limit: int = 5
+) -> list[CorporationMatch]:
+    """Résout un nom d'entreprise en candidats de corporation fédérale, par
+    correspondance floue sur le miroir local — même mécanique que
+    req.py:resolve_neq_by_name, appliquée à un autre registre (voir la
+    docstring de observador/models/corp_federale_entry.py pour ce que c'est
+    et n'est PAS : une porte de calibration, pas un pivot de résolution de
+    Company). Nécessite que ingest_snapshot() ait déjà tourné au moins une
+    fois (sinon la table est vide — état normal avant le premier scan, pas
+    une erreur)."""
+    nom_norm = _normaliser(nom)
+    if not nom_norm:
+        return []
+
+    prefix = nom_norm.split(" ")[0]
+    # GLOB plutôt que LIKE — même raison que pour REQEntry (voir req.py:
+    # resolve_neq_by_name) : comparaison sensible à la casse, index B-tree
+    # utilisable en SEARCH plutôt qu'un SCAN complet. nom_normalise ne
+    # contient jamais de métacaractère GLOB (_normaliser() ne produit que
+    # [a-z0-9 ]), donc aucun échappement n'est nécessaire.
+    candidates = (
+        db_session.execute(
+            select(CorporationFederaleEntry)
+            .where(CorporationFederaleEntry.nom_normalise.op("GLOB")(f"{prefix}*"))
+            .limit(2000)
+        )
+        .scalars()
+        .all()
+    )
+    if not candidates:
+        candidates = (
+            db_session.execute(
+                select(CorporationFederaleEntry)
+                .where(CorporationFederaleEntry.nom_normalise.contains(nom_norm[:6]))
+                .limit(2000)
+            )
+            .scalars()
+            .all()
+        )
+    if not candidates:
+        return []
+
+    choices = {c.numero_corporation: c.nom_normalise for c in candidates}
+    ranked = process.extract(nom_norm, choices, scorer=fuzz.WRatio, limit=limit)
+
+    by_numero = {c.numero_corporation: c for c in candidates}
+    matches = [CorporationMatch(entry=by_numero[numero], score=score) for _, score, numero in ranked]
+
+    if province:
+        province_norm = _normaliser(province)
+        for m in matches:
+            if m.entry.province and _normaliser(m.entry.province) == province_norm:
+                m.score = min(100.0, m.score + 5.0)  # léger bonus, même principe que la ville pour REQ
+
+    return sorted(matches, key=lambda m: m.score, reverse=True)
 
 
 class CorporationsCanadaConnector(SourceConnector):
