@@ -358,14 +358,34 @@ sources:
   - id: deloitte_fast50
     nom: "Deloitte Technology Fast 50 (Canada/Québec)"
     signal_associe: [classement_croissance]
-    statut: a_developper
+    statut: actif
     blocage_type: null
     methode_acces: scraping
-    champs_pertinents: [nom_entreprise, secteur, taux_croissance, rang, annee_publication, region_ville, site_web, nombre_employes]
+    champs_pertinents: [nom_entreprise, taux_croissance, rang, categorie, annee_publication, region_ville]
     cout: gratuit
     region: "Québec/Canada"
-    connecteur: null
-    notes: "Pages web publiques standards, scraping léger, information destinée à large diffusion."
+    connecteur: observador.sources.deloitte_fast50
+    regle_calibration: >
+      Aucun filtrage de bruit nécessaire : chaque ligne du PDF officiel est déjà
+      une entreprise classée par Deloitte selon un taux de croissance vérifié
+      (méthodologie du programme) — signal fort par construction, pas une
+      auto-déclaration. Le score existant (observador/scoring.py:
+      _score_classement_croissance) combine déjà rang et taux de croissance.
+    notes: >
+      ACTIVÉE en source Phase 2 le 2026-09-01, validée avec de vraies données
+      (82 entrées réelles du classement 2025, 13 au Québec — ex. Lightspeed,
+      Hopper, nesto, Mistplay, Vention). Découverte réelle : la page
+      d'atterrissage (fast50-winners.html) ne contient PAS le classement
+      complet, seulement un résumé du #1 — le classement complet est dans un
+      PDF téléchargeable dont le NOM DE FICHIER change chaque année, découvert
+      dynamiquement (jamais codé en dur) via observador/sources/
+      deloitte_fast50.py:trouver_url_pdf. Le PDF a 3 catégories distinctes
+      (Technology Fast 50, Enterprise—Industry Leaders, Companies-to-Watch),
+      dont le nombre de gagnants varie d'année en année (50/17/15 en 2025, pas
+      toujours 50/50/50). Aucun champ secteur/site web/nombre d'employés dans
+      ce PDF (contrairement à l'estimation initiale) — résolus via le REQ ou
+      l'enrichissement web comme les autres sources qui ne les fournissent pas
+      directement (spec section 7, "principe de complétude").
 
   - id: growth500
     nom: "Growth 500 (anciennement Croissance 500/PROFIT, Canadian Business)"
