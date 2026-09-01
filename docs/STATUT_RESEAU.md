@@ -860,6 +860,80 @@ apparaît plusieurs fois sous le même tender_id avec des montants différents,
 collapsés en un seul signal, même principe que les permis de Laval).
 
 **Statut du registre** : `contrats_nouvelle_ecosse` ajouté et `actif` — 13e
-source active du prototype, la 5e de la Phase 2. `licences_affaires_municipales`
-reste `a_developper` en attendant l'accès aux domaines Vancouver/Toronto
-(demandé, en cours).
+source active du prototype, la 5e de la Phase 2.
+
+## Licences d'affaires municipales : Vancouver activée, Toronto bloquée (2e domaine requis) (2026-09-01)
+
+Alexandre a autorisé les 3 domaines demandés (`opendata.vancouver.ca`,
+`open.toronto.ca`, `data.novascotia.ca`) et confirmé de construire
+`licences_affaires_municipales` — signal `registre_corporatif`, priorité
+pancanadienne.
+
+**Vancouver — ACTIVÉE**, portail Opendatasoft (`opendata.vancouver.ca`, PAS
+du CKAN) — jeu de données "business-licences", 205 329 lignes réelles
+(167 962 au statut "Issued", très à jour, `extractdate` du jour même).
+
+**Découverte structurante, qui a nécessité une nouvelle pièce d'architecture** :
+la règle "NON NÉGOCIABLE" du registre exige qu'une licence ne soit un signal
+que si elle représente un vrai nouvel établissement, pas un simple
+renouvellement. Or Vancouver attribue un NOUVEAU numéro de licence CHAQUE
+ANNÉE (le folderyear est encodé dans le numéro lui-même, ex. "26-258507"
+pour 2026), et le jeu de données ne couvre qu'une fenêtre glissante de 3 ans
+(24/25/26 au 2026-09-01) — impossible de distinguer "nouveau" de
+"renouvellement" à partir d'un seul instantané, contrairement à REQ/
+Corporations Canada qui remontent sur des décennies. Nouveau miroir local
+persistant `LicenceMunicipaleEntry` (partagé entre villes, clé =
+municipalité+nom normalisé+adresse normalisée) et helper commun
+`observador/sources/licences_municipales_communes.py:detecter_nouvelles_licences`
+— accumule les entreprises+adresses déjà vues d'un scan à l'autre, avec la
+MÊME précaution "premier scan ne produit aucun signal" que REQ/Corporations
+Canada avant leurs propres corrections de calibration (sinon ~168 000
+licences déjà anciennes seraient traitées comme "nouvelles" au premier
+scan).
+
+Combiné à la vérification croisée Corporations Canada déjà construite
+(`resolve_corp_federale_by_name`, voir plus haut) : DEUX filtres en
+cascade, aucun optionnel — (1) jamais vue avant (miroir municipal), (2)
+correspond avec confiance à une corporation fédérale existante (pas un
+nouveau démarrage, pas une entreprise individuelle).
+
+**Validation de bout en bout, en plusieurs étapes** :
+- Premier scan (2 625 licences réelles, fenêtre 90 jours) : 0 signal —
+  confirme que le mécanisme "premier scan" fonctionne.
+- Mécanisme de diff testé isolément : entreprises retirées puis
+  réintroduites correctement redétectées comme nouvelles ; entreprise déjà
+  connue correctement exclue.
+- Vérification croisée testée dans les deux sens sur un échantillon réel de
+  59 grands employeurs vancouvérois : 6 correspondances confiantes (ex.
+  "Acme Import & Export Ltd", "KPMG Inc", "Parking Corporation of
+  Vancouver") ; la plupart des grandes marques testées (Lululemon, Telus)
+  sont incorporées PROVINCIALEMENT en Colombie-Britannique et ne matchent
+  donc pas Corporations Canada — limite connue et attendue, pas un bogue.
+- **Scan complet de bout en bout (fenêtre 700 jours)** : 294 signaux réels
+  produits, dont plusieurs correspondances évidentes de compagnies à
+  numéro fédérales (ex. "14690605 CANADA INC." et "14560639 Canada Inc" —
+  le nom de l'entreprise contient littéralement son propre numéro de
+  corporation fédérale, correspondance à 100.0) et des entreprises nommées
+  réelles ("NOVAGEN AI CORP.", "MEWAR INFOTECH LIMITED", "Mira Geoscience
+  Limited", etc.).
+
+**Limite de pagination réelle de la plateforme** (Opendatasoft, pas propre à
+ce connecteur) : `offset + limit <= 10000` par requête, confirmé — sans
+effet sur un scan à fenêtre courte (30-90 jours, défaut du moteur, ~2 900
+lignes/90 jours observées), mais borne un appel `--historique-complet`
+(avertissement explicite loggé plutôt qu'échec silencieux ou boucle
+infinie).
+
+**Toronto — BLOQUÉE, un 2e domaine est requis.** `open.toronto.ca` (déjà
+autorisé) n'est que la façade web du portail — confirmé par un appel direct
+à `/api/3/action/site_read` (HTTP 404 : ce n'est pas la racine de l'API
+CKAN). Le vrai backend CKAN semble hébergé sur un domaine distinct
+(probablement `ckan0.cf.opendata.inter.prod-toronto.ca`, à confirmer une
+fois autorisé) — même schéma de séparation portail/fichier que Montréal
+pour les permis de construction. Le mécanisme commun
+(`licences_municipales_communes.py`) est déjà prêt à être réutilisé sans
+modification une fois ce domaine confirmé.
+
+**Statut du registre** : `licences_vancouver` ajoutée et `actif` — 14e
+source active du prototype, la 6e de la Phase 2. `licences_toronto` ajoutée,
+`a_developper` (`blocage_type: reseau`) en attendant le 2e domaine.

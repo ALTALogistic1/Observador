@@ -3,6 +3,7 @@
 from observador.models.base import Base  # noqa: F401
 from observador.models.company import Company  # noqa: F401
 from observador.models.corp_federale_entry import CorporationFederaleEntry  # noqa: F401
+from observador.models.licence_municipale_entry import LicenceMunicipaleEntry  # noqa: F401
 from observador.models.notification import (  # noqa: F401
     Notification,
     NotificationDelivery,
@@ -20,6 +21,7 @@ __all__ = [
     "Base",
     "Company",
     "CorporationFederaleEntry",
+    "LicenceMunicipaleEntry",
     "Notification",
     "NotificationDelivery",
     "NotificationSignal",

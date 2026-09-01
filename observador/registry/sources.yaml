@@ -730,10 +730,10 @@ sources:
       pas un contrat réellement gratuit. Crawl-delay: 1 dans le robots.txt du
       portail, aucun chemin /resource/ (l'API utilisée) interdit.
 
-  - id: licences_affaires_municipales
-    nom: "Licences d'affaires municipales (ex. Vancouver, Toronto)"
+  - id: licences_vancouver
+    nom: "Licences d'affaires — Ville de Vancouver"
     signal_associe: [registre_corporatif]
-    statut: a_developper
+    statut: actif
     blocage_type: null
     methode_acces: donnees_ouvertes
     champs_pertinents:
@@ -742,25 +742,82 @@ sources:
       - type_entreprise
       - date_emission
     cout: gratuit
-    region: "Vancouver, Toronto (à évaluer au cas par cas ailleurs)"
+    region: "Vancouver"
+    connecteur: observador.sources.licences_vancouver
+    regle_calibration: >
+      NON NÉGOCIABLE avant activation (spec section 7, "Principe de calibration"),
+      DEUX filtres en cascade, aucun optionnel : (1) pas un simple renouvellement —
+      découverte réelle : Vancouver attribue un NOUVEAU numéro de licence CHAQUE
+      ANNÉE (folderyear encodé dans le numéro) sur une fenêtre glissante de
+      seulement 3 ans, donc la présence/absence dans un instantané ne suffit pas ;
+      un miroir persistant (LicenceMunicipaleEntry, voir
+      observador/sources/licences_municipales_communes.py) accumule les
+      entreprises+adresses déjà vues, avec la même précaution "premier scan ne
+      produit rien" que Corporations Canada/REQ. (2) pas un nouveau démarrage —
+      vérification croisée avec Corporations Canada
+      (resolve_corp_federale_by_name, même mécanique que resolve_neq_by_name du
+      REQ, voir observador/resolution.py) : ne produit un signal que si le nom
+      correspond avec confiance à une corporation fédérale déjà EXISTANTE. Score
+      de confiance dédié à ce type de changement (_score_registre_corporatif,
+      "nouvel_etablissement" — déjà générique, aucun ajout nécessaire).
+    notes: >
+      ACTIVÉE en source Phase 2 le 2026-09-01, priorité pancanadienne demandée par
+      Alexandre — première source hors Québec pour le signal registre_corporatif
+      après Corporations Canada. Portail Opendatasoft (opendata.vancouver.ca, PAS
+      du CKAN comme la plupart des autres sources) — API v2.1 JSON, aucune
+      authentification. Jeu de données "business-licences", 205 329 lignes réelles
+      (167 962 au statut "Issued", les seules retenues). Validé de bout en bout :
+      le mécanisme "premier scan ne produit rien" confirmé (0 signal sur un premier
+      scan de 2 625 licences réelles) ; le diff "nouvel établissement" confirmé
+      isolément (entreprises retirées puis réintroduites correctement redétectées
+      comme nouvelles, entreprise déjà connue correctement exclue) ; la
+      vérification croisée Corporations Canada confirmée dans les deux sens sur un
+      échantillon réel de 59 grands employeurs vancouvérois (6 correspondances
+      confiantes — ex. "Acme Import & Export Ltd", "KPMG Inc", "Parking
+      Corporation of Vancouver" — la plupart des entreprises testées, y compris
+      de grandes marques comme Lululemon ou Telus, sont incorporées
+      PROVINCIALEMENT en C.-B. et ne matchent donc pas Corporations Canada, limite
+      connue et attendue) ; scan complet de bout en bout (fenêtre 700 jours) :
+      294 signaux réels, dont des compagnies à numéro fédérales évidentes (le nom
+      contient littéralement son propre numéro de corporation, ex. "14690605
+      CANADA INC.", correspondance à 100.0) et des entreprises nommées réelles
+      ("NOVAGEN AI CORP.", "MEWAR INFOTECH LIMITED", "Mira Geoscience Limited").
+      LIMITE DE PAGINATION RÉELLE de la plateforme Opendatasoft : offset+limit
+      <= 10 000 par requête (confirmé) — sans effet sur un scan à fenêtre courte
+      (30-90 jours, défaut du moteur, ~2 900 lignes/90 jours observées), mais
+      borne un appel `--historique-complet` (log d'avertissement explicite
+      plutôt qu'échec silencieux).
+
+  - id: licences_toronto
+    nom: "Licences d'affaires — Ville de Toronto"
+    signal_associe: [registre_corporatif]
+    statut: a_developper
+    blocage_type: reseau
+    methode_acces: donnees_ouvertes
+    champs_pertinents:
+      - nom_entreprise
+      - adresse
+      - type_entreprise
+      - date_emission
+    cout: gratuit
+    region: "Toronto"
     connecteur: null
     regle_calibration: >
-      NON NÉGOCIABLE avant activation (spec section 7, "Principe de calibration") :
-      une nouvelle licence n'est un signal que si une vérification croisée avec
-      Corporations Canada ou le registre provincial concerné confirme qu'il s'agit
-      d'une entreprise DÉJÀ EXISTANTE qui ouvre un nouvel établissement — pas un
-      nouveau démarrage (hors cible du produit) ni un simple renouvellement annuel
-      (bruit administratif). Cette vérification croisée réutilise exactement la même
-      mécanique de résolution par identifiant pivot déjà bâtie pour le NEQ
-      (observador/resolution.py) — pas une nouvelle mécanique à inventer, seulement
-      son application à un autre registre source. Tant que ce croisement n'est pas
-      implémenté, cette source DOIT rester `a_developper`, même si les données sont
-      gratuites et disponibles.
+      Même règle "NON NÉGOCIABLE" que licences_vancouver — voir sa
+      regle_calibration pour le détail complet, applicable telle quelle une fois
+      le connecteur construit (mécanisme commun déjà en place dans
+      observador/sources/licences_municipales_communes.py, réutilisable sans
+      modification).
     notes: >
-      Découverte (mise à jour de la spec, 2026-08-31). Données ouvertes confirmées,
-      gratuites, mise à jour quotidienne pour Vancouver. Sans la vérification croisée
-      ci-dessus, cette source produit surtout du bruit (la spec est explicite
-      là-dessus) — ne pas l'activer "quand même" parce qu'elle est gratuite.
+      INVESTIGUÉ le 2026-09-01 : `open.toronto.ca` (autorisé) est seulement la
+      façade web du portail — confirmé par un appel direct à son API CKAN
+      (`/api/3/action/site_read`, HTTP 404 : ce n'est pas la racine de l'API).
+      Le vrai backend CKAN semble hébergé sur un domaine distinct (probablement
+      `ckan0.cf.opendata.inter.prod-toronto.ca`, observé dans les résultats de
+      recherche, à confirmer), non encore autorisé dans cet environnement — même
+      schéma de séparation portail/fichier que Montréal (voir
+      permis_construction_montreal). Domaine supplémentaire à demander avant de
+      pouvoir construire ce connecteur.
 
   # ---------------------------------------------------------------------
   # Bloquées ou budgétaires — visibles dans le registre, non prioritaires
