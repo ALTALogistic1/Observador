@@ -8,9 +8,21 @@ jamais de sollicitation agressive d'un site.
 
 Le fournisseur de recherche (pour trouver l'URL officielle quand elle n'est pas déjà
 connue) est pluggable via OBSERVADOR_SEARCH_PROVIDER — par défaut une recherche
-DuckDuckGo HTML sans clé d'API. Ce domaine (html.duckduckgo.com) n'est pas dans la
-liste réseau demandée dans docs/STATUT_RESEAU.md pour la Phase 1 — à ajouter si ce
-module est activé en environnement cloud restreint.
+DuckDuckGo HTML sans clé d'API.
+
+BLOCAGE CONFIRMÉ (2026-09-01) — voir docs/STATUT_RESEAU.md pour le détail complet :
+depuis un environnement cloud, les QUATRE moteurs de recherche gratuits sans clé API
+testés (DuckDuckGo, Brave Search, Mojeek, Startpage) bloquent les requêtes
+automatisées par CAPTCHA/challenge anti-bot — ce n'est PAS un problème de liste
+réseau (les domaines sont accessibles), c'est l'IP infonuagique/partagée de sortie
+qui est traitée comme suspecte par chacun de ces services, indépendamment du moteur
+choisi. Aucun changement de code ne peut contourner ça. Une clé API payante (Bing
+Web Search, Google Custom Search, SerpAPI, etc.) est la seule solution connue —
+décision budgétaire qui revient à Alexandre, notée en Phase 2 à côté de Crunchbase
+et de l'agrégateur de recrutement (spec section 8). L'absence d'enrichissement web
+n'empêche PAS le pipeline de fonctionner : ce n'est jamais un motif d'exclusion
+(spec section 6), les notifications sont simplement produites sans ce contexte
+complémentaire.
 """
 from __future__ import annotations
 

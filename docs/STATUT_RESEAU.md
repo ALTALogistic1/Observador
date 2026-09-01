@@ -462,3 +462,45 @@ la lecture spec "plus large" de la recherche ponctuelle sans retomber dans
 [--historique-complet]` — ce dernier retrouve l'ancien comportement
 (`since=None`) pour qui a vraiment besoin d'une recherche exhaustive et est
 prêt à en payer le temps.
+
+## Enrichissement web (section 10) — bloqué par les moteurs de recherche eux-mêmes, pas par le réseau (2026-09-01)
+
+Vérification demandée par Alexandre sur les 311 notifications réelles produites
+le 2026-08-31 : les 311 entreprises avaient bien un `site_web_vérifié_le` réglé
+(l'étape a tourné) mais aucune n'avait de `site_web` trouvé — toutes les
+recherches DuckDuckGo avaient échoué. Cause initiale identifiée :
+`html.duckduckgo.com` n'était pas dans la liste réseau Custom. Alexandre l'a
+ajouté.
+
+**Après ajout, le domaine est bien accessible (confirmé : réponse HTTP réelle
+du vrai serveur DuckDuckGo), mais DuckDuckGo répond par un CAPTCHA anti-bot**
+("Unfortunately, bots use DuckDuckGo too... Select all squares containing a
+duck", paramètre `cc=botnet` explicite dans sa propre réponse) plutôt que par
+de vrais résultats de recherche. Ce n'est pas un blocage réseau — c'est
+DuckDuckGo qui traite le trafic comme automatisé, très probablement à cause de
+l'adresse IP de sortie infonuagique/partagée de cet environnement (même
+catégorie de cause que le blocage Cloudflare du REQ, un mécanisme de défense
+différent — CAPTCHA plutôt que 403 — mais la même origine : IP de centre de
+données, pas notre volume de requêtes).
+
+**Trois alternatives testées à la demande d'Alexandre, dans l'ordre demandé
+(Brave et Mojeek en premier, Startpage en dernier recours), toutes les trois
+également bloquées de façon distincte :**
+
+| Moteur | Résultat HTTP | Nature du blocage |
+|---|---|---|
+| DuckDuckGo | 202 | CAPTCHA anti-bot (`cc=botnet`) |
+| Brave Search | 429 | Rate-limited / refusé |
+| Mojeek | 403 | Refusé |
+| Startpage | 200 (mais pas de vrais résultats) | Challenge "Anubis" (preuve de travail JavaScript), IP de sortie visible dans le challenge : `160.79.106.129` |
+
+**Conclusion, décision d'Alexandre** : aucun changement de code ni de liste
+réseau ne peut contourner ça — les quatre moteurs gratuits sans clé API
+bloquent le même type de trafic pour la même raison de fond (IP infonuagique
+partagée). Enrichissement web laissé de côté pour l'instant — le pipeline
+reste pleinement fonctionnel sans (l'absence de site web n'est jamais un
+motif d'exclusion, spec section 6). Une clé API de recherche payante (Bing Web
+Search, Google Custom Search, SerpAPI, etc.) est notée comme item budgétaire à
+trancher en Phase 2, aux côtés de Crunchbase et de l'agrégateur de recrutement
+(spec section 8) — ce budget contournerait le blocage anti-bot proprement,
+contrairement au scraping HTML gratuit.
