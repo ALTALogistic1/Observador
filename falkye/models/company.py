@@ -9,7 +9,7 @@ from __future__ import annotations
 import enum
 from datetime import datetime
 
-from sqlalchemy import Enum, Integer, String
+from sqlalchemy import Enum, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from falkye.models.base import Base, utcnow
@@ -85,6 +85,15 @@ class Company(Base):
     # jamais une valeur inventée pour combler l'absence (principe directeur #1).
     telephone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     courriel_contact: Mapped[str | None] = mapped_column(String(320), nullable=True)
+
+    # Géocodage pour la carte géographique interactive (spec section 4bis, voir
+    # falkye/geocoding.py) — géocode_tente_le distingue "jamais tenté" de "tenté,
+    # aucune correspondance trouvée" (même principe de cache que
+    # site_web_vérifié_le ci-dessus), pour ne jamais refaire un appel réseau
+    # inutile à chaque génération de carte.
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    geocode_tente_le: Mapped[datetime | None] = mapped_column(nullable=True)
 
     statut_verification: Mapped[StatutVerification] = mapped_column(
         Enum(StatutVerification, native_enum=False),

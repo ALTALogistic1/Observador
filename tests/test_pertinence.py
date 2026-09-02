@@ -9,6 +9,7 @@ from falkye.models.notification import NiveauPertinence
 from falkye.models.profile import ProfileNeed
 from falkye.models.signal import Signal
 from falkye.pertinence import (
+    PonderationValeurs,
     base_match,
     bonus_signal_absence,
     bonus_velocite,
@@ -181,6 +182,42 @@ def test_calculer_pertinence_poids_sphere_reduit_la_base_mais_pas_les_bonus(regi
     # Le bonus d'absence (financement_expansion absent, un seul signal présent)
     # est identique dans les deux cas — seule la base est affectée par le poids.
     assert poids_reduit.bonus_absence == plein_poids.bonus_absence
+
+
+def test_calculer_pertinence_respecte_une_ponderation_personnalisee(registry):
+    """spec section 4bis, Radar+ "pondération du moteur de score
+    personnalisable" — une base_aa personnalisée doit se refléter dans le score,
+    et les bonus doivent utiliser les plafonds/pas personnalisés."""
+    company = _company()
+    s1 = _signal(company, "classement_croissance", sig_id=1)
+    need = _need("gestion_projet")  # sphère PRINCIPALE de classement_croissance -> AA
+    match = MatchResult(profile_need=need, sphere_generique=True, correspondance_qualitative=False)
+
+    ponderation_agressive = PonderationValeurs(base_a=30.0, base_aa=99.0, base_aaa=100.0)
+    resultat = calculer_pertinence(
+        company, [s1], {s1.id: [match]}, need.sphere_id, registry, ponderation=ponderation_agressive
+    )
+    resultat_defaut = calculer_pertinence(company, [s1], {s1.id: [match]}, need.sphere_id, registry)
+
+    assert resultat.score_pertinence == 99.0
+    assert resultat.score_pertinence > resultat_defaut.score_pertinence
+
+
+def test_base_match_utilise_la_ponderation_fournie(registry):
+    match = MatchResult(profile_need=_need(), sphere_generique=True, correspondance_qualitative=True)
+    ponderation_custom = PonderationValeurs(base_aaa=42.0)
+    assert base_match(match, "recrutement_massif", registry, ponderation_custom) == 42.0
+
+
+def test_bonus_velocite_utilise_la_ponderation_fournie():
+    now = datetime.now(timezone.utc)
+    signaux = [
+        Signal(id=1, company_id=1, source_id="x", signal_type_id="a", detected_at=now, champs={}),
+        Signal(id=2, company_id=1, source_id="x", signal_type_id="b", detected_at=now - timedelta(days=5), champs={}),
+    ]
+    ponderation_custom = PonderationValeurs(bonus_velocite_max=3.0, bonus_velocite_par_signal=100.0)
+    # Sans le plafond personnalisé (3.0), 1 signal rapproché supplémentaire * 100 = 100.
+    assert bonus_velocite(signaux, ponderation_custom) == 3.0
 
 
 def test_calculer_pertinence_absence_augmente_le_score(registry):

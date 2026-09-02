@@ -7,6 +7,7 @@ import click
 
 from falkye.db import get_session, init_db, seed_spheres_from_registry
 from falkye.models.profile import PlanTarifaire, Profile, ProfileNeed, Sensibilite, TypeProfil
+from falkye.models.sous_compte import RoleSousCompte
 from falkye.registry.loader import get_registry
 
 
@@ -329,6 +330,73 @@ def profile_list():
         session.close()
 
 
+@profile.command("set-webhook")
+@click.option("--profile-id", required=True, type=int)
+@click.option("--url", "webhook_url", required=True)
+def profile_set_webhook(profile_id, webhook_url):
+    """Configure l'URL de webhook du profil — spec section 4bis, Radar+ "accès
+    API/webhook complet". N'a d'effet que pour un profil au plan Radar+
+    (falkye/notifications/webhook_channel.py) ; se configure indépendamment du
+    plan pour être prêt avant/après une bascule de plan."""
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        p.webhook_url = webhook_url
+        session.commit()
+        click.echo(f"Profil #{p.id} — webhook_url défini (actif seulement si plan=radar_plus).")
+    finally:
+        session.close()
+
+
+@cli.group()
+def souscompte():
+    """Sous-comptes et territoires assignés, avec rôles (spec section 4bis,
+    Radar+). Voir falkye/models/sous_compte.py — structure de données
+    seulement, ce produit CLI n'a aucun système d'authentification réel."""
+
+
+@souscompte.command("create")
+@click.option("--profile-id", required=True, type=int, help="Compte Radar+ parent.")
+@click.option("--courriel", required=True)
+@click.option("--nom", required=True)
+@click.option("--role", "role_value", type=click.Choice([r.value for r in RoleSousCompte]), default="analyste")
+@click.option("--territoire", default=None, help="Ex. une région ou une ville — voir `dashboard voir --sous-compte-id`.")
+def souscompte_create(profile_id, courriel, nom, role_value, territoire):
+    from falkye.models.sous_compte import SousCompte
+
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        sc = SousCompte(
+            profile_id=profile_id, courriel=courriel, nom=nom, role=RoleSousCompte(role_value), territoire=territoire
+        )
+        session.add(sc)
+        session.commit()
+        click.echo(f"Sous-compte créé : id={sc.id} (profil parent #{profile_id}, rôle={sc.role.value})")
+    finally:
+        session.close()
+
+
+@souscompte.command("list")
+@click.option("--profile-id", required=True, type=int)
+def souscompte_list(profile_id):
+    from falkye.models.sous_compte import SousCompte
+
+    session = get_session()
+    try:
+        for sc in session.query(SousCompte).filter_by(profile_id=profile_id).all():
+            click.echo(
+                f"#{sc.id} {sc.nom} <{sc.courriel}> rôle={sc.role.value} "
+                f"territoire={sc.territoire or 'n/d'}"
+            )
+    finally:
+        session.close()
+
+
 @cli.group()
 def scan():
     """Lancer un scan (spec section 5)."""
@@ -425,13 +493,39 @@ def _verifier_plan_dashboard(profile) -> None:
         )
 
 
+def _resoudre_sous_compte(session, profile_id, sous_compte_id):
+    """Valide qu'un sous-compte appartient bien au profil parent donné — voir
+    falkye/models/sous_compte.py pour la limite honnête sur ce que cette
+    vérification garantit réellement (pas une authentification)."""
+    from falkye.models.sous_compte import SousCompte
+
+    if sous_compte_id is None:
+        return None
+    sc = session.get(SousCompte, sous_compte_id)
+    if sc is None or sc.profile_id != profile_id:
+        raise click.ClickException(f"Sous-compte {sous_compte_id} introuvable pour le profil {profile_id}.")
+    return sc
+
+
 @dashboard.command("voir")
 @click.option("--profile-id", required=True, type=int)
-def dashboard_voir(profile_id):
+@click.option(
+    "--employes-min", type=int, default=None, help="Filtre par taille d'entreprise estimée (spec section 4bis)."
+)
+@click.option("--employes-max", type=int, default=None)
+@click.option(
+    "--sous-compte-id",
+    type=int,
+    default=None,
+    help="Scope les dossiers au territoire assigné à ce sous-compte (spec section 4bis, Radar+).",
+)
+def dashboard_voir(profile_id, employes_min, employes_max, sous_compte_id):
     """Liste les cartes de dossiers (une par notification) pour ce profil —
-    pertinence/confiance, site web et coordonnées, statut de suivi."""
+    pertinence/confiance, site web et coordonnées, statut de suivi, taille
+    d'entreprise estimée."""
     from falkye.models.notification import Notification
     from falkye.models.profile import Profile
+    from falkye.taille_entreprise import correspond_au_filtre, estimer_taille
 
     session = get_session()
     try:
@@ -439,6 +533,7 @@ def dashboard_voir(profile_id):
         if p is None:
             raise click.ClickException(f"Profil {profile_id} introuvable")
         _verifier_plan_dashboard(p)
+        sous_compte = _resoudre_sous_compte(session, profile_id, sous_compte_id)
 
         notifications_qs = (
             session.query(Notification)
@@ -446,8 +541,19 @@ def dashboard_voir(profile_id):
             .order_by(Notification.created_at.desc())
             .all()
         )
+        notifications_qs = [
+            n for n in notifications_qs if correspond_au_filtre(n.company, employes_min, employes_max)
+        ]
+        if sous_compte is not None and sous_compte.territoire:
+            territoire_norm = sous_compte.territoire.strip().lower()
+            notifications_qs = [
+                n
+                for n in notifications_qs
+                if (n.company.region or "").strip().lower() == territoire_norm
+                or (n.company.ville or "").strip().lower() == territoire_norm
+            ]
         if not notifications_qs:
-            click.echo("Aucun dossier pour ce profil.")
+            click.echo("Aucun dossier pour ce profil (avec ce(s) filtre(s), le cas échéant).")
             return
 
         for n in notifications_qs:
@@ -455,6 +561,8 @@ def dashboard_voir(profile_id):
             nom = company.nom_officiel_req or company.nom_detecte
             pertinence_txt = n.niveau_pertinence.value if n.niveau_pertinence else "n/d"
             statut = n.statut_suivi.nom if n.statut_suivi else "n/d"
+            estimation = estimer_taille(company)
+            taille_txt = f"{estimation.tranche.value} (~{estimation.volume_postes_estime:.0f} poste(s))" if estimation else "n/d"
             click.echo(f"┌─ #{n.id} {nom}")
             click.echo(f"│  Pertinence {pertinence_txt} · Confiance {n.niveau_confiance.value} ({n.score_confiance}/100)")
             click.echo(f"│  Site web : {company.site_web or 'non disponible'}")
@@ -462,6 +570,7 @@ def dashboard_voir(profile_id):
                 filter(None, [company.telephone, company.courriel_contact])
             ) or "non disponibles"
             click.echo(f"│  Coordonnées : {coordonnees}")
+            click.echo(f"│  Taille estimée : {taille_txt}")
             click.echo(f"└─ Statut de suivi : {statut}")
     finally:
         session.close()
@@ -484,11 +593,20 @@ def dashboard_statuts():
 @dashboard.command("statut")
 @click.option("--notification-id", required=True, type=int)
 @click.option("--statut", "statut_id", required=True, help="Voir `dashboard statuts` pour les valeurs possibles.")
-def dashboard_statut(notification_id, statut_id):
+@click.option(
+    "--sous-compte-id",
+    type=int,
+    default=None,
+    help="Identifie le sous-compte à l'origine du changement (spec section 4bis) — "
+    "refusé si son rôle est lecture_seule. Voir falkye/models/sous_compte.py pour "
+    "la portée réelle (pas une authentification) de cette vérification.",
+)
+def dashboard_statut(notification_id, statut_id, sous_compte_id):
     """Change le statut de suivi d'une notification — déclenche automatiquement
     la rétroaction de pertinence si le statut choisi est marqué
     `declenche_retroaction` au registre (ex. "Pas pertinent", spec section 4bis)."""
     from falkye.models.notification import Notification
+    from falkye.models.sous_compte import RoleSousCompte
     from falkye.models.statut_suivi import StatutSuivi
     from falkye.registry.loader import get_registry
     from falkye.retroaction import enregistrer_pas_pertinent
@@ -500,6 +618,11 @@ def dashboard_statut(notification_id, statut_id):
             raise click.ClickException(f"Notification {notification_id} introuvable")
         if session.get(StatutSuivi, statut_id) is None:
             raise click.ClickException(f"Statut de suivi inconnu : {statut_id} (voir `dashboard statuts`)")
+        sous_compte = _resoudre_sous_compte(session, n.profile_id, sous_compte_id)
+        if sous_compte is not None and sous_compte.role == RoleSousCompte.LECTURE_SEULE:
+            raise click.ClickException(
+                f"Sous-compte {sous_compte_id} en lecture seule — ne peut pas modifier un statut de suivi."
+            )
 
         n.statut_suivi_id = statut_id
 
@@ -512,6 +635,76 @@ def dashboard_statut(notification_id, statut_id):
             click.echo(f"Notification #{n.id} — statut défini à {statut_id}")
 
         session.commit()
+    finally:
+        session.close()
+
+
+@dashboard.command("carte")
+@click.option("--profile-id", required=True, type=int)
+@click.option("--sortie", "chemin_sortie", required=True, type=click.Path(dir_okay=False))
+def dashboard_carte(profile_id, chemin_sortie):
+    """Génère une carte géographique interactive (fichier HTML autonome, spec
+    section 4bis) des dossiers de ce profil. Géocode les entreprises pas encore
+    résolues (falkye/geocoding.py — NON VALIDÉ contre un vrai appel dans cet
+    environnement de développement, voir docs/STATUT_RESEAU.md) ; les entreprises
+    sans coordonnées disponibles sont simplement absentes de la carte, pas un
+    échec de la commande."""
+    from falkye.carte import PointCarte, generer_carte_html
+    from falkye.geocoding import geocoder_entreprise
+    from falkye.models.notification import Notification
+    from falkye.models.profile import Profile
+
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        _verifier_plan_dashboard(p)
+
+        notifications_qs = (
+            session.query(Notification).filter(Notification.profile_id == profile_id).all()
+        )
+
+        points = []
+        for n in notifications_qs:
+            company = n.company
+            if geocoder_entreprise(company):
+                points.append(
+                    PointCarte(
+                        notification_id=n.id,
+                        nom_entreprise=company.nom_officiel_req or company.nom_detecte,
+                        latitude=company.latitude,
+                        longitude=company.longitude,
+                        niveau_pertinence=n.niveau_pertinence.value if n.niveau_pertinence else None,
+                        niveau_confiance=n.niveau_confiance.value,
+                        ville=company.ville,
+                    )
+                )
+        session.commit()  # persiste le cache de géocodage même si la commande échoue plus loin
+
+        html_carte = generer_carte_html(points, titre=f"FALKYE — Carte des prospects (profil #{p.id})")
+        with open(chemin_sortie, "w", encoding="utf-8") as f:
+            f.write(html_carte)
+
+        click.echo(f"Carte générée : {chemin_sortie} ({len(points)}/{len(notifications_qs)} dossier(s) géocodé(s))")
+    finally:
+        session.close()
+
+
+@dashboard.command("modele")
+@click.option("--notification-id", required=True, type=int)
+def dashboard_modele(notification_id):
+    """Génère une amorce de message de premier contact pour cette notification
+    (spec section 4bis) — se connecte au statut "Premier appel prometteur"."""
+    from falkye.models.notification import Notification
+    from falkye.premier_contact import generer_amorce
+
+    session = get_session()
+    try:
+        n = session.get(Notification, notification_id)
+        if n is None:
+            raise click.ClickException(f"Notification {notification_id} introuvable")
+        click.echo(generer_amorce(n))
     finally:
         session.close()
 
@@ -534,6 +727,97 @@ def resume_envoyer(profile_id, jours):
             raise click.ClickException(f"Profil {profile_id} introuvable")
         summary = generer_et_envoyer_resume(session, p, jours=jours)
         click.echo(f"Résumé #{summary.id} généré : {len(summary.notification_ids)} notification(s) incluse(s)")
+    finally:
+        session.close()
+
+
+@cli.group()
+def ponderation():
+    """Pondération personnalisée du moteur de score de pertinence (spec section
+    4bis, Radar+ "pondération du moteur de score personnalisable"). N'a d'effet
+    que pour un profil au plan Radar+ (falkye/ponderation.py)."""
+
+
+@ponderation.command("voir")
+@click.option("--profile-id", required=True, type=int)
+def ponderation_voir(profile_id):
+    from falkye.ponderation import ponderation_pour_profil
+
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        pond = ponderation_pour_profil(session, p)
+        click.echo(
+            f"Profil #{p.id} (plan={p.plan.value}) — pondération effective "
+            f"(personnalisée seulement si plan=radar_plus, sinon toujours la valeur par défaut) :"
+        )
+        click.echo(f"  base_a={pond.base_a} base_aa={pond.base_aa} base_aaa={pond.base_aaa}")
+        click.echo(
+            f"  bonus_absence={pond.bonus_absence} bonus_velocite_max={pond.bonus_velocite_max} "
+            f"bonus_velocite_par_signal={pond.bonus_velocite_par_signal}"
+        )
+    finally:
+        session.close()
+
+
+@ponderation.command("definir")
+@click.option("--profile-id", required=True, type=int)
+@click.option("--base-a", type=float, default=None)
+@click.option("--base-aa", type=float, default=None)
+@click.option("--base-aaa", type=float, default=None)
+@click.option("--bonus-absence", type=float, default=None)
+@click.option("--bonus-velocite-max", type=float, default=None)
+@click.option("--bonus-velocite-par-signal", type=float, default=None)
+def ponderation_definir(
+    profile_id, base_a, base_aa, base_aaa, bonus_absence, bonus_velocite_max, bonus_velocite_par_signal
+):
+    """Définit UN OU PLUSIEURS facteurs (les autres restent inchangés — NULL =
+    valeur par défaut de FALKYE, voir falkye/models/ponderation_personnalisee.py).
+    N'a d'effet que pour un profil Radar+ ; se configure indépendamment du plan,
+    même principe que `profile set-webhook`."""
+    from falkye.models.ponderation_personnalisee import PonderationPersonnalisee
+
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+
+        ligne = session.query(PonderationPersonnalisee).filter_by(profile_id=profile_id).one_or_none()
+        if ligne is None:
+            ligne = PonderationPersonnalisee(profile_id=profile_id)
+            session.add(ligne)
+
+        for champ, valeur in [
+            ("base_a", base_a), ("base_aa", base_aa), ("base_aaa", base_aaa),
+            ("bonus_absence", bonus_absence), ("bonus_velocite_max", bonus_velocite_max),
+            ("bonus_velocite_par_signal", bonus_velocite_par_signal),
+        ]:
+            if valeur is not None:
+                setattr(ligne, champ, valeur)
+
+        session.commit()
+        click.echo(f"Profil #{p.id} — pondération personnalisée mise à jour (effective seulement si plan=radar_plus).")
+    finally:
+        session.close()
+
+
+@ponderation.command("reinitialiser")
+@click.option("--profile-id", required=True, type=int)
+def ponderation_reinitialiser(profile_id):
+    from falkye.models.ponderation_personnalisee import PonderationPersonnalisee
+
+    session = get_session()
+    try:
+        ligne = session.query(PonderationPersonnalisee).filter_by(profile_id=profile_id).one_or_none()
+        if ligne is None:
+            click.echo(f"Profil #{profile_id} — aucune pondération personnalisée à réinitialiser.")
+            return
+        session.delete(ligne)
+        session.commit()
+        click.echo(f"Profil #{profile_id} — pondération réinitialisée aux valeurs par défaut de FALKYE.")
     finally:
         session.close()
 

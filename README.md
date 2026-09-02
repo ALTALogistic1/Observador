@@ -165,6 +165,34 @@ de pertinence (spec section 6) — réduit légèrement le poids de la sphère
 correspondante pour les prochaines notifications de ce profil, jamais en dessous
 d'un plancher. Voir `docs/ARCHITECTURE.md` pour le détail.
 
+### Trois fonctionnalités transversales additionnelles
+
+```bash
+python -m falkye.cli dashboard modele --notification-id 42       # amorce de message de premier contact
+python -m falkye.cli dashboard voir --profile-id 1 --employes-min 20 --employes-max 99  # filtre par taille estimée
+python -m falkye.cli dashboard carte --profile-id 1 --sortie carte.html  # carte HTML autonome (Leaflet)
+```
+
+La carte géographique géocode les entreprises pas encore résolues (Nominatim/
+OpenStreetMap, gratuit) — **non validé contre un vrai appel** dans cet
+environnement de développement, voir `docs/STATUT_RESEAU.md`.
+
+### Trois fonctionnalités Radar+ professionnelles
+
+```bash
+python -m falkye.cli profile set-webhook --profile-id 1 --url https://exemple.com/hook   # accès API/webhook complet
+python -m falkye.cli ponderation definir --profile-id 1 --base-aaa 95 --bonus-velocite-max 30  # pondération personnalisable
+python -m falkye.cli souscompte create --profile-id 1 --courriel analyste@exemple.com \
+  --nom "Analyste régional" --role analyste --territoire "Capitale-Nationale"  # sous-comptes et territoires
+python -m falkye.cli dashboard voir --profile-id 1 --sous-compte-id 1          # dossiers scopés au territoire
+```
+
+Les trois sont réservées au plan Radar+ (`PlanTarifaire.RADAR_PLUS`) — un profil
+Radar ou Écho peut préparer sa configuration à l'avance, elle prend simplement
+effet une fois le plan basculé. Voir `docs/ARCHITECTURE.md` pour le détail
+complet, y compris la limite honnête sur les sous-comptes (pas de système
+d'authentification réel dans ce produit CLI).
+
 ## Tests
 
 ```bash

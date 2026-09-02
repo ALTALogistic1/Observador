@@ -48,10 +48,20 @@ channels:
     notes: "Nécessite un compte WhatsApp Business API (ex. Meta Cloud API ou Twilio) — à régler par Alexandre quand ce sera le temps."
 
   - id: webhook_generique
-    nom: "Webhook générique (Slack/Discord/autre)"
-    statut: a_developper
+    nom: "Webhook générique — accès API/webhook complet (Radar+)"
+    statut: actif
     priorite: 4
     fournisseur_technique: webhook_http
-    champs_config_requis: [WEBHOOK_URL]
+    # Pas de variable d'environnement globale — l'URL est PROPRE à chaque
+    # profil (Profile.webhook_url), voir falkye/notifications/webhook_channel.py.
+    champs_config_requis: []
     module: falkye.notifications.webhook_channel
-    notes: "Non demandé pour l'instant — gardé au registre pour démontrer l'extensibilité (n'importe quel canal futur suit ce même gabarit)."
+    notes: >
+      Construit le 2026-09-02 pour la fonctionnalité Radar+ "accès API/webhook
+      complet" (spec section 4bis) — pousse chaque notification (payload JSON
+      structuré, voir falkye/notifications/formatter.py) vers l'URL propre à
+      chaque profil, réservé au plan RADAR_PLUS
+      (WebhookChannel.resoudre_destinataire, jamais un champ codé en dur dans
+      le moteur). Aucun profil réel n'a encore d'URL configurée — canal actif
+      dans le registre mais sans effet tant qu'un profil Radar+ n'a pas
+      `webhook_url` défini (`falkye profile set-webhook`).

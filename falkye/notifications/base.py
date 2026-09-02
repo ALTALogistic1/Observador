@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from falkye.models.profile import Profile
     from falkye.registry.loader import NotificationChannelDef
 
 
@@ -16,6 +17,13 @@ class NotificationContent:
     sujet: str
     corps_texte: str
     corps_html: str | None = None
+    # Payload structuré (spec section 4bis, Radar+ "accès API/webhook complet" :
+    # "pousser chaque nouveau signal... vers un système externe" — un CRM/ERP a
+    # besoin de champs, pas d'un texte à reparser). Rempli par
+    # falkye/notifications/formatter.py::formatter_notification pour TOUT canal
+    # (pas un formatter séparé pour webhook) ; les canaux texte (email, sms) l'
+    # ignorent simplement, WebhookChannel s'en sert comme corps JSON.
+    donnees_structurees: dict | None = None
 
 
 @dataclass
@@ -31,6 +39,17 @@ class NotificationChannel(ABC):
     @abstractmethod
     def envoyer(self, destinataire: str, contenu: NotificationContent) -> DeliveryResult:
         raise NotImplementedError
+
+    def resoudre_destinataire(self, profile: "Profile") -> str | None:
+        """Destination pour CE canal à partir du profil — par défaut le courriel
+        (seule donnée de contact universelle en Phase 1). Un canal dont la
+        destination dépend d'une configuration propre au profil (ex.
+        WebhookChannel avec `profile.webhook_url`, réservé Radar+) redéfinit
+        cette méthode plutôt que de dépendre d'un champ codé en dur dans
+        falkye/engine.py — retourner None signifie "aucune destination valide
+        pour ce profil", auquel cas la livraison sur ce canal est simplement
+        ignorée pour cette notification (pas une erreur)."""
+        return profile.courriel
 
 
 class StubChannel(NotificationChannel):

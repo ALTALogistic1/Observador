@@ -49,4 +49,40 @@ def formatter_notification(notification: Notification, registry: Registry) -> No
 
     sujet = f"[FALKYE] {nom} — confiance {niveau_txt} / pertinence {pertinence_txt}"
 
-    return NotificationContent(sujet=sujet, corps_texte=corps_texte)
+    # Payload structuré (spec section 4bis, Radar+ "accès API/webhook complet") —
+    # un système externe (CRM/ERP) a besoin de champs, pas d'un texte à reparser.
+    # Rempli pour TOUTE notification (pas seulement pour un profil Radar+ précis) :
+    # falkye/notifications/webhook_channel.py décide s'il s'en sert, ce module ne
+    # sait pas quel canal le consommera.
+    donnees_structurees = {
+        "notification_id": notification.id,
+        "entreprise": {
+            "nom": nom,
+            "neq": company.neq,
+            "adresse": company.adresse,
+            "ville": company.ville,
+            "region": company.region,
+            "site_web": company.site_web,
+            "telephone": company.telephone,
+            "courriel_contact": company.courriel_contact,
+        },
+        "score_confiance": notification.score_confiance,
+        "niveau_confiance": notification.niveau_confiance.value,
+        "score_pertinence": notification.score_pertinence,
+        "niveau_pertinence": notification.niveau_pertinence.value if notification.niveau_pertinence else None,
+        "sphere_probable_id": notification.sphere_probable_id,
+        "justification_resumee": notification.justification_resumee,
+        "signaux": [
+            {
+                "source_id": ns.signal.source_id,
+                "signal_type_id": ns.signal.signal_type_id,
+                "titre_ou_description": ns.signal.titre_ou_description,
+                "detected_at": ns.signal.detected_at.isoformat() if ns.signal.detected_at else None,
+                "justification": ns.justification,
+            }
+            for ns in notification.signaux_contributifs
+        ],
+        "created_at": notification.created_at.isoformat() if notification.created_at else None,
+    }
+
+    return NotificationContent(sujet=sujet, corps_texte=corps_texte, donnees_structurees=donnees_structurees)

@@ -60,6 +60,34 @@ BONUS_VELOCITE_PAR_SIGNAL_SUPPLEMENTAIRE = 8.0
 BONUS_VELOCITE_MAX = 24.0
 
 
+@dataclass(frozen=True)
+class PonderationValeurs:
+    """Pondération du moteur de score de pertinence (spec section 4bis,
+    fonctionnalité Radar+ "pondération du moteur de score personnalisable") :
+    "l'utilisateur Radar+ ajuste lui-même les poids relatifs des facteurs de
+    pertinence (sphère, vélocité, mots-clés) selon sa propre méthodologie
+    interne, plutôt que de subir la pondération par défaut définie par FALKYE."
+
+    Les constantes du module ci-dessus (BASE_A/AA/AAA, BONUS_ABSENCE_SIGNAL_
+    ATTENDU, BONUS_VELOCITE_*) restent la valeur PAR DÉFAUT (`PONDERATION_
+    DEFAUT` ci-dessous, utilisée pour Écho et Radar) — cette dataclass est
+    l'interface par laquelle un profil Radar+ peut les remplacer, une à une,
+    sans toucher au reste du moteur (falkye/ponderation.py résout la bonne
+    instance par profil ; falkye/engine.py ne connaît que cette interface,
+    jamais le mécanisme de stockage par-derrière — même principe que le
+    registre pour les sources/sphères)."""
+
+    base_a: float = BASE_A
+    base_aa: float = BASE_AA
+    base_aaa: float = BASE_AAA
+    bonus_absence: float = BONUS_ABSENCE_SIGNAL_ATTENDU
+    bonus_velocite_max: float = BONUS_VELOCITE_MAX
+    bonus_velocite_par_signal: float = BONUS_VELOCITE_PAR_SIGNAL_SUPPLEMENTAIRE
+
+
+PONDERATION_DEFAUT = PonderationValeurs()
+
+
 def _sphere_principale(signal_type_id: str, registry: Registry) -> str | None:
     """Sphère PRINCIPALE d'un type de signal, au sens de la spec section 6 (A vs
     AA) : la PREMIÈRE sphère listée dans spheres_probables (falkye/registry/
@@ -73,19 +101,23 @@ def _sphere_principale(signal_type_id: str, registry: Registry) -> str | None:
     return spheres[0] if spheres else None
 
 
-def base_match(match: MatchResult, signal_type_id: str, registry: Registry) -> float:
+def base_match(
+    match: MatchResult, signal_type_id: str, registry: Registry, ponderation: PonderationValeurs = PONDERATION_DEFAUT
+) -> float:
     """Score de base d'UN match, avant bonus — exposé (pas préfixé `_`) car
     falkye/engine.py s'en sert aussi pour choisir, parmi plusieurs signaux et
     besoins matchés, la sphère la plus pertinente à retenir pour la notification
     (comparaison par tier, pas seulement "le premier match rencontré")."""
     if match.correspondance_qualitative:
-        return BASE_AAA
+        return ponderation.base_aaa
     if match.profile_need.sphere_id == _sphere_principale(signal_type_id, registry):
-        return BASE_AA
-    return BASE_A
+        return ponderation.base_aa
+    return ponderation.base_a
 
 
-def bonus_signal_absence(company: Company, sphere_id: str, registry: Registry) -> float:
+def bonus_signal_absence(
+    company: Company, sphere_id: str, registry: Registry, ponderation: PonderationValeurs = PONDERATION_DEFAUT
+) -> float:
     """Principe du "signal par absence" (spec section 6) : l'absence d'un signal
     normalement attendu à un stade plus avancé peut être un indicateur de
     pertinence POSITIF, pas seulement la présence d'un signal — découvert avec le
@@ -109,10 +141,10 @@ def bonus_signal_absence(company: Company, sphere_id: str, registry: Registry) -
         return 0.0
     if sphere_def.signal_absence_pertinent in types_presents:
         return 0.0  # le signal "attendu" est justement présent — pas un cas d'absence
-    return BONUS_ABSENCE_SIGNAL_ATTENDU
+    return ponderation.bonus_absence
 
 
-def bonus_velocite(signaux: list[Signal]) -> float:
+def bonus_velocite(signaux: list[Signal], ponderation: PonderationValeurs = PONDERATION_DEFAUT) -> float:
     """Facteur de trajectoire (spec section 6) : "une entreprise avec 3 signaux en
     2 mois est un meilleur prospect qu'une entreprise avec 3 signaux étalés sur 2
     ans, même à confiance égale par signal" — contributeur à la PERTINENCE,
@@ -133,8 +165,8 @@ def bonus_velocite(signaux: list[Signal]) -> float:
         meilleur_compte = max(meilleur_compte, compte)
     signaux_rapproches_supplementaires = meilleur_compte - 1
     return min(
-        BONUS_VELOCITE_MAX,
-        signaux_rapproches_supplementaires * BONUS_VELOCITE_PAR_SIGNAL_SUPPLEMENTAIRE,
+        ponderation.bonus_velocite_max,
+        signaux_rapproches_supplementaires * ponderation.bonus_velocite_par_signal,
     )
 
 
@@ -153,6 +185,7 @@ def calculer_pertinence(
     sphere_choisie: str,
     registry: Registry,
     poids_sphere: float = 1.0,
+    ponderation: PonderationValeurs = PONDERATION_DEFAUT,
 ) -> PertinenceResult:
     """Calcule la pertinence pour LA sphère retenue pour cette notification
     (falkye/engine.py choisit une seule sphère représentative par notification,
@@ -166,17 +199,22 @@ def calculer_pertinence(
     bonus signal-par-absence/vélocité — la rétroaction dit "cette sphère
     correspond moins bien à ce que je cherche", pas "je fais moins confiance à la
     vélocité ou à l'absence d'un signal", deux mécanismes indépendants du choix
-    de sphère. Voir falkye/retroaction.py:poids_pour_sphere."""
+    de sphère. Voir falkye/retroaction.py:poids_pour_sphere.
+
+    `ponderation` (spec section 4bis, fonctionnalité Radar+ "pondération du
+    moteur de score personnalisable") : remplace PONDERATION_DEFAUT pour un
+    profil Radar+ qui a défini sa propre pondération — voir
+    falkye/ponderation.py:ponderation_pour_profil, appelé par falkye/engine.py."""
     bases = [
-        base_match(m, signal.signal_type_id, registry)
+        base_match(m, signal.signal_type_id, registry, ponderation)
         for signal in signaux_pertinents
         for m in matches_par_signal.get(signal.id, [])
         if m.profile_need.sphere_id == sphere_choisie
     ]
-    base = (max(bases) if bases else BASE_A) * poids_sphere
+    base = (max(bases) if bases else ponderation.base_a) * poids_sphere
 
-    b_absence = bonus_signal_absence(company, sphere_choisie, registry)
-    b_velocite = bonus_velocite(signaux_pertinents)
+    b_absence = bonus_signal_absence(company, sphere_choisie, registry, ponderation)
+    b_velocite = bonus_velocite(signaux_pertinents, ponderation)
 
     score = min(100.0, base + b_absence + b_velocite)
 

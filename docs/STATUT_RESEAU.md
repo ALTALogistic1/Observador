@@ -1192,3 +1192,72 @@ complet, pondération du moteur de score personnalisable par l'utilisateur,
 sous-comptes et territoires avec rôles) introduites par la même mise à
 jour de spec — non demandées explicitement, non construites, cohérent
 avec le report déjà accepté de Radar+ dans son ensemble.
+
+## Les six fonctionnalités reportées, construites (2026-09-02)
+
+Alexandre : la validation réelle (TheirStack + Stripe) vient d'une autre
+conversation en parallèle, pas de raison de bloquer cette passe en
+attendant — go de l'avant sur les six fonctionnalités laissées en attente
+ci-dessus, rien de tout ça n'en dépend. Il reviendra avec les identifiants
+séparément.
+
+**Construit et testé (234/234, dont 46 nouveaux)** :
+
+- **Modèles de premier contact contextuels** (`falkye/premier_contact.py`,
+  `dashboard modele`) : amorce générée à partir du signal dominant d'une
+  notification, dispatch par type de signal, dégradation gracieuse si un
+  champ précis manque. Validé contre une vraie notification de la base
+  réelle (financement Investissement Québec, montant et programme
+  correctement intégrés au message).
+- **Filtre par taille d'entreprise estimée** (`falkye/taille_entreprise.py`,
+  `dashboard voir --employes-min/--employes-max`) : proxy documenté (volume
+  cumulé de postes ouverts/approuvés), quatre tranches alignées sur la
+  classification Statistique Canada. Aucune entreprise réelle du profil
+  test n'a de signal de recrutement contributif — comportement "n/d"
+  confirmé correct contre les vraies données (pas un bogue).
+- **Carte géographique interactive** (`falkye/geocoding.py`,
+  `falkye/carte.py`, `dashboard carte`) : fichier HTML autonome (Leaflet
+  via CDN), génération validée avec des points fabriqués et contre la base
+  réelle (0/311 géocodés, comme attendu — voir plus bas). Nouveaux champs
+  `Company.latitude`/`longitude`/`geocode_tente_le`.
+- **Accès API/webhook complet** (Radar+) : `Profile.webhook_url`,
+  `falkye/notifications/webhook_channel.py`. A demandé de généraliser
+  `NotificationChannel.resoudre_destinataire` (`falkye/notifications/
+  base.py`) — `engine.deliver_notification` codait en dur
+  `profile.courriel` depuis la Phase 1, une limitation déjà documentée à
+  l'époque ("seul le courriel a un destinataire connu en Phase 1"),
+  maintenant résolue proprement plutôt que contournée. `webhook_generique`
+  passe de `a_developper` à `actif` dans le registre.
+- **Pondération du moteur de score personnalisable** (Radar+) :
+  `falkye/pertinence.py::PonderationValeurs` enfilée à travers tout le
+  module, résolue par profil (`falkye/ponderation.py`), nouveau modèle
+  `PonderationPersonnalisee` (une ligne par profil, champs nullables —
+  ajuster un seul facteur sans redéfinir les autres).
+- **Sous-comptes et territoires avec rôles** (Radar+) : `SousCompte`
+  (`falkye/models/sous_compte.py`), `dashboard voir/statut
+  --sous-compte-id`. LIMITE HONNÊTE documentée directement dans le module
+  et reprise dans docs/ARCHITECTURE.md : FALKYE n'a aucun système
+  d'authentification, cette vérification de rôle filtre un usage de bonne
+  foi, ce n'est pas une frontière de sécurité — à ne jamais présenter
+  autrement à Alexandre ou à un futur utilisateur.
+
+**NON VALIDÉ contre un vrai appel, documenté comme tel** : le géocodage
+(`NominatimGeocoder`) est construit d'après la documentation publique de
+l'API Nominatim/OpenStreetMap — `nominatim.openstreetmap.org` est bloqué
+par le proxy de sortie réseau de cet environnement de développement (403
+confirmé), même classe de limitation que theirstack.com/apify.com. Une
+entreprise non géocodée est simplement absente de la carte (comportement
+vérifié contre la base réelle), pas un échec de la commande.
+
+**Migration de la base de développement réelle** (1 profil, 311
+notifications, 2266 entreprises) : `companies.latitude`/`longitude`/
+`geocode_tente_le` et `profiles.webhook_url` ajoutées (toutes NULL — jamais
+de valeur inventée) ; tables `ponderations_personnalisees` et
+`sous_comptes` créées via `create_all()` (vides).
+
+**Toujours hors de cette construction** : aucune fonctionnalité restante
+de la spec section 4bis n'a été identifiée comme non construite — les six
+demandées sont maintenant toutes livrées. Les éléments explicitement notés
+par la spec elle-même comme "feuille de route plus lointaine" (rapports
+exportables en marque blanche, authentification SSO/SAML) restent, comme
+demandé, non construits.

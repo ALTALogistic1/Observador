@@ -463,10 +463,93 @@ jamais aux bonus signal-par-absence/vélocité, deux mécanismes indépendants d
 choix de sphère. Isolé par `(profile_id, sphere_id)` (`RetroactionPertinence`,
 contrainte d'unicité) — la rétroaction d'un profil n'affecte jamais un autre.
 
-**Non construit dans cette passe, signalé explicitement** : les trois
-fonctionnalités transversales additionnelles de la même section de spec (modèles
-de premier contact contextuels, carte géographique interactive, filtre par taille
-d'entreprise estimée) — voir docs/STATUT_RESEAU.md pour le détail du report.
+## Trois fonctionnalités transversales additionnelles (spec section 4bis, construites le 2026-09-02)
+
+Aucune nouvelle source, uniquement des couches de calcul/présentation par-dessus
+des données déjà captées — même principe que le score de pertinence lui-même.
+
+**Modèles de premier contact contextuels** (`falkye/premier_contact.py`,
+`falkye dashboard modele`) : amorce de message générée à partir du SIGNAL
+DOMINANT d'une notification (`_signal_dominant`, le plus fort selon
+`falkye/scoring.py::score_signal_individuel` — même principe que le score de
+confiance : le signal qui porte le message, pas une fusion de tous à la fois).
+Dispatch par `signal_type_id` (`_MODELES`, même structure que
+`scoring.py::_SCORERS`), chaque fonction dégradant gracieusement vers une
+phrase plus générale si un champ précis manque (jamais de détail inventé,
+principe directeur #1) ; un type de signal sans modèle dédié retombe sur une
+phrase générique référençant seulement le nom de l'entreprise.
+
+**Filtre par taille d'entreprise estimée** (`falkye/taille_entreprise.py`,
+`dashboard voir --employes-min/--employes-max`) : proxy assumé et documenté
+(la spec ne donne pas de formule) — le volume cumulé de postes ouverts/
+approuvés (`Signal.valeur_associee` pour `recrutement_massif`, déjà rempli par
+Guichet-Emplois et EIMT) sert d'estimation, bucketée en quatre tranches
+alignées sur la classification Statistique Canada (1-4 / 5-19 / 20-99 / 100+).
+Une entreprise sans AUCUN signal de recrutement n'a pas d'estimation (`None`),
+jamais une tranche par défaut inventée — et ne correspond à aucun filtre borné
+(un filtre n'a de sens que sur une donnée qui existe).
+
+**Carte géographique interactive** (`falkye/geocoding.py` + `falkye/carte.py`,
+`dashboard carte --sortie fichier.html`) : produit un fichier HTML AUTONOME
+(Leaflet.js chargé depuis un CDN public dans le navigateur de l'UTILISATEUR
+final, pas cet environnement de développement) — même philosophie que les
+notifications courriel, aucun serveur web côté FALKYE. `generer_carte_html`
+(`falkye/carte.py`) est de la logique PURE, testable sans réseau ni DB ; le
+géocodage est fait séparément en amont par `geocoder_entreprise`, avec un cache
+(`Company.latitude`/`longitude`/`geocode_tente_le`, même principe que
+`site_web_vérifié_le`) pour ne jamais refaire un appel réseau inutile.
+
+**NON VALIDÉ contre un vrai appel** : `NominatimGeocoder` (OpenStreetMap,
+gratuit, sans clé — principe directeur #2 appliqué à un service de géocodage)
+est construit d'après la documentation publique de l'API, jamais confirmé —
+`nominatim.openstreetmap.org` est bloqué par le proxy de sortie réseau de cet
+environnement (403 confirmé à la tentative de connexion), même classe de
+limitation que theirstack.com/apify.com (voir docs/STATUT_RESEAU.md). Une
+entreprise non géocodée est simplement absente de la carte, pas un échec de la
+commande — vérifié en conditions réelles (0/311 dossiers géocodés contre la
+base réelle, carte générée correctement quand même).
+
+## Trois fonctionnalités Radar+ professionnelles (spec section 4bis, construites le 2026-09-02)
+
+"Le portail ouvert seul ne suffit pas à distinguer Radar+ comme palier
+professionnel." Les trois s'ajoutent au système de plans (section 9bis
+ci-dessus) sans le modifier — chacune gate son propre usage en vérifiant
+`profile.plan == PlanTarifaire.RADAR_PLUS` au moment où elle sert, jamais en
+empêchant le STOCKAGE de sa configuration (un profil peut préparer son
+webhook/sa pondération avant une bascule de plan).
+
+**Accès API/webhook complet** — `Profile.webhook_url` + `falkye/notifications/
+webhook_channel.py::WebhookChannel`. Nécessitait de généraliser la résolution
+de destinataire (`NotificationChannel.resoudre_destinataire`, voir section
+"Canaux de notification" ci-dessus) puisque `engine.deliver_notification`
+codait en dur `profile.courriel` depuis la Phase 1. `NotificationContent.
+donnees_structurees` (nouveau champ, rempli par `formatter_notification` pour
+TOUTE notification) porte un payload JSON structuré — entreprise, scores,
+sphère, signaux contributifs — pour qu'un CRM/ERP externe n'ait pas à reparser
+un texte formaté pour affichage humain.
+
+**Pondération du moteur de score personnalisable** — `falkye/pertinence.py::
+PonderationValeurs` (dataclass miroir des constantes du module, `PONDERATION_
+DEFAUT` = les valeurs historiques) enfilée à travers `base_match`/
+`bonus_signal_absence`/`bonus_velocite`/`calculer_pertinence`, résolue par
+profil via `falkye/ponderation.py::ponderation_pour_profil` et calculée UNE
+FOIS par `engine.py::_traiter_entreprise_pour_profil` (utilisée à la fois pour
+le choix de sphère et le calcul de pertinence — cohérence garantie entre les
+deux). `PonderationPersonnalisee` (nouveau modèle, une ligne par profil au
+plus, tous les champs nullables) permet d'ajuster UN SEUL facteur sans
+redéfinir les autres — NULL = valeur par défaut de FALKYE pour ce facteur
+précis.
+
+**Sous-comptes et territoires assignés, avec rôles** — `falkye/models/
+sous_compte.py::SousCompte` (profil Radar+ parent, courriel, nom, rôle
+admin/analyste/lecture_seule, territoire texte libre). `dashboard voir
+--sous-compte-id` scope les dossiers au territoire assigné (comparaison simple
+à `Company.region`/`ville`) ; `dashboard statut --sous-compte-id` refuse un
+changement de statut si le rôle est `lecture_seule`. LIMITE HONNÊTE documentée
+en tête du modèle (à relire avant toute extension de cette fonctionnalité) :
+FALKYE n'a AUCUN système d'authentification — `--sous-compte-id` est un
+paramètre déclaratif, pas une preuve d'identité ; cette vérification filtre un
+usage de bonne foi, ce n'est pas une frontière de sécurité.
 
 ## Porte ouverte fournisseur/client (spec section 4/9)
 
@@ -546,7 +629,22 @@ Aucune trace de ces deux cas dans le code — confirmé par l'audit du 2026-08-3
 ## Canaux de notification (décision produit du 2026-08-31)
 
 Même principe que le registre de sources. `registry/notification_channels.yaml` :
-courriel actif (SMTP, `falkye/notifications/email_channel.py`), SMS/WhatsApp/
-webhook au statut `a_developper` (`StubChannel` — échoue explicitement plutôt que
-de simuler un envoi). Activer un canal Phase 2 = configurer les variables d'env
-listées dans le registre + changer son statut, sans toucher `engine.py`.
+courriel actif (SMTP, `falkye/notifications/email_channel.py`), SMS/WhatsApp au
+statut `a_developper` (`StubChannel` — échoue explicitement plutôt que de simuler
+un envoi). Webhook générique passé `actif` le 2026-09-02 pour la fonctionnalité
+Radar+ "accès API/webhook complet" (spec section 4bis) — voir
+`falkye/notifications/webhook_channel.py` et la section "Tableau de bord..."
+ci-dessus pour le détail (destination résolue par profil, pas une variable
+d'environnement globale). Activer un canal Phase 2 = configurer les variables
+d'env listées dans le registre + changer son statut, sans toucher `engine.py`.
+
+`NotificationChannel.resoudre_destinataire(profile)` (`falkye/notifications/
+base.py`, ajoutée le 2026-09-02) généralise la résolution de destination —
+avant cette date, `engine.deliver_notification` codait en dur
+`notification.profile.courriel` comme seule destination possible (limitation
+documentée dès la Phase 1). Chaque canal résout maintenant SA propre
+destination à partir du profil (`EmailChannel` hérite du comportement par
+défaut — `profile.courriel` — sans le redéfinir ; `WebhookChannel` retourne
+`profile.webhook_url`, ou `None` si le profil n'est pas Radar+) — le moteur ne
+sait toujours pas qu'un canal précis existe, seulement qu'il faut lui demander
+sa destination avant de tenter une livraison.

@@ -90,6 +90,14 @@ class Profile(Base):
         Enum(PlanTarifaire, native_enum=False), nullable=False, default=PlanTarifaire.ECHO
     )
 
+    # Accès API/webhook complet — spec section 4bis, fonctionnalité Radar+
+    # ("pousser chaque nouveau signal... vers un système externe de
+    # l'institution"). Le champ existe pour tout profil (comme plan lui-même),
+    # mais falkye/notifications/webhook_channel.py::resoudre_destinataire ne
+    # l'utilise que pour un profil RADAR_PLUS — stocker l'URL n'est pas ce qui
+    # gate l'accès, la vérification de plan au moment de la livraison l'est.
+    webhook_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     besoins: Mapped[list["ProfileNeed"]] = relationship(

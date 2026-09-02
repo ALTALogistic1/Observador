@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from falkye import pertinence, retroaction
+from falkye import pertinence, ponderation, retroaction
 from falkye.db import get_session
 from falkye.enrichment import enrichir_entreprise
 from falkye.matching import MatchResult, match_profile, spheres_probables
@@ -182,6 +182,12 @@ def _traiter_entreprise_pour_profil(
     matches_par_signal: dict[int, list[MatchResult]] = {}
     meilleur_global: tuple[float, MatchResult] | None = None  # (base_pertinence, match) — voir plus bas
 
+    # Pondération de pertinence (spec section 4bis, Radar+ "pondération du moteur
+    # de score personnalisable") — résolue une fois par profil, utilisée à la
+    # fois pour le choix de sphère ci-dessous et pour calculer_pertinence plus
+    # bas, cohérence garantie entre les deux.
+    ponderation_profil = ponderation.ponderation_pour_profil(db_session, profile)
+
     for signal in company.signals:
         # Troisième porte, indépendante des deux axes confiance/pertinence
         # ci-dessous (spec section 9bis) : un signal d'une source payante ne
@@ -215,7 +221,7 @@ def _traiter_entreprise_pour_profil(
         # spec introduit maintenant un vrai classement entre ces tiers (section 6),
         # donc le choix de sphère doit en tenir compte plutôt que d'être arbitraire.
         for m in matches:
-            base = pertinence.base_match(m, signal.signal_type_id, registry)
+            base = pertinence.base_match(m, signal.signal_type_id, registry, ponderation_profil)
             if meilleur_global is None or base > meilleur_global[0]:
                 meilleur_global = (base, m)
 
@@ -269,7 +275,13 @@ def _traiter_entreprise_pour_profil(
     score_result = calculer_score(signaux_pertinents)
     poids_sphere = retroaction.poids_pour_sphere(db_session, profile.id, sphere_choisie)
     pertinence_result = pertinence.calculer_pertinence(
-        company, signaux_pertinents, matches_par_signal, sphere_choisie, registry, poids_sphere=poids_sphere
+        company,
+        signaux_pertinents,
+        matches_par_signal,
+        sphere_choisie,
+        registry,
+        poids_sphere=poids_sphere,
+        ponderation=ponderation_profil,
     )
     if not franchit_seuil_sensibilite(score_result.niveau, profile.sensibilite_confiance.value):
         return None
@@ -317,7 +329,16 @@ def deliver_notification(db_session: Session, notification: Notification, regist
         channel = channel_def.charger_canal()
         if channel is None:
             continue
-        destinataire = notification.profile.courriel  # seul le courriel a un destinataire connu en Phase 1
+        # Chaque canal résout SA propre destination à partir du profil (spec
+        # section 4bis, "accès API/webhook complet" réservé à Radar+, avec une URL
+        # PROPRE à chaque profil) — le moteur ne doit jamais savoir qu'un canal
+        # précis existe ni comment il calcule sa destination (principe déjà
+        # établi, voir falkye/notifications/base.py). None = ce canal n'a pas de
+        # destination valide pour ce profil (ex. webhook non configuré, ou plan
+        # insuffisant) — silencieux, pas une erreur de livraison.
+        destinataire = channel.resoudre_destinataire(notification.profile)
+        if destinataire is None:
+            continue
         result = channel.envoyer(destinataire, contenu)
         db_session.add(
             NotificationDelivery(
