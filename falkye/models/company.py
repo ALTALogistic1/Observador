@@ -76,6 +76,16 @@ class Company(Base):
     site_web: Mapped[str | None] = mapped_column(String(500), nullable=True)
     site_web_vérifié_le: Mapped[datetime | None] = mapped_column(nullable=True)
 
+    # Coordonnées trouvées via l'enrichissement contextuel (spec section 10) —
+    # déjà extraites par falkye/enrichment.py (EnrichmentResult.coordonnees) mais
+    # jamais persistées avant le tableau de bord (spec section 4bis, "le lien vers
+    # le site web du prospect ET les coordonnées trouvées via l'enrichissement
+    # contextuel") : simple complétion d'une capture de donnée déjà faite, pas une
+    # nouvelle source. Nullable — beaucoup de sites n'exposent ni l'un ni l'autre,
+    # jamais une valeur inventée pour combler l'absence (principe directeur #1).
+    telephone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    courriel_contact: Mapped[str | None] = mapped_column(String(320), nullable=True)
+
     statut_verification: Mapped[StatutVerification] = mapped_column(
         Enum(StatutVerification, native_enum=False),
         nullable=False,

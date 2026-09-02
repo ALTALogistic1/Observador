@@ -1,0 +1,38 @@
+# Registre des statuts de suivi — spec section 4bis ("Tableau de bord et statut
+# de suivi — Radar et Radar+ seulement", ajoutée le 2026-09-02).
+#
+# Liste de départ, volontairement modeste. Extensible : suit EXACTEMENT le même
+# principe que les sphères de besoin (registry/spheres.yaml) — un statut proposé
+# par un utilisateur s'ajoute en base (falkye/models/statut_suivi.py::StatutSuivi
+# avec est_personnalise=True) sans casser la structure ni nécessiter de migration.
+# Les entrées ci-dessous sont le noyau "curé" chargé au démarrage
+# (falkye/registry/loader.py) ; les statuts proposés par les utilisateurs vivent
+# en base de données, pas dans ce fichier.
+#
+# `est_defaut` : LE statut attribué à une notification nouvellement créée — une
+# seule entrée doit le porter (validé par Registry, voir loader.py).
+# `declenche_retroaction` : marque le(s) statut(s) qui, une fois assignés,
+# déclenchent falkye/retroaction.py::enregistrer_pas_pertinent (spec : "un statut
+# 'Pas pertinent' sert une double fonction — suivi de pipeline... et signal de
+# rétroaction pour le moteur de pertinence"). Un champ de registre plutôt qu'un id
+# figé en dur dans le moteur — même principe que le reste du registre : ajouter un
+# deuxième statut de rétroaction (ex. "Faux positif") ne demanderait aucune
+# modification de falkye/engine.py ou falkye/retroaction.py.
+
+statuts_suivi:
+  - id: a_joindre
+    nom: "À joindre"
+    est_defaut: true
+    declenche_retroaction: false
+  - id: joint
+    nom: "Joint"
+    est_defaut: false
+    declenche_retroaction: false
+  - id: premier_appel_prometteur
+    nom: "Premier appel prometteur"
+    est_defaut: false
+    declenche_retroaction: false
+  - id: pas_pertinent
+    nom: "Pas pertinent"
+    est_defaut: false
+    declenche_retroaction: true

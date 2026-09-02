@@ -409,6 +409,114 @@ def notifications_list(profile_id):
 
 
 @cli.group()
+def dashboard():
+    """Tableau de bord — cartes de dossiers cumulatifs + statut de suivi (spec
+    section 4bis, ajoutée le 2026-09-02). Réservé aux plans Radar et Radar+
+    (absent d'Écho)."""
+
+
+def _verifier_plan_dashboard(profile) -> None:
+    from falkye.models.profile import PlanTarifaire
+
+    if profile.plan == PlanTarifaire.ECHO:
+        raise click.ClickException(
+            f"Tableau de bord réservé aux plans Radar et Radar+ (profil #{profile.id} est au plan Écho) — "
+            "voir `falkye billing radar-checkout`."
+        )
+
+
+@dashboard.command("voir")
+@click.option("--profile-id", required=True, type=int)
+def dashboard_voir(profile_id):
+    """Liste les cartes de dossiers (une par notification) pour ce profil —
+    pertinence/confiance, site web et coordonnées, statut de suivi."""
+    from falkye.models.notification import Notification
+    from falkye.models.profile import Profile
+
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        _verifier_plan_dashboard(p)
+
+        notifications_qs = (
+            session.query(Notification)
+            .filter(Notification.profile_id == profile_id)
+            .order_by(Notification.created_at.desc())
+            .all()
+        )
+        if not notifications_qs:
+            click.echo("Aucun dossier pour ce profil.")
+            return
+
+        for n in notifications_qs:
+            company = n.company
+            nom = company.nom_officiel_req or company.nom_detecte
+            pertinence_txt = n.niveau_pertinence.value if n.niveau_pertinence else "n/d"
+            statut = n.statut_suivi.nom if n.statut_suivi else "n/d"
+            click.echo(f"┌─ #{n.id} {nom}")
+            click.echo(f"│  Pertinence {pertinence_txt} · Confiance {n.niveau_confiance.value} ({n.score_confiance}/100)")
+            click.echo(f"│  Site web : {company.site_web or 'non disponible'}")
+            coordonnees = ", ".join(
+                filter(None, [company.telephone, company.courriel_contact])
+            ) or "non disponibles"
+            click.echo(f"│  Coordonnées : {coordonnees}")
+            click.echo(f"└─ Statut de suivi : {statut}")
+    finally:
+        session.close()
+
+
+@dashboard.command("statuts")
+def dashboard_statuts():
+    """Liste les statuts de suivi disponibles (registre + statuts personnalisés)."""
+    from falkye.models.statut_suivi import StatutSuivi
+
+    session = get_session()
+    try:
+        for s in session.query(StatutSuivi).all():
+            marque = " (personnalisé)" if s.est_personnalise else ""
+            click.echo(f"{s.id} — {s.nom}{marque}")
+    finally:
+        session.close()
+
+
+@dashboard.command("statut")
+@click.option("--notification-id", required=True, type=int)
+@click.option("--statut", "statut_id", required=True, help="Voir `dashboard statuts` pour les valeurs possibles.")
+def dashboard_statut(notification_id, statut_id):
+    """Change le statut de suivi d'une notification — déclenche automatiquement
+    la rétroaction de pertinence si le statut choisi est marqué
+    `declenche_retroaction` au registre (ex. "Pas pertinent", spec section 4bis)."""
+    from falkye.models.notification import Notification
+    from falkye.models.statut_suivi import StatutSuivi
+    from falkye.registry.loader import get_registry
+    from falkye.retroaction import enregistrer_pas_pertinent
+
+    session = get_session()
+    try:
+        n = session.get(Notification, notification_id)
+        if n is None:
+            raise click.ClickException(f"Notification {notification_id} introuvable")
+        if session.get(StatutSuivi, statut_id) is None:
+            raise click.ClickException(f"Statut de suivi inconnu : {statut_id} (voir `dashboard statuts`)")
+
+        n.statut_suivi_id = statut_id
+
+        registry = get_registry()
+        statut_def = registry.statut_suivi(statut_id)
+        if statut_def is not None and statut_def.declenche_retroaction:
+            enregistrer_pas_pertinent(session, n)
+            click.echo(f"Notification #{n.id} — statut défini à {statut_id} (rétroaction de pertinence appliquée)")
+        else:
+            click.echo(f"Notification #{n.id} — statut défini à {statut_id}")
+
+        session.commit()
+    finally:
+        session.close()
+
+
+@cli.group()
 def resume():
     """Résumé périodique (spec section 5)."""
 

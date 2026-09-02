@@ -152,20 +152,28 @@ def calculer_pertinence(
     matches_par_signal: dict[int, list[MatchResult]],
     sphere_choisie: str,
     registry: Registry,
+    poids_sphere: float = 1.0,
 ) -> PertinenceResult:
     """Calcule la pertinence pour LA sphère retenue pour cette notification
     (falkye/engine.py choisit une seule sphère représentative par notification,
     même simplification déjà en place avant cette mise à jour). Prend le MEILLEUR
     tier atteint parmi tous les signaux contribuant à cette sphère précise (même
     principe que le score de confiance : le signal dominant, pas une moyenne),
-    puis ajoute les bonus signal-par-absence et vélocité."""
+    puis ajoute les bonus signal-par-absence et vélocité.
+
+    `poids_sphere` (spec section 4bis, "Lien avec la rétroaction utilisateur") :
+    multiplicateur 0.4-1.0 appliqué à la SEULE base de correspondance, jamais aux
+    bonus signal-par-absence/vélocité — la rétroaction dit "cette sphère
+    correspond moins bien à ce que je cherche", pas "je fais moins confiance à la
+    vélocité ou à l'absence d'un signal", deux mécanismes indépendants du choix
+    de sphère. Voir falkye/retroaction.py:poids_pour_sphere."""
     bases = [
         base_match(m, signal.signal_type_id, registry)
         for signal in signaux_pertinents
         for m in matches_par_signal.get(signal.id, [])
         if m.profile_need.sphere_id == sphere_choisie
     ]
-    base = max(bases) if bases else BASE_A
+    base = (max(bases) if bases else BASE_A) * poids_sphere
 
     b_absence = bonus_signal_absence(company, sphere_choisie, registry)
     b_velocite = bonus_velocite(signaux_pertinents)

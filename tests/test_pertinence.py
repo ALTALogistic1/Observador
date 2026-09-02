@@ -163,6 +163,26 @@ def test_calculer_pertinence_sphere_secondaire_seule_donne_a(registry):
     assert result.niveau == NiveauPertinence.A
 
 
+def test_calculer_pertinence_poids_sphere_reduit_la_base_mais_pas_les_bonus(registry):
+    """spec section 4bis : la rétroaction ("Pas pertinent") réduit le poids de la
+    SPHÈRE, pas les bonus signal-par-absence/vélocité — deux mécanismes
+    indépendants du choix de sphère (voir docstring de calculer_pertinence)."""
+    company = _company()
+    s1 = _signal(company, "recrutement_massif", sig_id=1)
+    need = _need("financement_acces_capital")
+    match = MatchResult(profile_need=need, sphere_generique=True, correspondance_qualitative=False)
+
+    plein_poids = calculer_pertinence(company, [s1], {s1.id: [match]}, need.sphere_id, registry, poids_sphere=1.0)
+    poids_reduit = calculer_pertinence(
+        company, [s1], {s1.id: [match]}, need.sphere_id, registry, poids_sphere=0.7
+    )
+
+    assert poids_reduit.score_pertinence < plein_poids.score_pertinence
+    # Le bonus d'absence (financement_expansion absent, un seul signal présent)
+    # est identique dans les deux cas — seule la base est affectée par le poids.
+    assert poids_reduit.bonus_absence == plein_poids.bonus_absence
+
+
 def test_calculer_pertinence_absence_augmente_le_score(registry):
     """Le bonus d'absence est un tout-ou-rien dès qu'AU MOINS UN signal existe
     et que le type attendu n'y est pas (voir docstring bonus_signal_absence) —

@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from falkye import pertinence
+from falkye import pertinence, retroaction
 from falkye.db import get_session
 from falkye.enrichment import enrichir_entreprise
 from falkye.matching import MatchResult, match_profile, spheres_probables
@@ -248,6 +248,11 @@ def _traiter_entreprise_pour_profil(
             )
             company.site_web = enrichment.site_web or company.site_web
             company.site_web_vérifié_le = datetime.now(timezone.utc)
+            # Coordonnées (spec section 4bis, tableau de bord) — déjà extraites par
+            # enrichir_entreprise, simplement persistées maintenant (voir
+            # falkye/models/company.py:telephone/courriel_contact).
+            company.telephone = enrichment.coordonnees.get("telephone") or company.telephone
+            company.courriel_contact = enrichment.coordonnees.get("courriel") or company.courriel_contact
         except Exception:  # noqa: BLE001 -- l'enrichissement ne doit jamais faire planter le scan
             logger.exception("Échec de l'enrichissement web pour %s", company.nom_detecte)
 
@@ -262,8 +267,9 @@ def _traiter_entreprise_pour_profil(
     # sensibilité (Profile.sensibilite_confiance / sensibilite_pertinence) ; les
     # DEUX portes doivent s'ouvrir, sans compensation possible de l'une par l'autre.
     score_result = calculer_score(signaux_pertinents)
+    poids_sphere = retroaction.poids_pour_sphere(db_session, profile.id, sphere_choisie)
     pertinence_result = pertinence.calculer_pertinence(
-        company, signaux_pertinents, matches_par_signal, sphere_choisie, registry
+        company, signaux_pertinents, matches_par_signal, sphere_choisie, registry, poids_sphere=poids_sphere
     )
     if not franchit_seuil_sensibilite(score_result.niveau, profile.sensibilite_confiance.value):
         return None
@@ -279,6 +285,7 @@ def _traiter_entreprise_pour_profil(
         score_pertinence=pertinence_result.score_pertinence,
         niveau_pertinence=pertinence_result.niveau,
         sphere_probable_id=sphere_choisie,
+        statut_suivi_id=registry.statut_suivi_par_defaut().id,
         justification_resumee=(
             f"{len(signaux_pertinents)} signal(aux) détecté(s), "
             f"bonus de corroboration {score_result.bonus_corroboration:.0f} pts "

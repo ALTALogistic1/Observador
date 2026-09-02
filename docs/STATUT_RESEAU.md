@@ -1124,3 +1124,71 @@ fonctionnalités n'est construite dans cette mise à jour — la demande
 d'Alexandre portait explicitement sur le portail/paiement/connecteur, pas
 sur le tableau de bord. À confirmer avant d'entamer ce chantier, nettement
 plus large (interface, pas seulement moteur).
+
+## Tableau de bord et statut de suivi construits (2026-09-02)
+
+Réponse d'Alexandre sur les deux points laissés ouverts :
+
+1. **Validation réelle (TheirStack + Stripe)** : Alexandre va obtenir une clé
+   API TheirStack réelle et configurer un compte Stripe test, pour permettre
+   de valider les deux composants en conditions réelles avant de les
+   considérer terminés. Le connecteur recrutement reste `a_developper` —
+   aucun changement de statut aujourd'hui, rien à faire de plus en attendant
+   ces identifiants. Le choix de fournisseur est par ailleurs déjà tranché
+   du côté d'Alexandre (spec mise à jour, section 9bis) : **TheirStack**,
+   plutôt qu'Apify (API structurée et légale, conçue pour ce cas d'usage,
+   contre une place de marché de scrapers avec risque de conformité). Note
+   de registre mise à jour en conséquence (`agregateur_recrutement_tiers`,
+   `blocage_type` toujours `reseau`).
+2. **Tableau de bord (spec section 4bis, "Radar et Radar+ seulement")** :
+   construit. Voir `docs/ARCHITECTURE.md` pour la conception complète —
+   résumé pour ce journal ci-dessous.
+
+**Construit et testé (185/185, dont 26 nouveaux)** :
+
+- `falkye/registry/statuts_suivi.yaml` (`StatutSuiviDef`) — registre
+  extensible, même principe que `spheres.yaml` : noyau curé (à_joindre
+  [défaut], joint, premier_appel_prometteur, pas_pertinent) synchronisé vers
+  la table `StatutSuivi` (`db.seed_statuts_suivi_from_registry`), un statut
+  personnalisé pouvant s'ajouter sans migration.
+- `Notification.statut_suivi_id` — assigné au statut par défaut du registre
+  par `engine.py` pour toute NOUVELLE notification, jamais retouché pour
+  l'historique.
+- `Company.telephone` / `Company.courriel_contact` — complètent une capture
+  de donnée déjà faite par `falkye/enrichment.py` (utilisée jusqu'ici
+  seulement pour la vérification #2, jamais persistée) : pas une nouvelle
+  source, une nouvelle colonne pour une donnée déjà extraite.
+- **Rétroaction de pertinence** (`falkye/retroaction.py`,
+  `RetroactionPertinence`) : marquer une notification "Pas pertinent"
+  réduit de 0,15 (plancher 0,4, jamais 0 — "légèrement réduire") le poids
+  de sa sphère probable pour ce profil, appliqué dans
+  `falkye/pertinence.py::calculer_pertinence` à la seule base de
+  correspondance (jamais aux bonus absence/vélocité). Granularité SPHÈRE,
+  pas mot-clé — décision d'implémentation documentée dans
+  `falkye/models/retroaction_pertinence.py` (le mot-clé qualitatif exact
+  n'est aujourd'hui capturé que dans un texte libre, pas un champ
+  structuré ; l'ajouter serait une nouvelle capture de donnée). Isolé par
+  `(profile_id, sphere_id)`, jamais partagé entre profils.
+- CLI `falkye dashboard voir/statuts/statut` — cartes de dossiers
+  (pertinence, confiance, site web, coordonnées, statut de suivi), réservé
+  aux plans Radar/Radar+ (`plan=echo` → erreur explicite, testé
+  manuellement de bout en bout contre la base réelle).
+
+**Migration de la base de développement réelle** (1 profil, 311
+notifications, 26 sphères) : `notifications.statut_suivi_id`,
+`companies.telephone`, `companies.courriel_contact` ajoutées (toutes NULL
+pour l'historique — jamais de valeur inventée, principe directeur #1) ;
+tables `statuts_suivi` (peuplée, 4 lignes) et `retroaction_pertinence`
+(vide) créées via `create_all()`.
+
+**Hors de cette construction, toujours signalé** : les trois
+fonctionnalités transversales additionnelles (modèles de premier contact
+contextuels, carte géographique interactive, filtre par taille
+d'entreprise estimée) — Alexandre a explicitement accepté qu'elles
+attendent une passe séparée si le temps manquait dans celle-ci ; c'est le
+cas ici, rien construit sur ces trois points. De même pour les trois
+fonctionnalités "Radar+ professionnel/institutionnel" (accès API/webhook
+complet, pondération du moteur de score personnalisable par l'utilisateur,
+sous-comptes et territoires avec rôles) introduites par la même mise à
+jour de spec — non demandées explicitement, non construites, cohérent
+avec le report déjà accepté de Radar+ dans son ensemble.

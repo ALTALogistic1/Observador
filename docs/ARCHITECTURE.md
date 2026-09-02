@@ -413,7 +413,60 @@ mais AUCUN mécanisme de stockage/gestion de clés API par profil n'est construi
 Poserait une question architecturale non triviale (sources ajoutées PAR
 L'UTILISATEUR, donc potentiellement propres à un seul profil plutôt que globales au
 dossier cumulatif comme toute source interne aujourd'hui) volontairement non
-tranchée tant que Radar n'a pas un premier cas validé.
+tranchée tant que Radar n'a pas un premier cas validé. Les trois fonctionnalités
+Radar+ additionnelles introduites par la même mise à jour de spec (accès API/
+webhook complet, pondération du moteur de score personnalisable par l'utilisateur,
+sous-comptes/territoires avec rôles) ne sont pas non plus construites — même
+report.
+
+## Tableau de bord et statut de suivi (spec section 4bis, ajoutée le 2026-09-02)
+
+Réservé aux plans Radar/Radar+ (`falkye/cli.py::_verifier_plan_dashboard` — même
+porte que le reste du système de plans, section 9bis ci-dessus, pas un mécanisme
+séparé). Une carte par notification (`falkye dashboard voir`) : pertinence,
+confiance, site web, coordonnées d'enrichissement, statut de suivi.
+
+**Coordonnées d'enrichissement, complétées plutôt qu'ajoutées** :
+`falkye/enrichment.py::EnrichmentResult.coordonnees` extrayait déjà téléphone et
+courriel depuis 2026-08 (utilisé pour la vérification #2, spec section 6), mais
+n'étaient jamais persistés au-delà de cette vérification ponctuelle. Le tableau de
+bord en avait besoin comme donnée durable — `Company.telephone` /
+`Company.courriel_contact` (nouveaux champs, nullables) les capturent maintenant au
+même endroit que `Company.site_web` (`engine.py::_traiter_entreprise_pour_profil`),
+sans nouvelle source ni nouveau mécanisme d'extraction.
+
+**Statuts de suivi — registre extensible, même principe que les sphères de
+besoin** : `falkye/registry/statuts_suivi.yaml` (noyau curé : à_joindre [défaut],
+joint, premier_appel_prometteur, pas_pertinent) chargé par `StatutSuiviDef`
+(`registry/loader.py`), synchronisé vers la table `StatutSuivi`
+(`db.seed_statuts_suivi_from_registry`, même mécanique que `Sphere`/
+`seed_spheres_from_registry`) — un statut personnalisé (`est_personnalise=True`)
+peut s'ajouter sans migration. `Notification.statut_suivi_id` porte le statut
+courant ; `engine.py` attribue le statut par défaut du registre
+(`registry.statut_suivi_par_defaut()`) à toute NOUVELLE notification, sans jamais
+retoucher l'historique.
+
+**Rétroaction de pertinence — "un statut 'Pas pertinent' sert une double
+fonction"** (spec section 4bis, résout la question laissée en suspens le
+2026-09-01) : `StatutSuiviDef.declenche_retroaction` marque, au registre plutôt
+qu'en dur dans le moteur, le(s) statut(s) qui déclenchent
+`falkye/retroaction.py::enregistrer_pas_pertinent`. Décision d'implémentation
+documentée dans `falkye/models/retroaction_pertinence.py` : granularité SPHÈRE,
+pas mot-clé — la spec dit "mots-clés/sphères" sans préciser le mécanisme, et le
+mot-clé qualitatif exact qui a produit une correspondance AAA n'est aujourd'hui
+capturé que dans un texte libre (`NotificationSignal.justification`), pas un champ
+structuré ; l'ajouter serait une nouvelle capture de donnée, pas seulement une
+couche de calcul (contrairement au score de pertinence lui-même). `poids_pour_sphere`
+(0.4 à 1.0, jamais 0 — "légèrement réduire", jamais supprimer) est appliqué dans
+`falkye/pertinence.py::calculer_pertinence` à la SEULE base de correspondance,
+jamais aux bonus signal-par-absence/vélocité, deux mécanismes indépendants du
+choix de sphère. Isolé par `(profile_id, sphere_id)` (`RetroactionPertinence`,
+contrainte d'unicité) — la rétroaction d'un profil n'affecte jamais un autre.
+
+**Non construit dans cette passe, signalé explicitement** : les trois
+fonctionnalités transversales additionnelles de la même section de spec (modèles
+de premier contact contextuels, carte géographique interactive, filtre par taille
+d'entreprise estimée) — voir docs/STATUT_RESEAU.md pour le détail du report.
 
 ## Porte ouverte fournisseur/client (spec section 4/9)
 

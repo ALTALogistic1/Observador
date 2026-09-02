@@ -141,6 +141,16 @@ Vue tableau de bord listant les dossiers cumulatifs sous forme de pastilles/cart
 2. **Carte géographique interactive des prospects** : vue carte, pastilles de pertinence positionnées par territoire, alternative à la vue liste du tableau de bord — même donnée, présentation différente. Pertinent pour les personas dont le service est livré localement.
 3. **Filtre par taille d'entreprise estimée (nombre d'employés)** : dérivé des signaux d'embauche cumulés déjà captés (Guichet-Emplois, EIMT, section 7) et du dossier cumulatif par entreprise — nouvelle couche de calcul, pas une nouvelle source.
 
+### Fonctionnalités Radar+ — au-delà du portail ouvert, pour un vrai positionnement professionnel/institutionnel
+
+Le portail ouvert seul ne suffit pas à distinguer Radar+ comme palier professionnel — il repose sinon uniquement sur "l'utilisateur apporte ses propres sources". Trois ajouts pour combler ça :
+
+1. **Accès API/webhook complet** : pousser chaque nouveau signal (filtré par seuils de confiance/pertinence du profil) vers un système externe de l'institution plutôt que d'exiger la consultation d'un dashboard — transforme FALKYE d'un outil consulté en infrastructure intégrée aux systèmes internes du client (CRM propriétaire, ERP, système de gestion des risques).
+2. **Pondération du moteur de score personnalisable** : l'utilisateur Radar+ ajuste lui-même les poids relatifs des facteurs de pertinence (sphère, vélocité, mots-clés) selon sa propre méthodologie interne, plutôt que de subir la pondération par défaut définie par FALKYE. Cohérent avec le principe d'extensibilité déjà établi.
+3. **Sous-comptes et territoires assignés, avec rôles** : au-delà de la collaboration d'équipe simple, une structure organisationnelle — territoire/secteur assigné par sous-compte, permissions différenciées (admin/analyste/lecture seule).
+
+Notées pour une feuille de route plus lointaine, pas construites pour l'instant : rapports exportables automatisés en marque blanche, authentification SSO/SAML.
+
 ## 6. Score de confiance, score de pertinence, et sensibilité
 
 **Deux axes indépendants, pas un seul score fusionné :**
@@ -435,7 +445,7 @@ Décidée après la conception initiale de ce document — trois plans, avec un 
 
 Toute source ajoutée par un utilisateur Radar+ doit suivre le même gabarit de registre que les sources internes (section 9) — champs pertinents, méthode d'accès, sphère de besoin associée — et peut révéler une sphère de besoin non encore répertoriée dans la liste de la section 4 (ex. la sphère "Financement / accès au capital" ajoutée ci-dessus est née de ce constat, pas d'une anticipation).
 
-**Décision de priorisation (premier cas concret à construire) :** plutôt que de bâtir le portail dans l'abstrait, on le construit contre un premier cas réel. Source payante prioritaire : **agrégateur de recrutement (TheirStack ou Apify)**, pour réactiver pleinement le signal recrutement au-delà de Guichet-Emplois/EIMT, au bénéfice du persona agences de recrutement (Radar). Solution de paiement retenue pour la couche Radar : **Stripe**, choix standard pour ce type de produit au Canada, pas de comparatif de solutions alternatives requis. Le choix précis entre TheirStack et Apify reste ouvert (comparatif de prix en cours) et ne bloque pas la construction de l'architecture de portail elle-même.
+**Décision de priorisation (premier cas concret à construire) :** plutôt que de bâtir le portail dans l'abstrait, on le construit contre un premier cas réel. Source payante prioritaire : **agrégateur de recrutement, fournisseur TheirStack confirmé** (choisi plutôt qu'Apify — API structurée et légale, conçue pour ce cas d'usage précis, vs une place de marché de scrapers avec risque de conformité aux conditions d'utilisation des plateformes sources), pour réactiver pleinement le signal recrutement au-delà de Guichet-Emplois/EIMT, au bénéfice du persona agences de recrutement (Radar) et de tous les personas qui utilisent la vitesse/le volume d'embauche comme signal croisé secondaire. Solution de paiement retenue pour la couche Radar : **Stripe**, choix standard pour ce type de produit au Canada.
 
 
 

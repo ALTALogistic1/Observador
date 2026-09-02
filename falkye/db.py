@@ -79,3 +79,22 @@ def seed_spheres_from_registry() -> None:
         session.commit()
     finally:
         session.close()
+
+
+def seed_statuts_suivi_from_registry() -> None:
+    """Synchronise la table StatutSuivi avec le registre YAML (statuts_suivi.yaml),
+    sans jamais toucher aux statuts personnalisés ajoutés par les utilisateurs
+    (est_personnalise=True) — même principe que seed_spheres_from_registry."""
+    from falkye.models.statut_suivi import StatutSuivi
+    from falkye.registry.loader import get_registry
+
+    registry = get_registry()
+    session = get_session()
+    try:
+        existing_ids = {s.id for s in session.query(StatutSuivi.id).all()}
+        for statut_def in registry.statuts_suivi.values():
+            if statut_def.id not in existing_ids:
+                session.add(StatutSuivi(id=statut_def.id, nom=statut_def.nom, est_personnalise=False))
+        session.commit()
+    finally:
+        session.close()

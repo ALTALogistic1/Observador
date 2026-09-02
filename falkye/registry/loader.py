@@ -126,6 +126,24 @@ class SphereDef:
 
 
 @dataclass(frozen=True)
+class StatutSuiviDef:
+    """Statut de suivi du tableau de bord (spec section 4bis, ajoutée le
+    2026-09-02, "Radar et Radar+ seulement") — même principe d'extensibilité que
+    SphereDef : le noyau curé vit ici, les statuts proposés par les utilisateurs
+    vivent en base (falkye/models/statut_suivi.py::StatutSuivi,
+    est_personnalise=True)."""
+
+    id: str
+    nom: str
+    est_defaut: bool = False
+    # Spec : "un statut 'Pas pertinent' sert... de signal de rétroaction pour le
+    # moteur de pertinence" — champ de registre plutôt qu'un id figé en dur dans
+    # le moteur (falkye/retroaction.py), pour qu'un futur deuxième statut de
+    # rétroaction n'exige aucune modification de code.
+    declenche_retroaction: bool = False
+
+
+@dataclass(frozen=True)
 class NotificationChannelDef:
     id: str
     nom: str
@@ -159,6 +177,7 @@ class Registry:
     signal_types: dict[str, SignalTypeDef] = field(default_factory=dict)
     spheres: dict[str, SphereDef] = field(default_factory=dict)
     notification_channels: dict[str, NotificationChannelDef] = field(default_factory=dict)
+    statuts_suivi: dict[str, StatutSuiviDef] = field(default_factory=dict)
 
     def sources_actives(self) -> list[SourceDef]:
         """TOUTES les sources actives, y compris celles en import manuel (utile
@@ -190,6 +209,23 @@ class Registry:
 
     def sphere(self, sphere_id: str) -> SphereDef | None:
         return self.spheres.get(sphere_id)
+
+    def statut_suivi(self, statut_id: str) -> StatutSuiviDef | None:
+        return self.statuts_suivi.get(statut_id)
+
+    def statut_suivi_par_defaut(self) -> StatutSuiviDef:
+        """Le statut attribué à toute notification nouvellement créée (spec
+        section 4bis) — validé unique par valider_calibration ci-dessous."""
+        for s in self.statuts_suivi.values():
+            if s.est_defaut:
+                return s
+        raise ValueError(
+            "Aucun statut de suivi par défaut (est_defaut: true) dans "
+            "registry/statuts_suivi.yaml."
+        )
+
+    def statuts_suivi_declencheurs_retroaction(self) -> list[StatutSuiviDef]:
+        return [s for s in self.statuts_suivi.values() if s.declenche_retroaction]
 
     def valider_calibration(self) -> None:
         """Applique le principe directeur non négociable : aucune source active
@@ -223,17 +259,27 @@ def load_registry() -> Registry:
     signals_raw = _load_yaml("signal_types.yaml")["signal_types"]
     spheres_raw = _load_yaml("spheres.yaml")["spheres"]
     channels_raw = _load_yaml("notification_channels.yaml")["channels"]
+    statuts_suivi_raw = _load_yaml("statuts_suivi.yaml")["statuts_suivi"]
 
     sources = {s["id"]: SourceDef(**s) for s in sources_raw}
     signal_types = {s["id"]: SignalTypeDef(**s) for s in signals_raw}
     spheres = {s["id"]: SphereDef(**s) for s in spheres_raw}
     notification_channels = {c["id"]: NotificationChannelDef(**c) for c in channels_raw}
+    statuts_suivi = {s["id"]: StatutSuiviDef(**s) for s in statuts_suivi_raw}
+
+    nb_defauts = sum(1 for s in statuts_suivi.values() if s.est_defaut)
+    if nb_defauts != 1:
+        raise ValueError(
+            f"registry/statuts_suivi.yaml doit déclarer EXACTEMENT un statut "
+            f"est_defaut: true (trouvé {nb_defauts})."
+        )
 
     return Registry(
         sources=sources,
         signal_types=signal_types,
         spheres=spheres,
         notification_channels=notification_channels,
+        statuts_suivi=statuts_suivi,
     )
 
 

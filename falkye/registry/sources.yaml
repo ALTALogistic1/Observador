@@ -886,16 +886,17 @@ sources:
       public.
 
   - id: agregateur_recrutement_tiers
-    nom: "Agrégateur tiers LinkedIn/Indeed (ex. TheirStack, Apify)"
+    nom: "Agrégateur tiers de recrutement — TheirStack (confirmé)"
     signal_associe: [recrutement_massif]
     statut: a_developper
     # Le blocage n'est plus BUDGÉTAIRE (spec section 9bis, décision d'Alexandre du
     # 2026-09-02 : le plan Radar/Stripe finance cette source) — mais un vrai
-    # blocage RÉSEAU demeure : theirstack.com et apify.com sont bloqués par le
-    # proxy de sortie de cet environnement de développement (même classe que
+    # blocage RÉSEAU demeure : theirstack.com est bloqué par le proxy de sortie
+    # de cet environnement de développement (même classe que
     # registreentreprises.gouv.qc.ca pour le REQ, voir docs/STATUT_RESEAU.md), et
-    # aucune clé API réelle n'existe encore tant que le choix précis du
-    # fournisseur (comparatif de prix en cours) n'est pas tranché.
+    # aucune clé API réelle n'existe encore — Alexandre s'est engagé (2026-09-02)
+    # à en obtenir une et à configurer un compte Stripe test pour permettre la
+    # validation réelle des deux composants avant de les considérer terminés.
     blocage_type: reseau
     methode_acces: agregateur_tiers
     champs_pertinents:
@@ -930,15 +931,22 @@ sources:
       recherche d'emploi. Indeed : Publisher API fermée depuis 2025/2026 — d'où
       le passage par un agrégateur tiers plutôt qu'un accès direct.
 
-      Connecteur générique construit (falkye/sources/agregateur_recrutement.py :
-      interface FournisseurAgregateur, implémentations TheirStack et Apify) mais
-      NON VALIDÉ contre un vrai appel — theirstack.com et apify.com sont bloqués
-      par le proxy réseau de cet environnement de développement, et le choix
-      précis entre les deux fournisseurs reste ouvert (comparatif de prix
-      d'Alexandre en cours, communiqué comme non bloquant pour cette
-      construction). Statut volontairement laissé à `a_developper` (jamais
-      `actif`) tant que ce choix n'est pas tranché et qu'un vrai appel n'a pas
-      confirmé la forme réelle de la réponse — voir docs/STATUT_RESEAU.md.
+      Fournisseur TRANCHÉ le 2026-09-02 : TheirStack plutôt qu'Apify — API
+      structurée et légale, conçue spécifiquement pour ce cas d'usage, contre
+      une place de marché de scrapers (Apify) avec risque de conformité aux
+      conditions d'utilisation des plateformes sources. `ApifyActeurGeneriqueProvider`
+      reste dans falkye/sources/agregateur_recrutement.py (interface
+      FournisseurAgregateur déjà générique par fournisseur) mais n'est plus le
+      chemin prioritaire.
+
+      Connecteur générique construit (falkye/sources/agregateur_recrutement.py)
+      mais NON VALIDÉ contre un vrai appel — theirstack.com est bloqué par le
+      proxy réseau de cet environnement de développement, et aucune clé API
+      réelle n'existe encore. Statut volontairement laissé à `a_developper`
+      (jamais `actif`) jusqu'à ce qu'Alexandre fournisse une clé TheirStack
+      réelle et un compte Stripe test, permettant de valider les deux
+      composants en conditions réelles avant de les considérer terminés — voir
+      docs/STATUT_RESEAU.md.
 
   - id: pme_mtl_futurpreneur_evol_mosaique
     nom: "PME MTL / Futurpreneur / EVOL / Fonds Mosaïque"

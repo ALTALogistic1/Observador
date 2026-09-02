@@ -148,9 +148,22 @@ python -m falkye.cli billing definir-plan --profile-id 1 --plan radar  # bascule
 ```
 
 Première source construite contre le plan Radar : l'agrégateur de recrutement
-tiers (`agregateur_recrutement_tiers` dans le registre — TheirStack ou Apify,
-choix en cours). **Non validé contre un vrai appel ni un vrai compte Stripe** dans
-cet environnement de développement — voir `docs/STATUT_RESEAU.md`.
+tiers (`agregateur_recrutement_tiers` dans le registre — fournisseur TheirStack
+confirmé). **Non validé contre un vrai appel ni un vrai compte Stripe** dans cet
+environnement de développement — voir `docs/STATUT_RESEAU.md`.
+
+## Tableau de bord et statut de suivi (spec section 4bis, Radar/Radar+ seulement)
+
+```bash
+python -m falkye.cli dashboard voir --profile-id 1     # cartes de dossiers (refuse un profil Écho)
+python -m falkye.cli dashboard statuts                  # statuts de suivi disponibles
+python -m falkye.cli dashboard statut --notification-id 42 --statut pas_pertinent
+```
+
+Marquer une notification "Pas pertinent" déclenche automatiquement la rétroaction
+de pertinence (spec section 6) — réduit légèrement le poids de la sphère
+correspondante pour les prochaines notifications de ce profil, jamais en dessous
+d'un plancher. Voir `docs/ARCHITECTURE.md` pour le détail.
 
 ## Tests
 

@@ -65,11 +65,21 @@ class Notification(Base):
     sphere_probable_id: Mapped[str | None] = mapped_column(ForeignKey("spheres.id"), nullable=True)
     justification_resumee: Mapped[str] = mapped_column(Text, nullable=False)
 
+    # Statut de suivi du tableau de bord (spec section 4bis, "Radar et Radar+
+    # seulement", ajoutée le 2026-09-02) — propre à l'utilisateur, distinct des
+    # deux axes confiance/pertinence ci-dessus. Nullable pour les notifications
+    # antérieures à cette fonctionnalité (jamais de valeur inventée pour combler
+    # l'historique, principe directeur #1) ; falkye/engine.py attribue le statut
+    # par défaut du registre (registry/statuts_suivi.yaml) à toute NOUVELLE
+    # notification, mais ne retouche jamais l'historique existant.
+    statut_suivi_id: Mapped[str | None] = mapped_column(ForeignKey("statuts_suivi.id"), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     inclus_dans_resume: Mapped[bool] = mapped_column(default=False)
 
     company = relationship("Company", back_populates="notifications")
     profile = relationship("Profile")
+    statut_suivi = relationship("StatutSuivi")
     signaux_contributifs: Mapped[list["NotificationSignal"]] = relationship(
         back_populates="notification", cascade="all, delete-orphan"
     )
