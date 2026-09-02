@@ -5,7 +5,7 @@ import pytest
 from falkye.registry.loader import Registry, SourceDef, load_registry
 
 
-def _source(id_, statut, regle_calibration=None):
+def _source(id_, statut, regle_calibration=None, plan_minimum="echo"):
     return SourceDef(
         id=id_,
         nom=id_,
@@ -18,6 +18,7 @@ def _source(id_, statut, regle_calibration=None):
         region=None,
         connecteur=None,
         regle_calibration=regle_calibration,
+        plan_minimum=plan_minimum,
     )
 
 
@@ -48,3 +49,33 @@ def test_valider_calibration_ok_si_source_active_avec_regle():
 def test_valider_calibration_ignore_les_sources_non_actives_sans_regle():
     registry = Registry(sources={"x": _source("x", "a_developper", regle_calibration=None)})
     registry.valider_calibration()  # une source a_developper peut ne pas avoir de règle
+
+
+# --- Structure de plans tarifaires (spec section 9bis) ---
+
+
+def test_plan_minimum_par_defaut_est_echo():
+    source = _source("x", "actif")
+    assert source.plan_minimum == "echo"
+    assert source.disponible_pour_plan("echo")
+
+
+def test_source_echo_disponible_pour_tous_les_plans():
+    source = _source("x", "actif", plan_minimum="echo")
+    assert source.disponible_pour_plan("echo")
+    assert source.disponible_pour_plan("radar")
+    assert source.disponible_pour_plan("radar_plus")
+
+
+def test_source_radar_indisponible_pour_echo_mais_disponible_pour_radar_plus():
+    source = _source("x", "actif", plan_minimum="radar")
+    assert not source.disponible_pour_plan("echo")
+    assert source.disponible_pour_plan("radar")
+    assert source.disponible_pour_plan("radar_plus")
+
+
+def test_source_radar_plus_disponible_seulement_pour_radar_plus():
+    source = _source("x", "actif", plan_minimum="radar_plus")
+    assert not source.disponible_pour_plan("echo")
+    assert not source.disponible_pour_plan("radar")
+    assert source.disponible_pour_plan("radar_plus")

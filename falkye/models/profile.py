@@ -31,6 +31,25 @@ class Sensibilite(str, enum.Enum):
     ELEVE = "eleve"
 
 
+class PlanTarifaire(str, enum.Enum):
+    """Structure à trois plans (spec section 9bis, 2026-09-02) — un seul portail de
+    sources payantes sous-jacent (falkye/registry/loader.py::SourceDef.
+    plan_minimum), deux couches par-dessus :
+      - ÉCHO : sources gratuites uniquement (le registre au grand complet à ce jour).
+      - RADAR : Écho + sous-ensemble de sources payantes choisies par nous, paiement
+        intégré (falkye/billing/stripe_client.py) — nous payons et gérons l'accès.
+      - RADAR_PLUS : Radar + n'importe quelle source payante externe déjà possédée
+        par l'utilisateur, via ses propres clés API. Valeur acceptée dès maintenant
+        (porte ouverte au niveau du modèle/registre, comme TypeProfil dès la Phase 1)
+        mais le mécanisme de gestion de clés utilisateur n'est PAS construit tant que
+        Radar n'a pas été validé avec un premier cas payant réel (décision
+        d'Alexandre, 2026-09-02) — voir docs/STATUT_RESEAU.md."""
+
+    ECHO = "echo"
+    RADAR = "radar"
+    RADAR_PLUS = "radar_plus"
+
+
 class Profile(Base):
     __tablename__ = "profiles"
 
@@ -60,6 +79,15 @@ class Profile(Base):
     )
     sensibilite_pertinence: Mapped[Sensibilite] = mapped_column(
         Enum(Sensibilite, native_enum=False), nullable=False, default=Sensibilite.MOYEN
+    )
+
+    # Structure de plans tarifaires (spec section 9bis) — gouverne quels signaux
+    # (via SourceDef.plan_minimum) entrent en ligne de compte pour CE profil dans
+    # falkye/engine.py, en plus des deux portes confiance/pertinence ci-dessus.
+    # Changé normalement par falkye/billing/stripe_client.py (webhook d'abonnement),
+    # jamais directement par l'utilisateur.
+    plan: Mapped[PlanTarifaire] = mapped_column(
+        Enum(PlanTarifaire, native_enum=False), nullable=False, default=PlanTarifaire.ECHO
     )
 
     created_at: Mapped[datetime] = mapped_column(default=utcnow)

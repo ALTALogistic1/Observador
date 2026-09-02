@@ -889,15 +889,56 @@ sources:
     nom: "Agrégateur tiers LinkedIn/Indeed (ex. TheirStack, Apify)"
     signal_associe: [recrutement_massif]
     statut: a_developper
-    blocage_type: budgetaire
+    # Le blocage n'est plus BUDGÉTAIRE (spec section 9bis, décision d'Alexandre du
+    # 2026-09-02 : le plan Radar/Stripe finance cette source) — mais un vrai
+    # blocage RÉSEAU demeure : theirstack.com et apify.com sont bloqués par le
+    # proxy de sortie de cet environnement de développement (même classe que
+    # registreentreprises.gouv.qc.ca pour le REQ, voir docs/STATUT_RESEAU.md), et
+    # aucune clé API réelle n'existe encore tant que le choix précis du
+    # fournisseur (comparatif de prix en cours) n'est pas tranché.
+    blocage_type: reseau
     methode_acces: agregateur_tiers
-    champs_pertinents: []
-    cout: "Payant, variable selon fournisseur"
+    champs_pertinents:
+      - nom_employeur
+      - titre_poste
+      - description_offre
+      - ville
+      - region
+      - date_publication
+      - url_offre
+    cout: "Payant, variable selon fournisseur — absorbé par l'abonnement Radar (paiement intégré Stripe), pas facturé à l'unité à l'utilisateur"
     region: "Canada/international"
-    connecteur: null
+    connecteur: falkye.sources.agregateur_recrutement
+    plan_minimum: radar
+    regle_calibration: >
+      Recherche par mots-clés de transformation/implantation
+      (falkye/matching.py:MOTS_CLES_TRANSFORMATION), même liste que le signal
+      qualitatif Signal 3 — filtre le volume à la source plutôt que de rapatrier
+      l'ensemble du marché d'un fournisseur payant. Une fois ingéré, le signal
+      suit exactement le même barème que Guichet-Emplois/EIMT
+      (falkye/scoring.py:_score_recrutement_massif) — pas de traitement spécial
+      par fournisseur au-delà de la normalisation d'entrée
+      (falkye/sources/agregateur_recrutement.py).
     notes: >
-      LinkedIn : aucune API publique de recherche d'emploi. Indeed : Publisher API fermée
-      depuis 2025/2026. Décision budgétaire laissée à Alexandre.
+      Première source payante construite contre le plan Radar (spec section 9bis,
+      décision d'Alexandre du 2026-09-02) : réactive pleinement le signal
+      recrutement au-delà de Guichet-Emplois (couverture partielle, offres
+      souvent expirées avant consultation — voir
+      falkye/sources/guichet_emplois.py) et EIMT positive (ne couvre que le
+      recours à des travailleurs étrangers temporaires), au bénéfice notamment du
+      persona agences de recrutement. LinkedIn : aucune API publique de
+      recherche d'emploi. Indeed : Publisher API fermée depuis 2025/2026 — d'où
+      le passage par un agrégateur tiers plutôt qu'un accès direct.
+
+      Connecteur générique construit (falkye/sources/agregateur_recrutement.py :
+      interface FournisseurAgregateur, implémentations TheirStack et Apify) mais
+      NON VALIDÉ contre un vrai appel — theirstack.com et apify.com sont bloqués
+      par le proxy réseau de cet environnement de développement, et le choix
+      précis entre les deux fournisseurs reste ouvert (comparatif de prix
+      d'Alexandre en cours, communiqué comme non bloquant pour cette
+      construction). Statut volontairement laissé à `a_developper` (jamais
+      `actif`) tant que ce choix n'est pas tranché et qu'un vrai appel n'a pas
+      confirmé la forme réelle de la réponse — voir docs/STATUT_RESEAU.md.
 
   - id: pme_mtl_futurpreneur_evol_mosaique
     nom: "PME MTL / Futurpreneur / EVOL / Fonds Mosaïque"

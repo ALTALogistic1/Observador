@@ -16,6 +16,7 @@ from falkye.models.req_etablissement_entry import REQEtablissementEntry  # noqa:
 from falkye.models.run_log import SourceRunLog  # noqa: F401
 from falkye.models.signal import Signal  # noqa: F401
 from falkye.models.sphere import Sphere  # noqa: F401
+from falkye.models.subscription import Subscription  # noqa: F401
 
 __all__ = [
     "Base",
@@ -33,4 +34,5 @@ __all__ = [
     "SourceRunLog",
     "Signal",
     "Sphere",
+    "Subscription",
 ]

@@ -16,6 +16,13 @@ import yaml
 
 REGISTRY_DIR = Path(__file__).parent
 
+# Structure de plans tarifaires (spec section 9bis) — un seul portail sous-jacent,
+# deux couches par-dessus (Radar : paiement intégré ; Radar+ : clés API utilisateur),
+# donc un seul ordre linéaire plutôt que des ensembles disjoints. Valeurs répétées
+# dans falkye/models/profile.py::PlanTarifaire (SQLAlchemy) — celle-ci est la
+# référence côté registre, indépendante du modèle de données.
+PLANS_TARIFAIRES = ("echo", "radar", "radar_plus")
+
 
 def _load_yaml(filename: str) -> dict[str, Any]:
     path = REGISTRY_DIR / filename
@@ -47,6 +54,15 @@ class SourceDef:
     # "import_manuel", pour que le système présente à l'utilisateur le bon endroit où
     # faire sa recherche ponctuelle plutôt que la page d'accueil générique du site.
     lien_recherche: str | None = None
+    # Structure de plans tarifaires (spec section 9bis, 2026-09-02) : plan minimal
+    # requis pour qu'un PROFIL reçoive une notification bâtie (en tout ou en partie)
+    # sur un signal de cette source — "echo" (défaut, sources gratuites) / "radar"
+    # (payant, géré par nous) / "radar_plus" (payant, clé API fournie par
+    # l'utilisateur — mécanisme de gestion de clés non encore construit, voir
+    # docs/STATUT_RESEAU.md). N'affecte QUE la sélection de signaux par profil
+    # (falkye/engine.py) — jamais l'ingestion elle-même, qui reste globale au
+    # dossier cumulatif (spec section 5) comme pour toute autre source.
+    plan_minimum: str = "echo"
 
     @property
     def est_actif(self) -> bool:
@@ -55,6 +71,12 @@ class SourceDef:
     @property
     def est_import_manuel(self) -> bool:
         return self.methode_acces == "import_manuel"
+
+    def disponible_pour_plan(self, plan: str) -> bool:
+        """Est-ce qu'un profil sur `plan` peut recevoir un signal de cette source ?
+        Plans strictement ordonnés (echo < radar < radar_plus, spec section 9bis) —
+        un plan supérieur inclut toujours tout ce qu'offre un plan inférieur."""
+        return PLANS_TARIFAIRES.index(plan) >= PLANS_TARIFAIRES.index(self.plan_minimum)
 
     def charger_connecteur(self):
         """Importe et instancie la classe SourceConnector associée.

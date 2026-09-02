@@ -131,6 +131,27 @@ python -m falkye.cli notifications list
 python -m falkye.cli resume envoyer --profile-id 1 --jours 7
 ```
 
+## Plans tarifaires et paiement (spec section 9bis)
+
+Trois plans — **Écho** (gratuit, sources ouvertes uniquement), **Radar** (Écho +
+sources payantes choisies par nous, paiement intégré Stripe), **Radar+** (Radar +
+clés API de l'utilisateur — mécanisme de gestion de clés délibérément différé,
+voir `docs/ARCHITECTURE.md`). Un seul portail sous-jacent : chaque source porte un
+`plan_minimum` dans le registre (`falkye registry sources`), appliqué par le
+moteur au moment de générer les notifications, pas à l'ingestion.
+
+```bash
+python -m falkye.cli billing radar-checkout --profile-id 1   # URL de la session Stripe Checkout
+python -m falkye.cli billing statut --profile-id 1           # plan effectif + état de l'abonnement Stripe
+python -m falkye.cli billing traiter-webhook --fichier evenement.json  # applique un événement Stripe obtenu hors ligne
+python -m falkye.cli billing definir-plan --profile-id 1 --plan radar  # bascule manuelle (tests, sans Stripe réel)
+```
+
+Première source construite contre le plan Radar : l'agrégateur de recrutement
+tiers (`agregateur_recrutement_tiers` dans le registre — TheirStack ou Apify,
+choix en cours). **Non validé contre un vrai appel ni un vrai compte Stripe** dans
+cet environnement de développement — voir `docs/STATUT_RESEAU.md`.
+
 ## Tests
 
 ```bash

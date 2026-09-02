@@ -359,6 +359,62 @@ historiques (antérieures à cette restructuration) ont `score_pertinence`/
 `niveau_pertinence` = `NULL` — jamais de valeur inventée pour combler l'historique
 (principe directeur #1) ; affiché comme "non disponible" plutôt qu'un palier.
 
+## Structure de plans tarifaires et portail de sources payantes (spec section 9bis)
+
+Trois plans (`falkye/models/profile.py::PlanTarifaire`) — ÉCHO / RADAR / RADAR_PLUS,
+strictement ordonnés (`falkye/registry/loader.py::PLANS_TARIFAIRES`) — mais **un seul
+mécanisme sous-jacent**, pas trois architectures distinctes :
+
+- Chaque `SourceDef` porte un `plan_minimum` (`registry/sources.yaml`, défaut
+  `echo`) — le plan requis pour qu'un PROFIL reçoive une notification bâtie (en
+  tout ou en partie) sur un signal de cette source.
+- `falkye/engine.py::_traiter_entreprise_pour_profil` applique une TROISIÈME porte,
+  indépendante des deux axes confiance/pertinence (spec section 6) : un signal dont
+  la source exige un plan supérieur à celui du profil est ignoré pour CE profil,
+  avant même le matching. Filtré à la SÉLECTION, pas à l'INGESTION : un signal
+  Radar reste ingéré une seule fois dans le dossier cumulatif global (spec section
+  5) et profite à TOUS les profils Radar/Radar+, pas seulement à celui qui a
+  "payé" pour le déclencher — même principe que toute autre source.
+
+**Premier cas concret construit contre cette architecture** (décision d'Alexandre,
+2026-09-02, plutôt que de bâtir le portail dans l'abstrait) :
+`falkye/sources/agregateur_recrutement.py` — connecteur générique par fournisseur
+(interface `FournisseurAgregateur`, implémentations `TheirStackProvider` et
+`ApifyActeurGeneriqueProvider`, le fournisseur actif choisi par variable
+d'environnement, jamais codé en dur) pour un agrégateur tiers de recrutement
+(LinkedIn/Indeed n'ont aucune API publique de recherche). Réactive le signal
+recrutement au-delà de Guichet-Emplois/EIMT (spec section 7, Signal 3), au bénéfice
+du persona agences de recrutement. **NON VALIDÉ contre un vrai appel** — voir
+docs/STATUT_RESEAU.md pour le détail (domaines bloqués par le proxy réseau de cet
+environnement, choix de fournisseur non encore tranché) ; `plan_minimum: radar`
+dans le registre, statut resté `a_developper`.
+
+**Paiement intégré (couche propre à Radar) — `falkye/billing/stripe_client.py`** :
+isole tout le SDK Stripe dans un seul module, jamais importé ailleurs, pour que la
+logique d'attribution de plan (`traiter_evenement_webhook`) reste testable sans
+réseau. `creer_session_paiement_radar` crée une session Stripe Checkout ;
+`traiter_evenement_webhook` synchronise `Subscription` (`falkye/models/
+subscription.py`, l'état Stripe brut) vers `Profile.plan` (l'état effectif utilisé
+par le moteur) à chaque événement. `verifier_signature_webhook` est séparée de
+`traiter_evenement_webhook` pour que ce dernier reste appelable sur un événement
+obtenu autrement qu'un vrai point de terminaison HTTP public (aucun des deux —
+compte Stripe réel, point de terminaison déployé — n'existe encore dans cet
+environnement) : `falkye billing traiter-webhook --fichier` applique un événement
+JSON déjà obtenu (ex. depuis le tableau de bord Stripe) SANS vérification de
+signature, en confiance explicite plutôt qu'implicite — même principe que l'import
+manuel (spec section 9) appliqué à un webhook plutôt qu'à un document source.
+
+**Radar+ (gestion de clés API utilisateur) — délibérément DIFFÉRÉ** (décision
+d'Alexandre, 2026-09-02 : "peut suivre la même architecture de portail une fois la
+version Radar validée... pas besoin de construire les deux en parallèle") : la
+valeur `PlanTarifaire.RADAR_PLUS` et `plan_minimum: radar_plus` existent déjà au
+niveau du modèle/registre (même porte ouverte que `TypeProfil` dès la Phase 1),
+mais AUCUN mécanisme de stockage/gestion de clés API par profil n'est construit.
+Poserait une question architecturale non triviale (sources ajoutées PAR
+L'UTILISATEUR, donc potentiellement propres à un seul profil plutôt que globales au
+dossier cumulatif comme toute source interne aujourd'hui) volontairement non
+tranchée tant que Radar n'a pas un premier cas validé.
+
 ## Porte ouverte fournisseur/client (spec section 4/9)
 
 `Profile.type_profil` existe dès la Phase 1 (`fournisseur` / `client` / `les_deux`),

@@ -1,8 +1,9 @@
 """Moteur central — spec section 9 : boucle sur les sources actives du registre,
 jamais une source codée en dur ici. Orchestre le pipeline complet (spec section 1) :
 détection → résolution NEQ/REQ → dossier cumulatif → vérifications de base →
-score de confiance ET score de pertinence (deux axes indépendants, spec section 6
-restructurée) → enrichissement web → notification.
+plan tarifaire du profil (spec section 9bis) → score de confiance ET score de
+pertinence (deux axes indépendants, spec section 6 restructurée) →
+enrichissement web → notification.
 
 Ajouter une source, un type de signal ou un canal de notification ne demande AUCUNE
 modification de ce fichier — seulement une nouvelle entrée dans le registre
@@ -182,6 +183,16 @@ def _traiter_entreprise_pour_profil(
     meilleur_global: tuple[float, MatchResult] | None = None  # (base_pertinence, match) — voir plus bas
 
     for signal in company.signals:
+        # Troisième porte, indépendante des deux axes confiance/pertinence
+        # ci-dessous (spec section 9bis) : un signal d'une source payante ne
+        # compte pour CE profil que si son plan tarifaire le couvre — filtré ICI,
+        # avant même le matching, plutôt qu'à l'ingestion (qui reste globale au
+        # dossier cumulatif, spec section 5 : un signal Radar ingéré profite à
+        # TOUS les profils Radar/Radar+, pas seulement celui qui l'a "payé").
+        source_def = registry.sources.get(signal.source_id)
+        if source_def is not None and not source_def.disponible_pour_plan(profile.plan.value):
+            continue
+
         raw = _signal_vers_rawsignal(signal)
         matches = match_profile(raw, profile, registry)
         if not matches:

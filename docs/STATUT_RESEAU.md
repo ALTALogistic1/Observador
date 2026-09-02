@@ -1037,3 +1037,90 @@ paiement ni aucune source payante n'est encore branché au produit pour
 servir de premier cas concret à construire contre. Question à poser à
 Alexandre avant tout travail d'architecture sur ce point (voir le message de
 suivi de cette session).
+
+## Portail Radar/Radar+ construit contre un premier cas concret (2026-09-02)
+
+Réponse d'Alexandre à la question de portée ci-dessus : priorité à l'option 1
+(construire contre un cas réel plutôt que dans l'abstrait). Décisions :
+première source payante = agrégateur de recrutement tiers (TheirStack ou
+Apify, choix précis en attente d'un comparatif de prix — non bloquant) ;
+solution de paiement pour Radar = Stripe, tranchée directement sans
+comparatif ; Radar+ (gestion de clés API utilisateur) explicitement différé
+à une session future, une fois Radar validé avec ce premier cas.
+
+**Architecture livrée** (voir `docs/ARCHITECTURE.md` pour le détail) :
+
+- `SourceDef.plan_minimum` (registre) + `Profile.plan` (`PlanTarifaire` :
+  ECHO/RADAR/RADAR_PLUS, `falkye/models/profile.py`) — troisième porte dans
+  `falkye/engine.py`, indépendante des deux axes confiance/pertinence,
+  appliquée à la SÉLECTION des signaux par profil, jamais à l'ingestion
+  (qui reste globale au dossier cumulatif, comme toute source).
+- `falkye/sources/agregateur_recrutement.py` — connecteur générique par
+  fournisseur (interface `FournisseurAgregateur`, `TheirStackProvider` et
+  `ApifyActeurGeneriqueProvider`, sélection par variable d'environnement).
+  L'entrée `agregateur_recrutement_tiers` du registre (déjà présente comme
+  placeholder budgétaire, spec section 8) est mise à jour : `plan_minimum:
+  radar`, `connecteur` pointé vers le nouveau module, `blocage_type` passé
+  de `budgetaire` à `reseau` (le financement n'est plus le blocage — un vrai
+  blocage réseau/fournisseur demeure, voir plus bas).
+- `falkye/billing/stripe_client.py` — paiement intégré Stripe : session
+  Checkout (`creer_session_paiement_radar`), traitement d'événement webhook
+  déjà décodé (`traiter_evenement_webhook`, séparé de la vérification de
+  signature pour rester testable et utilisable sans point de terminaison
+  HTTP public), synchronisation `Subscription` (nouveau modèle, état Stripe
+  brut) → `Profile.plan` (état effectif). Commandes CLI : `billing
+  radar-checkout`, `billing statut`, `billing traiter-webhook --fichier`
+  (chemin manuel, même principe que l'import manuel appliqué à un webhook),
+  `billing definir-plan` (bascule manuelle pour tester sans Stripe réel).
+
+**NON VALIDÉ contre du réel, sur les deux fronts, et documenté comme tel** :
+
+- Agrégateur de recrutement : `theirstack.com` et `apify.com` sont bloqués
+  par le proxy de sortie réseau de cet environnement de développement (même
+  classe de blocage que `registreentreprises.gouv.qc.ca` pour le REQ — voir
+  plus haut dans ce fichier), et aucune clé API réelle n'existe de toute
+  façon tant que le choix précis du fournisseur n'est pas tranché. La forme
+  exacte de la réponse (`_normaliser_theirstack`, `_normaliser_apify`) est
+  construite d'après des résumés de documentation publique, avec tolérance à
+  plusieurs noms de champs plausibles plutôt qu'une seule hypothèse figée —
+  jamais confirmée par un vrai appel. Source laissée `a_developper` dans le
+  registre, jamais `actif`, jusqu'à validation réelle.
+- Paiement Stripe : aucun compte Stripe réel disponible dans cet
+  environnement — `falkye/billing/stripe_client.py` est construit et testé
+  unitairement contre le SDK Stripe mocké (`tests/test_billing.py`), jamais
+  exécuté contre une vraie session de paiement ni un vrai webhook livré à un
+  point de terminaison public (qui n'existe pas non plus encore).
+
+**Bogue réel trouvé et corrigé en migrant la base de développement** :
+`falkye/models/profile.py::Sensibilite` (`Enum(..., native_enum=False)` sans
+`values_callable`) stocke le NOM du membre Python (`"MOYEN"`, majuscules),
+pas sa valeur (`"moyen"`) — confirmé en confrontant les colonnes déjà
+peuplées par l'ORM (`sensibilite_confiance`, `niveau_confiance` : bien
+`"MOYEN"`/`"ELEVE"` en majuscules dans la vraie base). La migration de
+pertinence du 2026-09-01 avait inséré `sensibilite_pertinence='moyen'` en
+minuscule par script SQL brut — valide en lecture SQL directe (vérifié à
+l'époque), mais silencieusement CASSÉ pour toute lecture via l'ORM
+(`LookupError`), jamais remarqué faute d'avoir rechargé ce profil via
+`Profile`/SQLAlchemy après cette migration. Trouvé en migrant la base pour
+cette mise à jour (`plan` aurait reproduit exactement la même erreur si non
+corrigé avant commit) ; corrigé directement dans `data/falkye.sqlite3`
+(`sensibilite_pertinence` et `plan` remis en majuscules) et vérifié par une
+relecture ORM complète du profil réel et de ses 311 notifications.
+
+**Migration de la base de développement réelle** (1 profil, 311
+notifications) : `profiles.plan` ajoutée (`'ECHO'`, valeur réelle — aucun
+profil n'était Radar/Radar+ avant cette structure, pas une valeur inventée) ;
+table `subscriptions` créée via `create_all()` (vide, aucun abonnement réel).
+
+**Hors de cette construction, signalé explicitement** : le document de specs
+mis à jour (section "Tableau de bord et statut de suivi — Radar et Radar+
+seulement") introduit, en plus de la structure de plans ci-dessus, un
+tableau de bord complet (cartes de dossiers, statut de suivi extensible),
+un mécanisme de rétroaction utilisateur maintenant résolu via ce statut de
+suivi (contredit le report explicite précédent, voir plus haut dans ce
+fichier), et trois fonctionnalités transversales (modèles de premier
+contact, carte géographique, filtre par taille d'entreprise). Aucune de ces
+fonctionnalités n'est construite dans cette mise à jour — la demande
+d'Alexandre portait explicitement sur le portail/paiement/connecteur, pas
+sur le tableau de bord. À confirmer avant d'entamer ce chantier, nettement
+plus large (interface, pas seulement moteur).

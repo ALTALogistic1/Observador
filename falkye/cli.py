@@ -6,7 +6,7 @@ from __future__ import annotations
 import click
 
 from falkye.db import get_session, init_db, seed_spheres_from_registry
-from falkye.models.profile import Profile, ProfileNeed, Sensibilite, TypeProfil
+from falkye.models.profile import PlanTarifaire, Profile, ProfileNeed, Sensibilite, TypeProfil
 from falkye.registry.loader import get_registry
 
 
@@ -319,7 +319,7 @@ def profile_list():
     try:
         for p in session.query(Profile).all():
             click.echo(
-                f"#{p.id} {p.nom} <{p.courriel}> type={p.type_profil.value} "
+                f"#{p.id} {p.nom} <{p.courriel}> type={p.type_profil.value} plan={p.plan.value} "
                 f"sensibilite_confiance={p.sensibilite_confiance.value} "
                 f"sensibilite_pertinence={p.sensibilite_pertinence.value}"
             )
@@ -426,6 +426,108 @@ def resume_envoyer(profile_id, jours):
             raise click.ClickException(f"Profil {profile_id} introuvable")
         summary = generer_et_envoyer_resume(session, p, jours=jours)
         click.echo(f"Résumé #{summary.id} généré : {len(summary.notification_ids)} notification(s) incluse(s)")
+    finally:
+        session.close()
+
+
+@cli.group()
+def billing():
+    """Plan tarifaire et paiement intégré Stripe (spec section 9bis, plan Radar).
+
+    NON VALIDÉ contre un vrai compte Stripe dans cet environnement de
+    développement (voir falkye/billing/stripe_client.py) — ces commandes sont
+    prêtes à l'usage une fois qu'Alexandre a un compte Stripe réel configuré
+    (voir .env.example)."""
+
+
+@billing.command("radar-checkout")
+@click.option("--profile-id", required=True, type=int)
+def billing_radar_checkout(profile_id):
+    """Crée une session Stripe Checkout pour débloquer le plan Radar et affiche son URL."""
+    from falkye.billing.stripe_client import creer_session_paiement_radar
+
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        url = creer_session_paiement_radar(p)
+        click.echo(url)
+    finally:
+        session.close()
+
+
+@billing.command("statut")
+@click.option("--profile-id", required=True, type=int)
+def billing_statut(profile_id):
+    """Affiche le plan effectif du profil et l'état de son abonnement Stripe, s'il existe."""
+    from falkye.models.subscription import Subscription
+
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        click.echo(f"Profil #{p.id} — plan={p.plan.value}")
+        abo = session.query(Subscription).filter_by(profile_id=profile_id).one_or_none()
+        if abo is None:
+            click.echo("  Aucun abonnement Stripe enregistré.")
+        else:
+            click.echo(
+                f"  Abonnement : statut={abo.statut} "
+                f"stripe_subscription_id={abo.stripe_subscription_id} "
+                f"periode_courante_fin={abo.periode_courante_fin}"
+            )
+    finally:
+        session.close()
+
+
+@billing.command("traiter-webhook")
+@click.option(
+    "--fichier",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Fichier JSON contenant UN événement Stripe déjà décodé (ex. exporté depuis le "
+    "tableau de bord Stripe, section Développeurs > Événements) — même principe que "
+    "l'import manuel (spec section 9) appliqué à un webhook plutôt qu'à un document "
+    "source, en attendant un point de terminaison HTTP public capable de recevoir de "
+    "vrais webhooks Stripe. AUCUNE vérification de signature ici (contrairement à un "
+    "vrai webhook HTTP, voir falkye/billing/stripe_client.py:verifier_signature_webhook) "
+    "— l'événement est supposé provenir d'une source déjà de confiance (le tableau de "
+    "bord authentifié d'Alexandre), pas d'un réseau ouvert.",
+)
+def billing_traiter_webhook(fichier):
+    import json
+
+    from falkye.billing.stripe_client import traiter_evenement_webhook
+
+    with open(fichier, encoding="utf-8") as f:
+        event = json.load(f)
+
+    session = get_session()
+    try:
+        traiter_evenement_webhook(event, session)
+        click.echo(f"Événement traité : {event.get('type')}")
+    finally:
+        session.close()
+
+
+@billing.command("definir-plan")
+@click.option("--profile-id", required=True, type=int)
+@click.option("--plan", "plan_value", required=True, type=click.Choice([p.value for p in PlanTarifaire]))
+def billing_definir_plan(profile_id, plan_value):
+    """Change le plan d'un profil manuellement — pour tester le moteur sans compte
+    Stripe réel, ou pour un ajustement administratif ponctuel. Le chemin normal
+    reste le webhook Stripe (billing traiter-webhook / un vrai point de terminaison
+    HTTP une fois déployé) ; ceci contourne délibérément la facturation."""
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        p.plan = PlanTarifaire(plan_value)
+        session.commit()
+        click.echo(f"Profil #{p.id} — plan défini à {p.plan.value}")
     finally:
         session.close()
 

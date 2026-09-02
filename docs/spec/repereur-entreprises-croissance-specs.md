@@ -106,6 +106,7 @@ La liste doit être **la plus large possible** pour permettre au produit de s'ad
 - Entretien ménager / conciergerie commerciale
 - Gestion de la paie / avantages sociaux
 - Planification stratégique / conseil en gestion
+- Financement / accès au capital
 
 ## 5. Modes d'usage
 
@@ -125,7 +126,28 @@ Le système doit maintenir un **dossier cumulatif par entreprise** (identifiée 
 - la corroboration multi-signaux (section 6) s'applique donc aussi bien à des signaux rapprochés dans le temps qu'à des signaux étalés sur plusieurs mois, tant qu'ils concernent la même entreprise,
 - ça permet de présenter à l'utilisateur une histoire qui se construit dans le temps plutôt que des mentions isolées et sans lien apparent entre elles.
 
-## 6. Score de confiance et sensibilité
+### Tableau de bord et statut de suivi — Radar et Radar+ seulement
+
+Vue tableau de bord listant les dossiers cumulatifs sous forme de pastilles/cartes, réservée aux plans Radar et Radar+ (absente d'Écho). Chaque carte affiche :
+- le code de pertinence (A/AA/AAA, section 6) et le score de confiance,
+- le lien vers le site web du prospect et les coordonnées trouvées via l'enrichissement contextuel (section 10),
+- un **statut de suivi**, propre à l'utilisateur, distinct du score de pertinence/confiance : ex. "À joindre" (défaut), "Joint", "Premier appel prometteur", et d'autres valeurs. **Liste de statuts extensible**, suivant le même principe que les sphères de besoin, les sources et les types de signaux (section 9/9bis) — un statut n'existant pas doit pouvoir être ajouté sans restructuration.
+
+**Lien avec la rétroaction utilisateur (anciennement en attente, résolu ici) :** un statut "Pas pertinent" sert une double fonction — suivi de pipeline pour l'utilisateur, et signal de rétroaction pour le moteur de pertinence (section 6) : quand un prospect est marqué ainsi, le système doit légèrement réduire le poids des mots-clés/sphères qui ont produit sa correspondance pour les prochaines notifications de cet utilisateur. Règle simple, pas de ML, cohérent avec le principe déjà établi.
+
+### Trois fonctionnalités transversales additionnelles — pertinentes à la majorité des personas, aucune nouvelle source requise
+
+1. **Modèles de premier contact contextuels** : génère une amorce de message adaptée au signal précis détecté (ex. valeur et donneur d'ordre d'un contrat décroché, ville et date d'un nouvel établissement). S'appuie sur les données déjà captées par signal (section 7) et l'enrichissement web (section 10). Se connecte directement au statut "Premier appel prometteur" du tableau de bord ci-dessus.
+2. **Carte géographique interactive des prospects** : vue carte, pastilles de pertinence positionnées par territoire, alternative à la vue liste du tableau de bord — même donnée, présentation différente. Pertinent pour les personas dont le service est livré localement.
+3. **Filtre par taille d'entreprise estimée (nombre d'employés)** : dérivé des signaux d'embauche cumulés déjà captés (Guichet-Emplois, EIMT, section 7) et du dossier cumulatif par entreprise — nouvelle couche de calcul, pas une nouvelle source.
+
+## 6. Score de confiance, score de pertinence, et sensibilité
+
+**Deux axes indépendants, pas un seul score fusionné :**
+- **Score de confiance** (ci-dessous, inchangé) : le signal est-il réel et fort, indépendamment de qui le reçoit.
+- **Score de pertinence** (nouveau, voir sous-section dédiée) : ce signal correspond-il au profil précis de CET utilisateur — c'est le moteur de croisement par sphère de besoin qui distingue FALKYE d'une simple consultation des sources publiques une à une.
+
+Ces deux axes se combinent en **matrice**, pas en moyenne, pour la décision finale de notification : un signal peu pertinent n'est jamais montré même si sa confiance est élevée; un signal moyennement pertinent mais très fiable peut valoir la peine. Le seuil de sensibilité de l'utilisateur (section suivante) s'applique sur cette combinaison, pas sur un seul des deux axes isolément.
 
 **Principe d'unification, essentiel pour l'ergonomie web puis mobile :** il n'existe qu'**un seul indice de confiance par notification** — pas de jauges parallèles (urgence, gradation par signal, etc.). Tout facteur pertinent, y compris la notion d'urgence, est plié dans ce score unique plutôt que présenté comme une mesure séparée. L'utilisateur ne voit et n'interprète qu'une seule chose par notification : Faible/Moyen/Élevé.
 
@@ -135,6 +157,8 @@ Ce score unifié est calculé à partir de trois éléments qui s'additionnent o
 3. **Facteur de fraîcheur** : le score diminue avec le temps écoulé depuis la détection du signal. Ce facteur remplace ce qui aurait pu être une "jauge d'urgence" séparée — un signal ancien devient moins pertinent avec le temps, sans qu'on ait besoin d'un deuxième indicateur pour l'exprimer.
 
 Le seuil global de sensibilité de l'utilisateur (Faible/Moyen/Élevé) filtre les notifications selon ce score unique. Pas de ML requis pour la v1.
+
+**Deux curseurs de sensibilité indépendants** : puisque confiance et pertinence sont deux axes distincts, l'utilisateur doit pouvoir régler un seuil pour chacun séparément (ex. "montre-moi seulement AA et AAA, peu importe la confiance" ou l'inverse). Un seul curseur combiné forcerait un compromis que l'utilisateur n'a pas nécessairement demandé.
 
 ### Vérifications de base obligatoires — avant toute présentation d'un prospect
 
@@ -161,7 +185,23 @@ Un prospect qui échoue à l'une de ces vérifications est **exclu silencieuseme
 | Registre corporatif — permis de construction | Valeur du permis, nature des travaux (agrandissement/nouvelle construction = fort; rénovation mineure = faible) |
 | Appels d'offres — SEAO | Valeur du contrat relative à la taille estimée de l'entreprise, récurrence de contrats décrochés sur une période courte |
 
-### Corroboration multi-signaux
+### Score de pertinence — A / AA / AAA
+
+Distinct du score de confiance ci-dessus. Répond à "ce signal correspond-il au profil précis de cet utilisateur", pas "ce signal est-il fiable". Trois paliers, en registre positif avec gradation :
+
+| Code | Nom | Critère |
+|---|---|---|
+| **A — Repéré** | Correspondance à une sphère de besoin secondaire ou seulement probable (ex. un signal touche plusieurs sphères à la fois via la table de correspondance signal → sphères de la section 7, et la sphère de l'utilisateur n'est qu'une des sphères probables, pas la principale) | Prospect montré, attente la plus modeste |
+| **AA — Aligné** | Correspondance directe à la sphère de besoin principale déclarée par l'utilisateur, sans mot-clé précis de son profil — correspondance générique mais directe | Prospect montré avec confiance de correspondance |
+| **AAA — Sur mesure** | Correspondance à un mot-clé précis du profil utilisateur (ex. le signal qualitatif basé sur le titre du poste, section 7, Signal 3) — la correspondance la plus fine possible, au-delà de la sphère générique | Prospect prioritaire, correspondance la plus étroite possible |
+
+**Implication pour le moteur** : le calcul de pertinence dépend directement de la table de correspondance signal → sphères (section 7) et des mots-clés optionnels du profil utilisateur (section 4) — ce ne sont pas de nouvelles données à collecter, c'est une nouvelle couche de calcul par-dessus ce qui existe déjà.
+
+**Principe du signal par absence** : un signal ne se limite pas à ce qui est détecté — l'**absence** d'un signal normalement attendu à un stade plus avancé peut elle-même constituer un indicateur de pertinence positif. Découvert avec le persona investisseurs providentiels (section personas) : une entreprise montrant croissance d'effectifs et nouvel établissement, mais **sans** financement gouvernemental ni classement de croissance encore visible, signale une traction précoce, avant qu'elle soit publique. Ce principe est généralisable à d'autres sphères au-delà du financement — à garder en tête lors de la conception du moteur de pertinence plutôt que de le coder comme un cas spécial au VC.
+
+**Trajectoire, en complément du score statique** : le dossier cumulatif par entreprise (section 5) permet de détecter une **accélération** — plusieurs signaux de force croissante en peu de temps plutôt qu'un signal isolé ou des signaux espacés sur une longue période. Une entreprise avec 3 signaux en 2 mois est un meilleur prospect qu'une entreprise avec 3 signaux étalés sur 2 ans, même à confiance égale par signal — ce facteur de vélocité doit être considéré comme un contributeur additionnel au score de pertinence, pas seulement au score de confiance.
+
+
 
 Lorsqu'une même entreprise est détectée par **plusieurs signaux distincts**, le système doit **consolider ces détections en une seule notification**, plutôt que d'envoyer une notification par signal. Cette notification consolidée :
 - présente chaque signal ayant contribué à la détection, avec sa source et sa justification propre,
@@ -249,6 +289,7 @@ Chaque signal détecté doit être associé à une ou plusieurs sphères de beso
 - **Registre des entreprises du Québec (REQ)** — **excellente découverte** : données ouvertes gratuites, mises à jour deux fois par mois, via Données Québec. Couvre toutes les entreprises immatriculées ou constituées au Québec (NEQ, nom, secteur d'activité, adresse, statut). Utile de deux façons :
   1. **Base de vérification/enrichissement** pour toutes les entreprises repérées par les autres signaux (confirmer existence légale, secteur, adresse)
   2. **Signal d'expansion en soi** : une nouvelle immatriculation d'établissement secondaire ou un changement d'adresse pour une entreprise déjà active peut indiquer une expansion physique
+  - **Découverte technique (accès réel vérifié) :** le fichier en vrac est hébergé sur `registreentreprises.gouv.qc.ca` (décision de Données Québec, pas un choix d'implémentation), à l'URL `RQAnonymeGR/GR/GR03/GR03A2_22A_PIU_RecupDonnPub_PC/FichierDonneesOuvertes.aspx`, découverte dynamiquement via les métadonnées officielles. Ce domaine **bloque les plages d'adresses IP infonuagiques** (confirmé : blocage Cloudflare identique dès le premier appel, IP de sortie différente à chaque tentative, aucun lien avec le volume de requêtes) — un environnement de développement cloud comme celui de Claude Code ne peut donc pas y accéder directement, peu importe la méthode. **Statut : `import_manuel`** — Alexandre télécharge le fichier ZIP lui-même depuis son navigateur personnel (aucun blocage, IP résidentielle) et l'importe dans le logiciel via le mécanisme générique d'import manuel (section 9). Comme le fichier n'est mis à jour que deux fois par mois, c'est une tâche récurrente légère plutôt qu'un irritant à chaque recherche (contrairement au RDPRM).
   - **Champs pertinents :** NEQ, nom d'entreprise, secteur d'activité (CAE/CTI), adresse(s), statut (immatriculée/radiée), date de la dernière mise à jour
   - **Limite à noter :** les actionnaires et administrateurs sont anonymisés dans les données ouvertes (contrairement à la consultation individuelle payante par NEQ)
   - **Filtrage requis, même logique que le RDPRM :** la grande majorité des mises à jour au REQ sont administratives et routinières (déclaration annuelle obligatoire, correction mineure, renouvellement) et n'indiquent aucune croissance. Seuls certains types de changements doivent être retenus comme signal — notamment l'ajout d'un nouvel établissement secondaire ou un changement d'adresse du siège social — et le filtre doit explicitement exclure les mises à jour de nature purement administrative pour éviter un signal bruyant plutôt que précis
@@ -277,7 +318,7 @@ Chaque signal détecté doit être associé à une ou plusieurs sphères de beso
 ### Sources gratuites — toutes incluses dans le prototype 1
 
 1. SEAO — gratuit, simple, structuré (Signal 5 : appels d'offres)
-2. RDPRM — **repassé à `à développer`** : payant à l'unité (11$/nom, 4$/NIV), pas gratuit en vrac comme documenté à l'origine — décision budgétaire à prendre (Signal 2 : financement)
+2. RDPRM — **actif via import manuel** (voir sections 7 et 9) : payant à l'unité (11$/nom, 4$/NIV), pas gratuit en vrac comme documenté à l'origine — activé sans engagement récurrent grâce au mécanisme d'import manuel plutôt que par une décision budgétaire d'automatisation complète (Signal 2 : financement)
 3. Guichet-Emplois (Job Bank Canada) — **repassé à `à développer`** : le fichier en vrac ne contient pas le nom de l'employeur, confirmé dans les vraies données et la documentation officielle — impossible de produire une notification par entreprise sans réactivation future (ex. agrégateur tiers) (Signal 3 : recrutement)
 4. **Liste des employeurs avec EIMT positive (EDSC)** — gratuit, trimestriel, signal de pénurie de main-d'œuvre confirmé officiellement, **donne le nom de l'employeur** — source active pour le signal recrutement en Phase 1 (Signal 3 : recrutement) — **nouvelle découverte, signal de très haute qualité**
 5. **Subventions et contributions gouvernementales — divulgation proactive fédérale** — gratuit, couvre tous les ministères fédéraux (Signal 2 : financement). **Cette source unique absorbe DEC, PARI-CNRC, CanExport, FedDev Ontario, FedNor, APECA, PrairiesCan et PacifiCan** : ce sont tous des ministères/organismes fédéraux dont les subventions apparaissent dans cette même divulgation proactive. Il ne s'agit donc pas de sources séparées "en réserve" mais de filtres à configurer sur cette source dès la v1, sans développement additionnel.
@@ -357,7 +398,13 @@ De la même façon que le registre de sources est conçu pour absorber de nouvel
 
 ### Import manuel de documents sources — activer une source payante sans engagement récurrent
 
-Pour toute source où l'automatisation complète implique un coût récurrent qu'Alexandre ne veut pas engager d'emblée (ex. le RDPRM, payant à l'unité par recherche), le système doit permettre un **mode d'import manuel** : Alexandre effectue lui-même la recherche/l'achat ponctuel (ex. sur le site du RDPRM), puis **ajoute le document ou le résultat obtenu directement dans le logiciel**. Une fois importé, ce résultat entre **immédiatement dans la même boucle de traitement que toute source automatisée** — résolution NEQ/REQ, vérifications de base, score de confiance, corroboration avec d'autres signaux, et notification — sans distinction de traitement une fois à l'intérieur du pipeline.
+Pour toute source où l'automatisation complète implique un coût récurrent qu'Alexandre ne veut pas engager d'emblée (ex. le RDPRM, payant à l'unité par recherche), **ou qu'un blocage d'accès empêche l'environnement infonuagique d'atteindre directement** (ex. le REQ, dont le domaine bloque les plages d'adresses IP infonuagiques — voir section 7), le système doit permettre un **mode d'import manuel**, sous deux formes :
+- **Résultat unitaire** (ex. RDPRM) : Alexandre effectue lui-même une recherche/un achat ponctuel et importe le résultat obtenu.
+- **Fichier complet** (ex. REQ) : Alexandre télécharge lui-même un fichier périodique depuis son propre navigateur (contournant un blocage d'accès plutôt qu'un coût) et l'importe dans le logiciel.
+
+Les deux formes suivent le même principe générique — une donnée obtenue hors ligne par Alexandre entre dans le pipeline exactement comme une source automatisée, sans traitement spécial selon la source ou la forme.
+
+Une fois importé, ce résultat entre **immédiatement dans la même boucle de traitement que toute source automatisée** — résolution NEQ/REQ, vérifications de base, score de confiance, corroboration avec d'autres signaux, et notification — sans distinction de traitement une fois à l'intérieur du pipeline.
 
 **Principes de conception :**
 - **Aucun engagement récurrent requis** : Alexandre paie uniquement les recherches qu'il choisit de faire, au moment où il les fait — pas un abonnement, pas un budget mensuel engagé d'avance. Ça répond directement au principe directeur #2 (décision budgétaire qui revient à Alexandre) sans le forcer à trancher pour ou contre une automatisation complète maintenant.
@@ -374,7 +421,23 @@ Le produit doit rester utilisable par n'importe quel type de fournisseur de serv
 - **Le dossier cumulatif par entreprise (identifié par NEQ, section 5/9) doit être conçu pour pouvoir éventuellement supporter une liste de surveillance par entreprise nommée**, en plus de la détection par profil/sphère — même si ce mode d'usage n'est pas construit pour le prototype 1. Ne pas fermer cette porte par une hypothèse de conception qui suppose que toute entreprise suivie provient nécessairement d'une correspondance de profil.
 - **Hors scope explicite pour le prototype 1**, à ne pas construire maintenant : une logique inversée qui détecterait le déclin plutôt que la croissance (ex. repérer des entreprises en difficulté pour des courtiers en fusions-acquisitions), et une couche d'agrégation produisant des statistiques ou tendances régionales plutôt que des résultats par entreprise. Ces deux cas demanderaient une polarité de scoring et un type de résultat fondamentalement différents de ce que documente ce projet — ne pas complexifier l'architecture actuelle en anticipation de ces cas non confirmés.
 
-## 10. Enrichissement contextuel via le site web du prospect
+## 9bis. Structure de plans tarifaires et portail de sources payantes
+
+Décidée après la conception initiale de ce document — trois plans, avec un seul chantier de portail sous-jacent, pas deux.
+
+| Plan | Sources | Portail |
+|---|---|---|
+| **Écho** | Sources gratuites uniquement (l'ensemble du registre actuel) | Aucun |
+| **Radar** | Écho + sous-ensemble de sources payantes choisies par nous | Le même portail que Radar+, mais restreint aux sources qu'on propose, avec une couche de **paiement intégré** (l'utilisateur paie pour débloquer, nous gérons l'accès à la source) |
+| **Radar+** | Radar + n'importe quelle source payante externe que l'utilisateur possède déjà | Le même portail, ouvert sans restriction, avec une couche de **gestion de clés API utilisateur** (l'utilisateur branche son propre accès, nous ne payons ni ne gérons la source) |
+
+**Conséquence pour l'architecture : un seul portail à construire, avec deux couches différentes par-dessus, pas deux portails distincts.** Composants communs : gestion de connecteurs génériques par fournisseur, normalisation des données entrantes vers le même pipeline que les sources internes (résolution NEQ, score de confiance, sphères de besoin — sections 6/7/9). Composant propre à Radar : paiement intégré. Composant propre à Radar+ : gestion de clés API utilisateur, sans transaction financière de notre part sur la source elle-même.
+
+Toute source ajoutée par un utilisateur Radar+ doit suivre le même gabarit de registre que les sources internes (section 9) — champs pertinents, méthode d'accès, sphère de besoin associée — et peut révéler une sphère de besoin non encore répertoriée dans la liste de la section 4 (ex. la sphère "Financement / accès au capital" ajoutée ci-dessus est née de ce constat, pas d'une anticipation).
+
+**Décision de priorisation (premier cas concret à construire) :** plutôt que de bâtir le portail dans l'abstrait, on le construit contre un premier cas réel. Source payante prioritaire : **agrégateur de recrutement (TheirStack ou Apify)**, pour réactiver pleinement le signal recrutement au-delà de Guichet-Emplois/EIMT, au bénéfice du persona agences de recrutement (Radar). Solution de paiement retenue pour la couche Radar : **Stripe**, choix standard pour ce type de produit au Canada, pas de comparatif de solutions alternatives requis. Le choix précis entre TheirStack et Apify reste ouvert (comparatif de prix en cours) et ne bloque pas la construction de l'architecture de portail elle-même.
+
+
 
 Dès qu'une entreprise est détectée par une source, peu importe le signal, le système doit tenter de trouver son site web officiel et d'en extraire un contexte léger — ce processus se fait systématiquement, à chaque entreprise détectée, pas seulement pour celles qui franchissent le seuil de notification. C'est la **dernière étape du pipeline, juste avant l'avertissement de l'utilisateur** : elle bonifie le profil de l'entreprise repérée avant que la notification soit envoyée.
 
