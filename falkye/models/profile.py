@@ -104,6 +104,13 @@ class Profile(Base):
         back_populates="profile", cascade="all, delete-orphan"
     )
 
+    # Intégration CRM (HubSpot/Pipedrive, ajoutée le 2026-09-02) — voir
+    # falkye/models/crm_connection.py. Disponible pour Radar ET Radar+
+    # (contrairement au webhook, réservé Radar+ seul).
+    connexions_crm: Mapped[list["CrmConnection"]] = relationship(
+        back_populates="profile", cascade="all, delete-orphan"
+    )
+
     def besoins_fournisseur(self) -> list["ProfileNeed"]:
         """Paires sphère+usage actives pour la mécanique fournisseur (seule
         implémentée par le moteur en Phase 1)."""

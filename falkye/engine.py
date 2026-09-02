@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from falkye import pertinence, ponderation, retroaction
+from falkye.crm_sync import pousser_notification_vers_crm, sonder_statuts_crm
 from falkye.db import get_session
 from falkye.enrichment import enrichir_entreprise
 from falkye.matching import MatchResult, match_profile, spheres_probables
@@ -57,6 +58,10 @@ class ScanReport:
     mode: ModeUsage
     ingestion: list[IngestReport] = field(default_factory=list)
     nb_notifications_creees: int = 0
+    # Sondage retour CRM (falkye/crm_sync.py::sonder_statuts_crm, intégration
+    # CRM ajoutée le 2026-09-02) — 0 par défaut pour run_recherche_ponctuelle,
+    # qui ne sonde pas (voir run_veille_continue, seul mode où le sondage a lieu).
+    nb_statuts_crm_synchronises: int = 0
 
 
 def ingest_source(
@@ -363,6 +368,12 @@ def deliver_notification(db_session: Session, notification: Notification, regist
                 erreur=result.erreur,
             )
         )
+    # Intégration CRM (Radar et Radar+, ajoutée le 2026-09-02) — même point de
+    # déclenchement qu'un canal de notification classique (une notification
+    # nouvellement créée), mais PAS un NotificationChannel : un push CRM est un
+    # upsert avec état (falkye/models/crm_sync_record.py), pas un envoi
+    # fire-and-forget. Voir falkye/crm_sync.py pour la distinction complète.
+    pousser_notification_vers_crm(db_session, notification, registry)
     db_session.commit()
 
 
@@ -398,8 +409,19 @@ def run_veille_continue(profile_ids: list[int] | None = None, lookback_days: int
         profiles = db_session.execute(query).scalars().all()
 
         notifications = generer_notifications(db_session, profiles, ModeUsage.VEILLE_CONTINUE, registry)
+
+        # Sondage retour CRM (spec : "dans les deux sens si possible") — greffé
+        # sur CE cycle précis (veille continue) plutôt qu'à chaque scan : la
+        # recherche ponctuelle n'a pas de notion de "déjà connu" à mettre à
+        # jour dans le même esprit (voir docstring run_recherche_ponctuelle).
+        nb_statuts_crm = sonder_statuts_crm(db_session, registry)
+        db_session.commit()
+
         return ScanReport(
-            mode=ModeUsage.VEILLE_CONTINUE, ingestion=ingestion, nb_notifications_creees=len(notifications)
+            mode=ModeUsage.VEILLE_CONTINUE,
+            ingestion=ingestion,
+            nb_notifications_creees=len(notifications),
+            nb_statuts_crm_synchronises=nb_statuts_crm,
         )
     finally:
         db_session.close()

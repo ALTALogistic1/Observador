@@ -365,6 +365,148 @@ def profile_set_webhook(profile_id, webhook_url):
 
 
 @cli.group()
+def crm():
+    """Intégration CRM (HubSpot, Pipedrive) — synchronise les entreprises
+    repérées vers le CRM du client (Radar ET Radar+, contrairement au webhook
+    générique réservé Radar+ seul — intégration retenue depuis un moment dans
+    la liste de fonctionnalités, formellement transmise le 2026-09-02). Jeton
+    statique par profil × fournisseur (même mécanique que `profile
+    set-webhook`), pas de flux OAuth2 — voir falkye/notifications/crm/base.py."""
+
+
+@crm.command("connecter")
+@click.option("--profile-id", required=True, type=int)
+@click.option("--provider", "fournisseur", required=True, type=click.Choice(["hubspot", "pipedrive"]))
+@click.option(
+    "--jeton", "jeton_api", required=True,
+    help="Jeton d'application privée (HubSpot) ou jeton API personnel (Pipedrive).",
+)
+@click.option(
+    "--identifiant-compte", default=None,
+    help="Optionnel selon fournisseur (ex. id de pipeline Pipedrive à cibler).",
+)
+@click.option(
+    "--mappage-override-json", "mappage_override_json", default=None,
+    help='JSON {champ_falkye: propriété/champ CRM}, par-dessus le mappage par défaut du '
+    "fournisseur (registry/crm_providers.yaml) — nécessaire en pratique pour Pipedrive, "
+    "dont les clés de champ personnalisé sont propres à chaque compte client (voir notes "
+    "du registre). Ex. : '{\"neq\": \"07a1b2c3d4e5\"}'",
+)
+def crm_connecter(profile_id, fournisseur, jeton_api, identifiant_compte, mappage_override_json):
+    """Configure (ou remplace) la connexion CRM d'un profil vers un fournisseur.
+    N'a d'effet que pour un profil Radar/Radar+ (gate à l'usage, pas au
+    stockage — même principe que `profile set-webhook`)."""
+    import json
+
+    from falkye.models.crm_connection import CrmConnection
+
+    mappage_override = None
+    if mappage_override_json:
+        try:
+            mappage_override = json.loads(mappage_override_json)
+        except json.JSONDecodeError as exc:
+            raise click.ClickException(f"--mappage-override-json invalide : {exc}") from exc
+
+    session = get_session()
+    try:
+        if session.get(Profile, profile_id) is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+
+        connexion = (
+            session.query(CrmConnection)
+            .filter_by(profile_id=profile_id, fournisseur=fournisseur)
+            .one_or_none()
+        )
+        if connexion is None:
+            connexion = CrmConnection(profile_id=profile_id, fournisseur=fournisseur, jeton_api=jeton_api)
+            session.add(connexion)
+        else:
+            connexion.jeton_api = jeton_api
+            connexion.actif = True
+        connexion.identifiant_compte = identifiant_compte
+        if mappage_override is not None:
+            connexion.champs_mappage_override = mappage_override
+
+        session.commit()
+        click.echo(f"Connexion {fournisseur} configurée pour le profil {profile_id} (id={connexion.id})")
+    finally:
+        session.close()
+
+
+@crm.command("mapper-statut")
+@click.option("--profile-id", required=True, type=int)
+@click.option("--provider", "fournisseur", required=True, type=click.Choice(["hubspot", "pipedrive"]))
+@click.option("--statut", "statut_id", required=True, help="Voir `dashboard statuts` pour les valeurs possibles.")
+@click.option(
+    "--valeur-crm", required=True,
+    help="Valeur exacte de l'étape/stage côté CRM (texte propre au compte du client).",
+)
+def crm_mapper_statut(profile_id, fournisseur, statut_id, valeur_crm):
+    """Ajoute (ou remplace) UNE correspondance statut de suivi FALKYE <-> étape
+    CRM, pour la connexion déjà configurée (`crm connecter`). Un appel par
+    statut à synchroniser — les étapes de pipeline HubSpot/Pipedrive sont
+    propres au compte de CHAQUE client, jamais devinées (principe directeur
+    #1, "jamais fabriquer une valeur") : sans correspondance explicite pour un
+    statut, il est poussé tel quel et un changement lu côté CRM sans
+    correspondance connue est ignoré proprement (falkye/crm_sync.py)."""
+    from falkye.models.crm_connection import CrmConnection
+    from falkye.models.statut_suivi import StatutSuivi
+
+    session = get_session()
+    try:
+        connexion = (
+            session.query(CrmConnection)
+            .filter_by(profile_id=profile_id, fournisseur=fournisseur)
+            .one_or_none()
+        )
+        if connexion is None:
+            raise click.ClickException(
+                f"Aucune connexion {fournisseur} pour le profil {profile_id} — voir `crm connecter`."
+            )
+        if session.get(StatutSuivi, statut_id) is None:
+            raise click.ClickException(f"Statut de suivi inconnu : {statut_id} (voir `dashboard statuts`)")
+
+        mapping = dict(connexion.mapping_statuts or {})
+        mapping[statut_id] = valeur_crm
+        connexion.mapping_statuts = mapping
+        session.commit()
+        click.echo(f'Correspondance ajoutée : {statut_id} <-> "{valeur_crm}" ({fournisseur}, profil {profile_id})')
+    finally:
+        session.close()
+
+
+@crm.command("statut")
+@click.option("--profile-id", type=int, default=None, help="Limite l'affichage à un profil (tous sinon).")
+def crm_statut(profile_id):
+    """Liste l'état de synchronisation CRM — fiches déjà poussées, dernier
+    statut de suivi poussé, dernière étape connue côté CRM."""
+    from falkye.models.company import Company
+    from falkye.models.crm_sync_record import CrmSyncRecord
+
+    session = get_session()
+    try:
+        query = session.query(CrmSyncRecord)
+        if profile_id is not None:
+            query = query.filter_by(profile_id=profile_id)
+        lignes = query.all()
+        if not lignes:
+            click.echo("Aucune fiche synchronisée.")
+            return
+        for sr in lignes:
+            company = session.get(Company, sr.company_id)
+            nom = (company.nom_officiel_req or company.nom_detecte) if company else "?"
+            synchronise_le = sr.derniere_synchro_le.isoformat() if sr.derniere_synchro_le else "jamais"
+            click.echo(
+                f"[{sr.fournisseur}] {nom} — id CRM={sr.crm_object_id}, "
+                f"dernier statut poussé={sr.dernier_statut_pousse_id or 'aucun'}, "
+                f"dernière étape CRM connue={sr.dernier_stage_crm_connu or 'aucune'}, "
+                f"synchronisé le={synchronise_le}"
+            )
+    finally:
+        session.close()
+
+
+@cli.group()
 def souscompte():
     """Sous-comptes et territoires assignés, avec rôles (spec section 4bis,
     Radar+). Voir falkye/models/sous_compte.py — structure de données
@@ -462,6 +604,8 @@ def _afficher_rapport(report):
         else:
             click.echo(f"  ✓ {r.source_id}: {r.nb_signaux_nouveaux} nouveaux, {r.nb_signaux_dupliques} déjà connus")
     click.echo(f"Notifications créées : {report.nb_notifications_creees}")
+    if report.nb_statuts_crm_synchronises:
+        click.echo(f"Statuts synchronisés depuis un CRM : {report.nb_statuts_crm_synchronises}")
 
 
 @cli.group()
@@ -655,7 +799,7 @@ def dashboard_statut(notification_id, statut_id, sous_compte_id):
     from falkye.models.sous_compte import RoleSousCompte
     from falkye.models.statut_suivi import StatutSuivi
     from falkye.registry.loader import get_registry
-    from falkye.retroaction import enregistrer_pas_pertinent
+    from falkye.statut_suivi import appliquer_statut
 
     session = get_session()
     try:
@@ -670,12 +814,8 @@ def dashboard_statut(notification_id, statut_id, sous_compte_id):
                 f"Sous-compte {sous_compte_id} en lecture seule — ne peut pas modifier un statut de suivi."
             )
 
-        n.statut_suivi_id = statut_id
-
-        registry = get_registry()
-        statut_def = registry.statut_suivi(statut_id)
-        if statut_def is not None and statut_def.declenche_retroaction:
-            enregistrer_pas_pertinent(session, n)
+        retroaction_appliquee = appliquer_statut(session, n, statut_id, get_registry())
+        if retroaction_appliquee:
             click.echo(f"Notification #{n.id} — statut défini à {statut_id} (rétroaction de pertinence appliquée)")
         else:
             click.echo(f"Notification #{n.id} — statut défini à {statut_id}")

@@ -2,7 +2,14 @@
 #3 ("aucune source n'est activée sans règle de calibration documentée")."""
 import pytest
 
-from falkye.registry.loader import ChampsPertinentsDef, Registry, SourceDef, StatutSuiviDef, load_registry
+from falkye.registry.loader import (
+    ChampsPertinentsDef,
+    CrmProviderDef,
+    Registry,
+    SourceDef,
+    StatutSuiviDef,
+    load_registry,
+)
 
 
 def _source(id_, statut, regle_calibration=None, plan_minimum="echo"):
@@ -154,3 +161,35 @@ def test_champs_pertinents_pour_retourne_la_liste_declaree():
         }
     )
     assert registry.champs_pertinents_pour("energie", "req") == ["secteur_code", "secteur_libelle"]
+
+
+# --- Fournisseurs CRM (intégration CRM, ajoutée le 2026-09-02) ---
+
+
+def test_registre_reel_a_hubspot_et_pipedrive_actifs():
+    registry = load_registry()
+    ids = {p.id for p in registry.fournisseurs_crm_actifs()}
+    assert ids == {"hubspot", "pipedrive"}
+
+
+def test_registre_reel_hubspot_a_un_mappage_par_defaut_avec_statut_suivi():
+    registry = load_registry()
+    hubspot = registry.fournisseur_crm("hubspot")
+    assert hubspot is not None
+    assert "statut_suivi" in hubspot.champs_mappage
+    assert hubspot.champs_mappage["neq"] == "falkye_neq"
+
+
+def test_fournisseur_crm_retourne_none_pour_un_id_inconnu():
+    registry = load_registry()
+    assert registry.fournisseur_crm("salesforce") is None
+
+
+def test_fournisseurs_crm_actifs_exclut_un_fournisseur_a_developper():
+    registry = Registry(
+        crm_providers={
+            "x": CrmProviderDef(id="x", nom="X", statut="a_developper", module=None, objet_crm_cible=None),
+            "y": CrmProviderDef(id="y", nom="Y", statut="actif", module=None, objet_crm_cible=None),
+        }
+    )
+    assert [p.id for p in registry.fournisseurs_crm_actifs()] == ["y"]

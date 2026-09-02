@@ -1,0 +1,72 @@
+# Registre des fournisseurs CRM — intégration CRM (retenue depuis un moment dans
+# la liste de fonctionnalités, formellement transmise le 2026-09-02). Disponible
+# pour Radar ET Radar+ (contrairement au webhook générique, réservé Radar+ seul).
+#
+# Même principe que registry/notification_channels.yaml : un fournisseur actif
+# ou non existe comme entrée structurée ici ; en ajouter un ne touche jamais au
+# moteur (falkye/crm_sync.py), seulement une nouvelle entrée + une classe
+# CrmProvider dans falkye/notifications/crm/.
+#
+# Champs du gabarit :
+#   id                identifiant stable (hubspot | pipedrive)
+#   nom               nom affichable
+#   statut            actif | a_developper
+#   module            chemin du module (falkye.notifications.crm.<module>)
+#   objet_crm_cible   objet CRM utilisé pour représenter une entreprise repérée
+#   champs_mappage    {champ_falkye: propriété/champ CRM} par défaut — voir
+#                      falkye/notifications/crm/base.py::valeurs_a_pousser pour
+#                      la liste des champs_falkye disponibles. Ajustable par
+#                      connexion (CrmConnection.champs_mappage_override) — voir
+#                      la note Pipedrive ci-dessous.
+#   notes
+
+crm_providers:
+  - id: hubspot
+    nom: "HubSpot"
+    statut: actif
+    module: falkye.notifications.crm.hubspot_channel
+    objet_crm_cible: "companies"
+    champs_mappage:
+      nom: name
+      neq: falkye_neq
+      sphere_probable_id: falkye_sphere
+      score_pertinence: falkye_score_pertinence
+      niveau_pertinence: falkye_niveau_pertinence
+      score_confiance: falkye_score_confiance
+      niveau_confiance: falkye_niveau_confiance
+      statut_suivi: falkye_statut_suivi
+    notes: >
+      Authentification par jeton d'application privée HubSpot (Private App
+      token), collé par le client dans son profil FALKYE (`falkye crm
+      connecter`). Objet HubSpot ciblé : Companies, upsert par ID d'objet HubSpot
+      suivi côté FALKYE (falkye/models/crm_sync_record.py) — API CRM v3. Les
+      propriétés personnalisées ci-dessus (falkye_neq, falkye_sphere, etc.)
+      doivent exister côté compte HubSpot du client avant le premier push
+      (HubSpot ne les crée pas automatiquement) — à documenter dans le guide de
+      configuration client, pas construit par FALKYE.
+
+  - id: pipedrive
+    nom: "Pipedrive"
+    statut: actif
+    module: falkye.notifications.crm.pipedrive_channel
+    objet_crm_cible: "organizations"
+    champs_mappage:
+      nom: name
+      neq: falkye_neq
+      sphere_probable_id: falkye_sphere
+      score_pertinence: falkye_score_pertinence
+      niveau_pertinence: falkye_niveau_pertinence
+      score_confiance: falkye_score_confiance
+      niveau_confiance: falkye_niveau_confiance
+      statut_suivi: falkye_statut_suivi
+    notes: >
+      Authentification par jeton API personnel Pipedrive, collé par le client
+      dans son profil FALKYE. Objet Pipedrive ciblé : Organizations, upsert par
+      ID d'objet Pipedrive suivi côté FALKYE — API v1. LIMITE RÉELLE : contrairement
+      à HubSpot, les clés de champ personnalisé Pipedrive sont des hachages
+      opaques attribués par Pipedrive à la création du champ (ex. "07a1b2c3...")
+      — les noms "falkye_*" ci-dessus sont des PLACEHOLDERS, jamais valides tels
+      quels contre un vrai compte Pipedrive. Chaque client doit fournir ses
+      propres clés via CrmConnection.champs_mappage_override
+      (`falkye crm connecter --mappage-override-json`) après avoir créé les
+      champs personnalisés correspondants dans son compte.

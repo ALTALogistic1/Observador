@@ -72,6 +72,12 @@ def formatter_notification(notification: Notification, registry: Registry) -> No
         "score_pertinence": notification.score_pertinence,
         "niveau_pertinence": notification.niveau_pertinence.value if notification.niveau_pertinence else None,
         "sphere_probable_id": notification.sphere_probable_id,
+        # Statut de suivi (spec section 4bis) — ajouté le 2026-09-02 pour
+        # l'intégration CRM (falkye/crm_sync.py) : un système externe a besoin
+        # de connaître le statut courant pour le pousser lui-même, pas
+        # seulement les scores/la sphère déjà présents ici depuis Radar+
+        # "accès API/webhook complet".
+        "statut_suivi_id": notification.statut_suivi_id,
         "justification_resumee": notification.justification_resumee,
         "signaux": [
             {

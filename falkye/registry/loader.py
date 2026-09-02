@@ -184,6 +184,42 @@ class NotificationChannelDef:
         return channel_cls(channel_def=self)
 
 
+@dataclass(frozen=True)
+class CrmProviderDef:
+    """Un fournisseur CRM (HubSpot, Pipedrive — voir registry/crm_providers.yaml)
+    — intégration CRM, ajoutée le 2026-09-02. Même principe que
+    NotificationChannelDef (charger_canal), avec une distinction : `champs_
+    mappage` porte le mappage PAR DÉFAUT des champs FALKYE vers des noms de
+    propriété/champ CRM, ajustable par connexion (falkye/models/
+    crm_connection.py::CrmConnection.champs_mappage_override) — voir la note
+    Pipedrive dans le YAML pour pourquoi ce n'est qu'un défaut, pas une vérité
+    universelle."""
+
+    id: str
+    nom: str
+    statut: str  # actif | a_developper
+    module: str | None
+    objet_crm_cible: str | None
+    champs_mappage: dict[str, str] = field(default_factory=dict)
+    notes: str | None = None
+
+    @property
+    def est_actif(self) -> bool:
+        return self.statut == "actif"
+
+    def charger_fournisseur(self):
+        if not self.module:
+            return None
+        module = importlib.import_module(self.module)
+        provider_cls = getattr(module, "PROVIDER_CLASS", None)
+        if provider_cls is None:
+            raise AttributeError(
+                f"Le module {self.module} ne définit pas PROVIDER_CLASS "
+                f"(voir falkye/notifications/crm/base.py)."
+            )
+        return provider_cls(provider_def=self)
+
+
 @dataclass
 class Registry:
     sources: dict[str, SourceDef] = field(default_factory=dict)
@@ -193,6 +229,7 @@ class Registry:
     statuts_suivi: dict[str, StatutSuiviDef] = field(default_factory=dict)
     # Clé (sphere_id, source_id) — voir registry/champs_pertinents.yaml.
     champs_pertinents: dict[tuple[str, str], ChampsPertinentsDef] = field(default_factory=dict)
+    crm_providers: dict[str, CrmProviderDef] = field(default_factory=dict)
 
     def sources_actives(self) -> list[SourceDef]:
         """TOUTES les sources actives, y compris celles en import manuel (utile
@@ -252,6 +289,12 @@ class Registry:
         entree = self.champs_pertinents.get((sphere_id, source_id))
         return entree.champs_pertinents if entree is not None else None
 
+    def fournisseurs_crm_actifs(self) -> list[CrmProviderDef]:
+        return [p for p in self.crm_providers.values() if p.est_actif]
+
+    def fournisseur_crm(self, provider_id: str) -> CrmProviderDef | None:
+        return self.crm_providers.get(provider_id)
+
     def valider_calibration(self) -> None:
         """Applique le principe directeur non négociable : aucune source active
         sans règle de calibration documentée. Appelé avant tout scan réel
@@ -286,6 +329,7 @@ def load_registry() -> Registry:
     channels_raw = _load_yaml("notification_channels.yaml")["channels"]
     statuts_suivi_raw = _load_yaml("statuts_suivi.yaml")["statuts_suivi"]
     champs_pertinents_raw = _load_yaml("champs_pertinents.yaml")["champs_pertinents"]
+    crm_providers_raw = _load_yaml("crm_providers.yaml")["crm_providers"]
 
     sources = {s["id"]: SourceDef(**s) for s in sources_raw}
     signal_types = {s["id"]: SignalTypeDef(**s) for s in signals_raw}
@@ -295,6 +339,7 @@ def load_registry() -> Registry:
     champs_pertinents = {
         (c["sphere_id"], c["source_id"]): ChampsPertinentsDef(**c) for c in champs_pertinents_raw
     }
+    crm_providers = {p["id"]: CrmProviderDef(**p) for p in crm_providers_raw}
 
     nb_defauts = sum(1 for s in statuts_suivi.values() if s.est_defaut)
     if nb_defauts != 1:
@@ -310,6 +355,7 @@ def load_registry() -> Registry:
         notification_channels=notification_channels,
         statuts_suivi=statuts_suivi,
         champs_pertinents=champs_pertinents,
+        crm_providers=crm_providers,
     )
 
 

@@ -3,6 +3,8 @@
 from falkye.models.base import Base  # noqa: F401
 from falkye.models.company import Company  # noqa: F401
 from falkye.models.corp_federale_entry import CorporationFederaleEntry  # noqa: F401
+from falkye.models.crm_connection import CrmConnection  # noqa: F401
+from falkye.models.crm_sync_record import CrmSyncRecord  # noqa: F401
 from falkye.models.licence_municipale_entry import LicenceMunicipaleEntry  # noqa: F401
 from falkye.models.notification import (  # noqa: F401
     Notification,
@@ -26,6 +28,8 @@ __all__ = [
     "Base",
     "Company",
     "CorporationFederaleEntry",
+    "CrmConnection",
+    "CrmSyncRecord",
     "LicenceMunicipaleEntry",
     "Notification",
     "NotificationDelivery",

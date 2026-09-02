@@ -1408,3 +1408,60 @@ ECON`/`DESC_ACT_ECON_ETAB`).
 **Construit et testé (262/262, dont 10 nouveaux).** Rien de changé côté
 validation TheirStack/Stripe — toujours en attente des identifiants
 d'Alexandre, aucune action requise de mon côté entre-temps.
+
+## Intégration CRM — HubSpot, Pipedrive (2026-09-02)
+
+Fonctionnalité retenue depuis un moment dans la liste, formellement transmise
+par Alexandre le 2026-09-02. Plan avant code (webhook déjà construit comme
+base possible, ou fondamentalement différent) discuté et validé avant le
+développement : jeton statique par profil (pas OAuth2 — pas de page de
+callback web à construire), sondage périodique pour le retour (pas de webhook
+entrant — FALKYE n'a jamais eu de composant serveur HTTP exposé publiquement),
+les deux fournisseurs construits dans la même passe (plomberie partagée à
+~80%). Voir `docs/ARCHITECTURE.md`, section "Intégration CRM — HubSpot,
+Pipedrive", pour l'analyse complète.
+
+**Construit** :
+- `falkye/models/crm_connection.py::CrmConnection` (jeton, `identifiant_compte`
+  optionnel, `mapping_statuts` bidirectionnel, `champs_mappage_override`) et
+  `falkye/models/crm_sync_record.py::CrmSyncRecord` (correspondance entreprise
+  ↔ objet CRM, condition de l'upsert). DISPONIBLE POUR RADAR ET RADAR+, à la
+  différence du webhook générique (réservé Radar+ seul) — gate à l'usage.
+- `registry/crm_providers.yaml` + `Registry.fournisseurs_crm_actifs()`/
+  `fournisseur_crm(id)` — deux entrées, `hubspot` et `pipedrive`, chacune avec
+  un mappage de champs par défaut. LIMITE RÉELLE documentée dans le registre :
+  ce mappage par défaut est réaliste pour HubSpot (propriétés personnalisées
+  nommées explicitement) mais un simple PLACEHOLDER pour Pipedrive (clés de
+  champ personnalisé = hachages opaques propres à chaque compte client) —
+  `CrmConnection.champs_mappage_override` existe pour que chaque client
+  Pipedrive fournisse ses vraies clés.
+- `falkye/notifications/crm/base.py::CrmProvider` (interface `pousser`/
+  `tirer_statut`, distincte de `NotificationChannel` — un CRM fait un upsert
+  avec état, pas un envoi fire-and-forget) + `hubspot_channel.py`/
+  `pipedrive_channel.py` (clients HTTP minces, `requests`).
+- `falkye/crm_sync.py::pousser_notification_vers_crm` (même point de
+  déclenchement que `deliver_notification`, upsert via `CrmSyncRecord`,
+  journalisé dans `NotificationDelivery` — réutilisé, pas une table
+  parallèle) et `sonder_statuts_crm` (greffé sur `run_veille_continue`).
+- `falkye/statut_suivi.py::appliquer_statut` — factorisé à partir de la
+  logique jusqu'ici seulement en ligne dans `dashboard_statut` (`cli.py`),
+  pour que la même règle de rétroaction s'applique qu'un changement de statut
+  vienne du tableau de bord ou d'un sondage CRM.
+- CLI : `crm connecter`, `crm mapper-statut`, `crm statut`. `scan veille`
+  affiche désormais le nombre de statuts synchronisés depuis un CRM.
+- `formatter_notification` porte désormais `statut_suivi_id` dans le payload
+  structuré (absent jusqu'ici — la synchro CRM en a besoin, pas seulement les
+  scores/la sphère déjà présents pour le webhook générique).
+
+**Migration de la base de développement réelle** (1 profil, 1 besoin, 311
+notifications, 2266 entreprises) : deux tables neuves créées
+(`crm_connections`, `crm_sync_records`, `init_db()`/`create_all`, additif,
+aucune donnée existante touchée) — vérifié après coup, les comptes des tables
+existantes sont inchangés.
+
+**Construit et testé (307/307, dont 45 nouveaux).** Même limite de
+validation que TheirStack/Stripe/géocodage : aucun accès réseau vers les
+vraies API HubSpot/Pipedrive dans cet environnement — construit et testé
+contre des mocks HTTP réalistes (`responses`), validation en conditions
+réelles à faire par Alexandre une fois qu'un jeton réel de chaque
+fournisseur est disponible (en même temps que TheirStack/Stripe).

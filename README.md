@@ -203,9 +203,20 @@ python -m falkye.cli souscompte create --profile-id 1 --courriel analyste@exempl
 python -m falkye.cli dashboard voir --profile-id 1 --sous-compte-id 1          # dossiers scopés au territoire
 ```
 
-Réservées au plan Radar+ (`PlanTarifaire.RADAR_PLUS`) — un profil Radar ou Écho
-peut préparer sa configuration à l'avance, elle prend simplement effet une fois
-le plan basculé. Voir `docs/ARCHITECTURE.md` pour le détail complet.
+### Intégration CRM (HubSpot, Pipedrive — Radar ET Radar+)
+
+```bash
+python -m falkye.cli crm connecter --profile-id 1 --provider hubspot --jeton pat-xxxxx
+python -m falkye.cli crm mapper-statut --profile-id 1 --provider hubspot \
+  --statut pas_pertinent --valeur-crm "Fermé perdu"   # correspondance statut ↔ étape CRM, une à la fois
+python -m falkye.cli crm statut --profile-id 1        # état de synchronisation (fiches poussées, étape connue)
+```
+
+Les fonctionnalités Radar+ ci-dessus sont réservées au plan Radar+
+(`PlanTarifaire.RADAR_PLUS`) — l'intégration CRM fait exception (disponible
+dès Radar). Dans tous les cas, un profil sous le plan requis peut préparer sa
+configuration à l'avance, elle prend simplement effet une fois le plan
+basculé. Voir `docs/ARCHITECTURE.md` pour le détail complet.
 
 **Sur les sous-comptes/rôles** : structure de répartition de volume entre
 collègues d'une même organisation (ex. distribuer les bonnes notifications

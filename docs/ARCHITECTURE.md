@@ -613,6 +613,95 @@ séparation STRICTE, mais n'est plus un bloqueur au premier client payant
 Radar+ : vendable dès maintenant pour la répartition de volume, tant que le
 produit ne prétend jamais être une frontière de sécurité.
 
+## Intégration CRM — HubSpot, Pipedrive (Radar et Radar+, ajoutée le 2026-09-02)
+
+Fonctionnalité retenue depuis un moment dans la liste, formellement transmise
+le 2026-09-02. DISPONIBLE POUR RADAR ET RADAR+, à la différence du webhook
+générique (réservé Radar+ seul, section ci-dessus) — gate au moment de
+l'USAGE (`CrmProvider.resoudre_connexion`), jamais au stockage, même principe
+que partout ailleurs.
+
+**Pourquoi pas juste un nouveau NotificationChannel.** Un canal de
+notification pousse un message une fois (fire-and-forget) ; un CRM exige un
+UPSERT — mettre à jour la MÊME fiche à chaque nouvelle notification pour la
+même entreprise, jamais un doublon à chaque cycle de veille — plus, dans
+l'autre sens, la possibilité d'être sondé pour lire un changement fait côté
+CRM. `falkye/notifications/crm/base.py::CrmProvider` est donc une interface
+distincte de `NotificationChannel`, avec deux méthodes (`pousser`,
+`tirer_statut`) plutôt qu'une (`envoyer`). Ce qui EST réutilisé tel quel :
+`NotificationContent.donnees_structurees` (même payload déjà construit pour
+le webhook, avec une clé `statut_suivi_id` ajoutée à cette occasion) comme
+source de données, et `NotificationDelivery` (`channel_id=f"crm_{fournisseur}"`)
+comme journal de tentatives — pas une table de journalisation parallèle.
+
+**Authentification par JETON STATIQUE**, pas OAuth2 — décision d'Alexandre
+(2026-09-02) : un jeton d'application privée HubSpot ou un jeton API
+personnel Pipedrive, généré par le client dans SON compte et collé dans son
+profil FALKYE (`falkye crm connecter`, `CrmConnection.jeton_api`), même
+mécanique que `Profile.webhook_url`. Un flux OAuth2 complet exigerait une
+page de callback web et un enregistrement d'application chez chaque
+fournisseur — infrastructure que FALKYE n'a pas et qui n'était pas
+nécessaire pour un push depuis le compte du client lui-même plutôt qu'une
+appli listée sur un marketplace.
+
+**Sens retour : sondage périodique, pas un webhook entrant.** La spec
+demande une synchronisation "dans les deux sens si possible" — décision
+d'Alexandre (2026-09-02) : `falkye/crm_sync.py::sonder_statuts_crm`, greffé
+sur `run_veille_continue` (chaque cycle de veille sonde l'étape courante des
+fiches déjà synchronisées), plutôt qu'un webhook entrant depuis le CRM.
+FALKYE n'a jamais eu de composant serveur HTTP exposé publiquement en
+permanence (CLI/traitement par lot uniquement, comme documenté ailleurs dans
+ce fichier pour les sous-comptes) — un webhook entrant aurait été un premier
+changement d'architecture disproportionné pour cette seule fonctionnalité.
+Reste une amélioration possible plus tard si la latence d'un cycle de veille
+s'avère insuffisante en usage réel.
+
+**Deux tables neuves** : `falkye/models/crm_connection.py::CrmConnection`
+(jeton, `identifiant_compte` optionnel, `mapping_statuts` — correspondance
+statut de suivi FALKYE ↔ étape CRM, dans les deux sens — et
+`champs_mappage_override`) ; `falkye/models/crm_sync_record.py::
+CrmSyncRecord` (profile × company × fournisseur → `crm_object_id` connu,
+condition de l'upsert, plus `dernier_statut_pousse_id`/
+`dernier_stage_crm_connu` pour que le sondage ne retraite qu'un CHANGEMENT).
+
+**JAMAIS fabriquer une correspondance** (principe directeur #1). Les étapes
+de pipeline HubSpot/Pipedrive sont propres au compte de CHAQUE client — donc
+`CrmConnection.mapping_statuts` est vide par défaut, rempli statut par statut
+via `falkye crm mapper-statut`. Sans correspondance pour un statut donné : il
+est poussé BRUT côté CRM (`falkye/notifications/crm/base.py::
+valeurs_a_pousser`) plutôt que d'échouer, et une valeur lue côté CRM sans
+correspondance connue est ignorée proprement par le sondage plutôt que
+devinée. Même logique pour `champs_mappage` : le registre
+(`registry/crm_providers.yaml`) porte un mappage par défaut {champ FALKYE →
+propriété/champ CRM}, RÉALISTE pour HubSpot (propriétés personnalisées
+nommées explicitement par le client, ex. `falkye_neq`) mais un simple
+PLACEHOLDER pour Pipedrive : ses clés de champ personnalisé sont des
+hachages opaques attribués par Pipedrive à la création du champ, impossibles
+à deviner au niveau du registre — `CrmConnection.champs_mappage_override`
+existe précisément pour que chaque client Pipedrive fournisse ses vraies
+clés (`falkye crm connecter --mappage-override-json`).
+
+**Rétroaction partagée, peu importe l'origine du changement de statut** —
+`falkye/statut_suivi.py::appliquer_statut`, factorisé à cette occasion à
+partir de la logique jusqu'ici seulement en ligne dans
+`falkye/cli.py::dashboard_statut` : la même règle de rétroaction de
+pertinence (spec section 4bis, `falkye/retroaction.py`) s'applique qu'un
+statut "Pas pertinent" vienne d'un clic au tableau de bord ou d'un
+changement lu côté CRM par `sonder_statuts_crm`.
+
+**CLI** : `crm connecter` (jeton + `identifiant_compte` + mappage override
+optionnel), `crm mapper-statut` (une correspondance statut ↔ étape CRM à la
+fois), `crm statut` (état de synchronisation par profil). `scan veille`
+affiche désormais le nombre de statuts synchronisés depuis un CRM
+(`ScanReport.nb_statuts_crm_synchronises`).
+
+**Même limite de validation que TheirStack/Stripe/géocodage** : aucun accès
+réseau vers les vraies API HubSpot/Pipedrive dans cet environnement —
+construit et testé contre des mocks HTTP réalistes (`tests/
+test_hubspot_channel.py`, `test_pipedrive_channel.py`, via `responses`),
+validation en conditions réelles à faire par Alexandre une fois qu'un jeton
+réel de chaque fournisseur est disponible.
+
 ## Porte ouverte fournisseur/client (spec section 4/9)
 
 `Profile.type_profil` existe dès la Phase 1 (`fournisseur` / `client` / `les_deux`),

@@ -17,6 +17,7 @@ def test_formatter_notification_remplit_les_donnees_structurees(registry):
         score_confiance=70.0, niveau_confiance=NiveauConfiance.ELEVE,
         score_pertinence=80.0, niveau_pertinence=NiveauPertinence.AA,
         sphere_probable_id="gestion_projet", justification_resumee="test résumé",
+        statut_suivi_id="a_joindre",
     )
     n.company = company
     n.signaux_contributifs = [NotificationSignal(signal=signal, justification="Contrat décroché")]
@@ -29,6 +30,7 @@ def test_formatter_notification_remplit_les_donnees_structurees(registry):
     assert d["entreprise"]["neq"] == "1234567890"
     assert d["score_confiance"] == 70.0
     assert d["niveau_pertinence"] == "AA"
+    assert d["statut_suivi_id"] == "a_joindre"
     assert d["signaux"][0]["source_id"] == "seao"
     assert d["signaux"][0]["justification"] == "Contrat décroché"
 
@@ -46,6 +48,10 @@ def test_formatter_notification_niveau_pertinence_none_pour_historique(registry)
 
     contenu = formatter_notification(n, registry)
     assert contenu.donnees_structurees["niveau_pertinence"] is None
+    # statut_suivi_id NULL a le même statut qu'une donnée jamais fabriquée :
+    # une notification antérieure au tableau de bord (spec section 4bis) n'a
+    # jamais eu de statut assigné, poussé tel quel (None) plutôt que deviné.
+    assert contenu.donnees_structurees["statut_suivi_id"] is None
 
 
 # --- champs_pertinents par signal (spec section 6, "Filtrage par champ,
