@@ -105,14 +105,23 @@ class Profile(Base):
     )
 
     def besoins_fournisseur(self) -> list["ProfileNeed"]:
-        """Paires sphère+service actives pour la mécanique fournisseur (seule
+        """Paires sphère+usage actives pour la mécanique fournisseur (seule
         implémentée par le moteur en Phase 1)."""
         return [b for b in self.besoins if b.type_besoin == "offre"]
 
 
 class ProfileNeed(Base):
-    """Une paire sphère de besoin + service précis (section 4 : "plusieurs paires
-    sphère+service possibles en parallèle", chacune scannée séparément).
+    """Une paire sphère de besoin + usage précis (section 4 : "plusieurs paires
+    sphère+usage possibles en parallèle", chacune scannée séparément).
+
+    Vocabulaire "usage" (pas "service") depuis le 2026-09-02 — spec section 9,
+    principe directeur #6 révisé : "le produit doit rester utilisable par une
+    multitude de types d'utilisateurs — pas seulement des fournisseurs de
+    services B2B." Un consultant en implantation a un "service", mais une
+    chambre de commerce qui suit son territoire pour un rapport n'en a pas —
+    "usage" couvre les deux sans présumer d'un contexte commercial. Renommé
+    `usage_precis` (colonne SQL renommée sur la base réelle, migration
+    ponctuelle — voir docs/STATUT_RESEAU.md) ; `service_precis` n'existe plus.
 
     `type_besoin` distingue, pour la porte ouverte fournisseur/client :
       - "offre"   : ce que l'utilisateur offre comme fournisseur (mécanique Phase 1)
@@ -128,17 +137,34 @@ class ProfileNeed(Base):
 
     type_besoin: Mapped[str] = mapped_column(String(20), nullable=False, default="offre")
 
-    # Service précis : texte libre (chaque utilisateur décrit sa spécialité avec ses
-    # propres mots — ex. "implantation de systèmes d'inventaire", "courtage
-    # d'assurance commerciale", "recrutement spécialisé TI" selon l'utilisateur).
-    # Vide pour type_besoin="besoin". Volontairement libre plutôt qu'une liste
-    # fermée (spec section 4) : le produit ne présume d'aucun secteur ou service en
-    # particulier (spec section 9, "Polyvalence d'utilisation").
-    service_precis: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Usage précis : texte libre (chaque utilisateur décrit sa spécialité ou son
+    # usage avec ses propres mots — ex. "implantation de systèmes d'inventaire",
+    # "courtage d'assurance commerciale", "suivi de la croissance manufacturière
+    # régionale" pour un usage hors vente). Vide pour type_besoin="besoin".
+    # Volontairement libre plutôt qu'une liste fermée (spec section 4) : le
+    # produit ne présume d'aucun secteur, service ou finalité en particulier
+    # (spec section 9, "Polyvalence d'utilisation").
+    usage_precis: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Mots-clés/tags optionnels (texte séparé par virgules) utilisés pour la
     # correspondance qualitative avec les titres de poste (spec section 7, Signal 3).
     mots_cles: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Territoire propre à CE besoin — spec section 4bis, "Profils de recherche
+    # multiples simultanés (multi-usage × multi-territoire)" (ajoutée le
+    # 2026-09-02) : un compte Radar+ gère plusieurs combinaisons sphère/usage ×
+    # territoire sous UN SEUL profil plutôt qu'un profil par combinaison (ex.
+    # recrutement-QC, recrutement-ON, formation-QC, formation-ON). Texte libre,
+    # même principe que SousCompte.territoire — comparé à Company.region/ville
+    # par correspondance simple (falkye/matching.py::match_profile), pas une
+    # hiérarchie territoriale formelle.
+    #
+    # NULL = aucun filtrage géographique pour ce besoin (comportement par
+    # défaut, préserve exactement le comportement historique — Profile.ville/
+    # region/rayon_km existaient depuis la Phase 1 mais ne filtraient déjà
+    # rien, voir docs/ARCHITECTURE.md ; ce champ n'introduit donc un vrai
+    # filtrage géographique QUE pour un besoin qui le définit explicitement).
+    territoire: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     profile: Mapped[Profile] = relationship(back_populates="besoins")
     sphere = relationship("Sphere")

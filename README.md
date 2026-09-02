@@ -94,9 +94,10 @@ cp .env.example .env   # puis remplir SMTP_* pour le canal courriel
 
 ## Démarrage
 
-Le produit est générique — n'importe quel fournisseur de service B2B configure un
-profil de la même façon (spec section 9, "Polyvalence d'utilisation"). Deux
-exemples pour l'illustrer :
+Le produit est générique — n'importe quel type d'utilisateur configure un profil
+de la même façon (spec section 9, "Polyvalence d'utilisation" — pas seulement un
+fournisseur de service B2B : chambres de commerce, développement économique
+régional, etc., voir plus bas). Deux exemples pour l'illustrer :
 
 ```bash
 python -m falkye.cli init-db                     # crée les tables + sphères de base
@@ -108,7 +109,7 @@ python -m falkye.cli profile create \
   --rayon-km 100 --sensibilite-confiance eleve --sensibilite-pertinence moyen
 python -m falkye.cli profile add-need \
   --profile-id 1 --sphere-id gestion_inventaire_actifs \
-  --service "Implantation de systèmes de gestion d'inventaire et d'actifs" \
+  --usage "Implantation de systèmes de gestion d'inventaire et d'actifs" \
   --mots-cles "implantation,gestion d'inventaire,ERP,WMS"
 
 # Exemple 2 : courtier en assurance commerciale — même mécanique, autre sphère
@@ -118,7 +119,7 @@ python -m falkye.cli profile create \
   --rayon-km 75 --sensibilite-confiance moyen --sensibilite-pertinence moyen
 python -m falkye.cli profile add-need \
   --profile-id 2 --sphere-id assurance_gestion_risques \
-  --service "Courtage en assurance commerciale PME" \
+  --usage "Courtage en assurance commerciale PME" \
   --mots-cles "assurance responsabilité,gestion des risques"
 
 python -m falkye.cli registry sources             # état du registre de sources
@@ -177,21 +178,42 @@ La carte géographique géocode les entreprises pas encore résolues (Nominatim/
 OpenStreetMap, gratuit) — **non validé contre un vrai appel** dans cet
 environnement de développement, voir `docs/STATUT_RESEAU.md`.
 
-### Trois fonctionnalités Radar+ professionnelles
+### Profils de recherche multiples simultanés (multi-usage × multi-territoire)
+
+```bash
+# Un compte Radar+ gère plusieurs combinaisons sphère/usage × territoire sous UN
+# SEUL profil, plutôt qu'un profil par combinaison :
+python -m falkye.cli profile add-need --profile-id 1 --sphere-id rh_recrutement_dotation \
+  --usage "Recrutement spécialisé" --territoire Québec
+python -m falkye.cli profile add-need --profile-id 1 --sphere-id rh_recrutement_dotation \
+  --usage "Recrutement spécialisé" --territoire Ontario
+
+python -m falkye.cli dashboard voir --profile-id 1 --usage "Recrutement" --territoire Québec
+python -m falkye.cli dashboard synthese --profile-id 1 --jours 90       # vue agrégée par secteur/territoire
+```
+
+### Fonctionnalités Radar+ professionnelles
 
 ```bash
 python -m falkye.cli profile set-webhook --profile-id 1 --url https://exemple.com/hook   # accès API/webhook complet
-python -m falkye.cli ponderation definir --profile-id 1 --base-aaa 95 --bonus-velocite-max 30  # pondération personnalisable
+python -m falkye.cli ponderation presets                                       # alertes composites disponibles
+python -m falkye.cli ponderation appliquer --profile-id 1 --preset alerte_financement_precoce
 python -m falkye.cli souscompte create --profile-id 1 --courriel analyste@exemple.com \
   --nom "Analyste régional" --role analyste --territoire "Capitale-Nationale"  # sous-comptes et territoires
 python -m falkye.cli dashboard voir --profile-id 1 --sous-compte-id 1          # dossiers scopés au territoire
 ```
 
-Les trois sont réservées au plan Radar+ (`PlanTarifaire.RADAR_PLUS`) — un profil
-Radar ou Écho peut préparer sa configuration à l'avance, elle prend simplement
-effet une fois le plan basculé. Voir `docs/ARCHITECTURE.md` pour le détail
-complet, y compris la limite honnête sur les sous-comptes (pas de système
-d'authentification réel dans ce produit CLI).
+Réservées au plan Radar+ (`PlanTarifaire.RADAR_PLUS`) — un profil Radar ou Écho
+peut préparer sa configuration à l'avance, elle prend simplement effet une fois
+le plan basculé. Voir `docs/ARCHITECTURE.md` pour le détail complet.
+
+**Sur les sous-comptes/rôles** : structure de répartition de volume entre
+collègues d'une même organisation (ex. distribuer les bonnes notifications
+selon le territoire assigné), pas une frontière de sécurité — FALKYE n'a
+aucun système d'authentification réel. Une authentification réelle reste un
+vrai prérequis avant de présenter les rôles comme une séparation stricte,
+mais n'est plus un bloqueur au premier client payant Radar+ (clarification
+d'Alexandre, 2026-09-02 — voir `docs/ARCHITECTURE.md`).
 
 ## Tests
 

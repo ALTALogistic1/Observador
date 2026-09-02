@@ -1261,3 +1261,106 @@ demandées sont maintenant toutes livrées. Les éléments explicitement notés
 par la spec elle-même comme "feuille de route plus lointaine" (rapports
 exportables en marque blanche, authentification SSO/SAML) restent, comme
 demandé, non construits.
+
+## Ajustements post-revue : vocabulaire, presets, profils multiples (2026-09-02)
+
+Alexandre a revu la construction des six fonctionnalités (234/234, rien à
+redire sur le fond) avec des ajustements de vocabulaire/exposition, deux
+nouvelles fonctionnalités, et une question de vérification technique.
+
+**Question directe : le lien sphère ↔ signal se fait-il au niveau du signal
+entier ou d'un champ précis ?** Réponse vérifiée dans le code réel (pas
+seulement l'intention de conception) : le lien `SphereDef` ↔ `SignalTypeDef`
+(`spheres_probables`) se fait au niveau du `signal_type_id` EN ENTIER,
+jamais d'un champ interne — c'est le cas pour toutes les sphères, pas
+seulement financement. Le principe "jamais une source activée en bloc,
+toujours champ par champ" existe bel et bien, mais à la couche de
+CALIBRATION à l'ingestion (`SourceDef.regle_calibration` — ex. REQ ne
+retient que 2 des N types de mise à jour possibles, RDPRM exclut les biens
+personnels par le champ `nature_bien`), pas à celle du matching de sphère.
+Voir `docs/ARCHITECTURE.md`, section "Granularité du lien sphère ↔ signal",
+pour le détail complet avec références de code.
+
+**Bogue réel trouvé en répondant à cette question** : `financement_acces_
+capital` n'avait JAMAIS été ajoutée à `spheres_probables` de `financement_
+expansion` dans `signal_types.yaml` — un oubli du 2026-09-01, pas une
+décision. Un profil configuré sur cette sphère ne pouvait recevoir AUCUNE
+notification par le chemin générique de matching, seulement le bonus
+d'absence (qui suppose déjà un autre match) — la sphère était en pratique
+inatteignable. Corrigé : ajoutée en dernière position de la liste (décision
+conservatrice, ne déplace pas la sphère principale des personas déjà
+supportés). Testé bout en bout contre un vrai `match_profile`.
+
+**Vocabulaire "usage" plutôt que "service"** — FALKYE n'est plus positionné
+comme strictement B2B (principe directeur #6 révisé : "une multitude de
+types d'utilisateurs... pas seulement des fournisseurs de services B2B").
+`ProfileNeed.service_precis` renommée `usage_precis` (colonne SQL renommée
+sur la base réelle, donnée préservée) ; `cli.py --service` renommé
+`--usage`. Documentation mise à jour en conséquence (README, ARCHITECTURE).
+
+**Authentification/rôles — urgence révisée à la baisse.** Clarification
+d'Alexandre : le vrai besoin des personas Radar+ réels (développement
+économique régional, cabinets multi-agents) est la répartition de volume
+entre collègues d'une même organisation, pas l'étanchéité de sécurité.
+Une authentification réelle reste un vrai prérequis à construire avant de
+présenter les rôles comme une séparation stricte, mais n'est plus un
+bloqueur au premier client payant Radar+ — **la mise en garde de Claude
+Code reste inchangée et non négociable : jamais présentée comme une
+frontière de sécurité dans le produit ou le matériel de vente**, quelle que
+soit l'urgence commerciale. `falkye/models/sous_compte.py` et
+`docs/ARCHITECTURE.md` mis à jour pour porter cette nuance explicitement.
+
+**Pondération → alertes composites préconfigurées.** L'exposition par
+curseur générique (`ponderation definir --base-a/--bonus-velocite-max/...`)
+est jugée trop abstraite pour un usage réel — remplacée par trois presets
+nommés (`falkye/alertes_composites.py`, `ponderation appliquer --preset`) :
+`alerte_cautionnement`, `alerte_financement_precoce`, `alerte_acquisition`.
+Le mécanisme sous-jacent (`PonderationValeurs`/`PonderationPersonnalisee`)
+est INCHANGÉ, comme demandé — seule l'exposition CLI change. LIMITE
+HONNÊTE documentée dans le module : les trois cas d'usage nommés
+mentionnent "entreprise jeune", mais aucune date de fondation n'est captée
+nulle part dans le pipeline — les presets approximent avec les seuls
+leviers déjà modélisés (poids par palier, bonus absence/vélocité), pas un
+vrai filtre d'âge. Un facteur d'âge réel resterait à construire séparément
+si l'approximation ne suffit pas en usage réel (nécessiterait de confirmer
+que le vrai fichier REQ porte une date d'immatriculation exploitable — non
+vérifiable dans cet environnement, accès réseau bloqué).
+
+**Nouveau : profils de recherche multiples simultanés (multi-usage ×
+multi-territoire).** `ProfileNeed.territoire` (nouveau champ, texte libre,
+nullable) permet à un compte Radar+ de gérer plusieurs combinaisons sphère/
+usage × territoire sous un seul profil (ex. recrutement-QC et
+recrutement-ON) plutôt qu'un profil par combinaison. NULL préserve
+exactement le comportement historique (aucun filtrage géographique n'était
+appliqué avant cette mise à jour, même si `Profile.ville`/`region`/
+`rayon_km` existaient depuis la Phase 1 — un vrai filtrage géographique
+n'existe donc, pour la première fois, que pour un besoin qui le définit
+explicitement). Filtrage implémenté dans `falkye/matching.py`.
+`Notification.profile_need_id` (nouveau champ, nullable pour l'historique)
+trace la combinaison exacte à l'origine de chaque notification. Validé
+bout en bout contre un scénario réel à deux combinaisons (recrutement-QC/
+ON) : chaque entreprise correctement routée vers le bon besoin. `dashboard
+voir --usage`/`--territoire` filtrent en conséquence.
+
+**Nouveau : tableaux de bord agrégés par territoire.** `falkye/synthese.py`,
+`dashboard synthese --profile-id --jours --territoire` — vue de synthèse
+(entreprises distinctes détectées, réparties par secteur d'activité, niveau
+de pertinence, territoire) plutôt que les prospects un à un. LIMITE RÉELLE
+trouvée en validant contre la base réelle : `Company.secteur_activite_
+libelle` (texte libre du REQ) est extrêmement granulaire en pratique — sur
+311 notifications réelles, ~211 "secteurs" distincts, la plupart avec une
+seule entreprise chacun. L'agrégation par secteur, telle que construite,
+reste donc peu utile pour un vrai usage de reddition de comptes tant qu'un
+regroupement par catégorie plus large (ex. code SCIAN/NAICS) n'est pas
+ajouté — non construit dans cette passe, à soulever si l'usage réel le
+justifie.
+
+**Migration de la base de développement réelle** (1 profil, 1 besoin, 311
+notifications) : `profile_needs.service_precis` renommée `usage_precis`
+(données préservées, pas recréées) ; `profile_needs.territoire` et
+`notifications.profile_need_id` ajoutées (NULL pour l'existant — jamais de
+valeur inventée, principe directeur #1).
+
+**Construit et testé (252/252, dont 32 nouveaux).** Rien de changé côté
+validation TheirStack/Stripe — toujours en attente des identifiants
+d'Alexandre, aucune action requise de mon côté entre-temps.

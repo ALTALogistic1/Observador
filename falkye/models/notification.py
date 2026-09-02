@@ -65,6 +65,16 @@ class Notification(Base):
     sphere_probable_id: Mapped[str | None] = mapped_column(ForeignKey("spheres.id"), nullable=True)
     justification_resumee: Mapped[str] = mapped_column(Text, nullable=False)
 
+    # Combinaison sphère/usage × territoire à l'origine de cette notification —
+    # spec section 4bis, "Profils de recherche multiples simultanés" (ajoutée
+    # le 2026-09-02) : permet de filtrer le tableau de bord par usage ou par
+    # territoire quand un compte gère plusieurs combinaisons en parallèle sous
+    # un seul profil. Nullable pour l'historique (jamais de valeur inventée,
+    # principe directeur #1) — les notifications antérieures à cette
+    # fonctionnalité n'ont qu'une seule combinaison possible par profil de
+    # toute façon (un seul ProfileNeed était la norme avant cette mise à jour).
+    profile_need_id: Mapped[int | None] = mapped_column(ForeignKey("profile_needs.id"), nullable=True)
+
     # Statut de suivi du tableau de bord (spec section 4bis, "Radar et Radar+
     # seulement", ajoutée le 2026-09-02) — propre à l'utilisateur, distinct des
     # deux axes confiance/pertinence ci-dessus. Nullable pour les notifications
@@ -79,6 +89,7 @@ class Notification(Base):
 
     company = relationship("Company", back_populates="notifications")
     profile = relationship("Profile")
+    profile_need = relationship("ProfileNeed")
     statut_suivi = relationship("StatutSuivi")
     signaux_contributifs: Mapped[list["NotificationSignal"]] = relationship(
         back_populates="notification", cascade="all, delete-orphan"

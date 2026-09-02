@@ -19,7 +19,7 @@ from falkye.pertinence import (
 
 
 def _need(sphere_id="gestion_projet"):
-    return ProfileNeed(profile_id=1, sphere_id=sphere_id, service_precis="test")
+    return ProfileNeed(profile_id=1, sphere_id=sphere_id, usage_precis="test")
 
 
 def _company(nom="Entreprise Test Inc."):

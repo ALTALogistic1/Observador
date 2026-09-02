@@ -79,14 +79,33 @@ def correspondance_qualitative_titre(titre_poste: str | None, mots_cles_profil: 
     return result
 
 
+def _territoire_ok(need: ProfileNeed, raw: RawSignal) -> bool:
+    """Filtre géographique par besoin — spec section 4bis, "Profils de
+    recherche multiples simultanés" : `need.territoire` (None = aucun filtrage,
+    comportement historique inchangé) doit correspondre à la ville OU la région
+    de l'entreprise associée au signal, comparaison simple insensible à la
+    casse (même principe que SousCompte.territoire dans falkye/cli.py::
+    dashboard_voir — pas une hiérarchie territoriale formelle)."""
+    if not need.territoire:
+        return True
+    territoire_norm = need.territoire.strip().lower()
+    return (raw.ville or "").strip().lower() == territoire_norm or (
+        raw.region or ""
+    ).strip().lower() == territoire_norm
+
+
 def match_profile(raw: RawSignal, profile: Profile, registry: Registry) -> list[MatchResult]:
-    """Pour chaque paire sphère+service du profil (mécanique fournisseur — voir
+    """Pour chaque paire sphère+usage du profil (mécanique fournisseur — voir
     Profile.besoins_fournisseur), détermine si ce signal la concerne, via la table
-    générique signal->sphères et/ou via la correspondance qualitative précise."""
+    générique signal->sphères et/ou via la correspondance qualitative précise —
+    puis via le territoire propre à ce besoin, le cas échéant (spec section 4bis)."""
     spheres_generiques = set(spheres_probables(raw.signal_type_id, registry))
     resultats: list[MatchResult] = []
 
     for need in profile.besoins_fournisseur():
+        if not _territoire_ok(need, raw):
+            continue
+
         sphere_ok = need.sphere_id in spheres_generiques
         mots_cles_trouves: list[str] = []
         if raw.signal_type_id == "recrutement_massif":

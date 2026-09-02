@@ -57,6 +57,22 @@ signal_types:
       - comptabilite_finance_fiscalite
       - juridique_conformite
       - technologie_systemes_ti
+      # financement_acces_capital ajoutée le 2026-09-02 (bogue trouvé en
+      # répondant à une question d'Alexandre) : la sphère existait dans
+      # spheres.yaml (avec signal_absence_pertinent: financement_expansion)
+      # depuis son ajout initial, mais n'avait JAMAIS été ajoutée ici — un
+      # profil configuré sur cette sphère ne pouvait donc recevoir AUCUNE
+      # notification par le chemin générique de matching.py::match_profile
+      # (sphere_ok = need.sphere_id in spheres_probables(...)), seulement le
+      # bonus de pertinence par absence (falkye/pertinence.py), qui suppose
+      # déjà qu'un AUTRE match a fait entrer l'entreprise dans le pipeline.
+      # Ajoutée en DERNIÈRE position (pas en tête) : décision conservatrice
+      # pour ne pas déplacer la "sphère principale" (falkye/pertinence.py::
+      # _sphere_principale, la PREMIÈRE de cette liste) des personas déjà
+      # supportés — un courtier en financement reste donc en A/AA plutôt
+      # qu'automatiquement AA/AAA tant qu'un usage réel ne justifie pas de
+      # la remonter (principe directeur #9).
+      - financement_acces_capital
 
   - id: recrutement_massif
     nom: "Recrutement massif ou qualitatif"

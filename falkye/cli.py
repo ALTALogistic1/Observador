@@ -290,22 +290,33 @@ def profile_create(
 @click.option("--profile-id", required=True, type=int)
 @click.option("--sphere-id", required=True)
 @click.option(
-    "--service",
-    "service_precis",
+    "--usage",
+    "usage_precis",
     required=True,
-    help="Texte libre décrivant votre service (ex. 'courtage d'assurance commerciale', 'implantation de systèmes d'inventaire')",
+    help="Texte libre décrivant votre usage (ex. 'courtage d'assurance commerciale', "
+    "'implantation de systèmes d'inventaire', ou un usage hors vente comme 'suivi de la "
+    "croissance manufacturière régionale')",
 )
 @click.option("--mots-cles", default=None, help="Séparés par des virgules")
 @click.option("--type-besoin", type=click.Choice(["offre", "besoin"]), default="offre")
-def profile_add_need(profile_id, sphere_id, service_precis, mots_cles, type_besoin):
+@click.option(
+    "--territoire",
+    default=None,
+    help="Restreint CE besoin à une ville/région précise (spec section 4bis, "
+    "'Profils de recherche multiples simultanés') — permet plusieurs combinaisons "
+    "usage × territoire sous un seul profil (ex. recrutement-QC et recrutement-ON). "
+    "Omis = aucun filtrage géographique pour ce besoin (comportement historique).",
+)
+def profile_add_need(profile_id, sphere_id, usage_precis, mots_cles, type_besoin, territoire):
     session = get_session()
     try:
         need = ProfileNeed(
             profile_id=profile_id,
             sphere_id=sphere_id,
-            service_precis=service_precis,
+            usage_precis=usage_precis,
             mots_cles=mots_cles,
             type_besoin=type_besoin,
+            territoire=territoire,
         )
         session.add(need)
         session.commit()
@@ -325,7 +336,10 @@ def profile_list():
                 f"sensibilite_pertinence={p.sensibilite_pertinence.value}"
             )
             for n in p.besoins:
-                click.echo(f"    - [{n.type_besoin}] {n.sphere_id}: {n.service_precis} (mots-clés: {n.mots_cles})")
+                click.echo(
+                    f"    - [id={n.id}, {n.type_besoin}] {n.sphere_id}: {n.usage_precis} "
+                    f"(mots-clés: {n.mots_cles}, territoire: {n.territoire or 'aucun'})"
+                )
     finally:
         session.close()
 
@@ -519,7 +533,22 @@ def _resoudre_sous_compte(session, profile_id, sous_compte_id):
     default=None,
     help="Scope les dossiers au territoire assigné à ce sous-compte (spec section 4bis, Radar+).",
 )
-def dashboard_voir(profile_id, employes_min, employes_max, sous_compte_id):
+@click.option(
+    "--usage",
+    "usage_filtre",
+    default=None,
+    help="Filtre par usage précis (spec section 4bis, 'Profils de recherche multiples "
+    "simultanés') — sous-chaîne insensible à la casse de ProfileNeed.usage_precis.",
+)
+@click.option(
+    "--territoire",
+    "territoire_filtre",
+    default=None,
+    help="Filtre par territoire de la combinaison sphère/usage × territoire à l'origine "
+    "de la notification (ProfileNeed.territoire) — distinct de --sous-compte-id, qui "
+    "scope plutôt par le territoire assigné AU VIEWER.",
+)
+def dashboard_voir(profile_id, employes_min, employes_max, sous_compte_id, usage_filtre, territoire_filtre):
     """Liste les cartes de dossiers (une par notification) pour ce profil —
     pertinence/confiance, site web et coordonnées, statut de suivi, taille
     d'entreprise estimée."""
@@ -544,6 +573,18 @@ def dashboard_voir(profile_id, employes_min, employes_max, sous_compte_id):
         notifications_qs = [
             n for n in notifications_qs if correspond_au_filtre(n.company, employes_min, employes_max)
         ]
+        if usage_filtre:
+            u = usage_filtre.strip().lower()
+            notifications_qs = [
+                n for n in notifications_qs if n.profile_need and u in (n.profile_need.usage_precis or "").lower()
+            ]
+        if territoire_filtre:
+            t = territoire_filtre.strip().lower()
+            notifications_qs = [
+                n
+                for n in notifications_qs
+                if n.profile_need and (n.profile_need.territoire or "").strip().lower() == t
+            ]
         if sous_compte is not None and sous_compte.territoire:
             territoire_norm = sous_compte.territoire.strip().lower()
             notifications_qs = [
@@ -571,6 +612,11 @@ def dashboard_voir(profile_id, employes_min, employes_max, sous_compte_id):
             ) or "non disponibles"
             click.echo(f"│  Coordonnées : {coordonnees}")
             click.echo(f"│  Taille estimée : {taille_txt}")
+            if n.profile_need is not None:
+                click.echo(
+                    f"│  Combinaison : {n.profile_need.usage_precis or 'n/d'} "
+                    f"(territoire: {n.profile_need.territoire or 'aucun'})"
+                )
             click.echo(f"└─ Statut de suivi : {statut}")
     finally:
         session.close()
@@ -635,6 +681,69 @@ def dashboard_statut(notification_id, statut_id, sous_compte_id):
             click.echo(f"Notification #{n.id} — statut défini à {statut_id}")
 
         session.commit()
+    finally:
+        session.close()
+
+
+@dashboard.command("synthese")
+@click.option("--profile-id", required=True, type=int)
+@click.option("--jours", type=int, default=90, help="Fenêtre de temps (défaut 90 jours, environ un trimestre).")
+@click.option(
+    "--territoire",
+    "territoire_filtre",
+    default=None,
+    help="Limite la synthèse aux notifications dont la combinaison sphère/usage × "
+    "territoire (ProfileNeed.territoire) correspond exactement.",
+)
+def dashboard_synthese(profile_id, jours, territoire_filtre):
+    """Vue de synthèse agrégée (spec section 4bis) — "X entreprises détectées,
+    réparties par secteur" plutôt que les prospects un à un. Utile pour la
+    reddition de comptes (ex. développement économique régional)."""
+    from datetime import datetime, timedelta, timezone
+
+    from falkye.models.notification import Notification
+    from falkye.models.profile import Profile
+    from falkye.synthese import generer_synthese
+
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        _verifier_plan_dashboard(p)
+
+        depuis = datetime.now(timezone.utc) - timedelta(days=jours)
+        notifications_qs = (
+            session.query(Notification)
+            .filter(Notification.profile_id == profile_id, Notification.created_at >= depuis)
+            .all()
+        )
+        if territoire_filtre:
+            t = territoire_filtre.strip().lower()
+            notifications_qs = [
+                n
+                for n in notifications_qs
+                if n.profile_need and (n.profile_need.territoire or "").strip().lower() == t
+            ]
+
+        synthese = generer_synthese(notifications_qs)
+
+        sous_titre = f", territoire « {territoire_filtre} »" if territoire_filtre else ""
+        click.echo(f"Synthèse — profil #{p.id}, {jours} derniers jours{sous_titre}")
+        click.echo(f"{synthese.nb_entreprises} entreprise(s) en croissance détectée(s)\n")
+
+        click.echo("Répartition par secteur d'activité :")
+        for secteur, n in synthese.par_secteur.most_common():
+            click.echo(f"  {secteur} : {n}")
+
+        click.echo("\nRépartition par niveau de pertinence :")
+        for niveau, n in synthese.par_niveau_pertinence.most_common():
+            click.echo(f"  {niveau} : {n}")
+
+        if not territoire_filtre:
+            click.echo("\nRépartition par territoire :")
+            for territoire, n in synthese.par_territoire.most_common():
+                click.echo(f"  {territoire} : {n}")
     finally:
         session.close()
 
@@ -733,9 +842,23 @@ def resume_envoyer(profile_id, jours):
 
 @cli.group()
 def ponderation():
-    """Pondération personnalisée du moteur de score de pertinence (spec section
-    4bis, Radar+ "pondération du moteur de score personnalisable"). N'a d'effet
-    que pour un profil au plan Radar+ (falkye/ponderation.py)."""
+    """Alertes composites préconfigurées par cas d'usage (spec section 4bis,
+    Radar+) — remplace l'ancienne exposition par curseur générique, jugée trop
+    abstraite (décision d'Alexandre du 2026-09-02). Le mécanisme sous-jacent
+    (falkye/pertinence.py::PonderationValeurs) est inchangé, seule
+    l'interface change : trois presets nommés (voir `ponderation presets`)
+    plutôt que des leviers numériques bruts. N'a d'effet que pour un profil au
+    plan Radar+ (falkye/ponderation.py)."""
+
+
+@ponderation.command("presets")
+def ponderation_presets():
+    """Liste les alertes composites disponibles et leur description."""
+    from falkye.alertes_composites import ALERTES_COMPOSITES
+
+    for a in ALERTES_COMPOSITES.values():
+        click.echo(f"{a.id} — {a.nom}")
+        click.echo(f"  {a.description}")
 
 
 @ponderation.command("voir")
@@ -762,21 +885,14 @@ def ponderation_voir(profile_id):
         session.close()
 
 
-@ponderation.command("definir")
+@ponderation.command("appliquer")
 @click.option("--profile-id", required=True, type=int)
-@click.option("--base-a", type=float, default=None)
-@click.option("--base-aa", type=float, default=None)
-@click.option("--base-aaa", type=float, default=None)
-@click.option("--bonus-absence", type=float, default=None)
-@click.option("--bonus-velocite-max", type=float, default=None)
-@click.option("--bonus-velocite-par-signal", type=float, default=None)
-def ponderation_definir(
-    profile_id, base_a, base_aa, base_aaa, bonus_absence, bonus_velocite_max, bonus_velocite_par_signal
-):
-    """Définit UN OU PLUSIEURS facteurs (les autres restent inchangés — NULL =
-    valeur par défaut de FALKYE, voir falkye/models/ponderation_personnalisee.py).
-    N'a d'effet que pour un profil Radar+ ; se configure indépendamment du plan,
-    même principe que `profile set-webhook`."""
+@click.option("--preset", "preset_id", required=True, help="Voir `ponderation presets` pour les valeurs possibles.")
+def ponderation_appliquer(profile_id, preset_id):
+    """Applique une alerte composite préconfigurée à ce profil (remplace toute
+    pondération précédemment appliquée). N'a d'effet que pour un profil Radar+ ;
+    se configure indépendamment du plan, même principe que `profile set-webhook`."""
+    from falkye.alertes_composites import alerte_composite
     from falkye.models.ponderation_personnalisee import PonderationPersonnalisee
 
     session = get_session()
@@ -785,21 +901,28 @@ def ponderation_definir(
         if p is None:
             raise click.ClickException(f"Profil {profile_id} introuvable")
 
+        alerte = alerte_composite(preset_id)
+        if alerte is None:
+            raise click.ClickException(f"Alerte composite inconnue : {preset_id} (voir `ponderation presets`)")
+
         ligne = session.query(PonderationPersonnalisee).filter_by(profile_id=profile_id).one_or_none()
         if ligne is None:
             ligne = PonderationPersonnalisee(profile_id=profile_id)
             session.add(ligne)
 
-        for champ, valeur in [
-            ("base_a", base_a), ("base_aa", base_aa), ("base_aaa", base_aaa),
-            ("bonus_absence", bonus_absence), ("bonus_velocite_max", bonus_velocite_max),
-            ("bonus_velocite_par_signal", bonus_velocite_par_signal),
-        ]:
-            if valeur is not None:
-                setattr(ligne, champ, valeur)
+        pond = alerte.ponderation
+        ligne.base_a = pond.base_a
+        ligne.base_aa = pond.base_aa
+        ligne.base_aaa = pond.base_aaa
+        ligne.bonus_absence = pond.bonus_absence
+        ligne.bonus_velocite_max = pond.bonus_velocite_max
+        ligne.bonus_velocite_par_signal = pond.bonus_velocite_par_signal
 
         session.commit()
-        click.echo(f"Profil #{p.id} — pondération personnalisée mise à jour (effective seulement si plan=radar_plus).")
+        click.echo(
+            f"Profil #{p.id} — alerte composite '{alerte.nom}' appliquée "
+            f"(effective seulement si plan=radar_plus)."
+        )
     finally:
         session.close()
 

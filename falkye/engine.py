@@ -165,6 +165,15 @@ def _signal_vers_rawsignal(signal: Signal) -> RawSignal:
         titre_ou_description=signal.titre_ou_description,
         valeur_associee=signal.valeur_associee,
         champs=signal.champs,
+        # Ville/région de l'entreprise associée — spec section 4bis "Profils de
+        # recherche multiples simultanés" : nécessaire pour que match_profile
+        # puisse filtrer par ProfileNeed.territoire (falkye/matching.py).
+        # Jamais utilisées avant cette fonctionnalité (Profile.ville/region/
+        # rayon_km existaient depuis la Phase 1 mais ne filtraient rien — voir
+        # docs/ARCHITECTURE.md), donc aucun changement de comportement pour un
+        # besoin qui ne définit pas de territoire.
+        ville=signal.company.ville,
+        region=signal.company.region,
     )
 
 
@@ -229,6 +238,11 @@ def _traiter_entreprise_pour_profil(
         return None
 
     sphere_choisie = meilleur_global[1].profile_need.sphere_id
+    # Combinaison sphère/usage × territoire à l'origine de cette notification
+    # (spec section 4bis, "Profils de recherche multiples simultanés") — le
+    # ProfileNeed du MEILLEUR match global, cohérent avec sphere_choisie
+    # ci-dessus (les deux viennent du même meilleur_global).
+    profile_need_choisi_id = meilleur_global[1].profile_need.id
 
     if mode == ModeUsage.VEILLE_CONTINUE:
         deja_couverts = _signaux_deja_couverts(db_session, company.id, profile.id)
@@ -297,6 +311,7 @@ def _traiter_entreprise_pour_profil(
         score_pertinence=pertinence_result.score_pertinence,
         niveau_pertinence=pertinence_result.niveau,
         sphere_probable_id=sphere_choisie,
+        profile_need_id=profile_need_choisi_id,
         statut_suivi_id=registry.statut_suivi_par_defaut().id,
         justification_resumee=(
             f"{len(signaux_pertinents)} signal(aux) détecté(s), "

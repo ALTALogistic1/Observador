@@ -509,14 +509,13 @@ entreprise non géocodée est simplement absente de la carte, pas un échec de l
 commande — vérifié en conditions réelles (0/311 dossiers géocodés contre la
 base réelle, carte générée correctement quand même).
 
-## Trois fonctionnalités Radar+ professionnelles (spec section 4bis, construites le 2026-09-02)
+## Fonctionnalités Radar+ professionnelles (spec section 4bis, révisées le 2026-09-02)
 
 "Le portail ouvert seul ne suffit pas à distinguer Radar+ comme palier
-professionnel." Les trois s'ajoutent au système de plans (section 9bis
-ci-dessus) sans le modifier — chacune gate son propre usage en vérifiant
+professionnel." Chacune gate son propre usage en vérifiant
 `profile.plan == PlanTarifaire.RADAR_PLUS` au moment où elle sert, jamais en
 empêchant le STOCKAGE de sa configuration (un profil peut préparer son
-webhook/sa pondération avant une bascule de plan).
+webhook/ses combinaisons de recherche avant une bascule de plan).
 
 **Accès API/webhook complet** — `Profile.webhook_url` + `falkye/notifications/
 webhook_channel.py::WebhookChannel`. Nécessitait de généraliser la résolution
@@ -528,17 +527,68 @@ TOUTE notification) porte un payload JSON structuré — entreprise, scores,
 sphère, signaux contributifs — pour qu'un CRM/ERP externe n'ait pas à reparser
 un texte formaté pour affichage humain.
 
-**Pondération du moteur de score personnalisable** — `falkye/pertinence.py::
-PonderationValeurs` (dataclass miroir des constantes du module, `PONDERATION_
-DEFAUT` = les valeurs historiques) enfilée à travers `base_match`/
-`bonus_signal_absence`/`bonus_velocite`/`calculer_pertinence`, résolue par
-profil via `falkye/ponderation.py::ponderation_pour_profil` et calculée UNE
-FOIS par `engine.py::_traiter_entreprise_pour_profil` (utilisée à la fois pour
-le choix de sphère et le calcul de pertinence — cohérence garantie entre les
-deux). `PonderationPersonnalisee` (nouveau modèle, une ligne par profil au
-plus, tous les champs nullables) permet d'ajuster UN SEUL facteur sans
-redéfinir les autres — NULL = valeur par défaut de FALKYE pour ce facteur
-précis.
+**Alertes composites préconfigurées par cas d'usage** (`falkye/
+alertes_composites.py`) — remplace, le 2026-09-02, la "pondération du moteur
+de score personnalisable" d'origine (jugée trop abstraite pour un usage réel,
+décision d'Alexandre). Le mécanisme sous-jacent est INCHANGÉ : `falkye/
+pertinence.py::PonderationValeurs` (dataclass miroir des constantes du
+module, `PONDERATION_DEFAUT` = les valeurs historiques) enfilée à travers
+`base_match`/`bonus_signal_absence`/`bonus_velocite`/`calculer_pertinence`,
+résolue par profil via `falkye/ponderation.py::ponderation_pour_profil` et
+calculée UNE FOIS par `engine.py::_traiter_entreprise_pour_profil`.
+`PonderationPersonnalisee` (une ligne par profil au plus, tous les champs
+nullables) permet toujours d'ajuster un seul facteur. Seule l'EXPOSITION
+change : trois presets nommés (`AlerteCompositeDef`, `ponderation appliquer
+--preset`) plutôt que six leviers numériques bruts — `alerte_cautionnement`
+(favorise la vélocité), `alerte_financement_precoce` (favorise le bonus
+d'absence), `alerte_acquisition` (favorise la précision de sphère et la
+vélocité). LIMITE HONNÊTE documentée en tête du module : les trois cas
+d'usage nommés mentionnent tous "entreprise jeune", mais aucune donnée
+d'âge/date de fondation n'est captée nulle part dans le pipeline (`Company.
+first_detected_at` est la date où FALKYE a REPÉRÉ l'entreprise, pas sa date
+de fondation réelle) — les presets approximent chaque cas d'usage avec les
+seuls leviers que `pertinence.py` modélise (poids par palier, bonus
+absence/vélocité), pas un vrai filtre sur l'âge.
+
+**Profils de recherche multiples simultanés (multi-usage × multi-territoire)**
+— nouveauté du 2026-09-02, spec section 4bis : "un compte Radar+ peut définir
+plusieurs combinaisons sphère de besoin/usage précis × territoire... sous un
+seul compte plutôt que quatre profils séparés." `ProfileNeed.territoire`
+(nouveau champ, texte libre, nullable) restreint UN besoin précis à une
+ville/région — NULL (défaut) préserve exactement le comportement historique
+(`Profile.ville`/`region`/`rayon_km` existaient depuis la Phase 1 mais ne
+filtraient déjà rien, voir plus haut ; ce champ n'introduit un vrai filtrage
+géographique QUE pour un besoin qui le définit explicitement, donc aucun
+changement de comportement pour un profil existant à un seul besoin).
+Implémenté dans `falkye/matching.py::_territoire_ok` — comparaison simple
+(insensible à la casse) à la ville OU la région de l'entreprise, PAS une
+hiérarchie territoriale formelle, même principe que `SousCompte.territoire`.
+`Notification.profile_need_id` (nouveau champ FK, nullable pour l'historique)
+trace quelle combinaison précise a produit chaque notification, capturé à
+partir du `meilleur_global` déjà calculé pour choisir la sphère
+(`engine.py::_traiter_entreprise_pour_profil`) — cohérence garantie entre
+`sphere_probable_id` et `profile_need_id` puisque les deux viennent du même
+match. `dashboard voir --usage`/`--territoire` filtrent par cette
+combinaison — distinct de `--sous-compte-id`, qui scope plutôt par le
+territoire assigné AU VIEWER (deux dimensions indépendantes : quelle
+combinaison a détecté le prospect, et qui a le droit de le voir).
+
+**Tableaux de bord agrégés par territoire** (`falkye/synthese.py`,
+`dashboard synthese`) — "au-delà des prospects un à un, une vue agrégée ('X
+entreprises... réparties par secteur')." Compte les entreprises DISTINCTES
+(pas les notifications) sur une fenêtre de temps, réparties par secteur
+d'activité (`Company.secteur_activite_libelle`, déjà captée depuis le REQ),
+niveau de pertinence, et territoire. LIMITE RÉELLE trouvée en validant contre
+la base réelle (311 notifications) : `secteur_activite_libelle` est un champ
+TEXTE LIBRE du REQ, extrêmement granulaire en pratique (ex. "Fabrication de
+charpentes en bois en usine" vs "Fabrication de meuble de maison" comme deux
+secteurs distincts) — sur 311 entreprises réelles, la répartition produit
+~211 "secteurs" différents, la plupart avec une seule entreprise chacun,
+rendant l'agrégation par secteur peu utile telle quelle pour un usage de
+reddition de comptes réel. Un vrai regroupement par catégorie (ex. code
+SCIAN/NAICS à quelques chiffres plutôt que la description texte intégrale)
+demanderait une nouvelle couche de normalisation, pas construite dans cette
+passe — à soulever si l'usage réel le justifie.
 
 **Sous-comptes et territoires assignés, avec rôles** — `falkye/models/
 sous_compte.py::SousCompte` (profil Radar+ parent, courriel, nom, rôle
@@ -549,7 +599,19 @@ changement de statut si le rôle est `lecture_seule`. LIMITE HONNÊTE documenté
 en tête du modèle (à relire avant toute extension de cette fonctionnalité) :
 FALKYE n'a AUCUN système d'authentification — `--sous-compte-id` est un
 paramètre déclaratif, pas une preuve d'identité ; cette vérification filtre un
-usage de bonne foi, ce n'est pas une frontière de sécurité.
+usage de bonne foi, JAMAIS une frontière de sécurité — cette phrase ne change
+jamais, quelle que soit l'urgence commerciale ci-dessous, et ne doit jamais
+être présentée autrement dans le produit ou le matériel de vente.
+
+**Urgence révisée à la baisse (clarification d'Alexandre, 2026-09-02)** : le
+vrai besoin identifié chez les personas Radar+ réels (développement
+économique régional, cabinets multi-agents) est la RÉPARTITION DE VOLUME
+entre collègues d'une même organisation — pas l'étanchéité de sécurité entre
+organisations ou entre collègues. Une authentification réelle par utilisateur
+reste un vrai prérequis à construire avant de présenter les rôles comme une
+séparation STRICTE, mais n'est plus un bloqueur au premier client payant
+Radar+ : vendable dès maintenant pour la répartition de volume, tant que le
+produit ne prétend jamais être une frontière de sécurité.
 
 ## Porte ouverte fournisseur/client (spec section 4/9)
 
@@ -566,16 +628,65 @@ fonctionnalité à livrer maintenant").
 synchronisée au démarrage (`db.seed_spheres_from_registry`). Un utilisateur qui
 propose une sphère hors liste s'ajoute avec `est_personnalisee=True` sans migration.
 
+### Granularité du lien sphère ↔ signal (question d'Alexandre, 2026-09-02)
+
+Le lien entre une sphère et un type de signal (`SignalTypeDef.spheres_probables`,
+`registry/signal_types.yaml`) se fait au niveau du **`signal_type_id` en
+entier**, jamais d'un champ précis à l'intérieur d'un signal — `financement_
+acces_capital` est reliée à `financement_expansion` comme TYPE de signal, pas
+à un champ comme `nature_bien` ou `programme` en particulier. C'est le même
+mécanisme pour toutes les sphères, pas une exception : `matching.py::
+match_profile` compare `need.sphere_id` à l'ensemble `spheres_probables(raw.
+signal_type_id, registry)`, sans jamais inspecter `raw.champs`.
+
+**Le principe "jamais une source activée en bloc, toujours champ par champ
+pour réduire le bruit" existe bel et bien dans le code réel — mais à une
+AUTRE couche, celle de la CALIBRATION à l'ingestion (`SourceDef.
+regle_calibration`), pas celle du matching sphère.** Exemples concrets déjà en
+place : `req.py::_upsert_row` ne retient QUE les changements `nouvel_
+etablissement_secondaire`/`changement_adresse` parmi tous les types de mise à
+jour du REQ (une déclaration annuelle ou une correction administrative
+n'entre jamais dans le pipeline comme signal) ; `rdprm`'s règle de
+calibration exclut les garanties sur biens personnels/véhicules isolés par le
+champ `nature_bien` avant même qu'un `Signal` soit créé. C'est CETTE couche,
+en amont, qui filtre champ par champ — une fois qu'un `Signal` existe, son
+association aux sphères reste au niveau du type, par design (le principe
+d'extensibilité, spec section 9 : un type de signal a UNE table de
+correspondance, pas une par combinaison de champs).
+
+**Bogue réel trouvé en répondant à cette question** : `financement_acces_
+capital` existait dans `spheres.yaml` (avec `signal_absence_pertinent:
+financement_expansion`) depuis son ajout le 2026-09-01, mais n'avait JAMAIS
+été ajoutée à `spheres_probables` de `financement_expansion` dans `signal_
+types.yaml` — un oubli, pas une décision. Conséquence réelle : un profil
+configuré sur cette sphère ne pouvait recevoir AUCUNE notification par le
+chemin générique de `match_profile` (`sphere_ok` toujours `False`), seulement
+le bonus de pertinence par absence (`falkye/pertinence.py::
+bonus_signal_absence`), qui suppose déjà qu'un AUTRE match a fait entrer
+l'entreprise dans le pipeline — la sphère était donc, en pratique,
+INATTEIGNABLE. Corrigé le 2026-09-02 : ajoutée en DERNIÈRE position de la
+liste (décision conservatrice documentée dans `signal_types.yaml` — ne
+déplace pas la "sphère principale" des personas déjà supportés). Testé bout
+en bout (`tests/test_matching.py::
+test_match_profile_financement_acces_capital_matche_un_signal_financement`).
+
 ## Polyvalence d'utilisation (spec section 9, ajoutée le 2026-08-31)
 
-Exigence : le produit doit rester utilisable par n'importe quel fournisseur de
-service B2B, pas seulement un consultant en implantation de systèmes d'inventaire.
-Audit fait le 2026-08-31 sur le code déjà construit :
+Exigence originale (2026-08-31) : le produit doit rester utilisable par
+n'importe quel fournisseur de service B2B, pas seulement un consultant en
+implantation de systèmes d'inventaire. Révisée le 2026-09-02 (principe
+directeur #6) : "une multitude de types d'utilisateurs — pas seulement des
+fournisseurs de services B2B" (chambres de commerce, développement économique
+régional, etc. — un usage hors vente, pas seulement un service vendu). Suit un
+renommage de vocabulaire dans le code : `ProfileNeed.service_precis` →
+`usage_precis`, `cli.py --service` → `--usage` (voir docs/STATUT_RESEAU.md
+pour la migration). Audit original fait le 2026-08-31 sur le code déjà
+construit, toujours valide sur le fond (seul le nom du champ a changé) :
 
 - **Rien dans le moteur, le scoring, la vérification ou le schéma de données** ne
-  fait référence à un secteur ou un service particulier — `sphere_id` et
-  `service_precis` sont traités comme des valeurs opaques partout (voir
-  `matching.py`, `engine.py`, `models/profile.py`).
+  fait référence à un secteur ou un usage particulier — `sphere_id` et
+  `usage_precis` (`service_precis` avant le 2026-09-02) sont traités comme des
+  valeurs opaques partout (voir `matching.py`, `engine.py`, `models/profile.py`).
 - **Corrigé** : `matching.MOTS_CLES_TRANSFORMATION` (la base de mots-clés
   "transformation/implantation" utilisée pour le signal qualitatif de
   recrutement, spec section 7 Signal 3) contenait deux termes propres aux
