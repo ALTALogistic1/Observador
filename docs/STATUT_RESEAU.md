@@ -1364,3 +1364,47 @@ valeur inventée, principe directeur #1).
 **Construit et testé (252/252, dont 32 nouveaux).** Rien de changé côté
 validation TheirStack/Stripe — toujours en attente des identifiants
 d'Alexandre, aucune action requise de mon côté entre-temps.
+
+## Filtrage par champ, contextuel au profil (2026-09-02)
+
+Nouvelle fonctionnalité (spec section 6, "Score de pertinence") : au sein
+d'un même signal, un champ peut être pertinent pour un profil et du bruit
+pour un autre — ex. le secteur/NAICS du REQ compte pour un courtier en
+efficacité énergétique, pas pour un fournisseur de mobilier de bureau.
+Différent de la calibration déjà en place à l'ingestion (REQ, RDPRM), qui
+répond à une question universelle et reste inchangée : celui-ci répond à
+une question dont la réponse dépend de qui regarde, donc vit à la couche de
+calcul de pertinence, par profil, jamais à la capture — voir la nouvelle
+section "Filtrage par champ, contextuel au profil" de `docs/ARCHITECTURE.md`
+pour le détail complet des trois couches de filtrage désormais en place.
+
+**Construit** :
+- `registry/champs_pertinents.yaml` (nouveau registre) + `Registry.
+  champs_pertinents_pour(sphere_id, source_id)` (`falkye/registry/
+  loader.py`) — grille sphère × source → liste blanche de champs. Absence
+  d'entrée = aucun filtrage (défaut sûr). Deux entrées de départ :
+  `efficacite_energetique` × `req` (exemple d'origine de la spec) et
+  `logistique_transport_flotte` × `req` (illustratif, à ajuster si l'usage
+  réel le contredit).
+- `falkye/pertinence.py::filtrer_champs_pertinents(champs, sphere_id,
+  source_id, registry)` — construit une VUE filtrée de `Signal.champs`,
+  jamais une suppression en base. Gère `sphere_id=None` (notifications
+  historiques) sans erreur : aucun filtrage.
+- Intégré dans `falkye/notifications/formatter.py::formatter_notification`
+  : chaque signal contributif du payload webhook structuré porte désormais
+  une clé `"champs_pertinents"`, filtrée pour la sphère retenue de la
+  notification. Le corps texte (courriel) n'est pas affecté.
+
+**Gap réel trouvé et corrigé en construisant cette grille** :
+`falkye/sources/req.py::_diff_etablissements_secondaires` captait déjà
+`secteur_code`/`secteur_libelle` (dataclass interne `_EtabLeger`, et même
+`REQEtablissementEntry` en DB) mais ne les incluait jamais dans le dict
+propagé jusqu'à `Signal.champs` — donc jamais atteignables pour un signal
+`registre_corporatif` "nouvel établissement", et sans objet à filtrer pour
+la grille `efficacite_energetique` × `req`. Corrigé le même jour, validé
+contre un fixture de test aux vraies valeurs de colonnes REQ (`COD_ACT_
+ECON`/`DESC_ACT_ECON_ETAB`).
+
+**Construit et testé (262/262, dont 10 nouveaux).** Rien de changé côté
+validation TheirStack/Stripe — toujours en attente des identifiants
+d'Alexandre, aucune action requise de mon côté entre-temps.

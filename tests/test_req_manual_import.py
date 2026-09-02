@@ -398,13 +398,23 @@ def test_ingest_zip_reel_signale_nouvel_etablissement_secondaire_pour_entreprise
         noms=[["9990000004", "Entreprise Fictive Beta inc.", "V", "N", "1994-01-01", ""]],
         etablissements=[
             ["9990000004", "1", "O", "1 rue Siège", "Québec (Québec)", "", "G1G1G1", "", "", ""],
-            ["9990000004", "2", "N", "2 rue Secondaire", "Laval (Québec)", "", "H7H7H7", "", "", "Succursale Laval"],
+            [
+                "9990000004", "2", "N", "2 rue Secondaire", "Laval (Québec)", "", "H7H7H7",
+                "541330", "Fabrication de matériel énergétique", "Succursale Laval",
+            ],
         ],
         nom_zip="req_etab_2.zip",
     )
     stats2 = ingest_snapshot(db_session, fichier_local=chemin2)
     assert len(stats2.nouveaux_etablissements_secondaires) == 1
     assert stats2.nouveaux_etablissements_secondaires[0]["adresse"] == "2 rue Secondaire"
+    # Trouvé le 2026-09-02 (spec section 6, "Filtrage par champ, contextuel au
+    # profil") : secteur_code/secteur_libelle étaient déjà captés sur
+    # _EtabLeger mais jamais propagés jusqu'au signal — corrigé, capturé
+    # largement à l'ingestion pour que la grille de pertinence par champ ait
+    # quelque chose à filtrer plus tard, par profil.
+    assert stats2.nouveaux_etablissements_secondaires[0]["secteur_code"] == "541330"
+    assert stats2.nouveaux_etablissements_secondaires[0]["secteur_libelle"] == "Fabrication de matériel énergétique"
 
     etab = db_session.get(REQEtablissementEntry, ("9990000004", "2"))
     assert etab is not None

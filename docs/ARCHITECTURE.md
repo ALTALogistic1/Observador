@@ -670,6 +670,82 @@ déplace pas la "sphère principale" des personas déjà supportés). Testé bou
 en bout (`tests/test_matching.py::
 test_match_profile_financement_acces_capital_matche_un_signal_financement`).
 
+### Filtrage par champ, contextuel au profil (spec section 6, ajouté le 2026-09-02)
+
+Suite directe de la section précédente : le lien sphère ↔ signal reste au
+niveau du `signal_type_id` en entier — mais un TROISIÈME mécanisme de
+filtrage, distinct des deux premiers, s'ajoute maintenant au-dessus.
+
+Récapitulatif des trois couches de filtrage, désormais complètes :
+
+1. **Calibration à l'ingestion** (`SourceDef.regle_calibration`) — répond à
+   une question UNIVERSELLE ("cette donnée est-elle du bruit administratif,
+   point final?"), la même pour tous les profils. Ex. REQ ne retient que
+   certains types de mise à jour, RDPRM exclut par `nature_bien`. Inchangée.
+2. **Matching sphère ↔ signal** (`SignalTypeDef.spheres_probables`) — au
+   niveau du `signal_type_id` en entier (voir section précédente). Inchangé.
+3. **Filtrage par champ, contextuel au profil** (`falkye/pertinence.py::
+   filtrer_champs_pertinents`, NOUVEAU) — répond à une question dont la
+   réponse dépend de QUI regarde : au sein d'un même `Signal.champs`, un
+   champ peut être pertinent pour un profil et du bruit pour un autre. Ex.
+   d'origine de la spec : le secteur/NAICS du REQ compte pour un courtier en
+   efficacité énergétique, pas pour un fournisseur de mobilier de bureau.
+
+**Pourquoi cette couche ne peut pas vivre à l'ingestion** : la couche 1
+répond à une question universelle, valable pour tout profil. La couche 3
+répond à une question qui change selon le profil qui regarde — un champ
+retiré à l'ingestion serait perdu pour TOUJOURS, y compris pour une sphère
+future qui en aurait besoin. C'est exactement le risque déjà vécu avec la
+sphère "Financement / accès au capital" (voir bogue de la section
+précédente) : mieux vaut capter largement une seule fois, puis appliquer
+plusieurs lentilles différentes selon qui consulte, que refiltrer après
+coup une donnée jamais captée.
+
+**Mécanisme** : `registry/champs_pertinents.yaml` — une grille (sphère_id,
+source_id) → liste blanche de clés de `Signal.champs`, chargée dans
+`Registry.champs_pertinents` (dict à clé composite) et exposée via
+`Registry.champs_pertinents_pour(sphere_id, source_id) -> list[str] | None`.
+Absence d'entrée = `None` = AUCUN filtrage, TOUS les champs comptent —
+défaut sûr qui ne perd jamais une donnée par simple omission de registre
+(le même principe que `champs_pertinents_pour` sur `SourceDef`, appliqué
+cette fois par paire sphère/source plutôt que par source seule).
+
+`falkye/pertinence.py::filtrer_champs_pertinents(champs, sphere_id,
+source_id, registry)` applique cette liste blanche à un dict `Signal.champs`
+et retourne une VUE filtrée — elle ne retire jamais rien de `Signal.champs`
+en base ("un seul entrepôt, plusieurs lentilles"). `sphere_id=None`
+(notifications antérieures à la restructuration en deux axes, sans
+`sphere_probable_id`) est géré sans erreur : aucune entrée ne peut matcher
+une clé `(None, source_id)`, donc aucun filtrage.
+
+**Point d'intégration** : `falkye/notifications/formatter.py::
+formatter_notification` — chaque signal contributif du payload webhook
+structuré (`donnees_structurees["signaux"][i]`) porte désormais une clé
+`"champs_pertinents"`, calculée pour LA sphère retenue pour cette
+notification (`notification.sphere_probable_id`). Le corps texte de la
+notification (courriel) n'utilise pas cette vue filtrée — seul le payload
+structuré, consommé par un système externe (CRM/ERP via webhook Radar+),
+en bénéficie.
+
+**Gap réel trouvé et corrigé en construisant cette grille** :
+`falkye/sources/req.py::_diff_etablissements_secondaires` captait déjà
+`secteur_code`/`secteur_libelle` sur le dataclass interne `_EtabLeger` et
+les écrivait même dans `REQEtablissementEntry` (le miroir DB), mais ne les
+incluait JAMAIS dans le dict ajouté à `stats.nouveaux_etablissements_
+secondaires` — ils n'atteignaient donc jamais `Signal.champs` pour un
+signal `registre_corporatif` "nouvel établissement". Corrigé le 2026-09-02 :
+les deux champs sont maintenant propagés jusqu'au signal, condition
+nécessaire pour que la grille sphère `efficacite_energetique` × source
+`req` ait quelque chose à filtrer.
+
+Grille initiale (`registry/champs_pertinents.yaml`) : deux entrées de
+départ — `efficacite_energetique` × `req` (garde `secteur_code`/
+`secteur_libelle`, exemple d'origine de la spec) et `logistique_transport_
+flotte` × `req` (garde `adresse`/`type_changement`, illustratif — non
+encore validé contre un usage réel, à ajuster si l'usage le contredit,
+principe directeur #9). Extensible sans migration de code : ajouter une
+entrée au YAML suffit, suivant le même principe que le reste du registre.
+
 ## Polyvalence d'utilisation (spec section 9, ajoutée le 2026-08-31)
 
 Exigence originale (2026-08-31) : le produit doit rester utilisable par

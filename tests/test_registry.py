@@ -2,7 +2,7 @@
 #3 ("aucune source n'est activée sans règle de calibration documentée")."""
 import pytest
 
-from falkye.registry.loader import Registry, SourceDef, StatutSuiviDef, load_registry
+from falkye.registry.loader import ChampsPertinentsDef, Registry, SourceDef, StatutSuiviDef, load_registry
 
 
 def _source(id_, statut, regle_calibration=None, plan_minimum="echo"):
@@ -118,3 +118,39 @@ def test_load_registry_leve_si_aucun_statut_par_defaut_dans_le_yaml(monkeypatch)
     monkeypatch.setattr(loader_module, "_load_yaml", _charge_avec_statuts_casses)
     with pytest.raises(ValueError, match="statuts_suivi"):
         loader_module.load_registry()
+
+
+# --- Grille de pertinence par champ (spec section 6, "Filtrage par champ,
+# contextuel au profil") ---
+
+
+def test_registre_reel_a_une_grille_pour_efficacite_energetique_req():
+    registry = load_registry()
+    assert registry.champs_pertinents_pour("efficacite_energetique", "req") == [
+        "secteur_code", "secteur_libelle",
+    ]
+
+
+def test_champs_pertinents_pour_retourne_none_sans_entree_declaree():
+    """Défaut sûr : aucune entrée déclarée = aucun filtrage, jamais une perte
+    de donnée par simple omission de registre."""
+    registry = Registry(
+        champs_pertinents={
+            ("energie", "req"): ChampsPertinentsDef(
+                sphere_id="energie", source_id="req", champs_pertinents=["secteur_code"]
+            )
+        }
+    )
+    assert registry.champs_pertinents_pour("gestion_projet", "req") is None
+    assert registry.champs_pertinents_pour("energie", "seao") is None
+
+
+def test_champs_pertinents_pour_retourne_la_liste_declaree():
+    registry = Registry(
+        champs_pertinents={
+            ("energie", "req"): ChampsPertinentsDef(
+                sphere_id="energie", source_id="req", champs_pertinents=["secteur_code", "secteur_libelle"]
+            )
+        }
+    )
+    assert registry.champs_pertinents_pour("energie", "req") == ["secteur_code", "secteur_libelle"]

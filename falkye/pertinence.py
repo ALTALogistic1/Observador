@@ -88,6 +88,34 @@ class PonderationValeurs:
 PONDERATION_DEFAUT = PonderationValeurs()
 
 
+def filtrer_champs_pertinents(champs: dict, sphere_id: str, source_id: str, registry: Registry) -> dict:
+    """Filtrage par champ, contextuel au profil — spec section 6 (ajoutée le
+    2026-09-02) : "au sein d'un même signal, un champ peut être pertinent pour
+    un profil et du bruit pour un autre" (ex. le secteur/NAICS du REQ compte
+    pour un courtier en énergie, pas pour un fournisseur de mobilier de
+    bureau). Répond à une question dont la réponse dépend de QUI regarde — donc
+    s'applique ICI, au moment du calcul de pertinence, PAR PROFIL (via la
+    sphère retenue pour la notification), JAMAIS à l'ingestion.
+
+    Différent de la calibration à l'ingestion (`SourceDef.regle_calibration` —
+    ex. REQ ne retient que certains types de mise à jour, RDPRM exclut par
+    `nature_bien`), qui répond à une question UNIVERSELLE ("cette donnée
+    est-elle du bruit administratif, point final?") et reste inchangée, à sa
+    propre couche : cette fonction-ci ne retire jamais rien de `Signal.champs`
+    en base, elle ne fait que construire une VUE filtrée pour un usage précis
+    (ex. le payload structuré du webhook Radar+, falkye/notifications/
+    formatter.py) — "un seul entrepôt, plusieurs lentilles."
+
+    Retourne `champs` INCHANGÉ si aucune entrée n'est déclarée pour (sphere_id,
+    source_id) dans `registry/champs_pertinents.yaml` — défaut sûr, ne perd
+    jamais une donnée par simple omission de registre (le risque déjà vécu
+    avec la sphère "Financement / accès au capital", ajoutée après coup)."""
+    autorises = registry.champs_pertinents_pour(sphere_id, source_id)
+    if autorises is None:
+        return champs
+    return {cle: valeur for cle, valeur in champs.items() if cle in autorises}
+
+
 def _sphere_principale(signal_type_id: str, registry: Registry) -> str | None:
     """Sphère PRINCIPALE d'un type de signal, au sens de la spec section 6 (A vs
     AA) : la PREMIÈRE sphère listée dans spheres_probables (falkye/registry/

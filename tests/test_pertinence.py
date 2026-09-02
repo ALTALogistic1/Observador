@@ -14,6 +14,7 @@ from falkye.pertinence import (
     bonus_signal_absence,
     bonus_velocite,
     calculer_pertinence,
+    filtrer_champs_pertinents,
     franchit_seuil_sensibilite,
 )
 
@@ -242,6 +243,52 @@ def test_calculer_pertinence_absence_augmente_le_score(registry):
     assert avec_absence.score_pertinence > sans_absence.score_pertinence
     assert avec_absence.bonus_absence > 0
     assert sans_absence.bonus_absence == 0
+
+
+# --- filtrer_champs_pertinents (spec section 6, "Filtrage par champ, contextuel
+# au profil", ajouté le 2026-09-02) ---
+
+
+def test_filtrer_champs_pertinents_inchange_sans_entree_de_registre(registry):
+    """Défaut sûr : aucune entrée déclarée pour (sphère, source) = tous les
+    champs comptent, rien n'est retiré — jamais une perte de donnée par simple
+    omission de registre (le risque déjà vécu avec la sphère "Financement")."""
+    champs = {"secteur_code": "541330", "type_changement": "nouvel_etablissement"}
+    resultat = filtrer_champs_pertinents(champs, "gestion_projet", "req", registry)
+    assert resultat == champs
+
+
+def test_filtrer_champs_pertinents_ne_garde_que_les_champs_autorises(registry):
+    """efficacite_energetique × req est déclarée dans registry/champs_pertinents.yaml
+    avec [secteur_code, secteur_libelle] — adresse doit être retirée de la vue."""
+    champs = {
+        "secteur_code": "541330",
+        "secteur_libelle": "Fabrication de matériel énergétique",
+        "adresse": "123 rue Test",
+    }
+    resultat = filtrer_champs_pertinents(champs, "efficacite_energetique", "req", registry)
+    assert resultat == {"secteur_code": "541330", "secteur_libelle": "Fabrication de matériel énergétique"}
+
+
+def test_filtrer_champs_pertinents_ne_fabrique_pas_une_cle_absente(registry):
+    """Une liste blanche déclare des clés PERMISES, pas des clés GARANTIES — si
+    secteur_libelle n'a jamais été capté pour ce signal, il ne doit pas
+    apparaître comme None inventé dans la vue filtrée."""
+    champs = {"secteur_code": "541330"}
+    resultat = filtrer_champs_pertinents(champs, "efficacite_energetique", "req", registry)
+    assert resultat == {"secteur_code": "541330"}
+
+
+def test_filtrer_champs_pertinents_gere_un_dict_vide(registry):
+    assert filtrer_champs_pertinents({}, "efficacite_energetique", "req", registry) == {}
+
+
+def test_filtrer_champs_pertinents_inchange_si_sphere_id_est_none(registry):
+    """notification.sphere_probable_id peut être None (notifications antérieures
+    à la restructuration en deux axes) — aucun filtrage plutôt qu'une erreur."""
+    champs = {"secteur_code": "541330", "adresse": "123 rue Test"}
+    resultat = filtrer_champs_pertinents(champs, None, "req", registry)
+    assert resultat == champs
 
 
 # --- franchit_seuil_sensibilite (axe pertinence, indépendant de l'axe confiance) ---

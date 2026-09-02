@@ -97,6 +97,19 @@ class SourceDef:
 
 
 @dataclass(frozen=True)
+class ChampsPertinentsDef:
+    """Une entrée de la grille de pertinence par champ (spec section 6,
+    "Filtrage par champ, contextuel au profil", ajoutée le 2026-09-02) — voir
+    registry/champs_pertinents.yaml pour la distinction avec la calibration à
+    l'ingestion (SourceDef.regle_calibration, différente, inchangée)."""
+
+    sphere_id: str
+    source_id: str
+    champs_pertinents: list[str]
+    notes: str | None = None
+
+
+@dataclass(frozen=True)
 class SignalTypeDef:
     id: str
     nom: str
@@ -178,6 +191,8 @@ class Registry:
     spheres: dict[str, SphereDef] = field(default_factory=dict)
     notification_channels: dict[str, NotificationChannelDef] = field(default_factory=dict)
     statuts_suivi: dict[str, StatutSuiviDef] = field(default_factory=dict)
+    # Clé (sphere_id, source_id) — voir registry/champs_pertinents.yaml.
+    champs_pertinents: dict[tuple[str, str], ChampsPertinentsDef] = field(default_factory=dict)
 
     def sources_actives(self) -> list[SourceDef]:
         """TOUTES les sources actives, y compris celles en import manuel (utile
@@ -227,6 +242,16 @@ class Registry:
     def statuts_suivi_declencheurs_retroaction(self) -> list[StatutSuiviDef]:
         return [s for s in self.statuts_suivi.values() if s.declenche_retroaction]
 
+    def champs_pertinents_pour(self, sphere_id: str, source_id: str) -> list[str] | None:
+        """Liste blanche des clés de `Signal.champs` pertinentes pour cette
+        sphère, pour cette source — spec section 6, "Filtrage par champ,
+        contextuel au profil". `None` = AUCUNE entrée déclarée = aucun
+        filtrage, tous les champs comptent (défaut sûr, voir registry/
+        champs_pertinents.yaml). Utilisé par falkye/pertinence.py::
+        filtrer_champs_pertinents, jamais à l'ingestion."""
+        entree = self.champs_pertinents.get((sphere_id, source_id))
+        return entree.champs_pertinents if entree is not None else None
+
     def valider_calibration(self) -> None:
         """Applique le principe directeur non négociable : aucune source active
         sans règle de calibration documentée. Appelé avant tout scan réel
@@ -260,12 +285,16 @@ def load_registry() -> Registry:
     spheres_raw = _load_yaml("spheres.yaml")["spheres"]
     channels_raw = _load_yaml("notification_channels.yaml")["channels"]
     statuts_suivi_raw = _load_yaml("statuts_suivi.yaml")["statuts_suivi"]
+    champs_pertinents_raw = _load_yaml("champs_pertinents.yaml")["champs_pertinents"]
 
     sources = {s["id"]: SourceDef(**s) for s in sources_raw}
     signal_types = {s["id"]: SignalTypeDef(**s) for s in signals_raw}
     spheres = {s["id"]: SphereDef(**s) for s in spheres_raw}
     notification_channels = {c["id"]: NotificationChannelDef(**c) for c in channels_raw}
     statuts_suivi = {s["id"]: StatutSuiviDef(**s) for s in statuts_suivi_raw}
+    champs_pertinents = {
+        (c["sphere_id"], c["source_id"]): ChampsPertinentsDef(**c) for c in champs_pertinents_raw
+    }
 
     nb_defauts = sum(1 for s in statuts_suivi.values() if s.est_defaut)
     if nb_defauts != 1:
@@ -280,6 +309,7 @@ def load_registry() -> Registry:
         spheres=spheres,
         notification_channels=notification_channels,
         statuts_suivi=statuts_suivi,
+        champs_pertinents=champs_pertinents,
     )
 
 

@@ -444,6 +444,14 @@ def _diff_etablissements_secondaires(
                         "no_suf_etab": etab.no_suf_etab,
                         "adresse": etab.adresse,
                         "nom_etablissement": etab.nom_etablissement,
+                        # Déjà captés sur _EtabLeger mais jamais propagés jusqu'ici
+                        # (trouvé le 2026-09-02, spec section 6 "Filtrage par
+                        # champ, contextuel au profil") — capter largement à
+                        # l'ingestion pour que la grille de pertinence par champ
+                        # (falkye/pertinence.py::filtrer_champs_pertinents) ait
+                        # quelque chose à filtrer plus tard, par profil.
+                        "secteur_code": etab.secteur_code,
+                        "secteur_libelle": etab.secteur_libelle,
                     }
                 )
             db_session.add(

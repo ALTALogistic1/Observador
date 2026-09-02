@@ -1,0 +1,52 @@
+# Grille de pertinence par champ, par sphère et par source — spec section 6
+# (ajoutée le 2026-09-02, "Filtrage par champ, contextuel au profil").
+#
+# Répond à une question dont la réponse dépend de QUI regarde — au sein d'un
+# même signal, un champ peut être pertinent pour un profil et du bruit pour un
+# autre (ex. le secteur/NAICS du REQ compte pour un courtier en énergie, pas
+# pour un fournisseur de mobilier de bureau). DIFFÉRENT du filtrage déjà
+# existant à l'ingestion (SourceDef.regle_calibration — ex. REQ ne retient que
+# certains types de mise à jour, RDPRM exclut par nature_bien) : celui-là
+# répond à une question UNIVERSELLE ("cette donnée est-elle du bruit
+# administratif, point final?") et reste à l'ingestion, inchangé. Celui-ci
+# s'applique au moment du CALCUL DE PERTINENCE (falkye/pertinence.py::
+# filtrer_champs_pertinents), jamais à la capture — pour ne jamais perdre une
+# donnée dont une sphère future pourrait avoir besoin (le risque déjà vécu
+# avec la sphère "Financement / accès au capital", ajoutée après coup).
+#
+# Absence d'entrée pour une paire (sphere_id, source_id) = AUCUN filtrage,
+# TOUS les champs comptent — défaut sûr qui ne perd jamais une donnée par
+# simple omission de registre, cohérent avec "capter largement une seule fois
+# à l'ingestion, plusieurs lentilles ensuite".
+#
+# Champs du gabarit :
+#   sphere_id            id d'une sphère (registry/spheres.yaml)
+#   source_id             id d'une source (registry/sources.yaml)
+#   champs_pertinents      liste blanche des clés de Signal.champs qui comptent
+#                          pour cette sphère, pour cette source
+#   notes                  contexte/justification de ce choix (obligatoire en
+#                          pratique — ce n'est pas une évidence à deviner)
+
+champs_pertinents:
+  - sphere_id: efficacite_energetique
+    source_id: req
+    champs_pertinents: [secteur_code, secteur_libelle]
+    notes: >
+      Exemple d'origine de la spec (section 6) : un courtier/conseiller en
+      efficacité énergétique se soucie du secteur d'activité (secteurs
+      énergivores — manufacturier, transformation, etc.) d'un nouvel
+      établissement détecté au REQ, pas du type d'événement lui-même ni de
+      l'adresse précise. secteur_code/secteur_libelle capturés depuis le
+      2026-09-02 (voir falkye/sources/req.py::_diff_etablissements_secondaires
+      — trouvé absent du signal jusque-là, corrigé le même jour que l'ajout de
+      cette grille).
+
+  - sphere_id: logistique_transport_flotte
+    source_id: req
+    champs_pertinents: [adresse, type_changement]
+    notes: >
+      Une compagnie de logistique/transport se soucie qu'un NOUVEL
+      ÉTABLISSEMENT existe et OÙ (expansion physique = nouveaux trajets/
+      volumes à desservir) — pas du secteur d'activité précis de l'entreprise
+      qui s'établit. Exemple illustratif, pas encore validé contre un usage
+      réel — à ajuster si l'usage le contredit (principe directeur #9).

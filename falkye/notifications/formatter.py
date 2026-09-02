@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from falkye.models.notification import Notification
 from falkye.notifications.base import NotificationContent
+from falkye.pertinence import filtrer_champs_pertinents
 from falkye.registry.loader import Registry
 
 _NIVEAU_AFFICHAGE = {"faible": "Faible", "moyen": "Moyen", "eleve": "Élevé"}
@@ -79,6 +80,20 @@ def formatter_notification(notification: Notification, registry: Registry) -> No
                 "titre_ou_description": ns.signal.titre_ou_description,
                 "detected_at": ns.signal.detected_at.isoformat() if ns.signal.detected_at else None,
                 "justification": ns.justification,
+                # Filtrage par champ, contextuel au profil (spec section 6, ajouté
+                # le 2026-09-02) : vue filtrée de ns.signal.champs pour LA sphère
+                # retenue pour cette notification — jamais une suppression en base,
+                # seulement une lentille appliquée ici, au calcul de pertinence.
+                # sphere_probable_id absent (notifications historiques) ou aucune
+                # entrée déclarée dans le registre pour cette (sphère, source) :
+                # filtrer_champs_pertinents retourne alors ns.signal.champs
+                # inchangé — défaut sûr, jamais une perte de donnée par omission.
+                "champs_pertinents": filtrer_champs_pertinents(
+                    ns.signal.champs or {},
+                    notification.sphere_probable_id,
+                    ns.signal.source_id,
+                    registry,
+                ),
             }
             for ns in notification.signaux_contributifs
         ],
