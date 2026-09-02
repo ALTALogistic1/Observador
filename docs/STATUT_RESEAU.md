@@ -1465,3 +1465,38 @@ vraies API HubSpot/Pipedrive dans cet environnement — construit et testé
 contre des mocks HTTP réalistes (`responses`), validation en conditions
 réelles à faire par Alexandre une fois qu'un jeton réel de chaque
 fournisseur est disponible (en même temps que TheirStack/Stripe).
+
+## Regroupement grossier des secteurs REQ — solution intermédiaire (2026-09-02)
+
+Demande d'Alexandre : vérifier si un regroupement grossier des libellés de
+secteur REQ les plus FRÉQUENTS (top 15-20) donnerait déjà une agrégation
+utile pour les tableaux de bord, comme solution intermédiaire avant un vrai
+SCIAN/NAICS complet.
+
+**Vérifié contre la base réelle avant de construire quoi que ce soit** :
+regrouper par les libellés les plus fréquents LITTÉRALEMENT ne fonctionne
+PAS — sur les 200 notifications avec un secteur `Company.
+secteur_activite_libelle` renseigné (sur 311 au total), 199 valeurs
+distinctes ; le top 20 des libellés exacts ne couvre que 21 notifications
+(10,5%). Quasiment aucun libellé ne se répète mot pour mot — chaque
+entreprise décrit son activité dans ses propres mots au moment de
+l'immatriculation, ce n'est pas une liste fermée.
+
+**Construit à la place** : un regroupement par MOTS-CLÉS récurrents à
+travers les libellés (`registry/secteurs_grossiers.yaml`, 11 catégories —
+Fabrication/manufacture, Logiciel/TI, Construction/bâtiment, Commerce de
+détail, Distribution, Alimentation, Transport/logistique, Immobilier,
+Gestion/holding/conseil, R&D/sciences, Services professionnels ;
+`Registry.classer_secteur`, première catégorie qui matche gagne). Validé
+contre la base réelle : ~75% des 200 notifications avec secteur trouvent une
+catégorie — le reste (~25%) reste honnêtement "(non classé)" plutôt que
+forcé, distinct de "(non précisé)" (aucun secteur capté du tout). `falkye/
+synthese.py::SyntheseAgregee.par_secteur_detail` garde le libellé REQ brut en
+parallèle (`dashboard synthese --secteur-detail`) — la granularité d'origine
+n'est jamais perdue, seulement une vue agrégée construite par-dessus.
+
+PAS un remplacement du SCIAN/NAICS — toujours noté comme amélioration future
+si le volume de notifications justifie l'investissement (normalisation
+contre un vrai référentiel externe, plus lourde à construire et à valider).
+
+**Construit et testé (316/316, dont 9 nouveaux).**

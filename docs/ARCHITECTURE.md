@@ -577,18 +577,43 @@ combinaison a détecté le prospect, et qui a le droit de le voir).
 `dashboard synthese`) — "au-delà des prospects un à un, une vue agrégée ('X
 entreprises... réparties par secteur')." Compte les entreprises DISTINCTES
 (pas les notifications) sur une fenêtre de temps, réparties par secteur
-d'activité (`Company.secteur_activite_libelle`, déjà captée depuis le REQ),
-niveau de pertinence, et territoire. LIMITE RÉELLE trouvée en validant contre
-la base réelle (311 notifications) : `secteur_activite_libelle` est un champ
-TEXTE LIBRE du REQ, extrêmement granulaire en pratique (ex. "Fabrication de
-charpentes en bois en usine" vs "Fabrication de meuble de maison" comme deux
-secteurs distincts) — sur 311 entreprises réelles, la répartition produit
-~211 "secteurs" différents, la plupart avec une seule entreprise chacun,
-rendant l'agrégation par secteur peu utile telle quelle pour un usage de
-reddition de comptes réel. Un vrai regroupement par catégorie (ex. code
-SCIAN/NAICS à quelques chiffres plutôt que la description texte intégrale)
-demanderait une nouvelle couche de normalisation, pas construite dans cette
-passe — à soulever si l'usage réel le justifie.
+d'activité, niveau de pertinence, et territoire. LIMITE RÉELLE trouvée en
+validant contre la base réelle (311 notifications) : `Company.
+secteur_activite_libelle` est un champ TEXTE LIBRE du REQ, extrêmement
+granulaire en pratique (ex. "Fabrication de charpentes en bois en usine" vs
+"Fabrication de meuble de maison" comme deux secteurs distincts) — sur 311
+entreprises réelles, la répartition produisait ~211 "secteurs" différents, la
+plupart avec une seule entreprise chacun, rendant l'agrégation par secteur
+LITTÉRAL peu utile telle quelle pour un usage de reddition de comptes réel.
+
+**Regroupement grossier — solution intermédiaire (2026-09-02, demande
+d'Alexandre).** Avant de construire, vérifié contre la base réelle si un
+regroupement par les libellés les PLUS FRÉQUENTS littéralement suffirait :
+NON — le top 20 des libellés exacts (sur 200 notifications avec un secteur
+renseigné) ne couvre que 10,5%, presque aucun libellé ne se répétant mot pour
+mot (199 valeurs distinctes sur 200). Construit à la place :
+`registry/secteurs_grossiers.yaml` + `Registry.classer_secteur` — un
+regroupement par MOTS-CLÉS récurrents À TRAVERS les libellés (11 catégories
+larges — Fabrication/manufacture, Logiciel/TI, Construction/bâtiment,
+Commerce de détail, Distribution, Alimentation, Transport/logistique,
+Immobilier, Gestion/holding/conseil, R&D/sciences, Services professionnels —
+première catégorie qui matche gagne, l'ordre du fichier est significatif).
+Validé contre la base réelle : ~75% des 200 notifications avec secteur
+renseigné trouvent une catégorie ; le reste (~25%) reste honnêtement
+`SECTEUR_NON_CLASSE` ("(non classé)") plutôt que forcé dans une catégorie
+approximative — DISTINCT de `SECTEUR_NON_PRECISE` ("(non précisé)", aucun
+secteur capté du tout), les deux ne sont jamais confondus.
+`SyntheseAgregee.par_secteur_detail` garde le libellé REQ brut (granularité
+d'origine jamais perdue) pour qui veut inspecter ce qui tombe dans
+"(non classé)" (`dashboard synthese --secteur-detail`).
+
+PAS UN REMPLACEMENT DU SCIAN/NAICS — un vrai regroupement par code SCIAN
+(quelques chiffres plutôt que la description texte intégrale) demanderait
+une couche de normalisation contre un vrai référentiel externe, plus lourde
+à construire et à valider ; noté comme amélioration future si le volume de
+notifications justifie l'investissement plus tard. Le regroupement par
+mots-clés est un pis-aller pragmatique construit sur les données réelles
+déjà en main, pas une classification officielle.
 
 **Sous-comptes et territoires assignés, avec rôles** — `falkye/models/
 sous_compte.py::SousCompte` (profil Radar+ parent, courriel, nom, rôle

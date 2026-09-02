@@ -8,6 +8,7 @@ en dur — tout passe par ces gabarits chargés dynamiquement.
 from __future__ import annotations
 
 import importlib
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -220,6 +221,19 @@ class CrmProviderDef:
         return provider_cls(provider_def=self)
 
 
+@dataclass(frozen=True)
+class SecteurGrossierDef:
+    """Une catégorie du regroupement grossier de secteurs REQ (spec section
+    4bis, tableaux de bord agrégés) — voir registry/secteurs_grossiers.yaml
+    pour le contexte complet (pourquoi un regroupement par mots-clés, pas par
+    libellé exact ni par fréquence littérale) et le principe "première
+    catégorie qui matche gagne, l'ordre du fichier est significatif"."""
+
+    id: str
+    nom: str
+    mots_cles: list[str]
+
+
 @dataclass
 class Registry:
     sources: dict[str, SourceDef] = field(default_factory=dict)
@@ -230,6 +244,9 @@ class Registry:
     # Clé (sphere_id, source_id) — voir registry/champs_pertinents.yaml.
     champs_pertinents: dict[tuple[str, str], ChampsPertinentsDef] = field(default_factory=dict)
     crm_providers: dict[str, CrmProviderDef] = field(default_factory=dict)
+    # Liste, PAS un dict — l'ordre est significatif (première catégorie qui
+    # matche gagne, voir registry/secteurs_grossiers.yaml).
+    secteurs_grossiers: list[SecteurGrossierDef] = field(default_factory=list)
 
     def sources_actives(self) -> list[SourceDef]:
         """TOUTES les sources actives, y compris celles en import manuel (utile
@@ -295,6 +312,26 @@ class Registry:
     def fournisseur_crm(self, provider_id: str) -> CrmProviderDef | None:
         return self.crm_providers.get(provider_id)
 
+    def classer_secteur(self, secteur_activite_libelle: str | None) -> str | None:
+        """Catégorie grossière (id de registry/secteurs_grossiers.yaml) pour un
+        libellé de secteur REQ — regroupement PAR MOTS-CLÉS, pas par
+        correspondance exacte (la quasi-totalité des libellés réels sont
+        uniques mot pour mot, voir le YAML). Retourne None dans DEUX cas
+        distincts, jamais confondus par l'appelant (falkye/synthese.py) :
+        `secteur_activite_libelle` vide/absent (rien à classer), OU aucune
+        catégorie ne matche (~25% des cas réels — jamais forcé dans une
+        catégorie approximative, principe directeur #1)."""
+        if not secteur_activite_libelle:
+            return None
+        libelle = secteur_activite_libelle.lower()
+        for categorie in self.secteurs_grossiers:
+            if any(re.search(motif, libelle, re.IGNORECASE) for motif in categorie.mots_cles):
+                return categorie.id
+        return None
+
+    def secteur_grossier(self, categorie_id: str) -> SecteurGrossierDef | None:
+        return next((c for c in self.secteurs_grossiers if c.id == categorie_id), None)
+
     def valider_calibration(self) -> None:
         """Applique le principe directeur non négociable : aucune source active
         sans règle de calibration documentée. Appelé avant tout scan réel
@@ -330,6 +367,7 @@ def load_registry() -> Registry:
     statuts_suivi_raw = _load_yaml("statuts_suivi.yaml")["statuts_suivi"]
     champs_pertinents_raw = _load_yaml("champs_pertinents.yaml")["champs_pertinents"]
     crm_providers_raw = _load_yaml("crm_providers.yaml")["crm_providers"]
+    secteurs_grossiers_raw = _load_yaml("secteurs_grossiers.yaml")["secteurs_grossiers"]
 
     sources = {s["id"]: SourceDef(**s) for s in sources_raw}
     signal_types = {s["id"]: SignalTypeDef(**s) for s in signals_raw}
@@ -340,6 +378,7 @@ def load_registry() -> Registry:
         (c["sphere_id"], c["source_id"]): ChampsPertinentsDef(**c) for c in champs_pertinents_raw
     }
     crm_providers = {p["id"]: CrmProviderDef(**p) for p in crm_providers_raw}
+    secteurs_grossiers = [SecteurGrossierDef(**s) for s in secteurs_grossiers_raw]
 
     nb_defauts = sum(1 for s in statuts_suivi.values() if s.est_defaut)
     if nb_defauts != 1:
@@ -356,6 +395,7 @@ def load_registry() -> Registry:
         statuts_suivi=statuts_suivi,
         champs_pertinents=champs_pertinents,
         crm_providers=crm_providers,
+        secteurs_grossiers=secteurs_grossiers,
     )
 
 

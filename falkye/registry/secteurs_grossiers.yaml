@@ -1,0 +1,156 @@
+# Regroupement grossier des libellés de secteur d'activité REQ
+# (Company.secteur_activite_libelle, texte libre) en catégories larges —
+# solution INTERMÉDIAIRE pour les tableaux de bord agrégés (spec section 4bis),
+# ajoutée le 2026-09-02.
+#
+# CONTEXTE (validé contre les 311 notifications réelles) : le libellé REQ brut
+# est extrêmement granulaire — 199 valeurs distinctes sur 200 notifications
+# avec un secteur renseigné, presque toutes uniques, texte libre rédigé par
+# chaque entreprise dans ses propres mots (voir docs/STATUT_RESEAU.md, entrée
+# "Portail Radar/Radar+ construit contre un premier cas concret", pour la
+# limite d'origine).
+#
+# Un regroupement par les libellés les PLUS FRÉQUENTS littéralement ne
+# fonctionne PAS : le top 20 des libellés exacts ne couvre que 10,5% des 200
+# notifications avec secteur (presque aucun libellé ne se répète mot pour
+# mot — seul "Développement de logiciels" apparaît deux fois). Ce registre
+# regroupe plutôt par MOTS-CLÉS récurrents À TRAVERS les libellés, peu importe
+# leur fréquence exacte comme chaîne — validé contre la base réelle : ~75% des
+# 200 notifications avec secteur renseigné trouvent une catégorie
+# (falkye/registry/loader.py::Registry.classer_secteur), le reste reste
+# honnêtement "(non classé)" (falkye/synthese.py) plutôt que forcé dans une
+# catégorie approximative — jamais fabriquer une classification (principe
+# directeur #1).
+#
+# PAS UN REMPLACEMENT DU SCIAN/NAICS. Une vraie normalisation par code SCIAN
+# resterait la solution complète si le volume de notifications justifie
+# l'investissement plus tard — ce registre est un pis-aller pragmatique
+# construit sur les données réelles déjà en main, pas une classification
+# officielle.
+#
+# Champs du gabarit :
+#   id            identifiant stable de la catégorie
+#   nom           nom affichable
+#   mots_cles     motifs (regex Python, insensibles à la casse) cherchés dans
+#                 le libellé brut — la PREMIÈRE catégorie qui matche gagne
+#                 (l'ordre du fichier est significatif) : les catégories les
+#                 plus SPÉCIFIQUES sont placées avant les plus génériques (ex.
+#                 "Services professionnels" en dernier — sinon le simple mot
+#                 "service" absorberait presque tout le reste).
+
+secteurs_grossiers:
+  - id: logiciel_ti
+    nom: "Logiciel / TI"
+    mots_cles:
+      - 'logiciel'
+      - 'software'
+      - 'informatiq'
+      - 'application'
+      - 'numériq'
+      - 'saas'
+      - 'site web'
+      - '\bweb\b'
+      - 'cd-rom'
+      - 'technolog'
+      - 'données'
+      - '\bdata\b'
+      - 'intelligence artificielle'
+      - '\bia\b'
+      - 'robotiq'
+
+  - id: fabrication
+    nom: "Fabrication / manufacture"
+    mots_cles:
+      - 'fabricat'
+      - 'manufactur'
+      - 'usinage'
+      - '\busine\b'
+
+  - id: construction
+    nom: "Construction / bâtiment"
+    mots_cles:
+      - 'construction'
+      - 'bâtiment'
+      - 'entrepreneur'
+      - 'génie civil'
+      - 'excavation'
+      - 'charpente'
+      - 'toiture'
+      - 'électricien'
+      - 'plâtrage'
+      - 'isolation'
+      - 'gicleur'
+
+  - id: commerce_detail
+    nom: "Commerce de détail / vente"
+    mots_cles:
+      - 'commerce de détail'
+      - '\bvente\b'
+      - 'magasin'
+      - 'boutique'
+      - 'épicerie'
+      - 'dépanneur'
+      - 'librairie'
+      - 'boucherie'
+
+  - id: distribution
+    nom: "Distribution / import-export"
+    mots_cles:
+      - 'distribution'
+      - '\bimport'
+      - '\bexport'
+      - 'grossist'
+      - 'en gros'
+
+  - id: agroalimentaire
+    nom: "Alimentation / agroalimentaire"
+    mots_cles:
+      - 'aliment'
+      - 'agroalim'
+      - 'transformation.{0,15}(viande|poisson|soja)'
+      - 'boulanger'
+      - 'confiserie'
+      - 'distillerie'
+      - 'laitier'
+      - 'érable'
+      - 'boisson'
+
+  - id: transport_logistique
+    nom: "Transport / logistique"
+    mots_cles:
+      - 'transport'
+      - 'logistiq'
+      - 'véhicule'
+      - 'camion'
+
+  - id: immobilier
+    nom: "Immobilier"
+    mots_cles:
+      - 'immeuble'
+      - 'immobil'
+      - "détention d'actifs"
+      - '\bterrain'
+
+  - id: gestion_conseil
+    nom: "Gestion / holding / conseil"
+    mots_cles:
+      - '\bgestion\b'
+      - 'holding'
+      - 'portefeuille'
+      - '\bconseil\b'
+      - 'consultant'
+      - '\badministration\b'
+
+  - id: rd_sciences
+    nom: "R&D / sciences"
+    mots_cles:
+      - 'recherche.{0,15}développement'
+      - 'r&d'
+      - 'scientifiq'
+      - 'oncologie'
+      - 'médicament'
+
+  - id: services_pro
+    nom: "Services professionnels / autres services"
+    mots_cles:
+      - 'service'

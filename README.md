@@ -190,6 +190,7 @@ python -m falkye.cli profile add-need --profile-id 1 --sphere-id rh_recrutement_
 
 python -m falkye.cli dashboard voir --profile-id 1 --usage "Recrutement" --territoire Québec
 python -m falkye.cli dashboard synthese --profile-id 1 --jours 90       # vue agrégée par secteur/territoire
+python -m falkye.cli dashboard synthese --profile-id 1 --secteur-detail # + libellés REQ bruts derrière le regroupement
 ```
 
 ### Fonctionnalités Radar+ professionnelles

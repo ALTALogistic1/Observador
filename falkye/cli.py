@@ -835,14 +835,27 @@ def dashboard_statut(notification_id, statut_id, sous_compte_id):
     help="Limite la synthèse aux notifications dont la combinaison sphère/usage × "
     "territoire (ProfileNeed.territoire) correspond exactement.",
 )
-def dashboard_synthese(profile_id, jours, territoire_filtre):
+@click.option(
+    "--secteur-detail",
+    "secteur_detail",
+    is_flag=True,
+    default=False,
+    help="Affiche aussi les libellés REQ bruts (granularité d'origine) derrière le "
+    "regroupement grossier — utile pour inspecter ce qui tombe dans « (non classé) ».",
+)
+def dashboard_synthese(profile_id, jours, territoire_filtre, secteur_detail):
     """Vue de synthèse agrégée (spec section 4bis) — "X entreprises détectées,
     réparties par secteur" plutôt que les prospects un à un. Utile pour la
-    reddition de comptes (ex. développement économique régional)."""
+    reddition de comptes (ex. développement économique régional).
+
+    La répartition par secteur est un REGROUPEMENT GROSSIER par mots-clés
+    (falkye/synthese.py, `registry/secteurs_grossiers.yaml`) — solution
+    intermédiaire, PAS un vrai SCIAN/NAICS ; voir docs/ARCHITECTURE.md."""
     from datetime import datetime, timedelta, timezone
 
     from falkye.models.notification import Notification
     from falkye.models.profile import Profile
+    from falkye.registry.loader import get_registry
     from falkye.synthese import generer_synthese
 
     session = get_session()
@@ -866,15 +879,19 @@ def dashboard_synthese(profile_id, jours, territoire_filtre):
                 if n.profile_need and (n.profile_need.territoire or "").strip().lower() == t
             ]
 
-        synthese = generer_synthese(notifications_qs)
+        synthese = generer_synthese(notifications_qs, get_registry())
 
         sous_titre = f", territoire « {territoire_filtre} »" if territoire_filtre else ""
         click.echo(f"Synthèse — profil #{p.id}, {jours} derniers jours{sous_titre}")
         click.echo(f"{synthese.nb_entreprises} entreprise(s) en croissance détectée(s)\n")
 
-        click.echo("Répartition par secteur d'activité :")
+        click.echo("Répartition par secteur d'activité (regroupement grossier) :")
         for secteur, n in synthese.par_secteur.most_common():
             click.echo(f"  {secteur} : {n}")
+        if secteur_detail:
+            click.echo("\nDétail par libellé REQ brut :")
+            for secteur, n in synthese.par_secteur_detail.most_common():
+                click.echo(f"  {secteur} : {n}")
 
         click.echo("\nRépartition par niveau de pertinence :")
         for niveau, n in synthese.par_niveau_pertinence.most_common():

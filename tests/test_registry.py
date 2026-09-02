@@ -6,6 +6,7 @@ from falkye.registry.loader import (
     ChampsPertinentsDef,
     CrmProviderDef,
     Registry,
+    SecteurGrossierDef,
     SourceDef,
     StatutSuiviDef,
     load_registry,
@@ -193,3 +194,50 @@ def test_fournisseurs_crm_actifs_exclut_un_fournisseur_a_developper():
         }
     )
     assert [p.id for p in registry.fournisseurs_crm_actifs()] == ["y"]
+
+
+# --- Regroupement grossier de secteurs REQ (tableaux de bord, solution
+# intermédiaire ajoutée le 2026-09-02) ---
+
+
+def test_registre_reel_a_des_categories_de_secteurs_grossiers():
+    registry = load_registry()
+    assert len(registry.secteurs_grossiers) > 0
+
+
+def test_classer_secteur_retourne_none_si_libelle_vide_ou_absent():
+    registry = load_registry()
+    assert registry.classer_secteur(None) is None
+    assert registry.classer_secteur("") is None
+
+
+def test_classer_secteur_retourne_none_si_aucune_categorie_ne_matche():
+    """Jamais forcé dans une catégorie approximative — principe directeur #1."""
+    registry = load_registry()
+    assert registry.classer_secteur("xyz totalement hors des catégories connues") is None
+
+
+def test_classer_secteur_reconnait_un_libelle_reel_de_fabrication():
+    registry = load_registry()
+    assert registry.classer_secteur("FABRICATION D'ASPIRATEUR CENTRAL") == "fabrication"
+
+
+def test_classer_secteur_premiere_categorie_qui_matche_gagne():
+    registry = Registry(
+        secteurs_grossiers=[
+            SecteurGrossierDef(id="a", nom="A", mots_cles=["fabricat"]),
+            SecteurGrossierDef(id="b", nom="B", mots_cles=["construction"]),
+        ]
+    )
+    # Matche les deux motifs — la catégorie déclarée en premier dans la liste gagne.
+    assert registry.classer_secteur("FABRICATION ET DISTRIBUTION DE MATÉRIAUX DE CONSTRUCTION") == "a"
+
+
+def test_secteur_grossier_retourne_none_pour_un_id_inconnu():
+    registry = load_registry()
+    assert registry.secteur_grossier("id_inexistant_xyz") is None
+
+
+def test_secteur_grossier_retourne_la_definition_declaree():
+    registry = Registry(secteurs_grossiers=[SecteurGrossierDef(id="a", nom="A", mots_cles=["x"])])
+    assert registry.secteur_grossier("a").nom == "A"
