@@ -8,7 +8,12 @@ from pathlib import Path
 
 import click
 
-from falkye.db import get_session, init_db, seed_spheres_from_registry
+from falkye.db import (
+    get_session,
+    init_db,
+    seed_sphere_synonymes_from_registry,
+    seed_spheres_from_registry,
+)
 from falkye.models.profile import PlanTarifaire, Profile, ProfileNeed, Sensibilite, TypeProfil
 from falkye.models.sous_compte import RoleSousCompte
 from falkye.registry.loader import get_registry
@@ -24,6 +29,7 @@ def init_db_cmd():
     """Crée les tables et synchronise les sphères de besoin depuis le registre."""
     init_db()
     seed_spheres_from_registry()
+    seed_sphere_synonymes_from_registry()
     click.echo("Base de données initialisée.")
 
 
@@ -586,6 +592,73 @@ def profile_list():
         session.close()
 
 
+@profile.command("suggerer-sphere")
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
+@click.option("--description", required=True, help="Description libre de votre usage.")
+@click.option(
+    "--niveau2/--no-niveau2",
+    default=True,
+    help="Autoriser l'escalade au Niveau 2 (Claude, Radar/Radar+ seulement) si le "
+    "Niveau 1 ne trouve rien — défaut : autorisé.",
+)
+def profile_suggerer_sphere(profile_id, description, niveau2):
+    """Assistance à la configuration du profil par IA (spec Radar+, point 8,
+    ajoutée le 2026-09-03) — LECTURE SEULE : affiche des sphères candidates pour
+    votre description, ne modifie JAMAIS vos besoins automatiquement. Une
+    suggestion reste toujours une proposition à confirmer via `profile
+    add-need`, jamais une classification silencieuse."""
+    from falkye.assistance_sphere import suggerer_spheres_niveau1
+    from falkye.assistance_sphere_ia import (
+        AssistanceIANonConfiguree,
+        PlanInsuffisantPourAssistanceIA,
+        suggerer_sphere_niveau2,
+    )
+
+    session = get_session()
+    try:
+        profile_obj = _identite_courante(session, profile_id=profile_id).profile
+
+        suggestions = suggerer_spheres_niveau1(session, description)
+        if suggestions:
+            click.echo("Suggestions (Niveau 1 — correspondance locale par mots-clés, gratuit) :")
+            for s in suggestions:
+                click.echo(
+                    f"  - {s.sphere_id} ({s.sphere_nom}) — score={s.score}, "
+                    f"mots-clés matchés : {', '.join(s.mots_cles_matches)}"
+                )
+            click.echo("Proposition à confirmer : ajoutez le besoin retenu avec `falkye profile add-need`.")
+            return
+
+        click.echo("Niveau 1 : aucune correspondance locale trouvée.")
+        if not niveau2:
+            click.echo("Niveau 2 non demandé (--no-niveau2).")
+            return
+
+        try:
+            suggestion2 = suggerer_sphere_niveau2(session, profile_obj, description)
+        except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree) as exc:
+            raise click.ClickException(str(exc)) from exc
+
+        if suggestion2.sphere_id is None:
+            click.echo(
+                f"Niveau 2 (Claude) : aucune sphère existante ne correspond avec confiance "
+                f"({suggestion2.confiance}). Journalisé pour examen (candidat "
+                f"#{suggestion2.candidat_sphere_id}, voir `falkye sphere candidats`).\n"
+                f"Raisonnement : {suggestion2.raisonnement}"
+            )
+        else:
+            extra = f" (synonyme retenu pour la prochaine fois : {suggestion2.synonyme_retenu!r})" \
+                if suggestion2.synonyme_retenu else ""
+            click.echo(
+                f"Niveau 2 (Claude) : {suggestion2.sphere_id} ({suggestion2.sphere_nom}) — "
+                f"confiance={suggestion2.confiance}{extra}.\n"
+                f"Raisonnement : {suggestion2.raisonnement}"
+            )
+            click.echo("Proposition à confirmer : ajoutez le besoin retenu avec `falkye profile add-need`.")
+    finally:
+        session.close()
+
+
 @profile.command("set-webhook")
 @click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 @click.option("--url", "webhook_url", required=True)
@@ -812,6 +885,49 @@ def souscompte_list(profile_id):
             click.echo(
                 f"#{sc.id} {sc.nom} <{sc.courriel}> rôle={sc.role.value} "
                 f"territoire={sc.territoire or 'n/d'}"
+            )
+    finally:
+        session.close()
+
+
+@cli.group()
+def sphere():
+    """Sphères de besoin (spec section 4) — inclut les candidats journalisés par
+    le Niveau 2 de l'assistance IA à la configuration (spec Radar+, point 8)."""
+
+
+@sphere.command("candidats")
+@click.option(
+    "--statut",
+    default="a_examiner",
+    help="Filtrer par statut (a_examiner par défaut) — passer une chaîne vide pour tous les statuts.",
+)
+def sphere_candidats(statut):
+    """Liste les cas que le Niveau 2 (Claude) n'a pu rattacher à AUCUNE sphère
+    existante — journalisés pour examen humain, JAMAIS auto-résolus (garde-fou
+    non négociable, voir falkye/assistance_sphere_ia.py). RÉSERVÉ AU MODE
+    OPÉRATEUR (FALKYE_OPERATOR=1) : ce journal traverse tous les profils, ce
+    n'est pas une donnée propre à un seul client."""
+    from falkye.models.candidat_sphere import CandidatSphere
+
+    if not _mode_operateur():
+        raise click.ClickException(
+            "Réservé au mode opérateur (FALKYE_OPERATOR=1) — ce journal traverse tous les profils."
+        )
+    session = get_session()
+    try:
+        query = session.query(CandidatSphere)
+        if statut:
+            query = query.filter(CandidatSphere.statut == statut)
+        candidats = query.order_by(CandidatSphere.created_at.desc()).all()
+        if not candidats:
+            click.echo("Aucun candidat.")
+            return
+        for c in candidats:
+            click.echo(
+                f"#{c.id} [{c.created_at:%Y-%m-%d %H:%M}] profil=#{c.profile_id} statut={c.statut}\n"
+                f"    description : {c.texte_description}\n"
+                f"    raisonnement niveau 2 : {c.resume_niveau2 or '(aucun)'}"
             )
     finally:
         session.close()

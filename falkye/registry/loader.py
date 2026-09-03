@@ -137,6 +137,18 @@ class SphereDef:
     # l'absence, alors que d'autres signaux existent déjà pour l'entreprise, est
     # elle-même pertinente — voir falkye/pertinence.py:bonus_signal_absence.
     signal_absence_pertinent: str | None = None
+    # Assistance à la configuration du profil par IA (spec Radar+, point 8,
+    # ajoutée le 2026-09-03) — Niveau 1 : mots-clés/synonymes servant à faire
+    # correspondre localement une description libre de l'utilisateur à cette
+    # sphère, SANS appel API (gratuit, tous plans — falkye/assistance_sphere.py).
+    # Premier jet volontairement large plutôt qu'exhaustif : ce noyau vit dans
+    # le registre (le YAML fait foi), mais le Niveau 2 (Claude, Radar/Radar+
+    # seulement) peut ENRICHIR silencieusement le dictionnaire d'une sphère
+    # EXISTANTE en base (falkye/models/sphere_synonyme.py::SphereSynonyme,
+    # origine="ia_niveau2") sans jamais toucher à ce fichier — même principe
+    # que Sphere.est_personnalisee : le noyau curé reste ici, les enrichissements
+    # vivent en base.
+    synonymes: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

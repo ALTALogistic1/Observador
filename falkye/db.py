@@ -81,6 +81,38 @@ def seed_spheres_from_registry() -> None:
         session.close()
 
 
+def seed_sphere_synonymes_from_registry() -> None:
+    """Synchronise la table SphereSynonyme avec registry/spheres.yaml (champ
+    `synonymes`), sans jamais toucher aux synonymes appris par le Niveau 2 de
+    l'assistance IA (origine="ia_niveau2" — spec Radar+, point 8) : seules les
+    entrées origine="registre" sont gérées ici, même principe que
+    seed_spheres_from_registry pour les sphères personnalisées. Idempotent :
+    ignore les paires (sphere_id, texte) déjà présentes."""
+    from falkye.models.sphere_synonyme import SphereSynonyme
+    from falkye.registry.loader import get_registry
+
+    registry = get_registry()
+    session = get_session()
+    try:
+        existants = {
+            (s.sphere_id, s.texte.lower())
+            for s in session.query(SphereSynonyme.sphere_id, SphereSynonyme.texte)
+            .filter(SphereSynonyme.origine == "registre")
+            .all()
+        }
+        for sphere_def in registry.spheres.values():
+            for texte in sphere_def.synonymes:
+                cle = (sphere_def.id, texte.lower())
+                if cle not in existants:
+                    session.add(
+                        SphereSynonyme(sphere_id=sphere_def.id, texte=texte, origine="registre")
+                    )
+                    existants.add(cle)
+        session.commit()
+    finally:
+        session.close()
+
+
 def seed_statuts_suivi_from_registry() -> None:
     """Synchronise la table StatutSuivi avec le registre YAML (statuts_suivi.yaml),
     sans jamais toucher aux statuts personnalisés ajoutés par les utilisateurs

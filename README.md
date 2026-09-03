@@ -234,6 +234,23 @@ python -m falkye.cli crm mapper-statut --profile-id 1 --provider hubspot \
 python -m falkye.cli crm statut --profile-id 1        # état de synchronisation (fiches poussées, étape connue)
 ```
 
+### Assistance à la configuration du profil par IA
+
+```bash
+python -m falkye.cli profile suggerer-sphere --description \
+  "implantation de systèmes de gestion d'inventaire pour PME manufacturières"  # Niveau 1 gratuit (tous plans)
+python -m falkye.cli sphere candidats                                          # cas non résolus par le Niveau 2 (mode opérateur)
+```
+
+Deux niveaux (spec Radar+, point 8) : correspondance locale par mots-clés
+(Niveau 1, gratuit, tous plans) puis, seulement si le Niveau 1 échoue, un
+appel Claude à sortie contrainte par schéma (Niveau 2, Radar/Radar+, gate
+binaire sans quota) — le schéma de sortie rend structurellement impossible au
+Niveau 2 d'inventer une nouvelle sphère : un cas non rattachable est
+journalisé pour examen humain, jamais auto-résolu. Toujours une proposition à
+confirmer via `profile add-need`, jamais une classification silencieuse. Voir
+`docs/ARCHITECTURE.md` pour le détail complet.
+
 Les fonctionnalités Radar+ ci-dessus sont réservées au plan Radar+
 (`PlanTarifaire.RADAR_PLUS`) — l'intégration CRM fait exception (disponible
 dès Radar). Dans tous les cas, un profil sous le plan requis peut préparer sa

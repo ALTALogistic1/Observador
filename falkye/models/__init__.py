@@ -1,6 +1,7 @@
 """Regroupe l'import de tous les modèles pour que Base.metadata les connaisse
 (voir falkye/db.py:init_db)."""
 from falkye.models.base import Base  # noqa: F401
+from falkye.models.candidat_sphere import CandidatSphere  # noqa: F401
 from falkye.models.company import Company  # noqa: F401
 from falkye.models.corp_federale_entry import CorporationFederaleEntry  # noqa: F401
 from falkye.models.crm_connection import CrmConnection  # noqa: F401
@@ -22,11 +23,13 @@ from falkye.models.session_auth import SessionAuth  # noqa: F401
 from falkye.models.signal import Signal  # noqa: F401
 from falkye.models.sous_compte import SousCompte  # noqa: F401
 from falkye.models.sphere import Sphere  # noqa: F401
+from falkye.models.sphere_synonyme import SphereSynonyme  # noqa: F401
 from falkye.models.statut_suivi import StatutSuivi  # noqa: F401
 from falkye.models.subscription import Subscription  # noqa: F401
 
 __all__ = [
     "Base",
+    "CandidatSphere",
     "Company",
     "CorporationFederaleEntry",
     "CrmConnection",
@@ -47,6 +50,7 @@ __all__ = [
     "Signal",
     "SousCompte",
     "Sphere",
+    "SphereSynonyme",
     "StatutSuivi",
     "Subscription",
 ]

@@ -1590,3 +1590,64 @@ statut → liste d'équipe accessible en lecture → logout. Comportement
 observé conforme au design à chaque étape.
 
 **Construit et testé (336/336, dont 19 nouveaux).**
+
+## Assistance à la configuration du profil par IA — Niveau 1 + Niveau 2 (2026-09-03)
+
+Spec Radar+, point 8, confirmée par Alexandre le 2026-09-03 : "Les deux points
+confirmés : texte simple pour le Niveau 1, pas de système de quota pour le
+Niveau 2. [...] le garde-fou structurel via le schéma de sortie contraint est
+exactement ce qu'on voulait, pas juste une instruction." Voir
+`docs/ARCHITECTURE.md`, section "Assistance à la configuration du profil par
+IA", pour l'analyse complète (les deux niveaux, le garde-fou structurel, les
+trois couches de filtrage sphère déjà en place).
+
+**Construit** :
+- `registry/spheres.yaml::SphereDef.synonymes` — premier jet de mots-clés en
+  français par sphère (les 35 sphères du noyau curé), chargé en base
+  (`SphereSynonyme`, `origine="registre"`) par `falkye.db.seed_sphere_
+  synonymes_from_registry`, idempotent, jamais destructif envers les
+  synonymes appris par le Niveau 2 (`origine="ia_niveau2"`).
+- `falkye/models/sphere_synonyme.py::SphereSynonyme` et `falkye/models/
+  candidat_sphere.py::CandidatSphere` (journal des cas non résolus par le
+  Niveau 2, `statut="a_examiner"` par défaut).
+- `falkye/assistance_sphere.py` (Niveau 1) — correspondance mot-à-mot locale,
+  gratuite, tous plans. **Bogue réel trouvé pendant la validation avec de
+  vraies données** (`falkye profile suggerer-sphere` contre le profil #1
+  réel d'Alexandre) : une correspondance de SOUS-CHAÎNE brute faisait
+  matcher l'acronyme "TI" à l'intérieur du mot "implan**ta-ti**on"
+  (description réelle : "implantation de systèmes de gestion d'inventaire
+  pour les PME manufacturières"), produisant une fausse suggestion
+  `technologie_systemes_ti` en plus de la bonne. Corrigé avant livraison :
+  bornes de mot par regex (`(?<!\w)…(?!\w)`, robuste aux lettres accentuées
+  et aux synonymes composés avec apostrophe comme "gestion d'inventaire"),
+  test de régression ajouté (`tests/test_assistance_sphere.py::
+  test_acronyme_court_ne_matche_pas_a_l_interieur_d_un_mot`). Reconfirmé
+  contre la même description réelle après correctif : une seule suggestion,
+  la bonne.
+- `falkye/assistance_sphere_ia.py` (Niveau 2) — appel Claude (`anthropic`
+  SDK, nouvelle dépendance `pyproject.toml`) avec sortie JSON contrainte par
+  schéma (`output_config`, `enum` fermée sur `sphere_id` = sphères
+  existantes + sentinelle `aucune_correspondance`). Gate binaire Radar/Radar+
+  (`PlanInsuffisantPourAssistanceIA`), modèle `claude-haiku-4-5` par défaut
+  (`FALKYE_ANTHROPIC_MODEL_NIVEAU2` pour surclasser — voir justification du
+  choix dans la docstring du module).
+- CLI : `falkye profile suggerer-sphere --description "..."` (lecture seule,
+  Niveau 1 puis escalade automatique au Niveau 2 si Radar/Radar+ et
+  `--niveau2` non désactivé) et `falkye sphere candidats` (réservé au mode
+  opérateur — journal transversal à tous les profils, pas une donnée d'un
+  seul client).
+
+**STATUT DE VALIDATION — Niveau 2** : construit et testé contre le SDK
+Anthropic mocké (`tests/test_assistance_sphere_ia.py`) — aucune clé
+`ANTHROPIC_API_KEY` réelle disponible dans cet environnement de
+développement, même situation que Stripe/HubSpot/Pipedrive/TheirStack.
+Validation en direct à faire une fois qu'Alexandre fournit une vraie clé.
+
+**Migration de la base de développement réelle** : tables `sphere_synonymes`
+et `candidats_spheres` créées (`init_db()`, additif) ; `seed_sphere_
+synonymes_from_registry()` exécutée — 35 sphères, 195 synonymes semés depuis
+le registre, 0 candidat (aucun appel Niveau 2 réel encore effectué, cohérent
+avec l'absence de clé API). Vérifié après coup : les tables existantes sont
+inchangées.
+
+**Construit et testé (348/348, dont 12 nouveaux).**

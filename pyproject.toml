@@ -16,6 +16,7 @@ dependencies = [
     "pdfplumber>=0.11",
     "cffi>=1.16",  # dépendance de cryptography/pdfminer — image de base parfois incomplète, voir docs/STATUT_RESEAU.md
     "stripe>=10.0",  # paiement intégré du plan Radar — spec section 9bis, falkye/billing/
+    "anthropic>=0.40",  # assistance à la configuration du profil par IA (Niveau 2) — spec Radar+ point 8, falkye/assistance_sphere_ia.py
 ]
 
 [project.optional-dependencies]

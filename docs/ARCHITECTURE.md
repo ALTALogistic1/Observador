@@ -940,6 +940,62 @@ encore validé contre un usage réel, à ajuster si l'usage le contredit,
 principe directeur #9). Extensible sans migration de code : ajouter une
 entrée au YAML suffit, suivant le même principe que le reste du registre.
 
+## Assistance à la configuration du profil par IA (spec Radar+, point 8, ajoutée le 2026-09-03)
+
+Le seul usage de ML retenu dans tout le produit — deux niveaux, jamais un seul
+mécanisme unique, pour que le coût par appel reste proportionnel à la
+difficulté réelle du cas.
+
+**Niveau 1 — `falkye/assistance_sphere.py`, gratuit, tous les plans (Écho
+compris).** Correspondance MOT-À-MOT (bornée par des limites de mot, jamais une
+sous-chaîne brute) entre la description libre de l'utilisateur et le
+dictionnaire de synonymes/mots-clés de chaque sphère (`SphereSynonyme`, table
+DB alimentée depuis `registry/spheres.yaml::SphereDef.synonymes` par
+`falkye.db.seed_sphere_synonymes_from_registry`). "Texte simple" confirmé
+explicitement par Alexandre le 2026-09-03 — aucun embeddings, aucun modèle de
+langage à ce niveau. Un bogue réel de sous-chaîne brute a été trouvé et corrigé
+pendant la validation avec de vraies données (voir docs/STATUT_RESEAU.md) :
+l'acronyme "TI" matchait à l'intérieur du mot "implan**ta-ti**on" avant
+l'ajout des bornes de mot (regex `(?<!\w)…(?!\w)`, insensible aux lettres
+accentuées et aux apostrophes des synonymes composés comme "gestion
+d'inventaire").
+
+Liste VIDE de suggestions = échec du Niveau 1 — c'est CE signal, et rien
+d'autre, qui déclenche le Niveau 2.
+
+**Niveau 2 — `falkye/assistance_sphere_ia.py`, réservé Radar/Radar+, gating
+BINAIRE (pas de système de quota — confirmé par Alexandre le 2026-09-03).**
+Un appel Claude (`anthropic` SDK, `claude-haiku-4-5` par défaut — voir
+docstring du module pour la justification du choix de modèle) avec une sortie
+JSON CONTRAINTE PAR SCHÉMA (`output_config`, `additionalProperties: false`) :
+le champ `sphere_id` est une `enum` fermée = les sphères EXISTANTES en base au
+moment de l'appel, plus une valeur sentinelle `aucune_correspondance`.
+
+**C'est ce garde-fou-là — confirmé par Alexandre comme "exactement ce qu'on
+voulait, pas juste une instruction" — qui rend structurellement IMPOSSIBLE au
+Niveau 2 d'inventer une nouvelle sphère : aucune sortie valide du modèle ne
+peut nommer un id qui n'existe pas déjà.** Un cas `aucune_correspondance` est
+journalisé dans `CandidatSphere` (`falkye/models/candidat_sphere.py`,
+`statut="a_examiner"`) — jamais auto-résolu, exactement comme la sphère
+"Financement / accès au capital" a été ajoutée par décision humaine après
+avoir croisé plusieurs personas (voir section précédente), jamais par un
+mécanisme automatique. `falkye sphere candidats` (réservé au mode opérateur —
+ce journal traverse tous les profils) liste ces cas pour révision.
+
+Un cas rattaché à une sphère EXISTANTE peut silencieusement enrichir SON
+dictionnaire de synonymes (`SphereSynonyme(origine="ia_niveau2")`) — jamais
+`registry/spheres.yaml`, jamais la table `Sphere` elle-même.
+
+**Toujours une proposition, jamais une classification silencieuse** : ni le
+Niveau 1 ni le Niveau 2 n'écrivent `profile_needs` — `falkye profile
+suggerer-sphere` (lecture seule) affiche la ou les suggestions, l'utilisateur
+confirme via `falkye profile add-need` s'il est d'accord.
+
+STATUT DE VALIDATION : construit et testé contre le SDK Anthropic mocké
+(`tests/test_assistance_sphere_ia.py`) — aucune clé `ANTHROPIC_API_KEY` réelle
+disponible dans cet environnement de développement, même situation que
+Stripe/HubSpot/Pipedrive (voir docs/STATUT_RESEAU.md).
+
 ## Polyvalence d'utilisation (spec section 9, ajoutée le 2026-08-31)
 
 Exigence originale (2026-08-31) : le produit doit rester utilisable par

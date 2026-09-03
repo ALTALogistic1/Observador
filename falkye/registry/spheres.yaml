@@ -5,78 +5,316 @@
 # -> Sphere avec est_personnalisee=True) sans casser la structure. Les entrées ci-dessous
 # sont le noyau "curé" chargé au démarrage (falkye/registry/loader.py) ; les sphères
 # proposées par les utilisateurs vivent en base de données, pas dans ce fichier.
+#
+# `synonymes` (ajouté le 2026-09-03, spec Radar+ point 8, assistance à la configuration
+# du profil par IA) : premier jet de mots-clés/expressions en français courant qu'un
+# utilisateur pourrait employer pour décrire son usage, servant au Niveau 1 (matching
+# local, falkye/assistance_sphere.py) — volontairement un point de départ, pas une liste
+# fermée ni exhaustive ; le Niveau 2 (Claude, Radar/Radar+) peut enrichir CE dictionnaire
+# en base de données (SphereSynonyme, origine="ia_niveau2") sans jamais modifier ce
+# fichier. La sphère elle-même (nom, id) reste inchangée par ce champ.
 
 spheres:
   - id: gestion_inventaire_actifs
     nom: "Gestion d'inventaire et d'actifs"
+    synonymes:
+      - "gestion d'inventaire"
+      - "gestion des stocks"
+      - "suivi d'actifs"
+      - "traçabilité des actifs"
+      - "codes-barres"
+      - "RFID"
+      - "entreposage"
+      - "gestion d'entrepôt"
   - id: rh_recrutement_dotation
     nom: "Ressources humaines / recrutement / dotation"
+    synonymes:
+      - "recrutement"
+      - "dotation"
+      - "ressources humaines"
+      - "RH"
+      - "embauche"
+      - "chasse de têtes"
+      - "agence de placement"
+      - "gestion de talents"
   - id: comptabilite_finance_fiscalite
     nom: "Comptabilité / finance / fiscalité"
+    synonymes:
+      - "comptabilité"
+      - "tenue de livres"
+      - "fiscalité"
+      - "impôts"
+      - "vérification comptable"
+      - "audit financier"
+      - "planification financière"
+      - "CPA"
   - id: juridique_conformite
     nom: "Juridique / conformité réglementaire"
+    synonymes:
+      - "juridique"
+      - "avocat"
+      - "conformité réglementaire"
+      - "droit des affaires"
+      - "droit du travail"
+      - "contrats commerciaux"
+      - "propriété intellectuelle"
   - id: technologie_systemes_ti
     nom: "Technologie / systèmes / TI"
+    synonymes:
+      - "TI"
+      - "informatique"
+      - "systèmes d'information"
+      - "infonuagique"
+      - "cloud"
+      - "développement logiciel"
+      - "intégration de systèmes"
+      - "ERP"
   - id: cybersecurite
     nom: "Cybersécurité"
+    synonymes:
+      - "cybersécurité"
+      - "sécurité informatique"
+      - "sécurité des données"
+      - "protection contre les rançongiciels"
+      - "test d'intrusion"
+      - "pare-feu"
   - id: logistique_transport_flotte
     nom: "Logistique / transport / gestion de flotte"
+    synonymes:
+      - "logistique"
+      - "transport"
+      - "gestion de flotte"
+      - "camionnage"
+      - "distribution"
+      - "livraison"
+      - "chaîne logistique"
+      - "expédition"
   - id: chaine_approvisionnement_achats
     nom: "Chaîne d'approvisionnement / achats / approvisionnement"
+    synonymes:
+      - "chaîne d'approvisionnement"
+      - "achats"
+      - "approvisionnement"
+      - "sourçage"
+      - "gestion des fournisseurs"
+      - "approvisionnement stratégique"
   - id: marketing_vente_developpement_affaires
     nom: "Marketing / vente / développement des affaires"
+    synonymes:
+      - "marketing"
+      - "vente"
+      - "développement des affaires"
+      - "développement d'affaires"
+      - "prospection commerciale"
+      - "publicité"
+      - "génération de leads"
+      - "CRM"
   - id: securite_physique
     nom: "Sécurité (physique, surveillance, contrôle d'accès)"
+    synonymes:
+      - "sécurité physique"
+      - "surveillance"
+      - "vidéosurveillance"
+      - "contrôle d'accès"
+      - "agents de sécurité"
+      - "alarme"
   - id: immobilier_gestion_espaces
     nom: "Immobilier / gestion d'espaces / aménagement"
+    synonymes:
+      - "immobilier commercial"
+      - "gestion d'espaces"
+      - "aménagement de bureaux"
+      - "courtage immobilier"
+      - "location d'espaces"
+      - "gestion immobilière"
   - id: construction_renovation_entretien
     nom: "Construction / rénovation / entretien de bâtiments"
+    synonymes:
+      - "construction"
+      - "rénovation"
+      - "entretien de bâtiments"
+      - "entrepreneur général"
+      - "gestion de projets de construction"
+      - "génie du bâtiment"
   - id: sst
     nom: "Santé et sécurité au travail (SST)"
+    synonymes:
+      - "santé et sécurité au travail"
+      - "SST"
+      - "prévention des accidents"
+      - "conformité CNESST"
+      - "équipements de protection individuelle"
+      - "EPI"
   - id: environnement_esg
     nom: "Environnement / développement durable / ESG"
+    synonymes:
+      - "environnement"
+      - "développement durable"
+      - "ESG"
+      - "gestion des matières résiduelles"
+      - "décarbonation"
+      - "bilan carbone"
+      - "responsabilité sociale"
   - id: gestion_projet
     nom: "Gestion de projet"
+    synonymes:
+      - "gestion de projet"
+      - "gestion de portefeuille de projets"
+      - "méthodologie agile"
+      - "bureau de projets"
+      - "PMO"
   - id: production_operations_manufacturieres
     nom: "Production / opérations manufacturières"
+    synonymes:
+      - "production manufacturière"
+      - "opérations manufacturières"
+      - "amélioration continue"
+      - "lean manufacturing"
+      - "usine"
+      - "ligne de production"
   - id: ingenierie_design_industriel
     nom: "Ingénierie / design industriel"
+    synonymes:
+      - "ingénierie"
+      - "design industriel"
+      - "conception mécanique"
+      - "bureau d'ingénierie"
+      - "prototypage"
   - id: service_clientele_support
     nom: "Service à la clientèle / support technique"
+    synonymes:
+      - "service à la clientèle"
+      - "support technique"
+      - "centre d'appels"
+      - "expérience client"
+      - "assistance technique"
   - id: formation_competences
     nom: "Formation / développement des compétences"
+    synonymes:
+      - "formation"
+      - "développement des compétences"
+      - "formation continue"
+      - "perfectionnement professionnel"
+      - "e-learning"
   - id: traduction_communications_multilingues
     nom: "Traduction / communications multilingues"
+    synonymes:
+      - "traduction"
+      - "communications multilingues"
+      - "localisation"
+      - "interprétation"
   - id: relations_publiques_communication
     nom: "Relations publiques / communication corporative"
+    synonymes:
+      - "relations publiques"
+      - "communication corporative"
+      - "gestion de réputation"
+      - "relations médias"
   - id: gestion_documentaire_archivage
     nom: "Gestion documentaire / archivage"
+    synonymes:
+      - "gestion documentaire"
+      - "archivage"
+      - "numérisation de documents"
+      - "gestion électronique des documents"
+      - "GED"
   - id: assurance_gestion_risques
     nom: "Assurance / gestion des risques"
+    synonymes:
+      - "assurance commerciale"
+      - "gestion des risques"
+      - "courtage d'assurance"
+      - "cautionnement"
   - id: import_export_douanes
     nom: "Import / export / douanes"
+    synonymes:
+      - "import export"
+      - "douanes"
+      - "courtage en douane"
+      - "commerce international"
+      - "dédouanement"
   - id: automatisation_robotique
     nom: "Automatisation / robotique"
+    synonymes:
+      - "automatisation"
+      - "robotique industrielle"
+      - "robotique"
+      - "automates programmables"
   - id: analytique_affaires_donnees
     nom: "Analytique d'affaires / gestion de données"
+    synonymes:
+      - "analytique d'affaires"
+      - "gestion de données"
+      - "intelligence d'affaires"
+      - "business intelligence"
+      - "science des données"
   - id: efficacite_energetique
     nom: "Efficacité énergétique / gestion de l'énergie"
+    synonymes:
+      - "efficacité énergétique"
+      - "gestion de l'énergie"
+      - "audit énergétique"
+      - "énergie renouvelable"
   - id: franchisage_developpement_reseaux
     nom: "Franchisage / développement de réseaux"
+    synonymes:
+      - "franchisage"
+      - "développement de réseaux"
+      - "franchise"
+      - "expansion de réseau"
   - id: commerce_detail_ecommerce
     nom: "Commerce de détail / e-commerce"
+    synonymes:
+      - "commerce de détail"
+      - "e-commerce"
+      - "commerce électronique"
+      - "point de vente"
+      - "boutique en ligne"
   - id: restauration_gestion_alimentaire
     nom: "Restauration / gestion alimentaire"
+    synonymes:
+      - "restauration"
+      - "gestion alimentaire"
+      - "service alimentaire"
+      - "restaurant"
   - id: agriculture_agroalimentaire
     nom: "Agriculture / agroalimentaire"
+    synonymes:
+      - "agriculture"
+      - "agroalimentaire"
+      - "production agricole"
+      - "transformation alimentaire"
   - id: entretien_menager_conciergerie
     nom: "Entretien ménager / conciergerie commerciale"
+    synonymes:
+      - "entretien ménager"
+      - "conciergerie commerciale"
+      - "nettoyage commercial"
+      - "entretien sanitaire"
   - id: gestion_paie_avantages_sociaux
     nom: "Gestion de la paie / avantages sociaux"
+    synonymes:
+      - "gestion de la paie"
+      - "avantages sociaux"
+      - "paie"
+      - "assurance collective"
   - id: planification_strategique_conseil
     nom: "Planification stratégique / conseil en gestion"
+    synonymes:
+      - "planification stratégique"
+      - "conseil en gestion"
+      - "consultation en gestion"
+      - "conseil stratégique"
   - id: financement_acces_capital
     nom: "Financement / accès au capital"
+    synonymes:
+      - "financement"
+      - "accès au capital"
+      - "prêt commercial"
+      - "capital de risque"
+      - "investissement providentiel"
+      - "cautionnement financier"
+      - "financement alternatif"
     # Découverte en croisant des personas (courtiers en cautionnement, prêteurs
     # alternatifs, investisseurs providentiels, banquiers d'investissement) qui ne
     # correspondaient à aucune sphère existante (spec section 4, mise à jour).
