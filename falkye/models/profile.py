@@ -98,6 +98,14 @@ class Profile(Base):
     # gate l'accès, la vérification de plan au moment de la livraison l'est.
     webhook_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    # Authentification réelle du propriétaire du profil (falkye/auth.py,
+    # ajoutée le 2026-09-02) — même mécanisme que SousCompte.mot_de_passe_hash
+    # (voir falkye/models/sous_compte.py pour le contexte complet : ce que ça
+    # corrige, et la limite honnête qui reste, le mode opérateur). NULL tant
+    # que personne n'a défini de mot de passe — bootstrap par `falkye auth
+    # definir-mot-de-passe` (mode opérateur), jamais fabriqué.
+    mot_de_passe_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     besoins: Mapped[list["ProfileNeed"]] = relationship(

@@ -1525,3 +1525,68 @@ encore dans le portail (portée limitée par la demande d'Alexandre :
 "quand leurs cartes de sélection existeront"), noté pour plus tard.
 
 **Construit et testé (317/317, dont 1 nouveau).**
+
+## Authentification réelle par utilisateur — mot de passe + session (2026-09-02)
+
+Prérequis noté depuis un moment avant de vendre les rôles/sous-comptes Radar+
+comme une vraie séparation, formellement demandé le 2026-09-02. Plan discuté
+et validé avant le code (comment ça s'articule avec Profile, les sous-comptes
+déjà construits, et le CLI actuel qui ne demandait aucune identification) :
+Profile ET SousCompte authentifiés (pas seulement les sous-comptes — un
+`--profile-id` brut suffisait à agir sur n'importe quel profil, corriger
+seulement les sous-comptes aurait laissé un trou plus large ouvert juste à
+côté), `hashlib.scrypt` (stdlib, aucune nouvelle dépendance), un mode
+opérateur distinct (`FALKYE_OPERATOR=1`, pour Alexandre), session obligatoire
+sans repli déclaratif pour tout le reste. Voir `docs/ARCHITECTURE.md`,
+section "Authentification réelle par utilisateur", pour l'analyse complète.
+
+**Construit** :
+- `Profile.mot_de_passe_hash`/`SousCompte.mot_de_passe_hash` (nullables,
+  jamais fabriqués), `SousCompte.courriel` maintenant unique globalement
+  (nécessaire pour résoudre un courriel de connexion sans ambiguïté, même
+  principe que `Profile.courriel` depuis la Phase 1). `falkye/models/
+  session_auth.py::SessionAuth` — seul le HASH du jeton de session persiste
+  en base, jamais le jeton brut (qui ne vit que dans `~/.falkye/session`,
+  mode 0600).
+- `falkye/auth.py` — hachage scrypt + comparaison en temps constant,
+  `authentifier`/`creer_session`/`resoudre_session`/`revoquer_session`,
+  message d'échec volontairement générique (jamais de distinction entre
+  courriel inconnu et mot de passe incorrect — évite l'énumération de
+  comptes).
+- CLI : `auth login`/`logout`/`whoami`/`changer-mot-de-passe` (self-service),
+  `auth definir-mot-de-passe` (bootstrap, mode opérateur uniquement).
+  `falkye/cli.py::_identite_courante` résout l'identité pour TOUTES les
+  commandes "portail" (dashboard, crm, souscompte, billing sauf
+  traiter-webhook, ponderation, profile set-webhook, notifications list,
+  resume envoyer) — 19 commandes rewiring au total. `billing definir-plan`
+  (contourne Stripe) va plus loin : réservé au mode opérateur sans exception,
+  jamais en libre-service.
+- `dashboard voir --sous-compte-id` traité différemment des autres (pas une
+  vérification d'identité, un filtre de lecture — `_resoudre_scope_
+  territoire`) : le propriétaire/un admin peut prévisualiser le territoire
+  d'un collègue, un sous-compte non admin reste toujours auto-scopé au sien.
+  `dashboard statut` perd `--sous-compte-id` : l'attribution vient
+  automatiquement de la session.
+
+**Deux limites honnêtes qui restent, documentées plutôt que glissées sous
+silence** (falkye/models/sous_compte.py) : le mode opérateur ne protège
+jamais contre Alexandre lui-même (accès direct à la base par construction) ;
+l'authentification prouve qui a exécuté une commande, pas qui l'a
+physiquement tapée (un mot de passe partagé reste indétectable, comme pour
+tout système par mot de passe).
+
+**Migration de la base de développement réelle** (1 profil, 0 sous-compte,
+311 notifications, 2266 entreprises) : `mot_de_passe_hash` ajoutée à
+`profiles`/`sous_comptes` (NULL pour l'existant), index unique sur
+`sous_comptes.courriel` (aucune collision réelle — 0 sous-compte existant),
+table `sessions_auth` créée (`init_db()`/`create_all`, additif). Vérifié
+après coup : les comptes des tables existantes sont inchangés.
+
+**Validé de bout en bout contre un scénario réel** (base temporaire, pas la
+base de développement) : bootstrap opérateur → login propriétaire → refus
+d'accès à un profil non-session → création d'un sous-compte lecture_seule →
+refus de ce sous-compte de créer un autre sous-compte ou de modifier un
+statut → liste d'équipe accessible en lecture → logout. Comportement
+observé conforme au design à chaque étape.
+
+**Construit et testé (336/336, dont 19 nouveaux).**

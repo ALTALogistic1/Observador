@@ -617,26 +617,91 @@ déjà en main, pas une classification officielle.
 
 **Sous-comptes et territoires assignés, avec rôles** — `falkye/models/
 sous_compte.py::SousCompte` (profil Radar+ parent, courriel, nom, rôle
-admin/analyste/lecture_seule, territoire texte libre). `dashboard voir
---sous-compte-id` scope les dossiers au territoire assigné (comparaison simple
-à `Company.region`/`ville`) ; `dashboard statut --sous-compte-id` refuse un
-changement de statut si le rôle est `lecture_seule`. LIMITE HONNÊTE documentée
-en tête du modèle (à relire avant toute extension de cette fonctionnalité) :
-FALKYE n'a AUCUN système d'authentification — `--sous-compte-id` est un
-paramètre déclaratif, pas une preuve d'identité ; cette vérification filtre un
-usage de bonne foi, JAMAIS une frontière de sécurité — cette phrase ne change
-jamais, quelle que soit l'urgence commerciale ci-dessous, et ne doit jamais
-être présentée autrement dans le produit ou le matériel de vente.
+admin/analyste/lecture_seule, territoire texte libre). `dashboard voir`
+scope les dossiers au territoire assigné (comparaison simple à `Company.
+region`/`ville`) ; `dashboard statut` refuse un changement de statut si le
+rôle est `lecture_seule`. **CORRIGÉ le 2026-09-02** (falkye/auth.py, section
+suivante) : l'identité derrière ces vérifications est désormais VÉRIFIÉE
+(session authentifiée), plus un `--sous-compte-id` déclaratif — voir la
+section "Authentification réelle par utilisateur" ci-dessous pour le détail
+complet, et falkye/models/sous_compte.py pour la limite honnête qui reste
+(le mode opérateur).
 
-**Urgence révisée à la baisse (clarification d'Alexandre, 2026-09-02)** : le
-vrai besoin identifié chez les personas Radar+ réels (développement
-économique régional, cabinets multi-agents) est la RÉPARTITION DE VOLUME
-entre collègues d'une même organisation — pas l'étanchéité de sécurité entre
-organisations ou entre collègues. Une authentification réelle par utilisateur
-reste un vrai prérequis à construire avant de présenter les rôles comme une
-séparation STRICTE, mais n'est plus un bloqueur au premier client payant
-Radar+ : vendable dès maintenant pour la répartition de volume, tant que le
-produit ne prétend jamais être une frontière de sécurité.
+## Authentification réelle par utilisateur — mot de passe + session (ajoutée le 2026-09-02)
+
+Prérequis explicitement posé avant de vendre les rôles/sous-comptes Radar+
+comme une vraie séparation (voir paragraphe précédent) : "un système
+d'identité vérifiable et réel... suffisant pour que la mise en garde
+documentée cesse d'être vraie." Plan discuté et validé avant le code, aux
+quatre décisions suivantes.
+
+**Portée : Profile ET SousCompte, pas seulement les sous-comptes.** Avant
+cette fonctionnalité, ni l'un ni l'autre n'était vérifié — un `--profile-id`
+brut dans `falkye/cli.py` suffisait à agir sur N'IMPORTE QUEL profil, pas
+seulement à usurper un sous-compte. Corriger seulement les sous-comptes
+aurait laissé un trou plus large grand ouvert juste à côté. `Profile.
+mot_de_passe_hash` et `SousCompte.mot_de_passe_hash` (tous deux nullables —
+NULL tant que personne n'a défini de mot de passe, jamais fabriqué) sont
+vérifiés par le même mécanisme (`falkye/auth.py::authentifier`).
+
+**Hachage : `hashlib.scrypt` (stdlib), pas une nouvelle dépendance.** KDF
+délibérément lent (comme bcrypt/argon2), pour rendre une attaque par force
+brute coûteuse même si la base fuit. Comparaison en temps constant
+(`hmac.compare_digest`). Le jeton de SESSION, lui, est généré par `secrets.
+token_urlsafe` (déjà à haute entropie, pas besoin d'un KDF lent) — seul son
+hash SHA-256 est stocké côté serveur (`falkye/models/session_auth.py::
+SessionAuth`), le jeton BRUT ne vit que dans le fichier local du principal
+(`~/.falkye/session`, mode 0600, `FALKYE_SESSION_FILE` pour le déplacer).
+
+**Mode opérateur, distinct de l'identité client.** `FALKYE_OPERATOR=1`
+préserve le comportement déclaratif historique (`--profile-id`/
+`--sous-compte-id` bruts, sans session) — Alexandre reste l'opérateur
+technique de FALKYE, qui doit pouvoir dépanner/administrer n'importe quel
+profil sans se connecter comme chacun de ses clients. Documenté comme un
+choix architectural explicite dans `falkye/models/sous_compte.py`, pas une
+faille oubliée : la frontière réelle protège les principaux les uns des
+autres, jamais contre l'opérateur, qui a de toute façon accès à la base de
+données sous-jacente par construction.
+
+**Session obligatoire, sans repli déclaratif — hors mode opérateur.** Les
+commandes "portail" (dashboard, crm, souscompte, billing sauf
+`traiter-webhook`, ponderation, profile set-webhook, notifications list,
+resume envoyer) exigent désormais une session active
+(`falkye/cli.py::_identite_courante`) ; `--profile-id`/`--sous-compte-id`,
+s'ils sont fournis hors mode opérateur, doivent correspondre EXACTEMENT à
+l'identité de la session — jamais ignorés silencieusement, jamais acceptés
+comme preuve d'identité alternative. C'est ce qui rend la mise en garde
+documentée réellement fausse, pas seulement en théorie. `billing
+definir-plan` (contourne délibérément Stripe) va plus loin : réservé au mode
+opérateur SANS exception, jamais en libre-service — sinon un client pourrait
+simplement se donner Radar+ gratuitement.
+
+**`dashboard voir --sous-compte-id` reste un cas particulier, volontaire.**
+Distinct des autres options : ce n'est pas une vérification d'IDENTITÉ mais
+un filtre de LECTURE (`falkye/cli.py::_resoudre_scope_territoire`) — le
+propriétaire ou un sous-compte admin peut prévisualiser le territoire d'un
+collègue (ex. pour du support), alors qu'un sous-compte non admin reste
+TOUJOURS auto-scopé à son propre territoire, sans pouvoir en demander un
+autre (empêcherait sinon un sous-compte à territoire restreint d'élargir sa
+propre vue en passant simplement un autre id).
+
+**`dashboard statut` perd `--sous-compte-id`.** L'attribution du changement
+(et la vérification `lecture_seule`) vient maintenant automatiquement de la
+session — plus un paramètre à fournir, l'identité EST la preuve.
+
+**CLI** : `auth login`/`logout`/`whoami`, `auth definir-mot-de-passe`
+(bootstrap, mode opérateur uniquement — un principal ne peut pas prouver son
+identité avant d'avoir un premier mot de passe), `auth
+changer-mot-de-passe` (self-service, exige l'ancien mot de passe, agit
+TOUJOURS sur sa propre identité même en mode opérateur).
+
+**Deux limites honnêtes qui restent, documentées dans falkye/models/
+sous_compte.py plutôt que glissées sous silence** : (1) le mode opérateur
+lui-même, ci-dessus — la frontière ne protège jamais contre Alexandre ; (2)
+l'authentification prouve QUI a exécuté une commande, pas QUI l'a
+physiquement tapée — un sous-compte qui partage son mot de passe reste
+indétectable, comme pour tout système par mot de passe, pas une faiblesse
+propre à FALKYE.
 
 ## Intégration CRM — HubSpot, Pipedrive (Radar et Radar+, ajoutée le 2026-09-02)
 

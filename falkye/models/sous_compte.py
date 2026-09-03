@@ -3,39 +3,38 @@ fonctionnalité Radar+ "au-delà de la collaboration d'équipe simple, une
 structure organisationnelle — territoire/secteur assigné par sous-compte,
 permissions différenciées (admin/analyste/lecture seule)."
 
-LIMITE HONNÊTE, À NE PAS PASSER SOUS SILENCE : ce produit n'a AUCUN système
-d'authentification/de connexion (FALKYE est un outil CLI mono-opérateur en
-Phase 1/2, voir README — un seul utilisateur exécute la CLI localement, aucune
-notion de session ou d'identité vérifiée). Ce modèle et les commandes CLI qui
-l'accompagnent (`falkye souscompte`) construisent la STRUCTURE DE DONNÉES —
-territoire assigné, rôle — mais ne peuvent PAS réellement authentifier "cet
-appel CLI est fait par CE sous-compte précis" : `--sous-compte-id` est un
-paramètre déclaratif, pas une preuve d'identité. La vérification de rôle
-(falkye/cli.py::dashboard_statut) filtre donc un usage de bonne foi (éviter
-qu'un script automatisé écrivant "au nom" d'un sous-compte lecture-seule ne le
-fasse par erreur), **JAMAIS une frontière de sécurité contre un utilisateur
-malveillant qui contrôle déjà la CLI — cette phrase reste vraie et ne doit
-JAMAIS être présentée autrement dans le produit ou le matériel de vente,
-quelle que soit l'urgence commerciale ci-dessous.**
+CORRIGÉ le 2026-09-02 (falkye/auth.py) : la limite honnête documentée ici
+depuis la construction de ce modèle — "`--sous-compte-id` est un paramètre
+déclaratif, pas une preuve d'identité" — ne tient plus. `mot_de_passe_hash`
+(ci-dessous) + falkye/auth.py (authentification par mot de passe + session,
+CLI `falkye auth login`) permettent maintenant de PROUVER "cet appel CLI est
+fait par CE sous-compte précis", pas seulement de le déclarer. La vérification
+de rôle (falkye/cli.py, via `_identite_courante`) s'appuie désormais sur une
+identité VÉRIFIÉE (session résolue côté serveur), pas un entier passé en
+paramètre.
 
-CLARIFICATION D'ALEXANDRE (2026-09-02), URGENCE RÉVISÉE À LA BAISSE : le vrai
-besoin identifié chez les personas Radar+ réels (développement économique
-régional, cabinets multi-agents) est la RÉPARTITION DE VOLUME entre collègues
-d'une même organisation (distribuer automatiquement les bonnes notifications
-à la bonne personne selon son secteur/territoire assigné, pour réduire le
-bruit) — PAS l'étanchéité de sécurité entre organisations ou contre un
-collègue malveillant de la même organisation. Une authentification réelle par
-utilisateur reste un vrai prérequis à construire avant de présenter les rôles
-comme une séparation STRICTE, mais n'est PLUS un bloqueur au premier client
-payant Radar+ : le produit peut être vendu et utilisé pour la répartition de
-volume dès maintenant, tant qu'il ne prétend jamais être une frontière de
-sécurité."""
+RESTE UNE LIMITE HONNÊTE, DÉLIBÉRÉE : un "mode opérateur"
+(`FALKYE_OPERATOR=1`, voir falkye/auth.py) contourne intentionnellement cette
+vérification pour Alexandre — FALKYE reste un outil dont TOUTES les données
+transitent par un seul opérateur technique (Alexandre), qui doit pouvoir
+dépanner/administrer n'importe quel profil sans se connecter comme chacun de
+ses clients. Ce mode est un choix architectural documenté, pas une faille
+oubliée — mais il veut dire que la frontière réelle protège les sous-comptes
+LES UNS DES AUTRES (et d'un tiers qui n'a pas de session valide), jamais
+contre Alexandre lui-même, qui a accès à la base de données sous-jacente par
+construction. Cette nuance doit être présentée honnêtement, pas glissée sous
+silence, si jamais évoquée dans le matériel de vente.
+
+Autre limite honnête, distincte : l'authentification prouve qui a exécuté une
+commande CLI, pas qui l'a physiquement TAPÉE sur un clavier — un sous-compte
+qui partage son mot de passe reste indétectable, comme pour tout système
+d'authentification par mot de passe. Pas une faiblesse propre à FALKYE."""
 from __future__ import annotations
 
 import enum
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, Integer, String
+from sqlalchemy import Enum, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from falkye.models.base import Base, utcnow
@@ -49,12 +48,26 @@ class RoleSousCompte(str, enum.Enum):
 
 class SousCompte(Base):
     __tablename__ = "sous_comptes"
+    __table_args__ = (UniqueConstraint("courriel", name="uq_sous_compte_courriel"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     profile_id: Mapped[int] = mapped_column(ForeignKey("profiles.id"), nullable=False)  # compte Radar+ parent
 
+    # Unique globalement (pas seulement par profil) — nécessaire pour que
+    # falkye/auth.py::authentifier puisse résoudre un courriel de connexion
+    # vers UN SEUL principal sans ambiguïté (voir Profile.courriel, déjà
+    # unique depuis la Phase 1 pour la même raison).
     courriel: Mapped[str] = mapped_column(String(320), nullable=False)
     nom: Mapped[str] = mapped_column(String(200), nullable=False)
+
+    # Authentification réelle (falkye/auth.py, ajoutée le 2026-09-02) — jamais
+    # le mot de passe en clair, jamais fabriqué : NULL tant que personne n'a
+    # défini de mot de passe pour ce sous-compte (`falkye auth
+    # definir-mot-de-passe`, mode opérateur — bootstrap nécessaire, un
+    # sous-compte ne peut pas prouver son identité AVANT d'avoir un mot de
+    # passe). Un sous-compte sans mot de passe ne peut simplement pas se
+    # connecter — pas une erreur, l'état de départ normal.
+    mot_de_passe_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
     role: Mapped[RoleSousCompte] = mapped_column(
         Enum(RoleSousCompte, native_enum=False), nullable=False, default=RoleSousCompte.ANALYSTE
     )

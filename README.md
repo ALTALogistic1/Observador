@@ -193,15 +193,35 @@ python -m falkye.cli dashboard synthese --profile-id 1 --jours 90       # vue ag
 python -m falkye.cli dashboard synthese --profile-id 1 --secteur-detail # + libellés REQ bruts derrière le regroupement
 ```
 
+### Authentification réelle par utilisateur (mot de passe + session)
+
+```bash
+# Bootstrap (mode opérateur — un principal ne peut pas prouver son identité
+# avant d'avoir un premier mot de passe) :
+FALKYE_OPERATOR=1 python -m falkye.cli auth definir-mot-de-passe --profile-id 1
+
+# Ensuite, en libre-service — jeton écrit dans ~/.falkye/session :
+python -m falkye.cli auth login --courriel alex@exemple.com
+python -m falkye.cli auth whoami
+python -m falkye.cli auth changer-mot-de-passe
+python -m falkye.cli auth logout
+```
+
+Les commandes "portail" ci-dessous dérivent désormais leur identité de la
+session active plutôt que d'un `--profile-id`/`--sous-compte-id` brut — voir
+`docs/ARCHITECTURE.md`, section "Authentification réelle par utilisateur",
+pour le détail complet (portée, mode opérateur `FALKYE_OPERATOR=1`, limites
+honnêtes qui restent).
+
 ### Fonctionnalités Radar+ professionnelles
 
 ```bash
-python -m falkye.cli profile set-webhook --profile-id 1 --url https://exemple.com/hook   # accès API/webhook complet
+python -m falkye.cli profile set-webhook --url https://exemple.com/hook        # accès API/webhook complet
 python -m falkye.cli ponderation presets                                       # alertes composites disponibles
-python -m falkye.cli ponderation appliquer --profile-id 1 --preset alerte_financement_precoce
-python -m falkye.cli souscompte create --profile-id 1 --courriel analyste@exemple.com \
+python -m falkye.cli ponderation appliquer --preset alerte_financement_precoce
+python -m falkye.cli souscompte create --courriel analyste@exemple.com \
   --nom "Analyste régional" --role analyste --territoire "Capitale-Nationale"  # sous-comptes et territoires
-python -m falkye.cli dashboard voir --profile-id 1 --sous-compte-id 1          # dossiers scopés au territoire
+python -m falkye.cli dashboard voir                                            # dossiers de la session active
 ```
 
 ### Intégration CRM (HubSpot, Pipedrive — Radar ET Radar+)
@@ -222,11 +242,12 @@ basculé. Voir `docs/ARCHITECTURE.md` pour le détail complet.
 
 **Sur les sous-comptes/rôles** : structure de répartition de volume entre
 collègues d'une même organisation (ex. distribuer les bonnes notifications
-selon le territoire assigné), pas une frontière de sécurité — FALKYE n'a
-aucun système d'authentification réel. Une authentification réelle reste un
-vrai prérequis avant de présenter les rôles comme une séparation stricte,
-mais n'est plus un bloqueur au premier client payant Radar+ (clarification
-d'Alexandre, 2026-09-02 — voir `docs/ARCHITECTURE.md`).
+selon le territoire assigné). **CORRIGÉ le 2026-09-02** : l'identité derrière
+ces rôles est désormais VÉRIFIÉE par mot de passe + session
+(`falkye/auth.py`), plus un `--sous-compte-id` déclaratif — voir
+`docs/ARCHITECTURE.md` pour le détail complet, y compris les deux limites
+honnêtes qui restent (le mode opérateur, et le fait qu'un mot de passe
+partagé reste indétectable, comme pour tout système par mot de passe).
 
 ## Tests
 

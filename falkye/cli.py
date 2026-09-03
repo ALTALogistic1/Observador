@@ -3,6 +3,9 @@ continue / recherche ponctuelle, spec section 5), consultation des notifications
 génération du résumé périodique."""
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import click
 
 from falkye.db import get_session, init_db, seed_spheres_from_registry
@@ -22,6 +25,245 @@ def init_db_cmd():
     init_db()
     seed_spheres_from_registry()
     click.echo("Base de données initialisée.")
+
+
+# --- Authentification réelle par utilisateur (falkye/auth.py, ajoutée le
+# 2026-09-02) — voir falkye/models/sous_compte.py pour le contexte complet.
+# Le jeton de session BRUT vit UNIQUEMENT dans ce fichier local (jamais en
+# base — voir falkye/models/session_auth.py) ; FALKYE_SESSION_FILE permet de
+# le déplacer (tests, plusieurs identités sur une même machine).
+
+
+def _chemin_jeton_local() -> Path:
+    override = os.environ.get("FALKYE_SESSION_FILE")
+    if override:
+        return Path(override)
+    return Path.home() / ".falkye" / "session"
+
+
+def _ecrire_jeton_local(jeton: str) -> None:
+    chemin = _chemin_jeton_local()
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    chemin.write_text(jeton, encoding="utf-8")
+    chemin.chmod(0o600)
+
+
+def _lire_jeton_local() -> str | None:
+    chemin = _chemin_jeton_local()
+    if not chemin.exists():
+        return None
+    contenu = chemin.read_text(encoding="utf-8").strip()
+    return contenu or None
+
+
+def _supprimer_jeton_local() -> None:
+    chemin = _chemin_jeton_local()
+    if chemin.exists():
+        chemin.unlink()
+
+
+def _mode_operateur() -> bool:
+    """FALKYE_OPERATOR=1 — bypass intentionnel et documenté pour Alexandre,
+    qui doit pouvoir dépanner/administrer n'importe quel profil sans se
+    connecter comme chacun de ses clients. Voir falkye/models/sous_compte.py
+    pour la limite honnête que ce mode représente : la frontière réelle
+    protège les principaux les uns des autres, jamais contre l'opérateur, qui
+    a de toute façon accès à la base sous-jacente."""
+    return os.environ.get("FALKYE_OPERATOR") == "1"
+
+
+def _identite_courante(db_session, profile_id: int | None = None, sous_compte_id: int | None = None):
+    """Résout l'identité pour une commande "portail" (dashboard, crm,
+    souscompte, billing, ponderation, profile set-webhook, notifications,
+    resume) — via une session authentifiée (falkye/auth.py), sauf en mode
+    opérateur (comportement déclaratif historique préservé pour Alexandre).
+
+    Hors mode opérateur, `profile_id`/`sous_compte_id` — s'ils sont fournis —
+    doivent correspondre EXACTEMENT à l'identité de la session active :
+    jamais ignorés silencieusement (l'appelant serait alors surpris que sa
+    commande agisse sur un autre profil que celui demandé), jamais acceptés
+    comme une preuve d'identité alternative (ce serait rouvrir exactement le
+    trou que cette fonctionnalité corrige)."""
+    from falkye.auth import Principal, resoudre_session
+
+    if _mode_operateur():
+        if profile_id is None:
+            raise click.ClickException("--profile-id requis en mode opérateur (FALKYE_OPERATOR=1).")
+        p = db_session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        sous_compte = None
+        if sous_compte_id is not None:
+            from falkye.models.sous_compte import SousCompte
+
+            sous_compte = db_session.get(SousCompte, sous_compte_id)
+            if sous_compte is None or sous_compte.profile_id != profile_id:
+                raise click.ClickException(f"Sous-compte {sous_compte_id} introuvable pour le profil {profile_id}.")
+        return Principal(type="sous_compte" if sous_compte else "profile", profile=p, sous_compte=sous_compte)
+
+    jeton = _lire_jeton_local()
+    if jeton is None:
+        raise click.ClickException("Non connecté — voir `falkye auth login`.")
+    principal = resoudre_session(db_session, jeton)
+    if principal is None:
+        raise click.ClickException("Session invalide ou expirée — voir `falkye auth login`.")
+
+    if profile_id is not None and profile_id != principal.profile.id:
+        raise click.ClickException("Vous ne pouvez agir qu'en votre propre nom (profil de la session active).")
+    if sous_compte_id is not None:
+        if principal.sous_compte is None or sous_compte_id != principal.sous_compte.id:
+            raise click.ClickException(
+                "Vous ne pouvez agir qu'en votre propre nom (sous-compte de la session active)."
+            )
+
+    return principal
+
+
+_AIDE_PROFILE_ID_PORTAIL = (
+    "Requis en mode opérateur (FALKYE_OPERATOR=1) ; sinon dérivé de la session active "
+    "(`falkye auth login`) — doit correspondre à la session s'il est fourni."
+)
+
+
+@cli.group()
+def auth():
+    """Authentification réelle par utilisateur (mot de passe + session) —
+    ajoutée le 2026-09-02, prérequis avant de vendre les rôles/sous-comptes
+    Radar+ comme une vraie séparation. Voir falkye/auth.py et falkye/models/
+    sous_compte.py pour le contexte complet (ce que ça corrige, et la limite
+    honnête qui reste — le mode opérateur, FALKYE_OPERATOR=1)."""
+
+
+@auth.command("definir-mot-de-passe")
+@click.option("--profile-id", type=int, default=None, help="Définit le mot de passe du PROPRIÉTAIRE de ce profil.")
+@click.option("--sous-compte-id", type=int, default=None, help="Définit le mot de passe de CE sous-compte.")
+@click.option("--mot-de-passe", "mot_de_passe", prompt=True, hide_input=True, confirmation_prompt=True)
+def auth_definir_mot_de_passe(profile_id, sous_compte_id, mot_de_passe):
+    """Bootstrap OPÉRATEUR (Alexandre uniquement — exige FALKYE_OPERATOR=1) :
+    un principal ne peut pas prouver son identité avant d'avoir un mot de
+    passe, quelqu'un doit le définir la première fois. Un principal déjà
+    connecté change son PROPRE mot de passe avec `auth
+    changer-mot-de-passe` plutôt que celle-ci. Choisir exactement un des
+    deux : --profile-id (le propriétaire) ou --sous-compte-id."""
+    from falkye.auth import definir_mot_de_passe
+    from falkye.models.sous_compte import SousCompte
+
+    if not _mode_operateur():
+        raise click.ClickException(
+            "Réservé au mode opérateur (FALKYE_OPERATOR=1) — un principal déjà connecté utilise "
+            "`auth changer-mot-de-passe` pour changer SON PROPRE mot de passe."
+        )
+    if (profile_id is None) == (sous_compte_id is None):
+        raise click.ClickException("Fournir exactement un de --profile-id ou --sous-compte-id.")
+
+    session = get_session()
+    try:
+        if profile_id is not None:
+            principal_obj = session.get(Profile, profile_id)
+            if principal_obj is None:
+                raise click.ClickException(f"Profil {profile_id} introuvable")
+            libelle = f"profil #{profile_id} (propriétaire)"
+        else:
+            principal_obj = session.get(SousCompte, sous_compte_id)
+            if principal_obj is None:
+                raise click.ClickException(f"Sous-compte {sous_compte_id} introuvable")
+            libelle = f"sous-compte #{sous_compte_id}"
+
+        definir_mot_de_passe(principal_obj, mot_de_passe)
+        session.commit()
+        click.echo(f"Mot de passe défini pour {libelle}.")
+    finally:
+        session.close()
+
+
+@auth.command("login")
+@click.option("--courriel", required=True)
+@click.option("--mot-de-passe", "mot_de_passe", prompt=True, hide_input=True)
+def auth_login(courriel, mot_de_passe):
+    """Ouvre une session (30 jours) — jeton écrit dans ~/.falkye/session
+    (0600), résolu automatiquement par les commandes "portail" ensuite."""
+    from falkye.auth import AuthentificationError, authentifier, creer_session
+
+    session = get_session()
+    try:
+        try:
+            principal = authentifier(session, courriel, mot_de_passe)
+        except AuthentificationError as exc:
+            raise click.ClickException(str(exc)) from exc
+        jeton = creer_session(session, principal)
+        _ecrire_jeton_local(jeton)
+        click.echo(f"Connecté en tant que {principal.nom_affichage}.")
+    finally:
+        session.close()
+
+
+@auth.command("logout")
+def auth_logout():
+    from falkye.auth import revoquer_session
+
+    jeton = _lire_jeton_local()
+    if jeton is None:
+        click.echo("Non connecté.")
+        return
+    session = get_session()
+    try:
+        revoquer_session(session, jeton)
+    finally:
+        session.close()
+    _supprimer_jeton_local()
+    click.echo("Déconnecté.")
+
+
+@auth.command("whoami")
+def auth_whoami():
+    from falkye.auth import resoudre_session
+
+    jeton = _lire_jeton_local()
+    if jeton is None:
+        click.echo("Non connecté.")
+        return
+    session = get_session()
+    try:
+        principal = resoudre_session(session, jeton)
+        if principal is None:
+            click.echo("Session invalide ou expirée — voir `falkye auth login`.")
+            return
+        click.echo(f"Connecté en tant que {principal.nom_affichage}.")
+    finally:
+        session.close()
+
+
+@auth.command("changer-mot-de-passe")
+@click.option("--ancien-mot-de-passe", "ancien_mot_de_passe", prompt=True, hide_input=True)
+@click.option("--nouveau-mot-de-passe", "nouveau_mot_de_passe", prompt=True, hide_input=True, confirmation_prompt=True)
+def auth_changer_mot_de_passe(ancien_mot_de_passe, nouveau_mot_de_passe):
+    """Change SON PROPRE mot de passe — exige une session active et l'ancien
+    mot de passe (même en mode opérateur : agit toujours sur SA PROPRE
+    identité, jamais sur celle d'un tiers — voir `auth
+    definir-mot-de-passe` pour ça)."""
+    from falkye.auth import definir_mot_de_passe, resoudre_session, verifier_mot_de_passe
+
+    jeton = _lire_jeton_local()
+    if jeton is None:
+        raise click.ClickException("Non connecté — voir `falkye auth login`.")
+
+    session = get_session()
+    try:
+        principal = resoudre_session(session, jeton)
+        if principal is None:
+            raise click.ClickException("Session invalide ou expirée — voir `falkye auth login`.")
+
+        principal_obj = principal.sous_compte or principal.profile
+        if not principal_obj.mot_de_passe_hash or not verifier_mot_de_passe(
+            principal_obj.mot_de_passe_hash, ancien_mot_de_passe
+        ):
+            raise click.ClickException("Ancien mot de passe incorrect.")
+
+        definir_mot_de_passe(principal_obj, nouveau_mot_de_passe)
+        session.commit()
+        click.echo("Mot de passe modifié.")
+    finally:
+        session.close()
 
 
 @cli.group()
@@ -345,7 +587,7 @@ def profile_list():
 
 
 @profile.command("set-webhook")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 @click.option("--url", "webhook_url", required=True)
 def profile_set_webhook(profile_id, webhook_url):
     """Configure l'URL de webhook du profil — spec section 4bis, Radar+ "accès
@@ -354,9 +596,7 @@ def profile_set_webhook(profile_id, webhook_url):
     plan pour être prêt avant/après une bascule de plan."""
     session = get_session()
     try:
-        p = session.get(Profile, profile_id)
-        if p is None:
-            raise click.ClickException(f"Profil {profile_id} introuvable")
+        p = _identite_courante(session, profile_id=profile_id).profile
         p.webhook_url = webhook_url
         session.commit()
         click.echo(f"Profil #{p.id} — webhook_url défini (actif seulement si plan=radar_plus).")
@@ -389,7 +629,7 @@ def crm_fournisseurs():
 
 
 @crm.command("connecter")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 @click.option("--provider", "fournisseur", required=True, type=click.Choice(["hubspot", "pipedrive"]))
 @click.option(
     "--jeton", "jeton_api", required=True,
@@ -423,16 +663,15 @@ def crm_connecter(profile_id, fournisseur, jeton_api, identifiant_compte, mappag
 
     session = get_session()
     try:
-        if session.get(Profile, profile_id) is None:
-            raise click.ClickException(f"Profil {profile_id} introuvable")
+        p = _identite_courante(session, profile_id=profile_id).profile
 
         connexion = (
             session.query(CrmConnection)
-            .filter_by(profile_id=profile_id, fournisseur=fournisseur)
+            .filter_by(profile_id=p.id, fournisseur=fournisseur)
             .one_or_none()
         )
         if connexion is None:
-            connexion = CrmConnection(profile_id=profile_id, fournisseur=fournisseur, jeton_api=jeton_api)
+            connexion = CrmConnection(profile_id=p.id, fournisseur=fournisseur, jeton_api=jeton_api)
             session.add(connexion)
         else:
             connexion.jeton_api = jeton_api
@@ -442,13 +681,13 @@ def crm_connecter(profile_id, fournisseur, jeton_api, identifiant_compte, mappag
             connexion.champs_mappage_override = mappage_override
 
         session.commit()
-        click.echo(f"Connexion {fournisseur} configurée pour le profil {profile_id} (id={connexion.id})")
+        click.echo(f"Connexion {fournisseur} configurée pour le profil {p.id} (id={connexion.id})")
     finally:
         session.close()
 
 
 @crm.command("mapper-statut")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 @click.option("--provider", "fournisseur", required=True, type=click.Choice(["hubspot", "pipedrive"]))
 @click.option("--statut", "statut_id", required=True, help="Voir `dashboard statuts` pour les valeurs possibles.")
 @click.option(
@@ -468,14 +707,15 @@ def crm_mapper_statut(profile_id, fournisseur, statut_id, valeur_crm):
 
     session = get_session()
     try:
+        p = _identite_courante(session, profile_id=profile_id).profile
         connexion = (
             session.query(CrmConnection)
-            .filter_by(profile_id=profile_id, fournisseur=fournisseur)
+            .filter_by(profile_id=p.id, fournisseur=fournisseur)
             .one_or_none()
         )
         if connexion is None:
             raise click.ClickException(
-                f"Aucune connexion {fournisseur} pour le profil {profile_id} — voir `crm connecter`."
+                f"Aucune connexion {fournisseur} pour le profil {p.id} — voir `crm connecter`."
             )
         if session.get(StatutSuivi, statut_id) is None:
             raise click.ClickException(f"Statut de suivi inconnu : {statut_id} (voir `dashboard statuts`)")
@@ -484,13 +724,17 @@ def crm_mapper_statut(profile_id, fournisseur, statut_id, valeur_crm):
         mapping[statut_id] = valeur_crm
         connexion.mapping_statuts = mapping
         session.commit()
-        click.echo(f'Correspondance ajoutée : {statut_id} <-> "{valeur_crm}" ({fournisseur}, profil {profile_id})')
+        click.echo(f'Correspondance ajoutée : {statut_id} <-> "{valeur_crm}" ({fournisseur}, profil {p.id})')
     finally:
         session.close()
 
 
 @crm.command("statut")
-@click.option("--profile-id", type=int, default=None, help="Limite l'affichage à un profil (tous sinon).")
+@click.option(
+    "--profile-id", type=int, default=None,
+    help="Mode opérateur : limite l'affichage à un profil (tous sinon). Hors mode "
+    "opérateur : toujours dérivé de la session active, jamais 'tous les profils'.",
+)
 def crm_statut(profile_id):
     """Liste l'état de synchronisation CRM — fiches déjà poussées, dernier
     statut de suivi poussé, dernière étape connue côté CRM."""
@@ -499,9 +743,11 @@ def crm_statut(profile_id):
 
     session = get_session()
     try:
-        query = session.query(CrmSyncRecord)
-        if profile_id is not None:
-            query = query.filter_by(profile_id=profile_id)
+        if _mode_operateur() and profile_id is None:
+            query = session.query(CrmSyncRecord)  # vue globale, réservée au mode opérateur
+        else:
+            p = _identite_courante(session, profile_id=profile_id).profile
+            query = session.query(CrmSyncRecord).filter_by(profile_id=p.id)
         lignes = query.all()
         if not lignes:
             click.echo("Aucune fiche synchronisée.")
@@ -528,37 +774,41 @@ def souscompte():
 
 
 @souscompte.command("create")
-@click.option("--profile-id", required=True, type=int, help="Compte Radar+ parent.")
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL + " Compte Radar+ parent.")
 @click.option("--courriel", required=True)
 @click.option("--nom", required=True)
 @click.option("--role", "role_value", type=click.Choice([r.value for r in RoleSousCompte]), default="analyste")
 @click.option("--territoire", default=None, help="Ex. une région ou une ville — voir `dashboard voir --sous-compte-id`.")
 def souscompte_create(profile_id, courriel, nom, role_value, territoire):
+    """Ajoute un sous-compte — réservé au propriétaire du profil ou à un
+    sous-compte de rôle admin (falkye/auth.py::Principal.role)."""
     from falkye.models.sous_compte import SousCompte
 
     session = get_session()
     try:
-        p = session.get(Profile, profile_id)
-        if p is None:
-            raise click.ClickException(f"Profil {profile_id} introuvable")
+        principal = _identite_courante(session, profile_id=profile_id)
+        if principal.role != RoleSousCompte.ADMIN:
+            raise click.ClickException("Seul le propriétaire du profil ou un sous-compte admin peut en créer un.")
         sc = SousCompte(
-            profile_id=profile_id, courriel=courriel, nom=nom, role=RoleSousCompte(role_value), territoire=territoire
+            profile_id=principal.profile.id, courriel=courriel, nom=nom,
+            role=RoleSousCompte(role_value), territoire=territoire,
         )
         session.add(sc)
         session.commit()
-        click.echo(f"Sous-compte créé : id={sc.id} (profil parent #{profile_id}, rôle={sc.role.value})")
+        click.echo(f"Sous-compte créé : id={sc.id} (profil parent #{principal.profile.id}, rôle={sc.role.value})")
     finally:
         session.close()
 
 
 @souscompte.command("list")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 def souscompte_list(profile_id):
     from falkye.models.sous_compte import SousCompte
 
     session = get_session()
     try:
-        for sc in session.query(SousCompte).filter_by(profile_id=profile_id).all():
+        p = _identite_courante(session, profile_id=profile_id).profile
+        for sc in session.query(SousCompte).filter_by(profile_id=p.id).all():
             click.echo(
                 f"#{sc.id} {sc.nom} <{sc.courriel}> rôle={sc.role.value} "
                 f"territoire={sc.territoire or 'n/d'}"
@@ -628,15 +878,21 @@ def notifications():
 
 
 @notifications.command("list")
-@click.option("--profile-id", type=int, default=None)
+@click.option(
+    "--profile-id", type=int, default=None,
+    help="Mode opérateur : limite l'affichage à un profil (tous sinon). Hors mode "
+    "opérateur : toujours dérivé de la session active, jamais 'tous les profils'.",
+)
 def notifications_list(profile_id):
     from falkye.models.notification import Notification
 
     session = get_session()
     try:
-        query = session.query(Notification)
-        if profile_id:
-            query = query.filter(Notification.profile_id == profile_id)
+        if _mode_operateur() and profile_id is None:
+            query = session.query(Notification)  # vue globale, réservée au mode opérateur
+        else:
+            p = _identite_courante(session, profile_id=profile_id).profile
+            query = session.query(Notification).filter(Notification.profile_id == p.id)
         for n in query.order_by(Notification.created_at.desc()).all():
             nom = n.company.nom_officiel_req or n.company.nom_detecte
             pertinence_txt = n.niveau_pertinence.value if n.niveau_pertinence else "n/d"
@@ -665,22 +921,37 @@ def _verifier_plan_dashboard(profile) -> None:
         )
 
 
-def _resoudre_sous_compte(session, profile_id, sous_compte_id):
-    """Valide qu'un sous-compte appartient bien au profil parent donné — voir
-    falkye/models/sous_compte.py pour la limite honnête sur ce que cette
-    vérification garantit réellement (pas une authentification)."""
+def _resoudre_scope_territoire(session, principal, sous_compte_id_demande):
+    """Détermine le sous-compte dont le territoire doit scoper `dashboard
+    voir` — PAS une vérification d'identité (voir `_identite_courante`, déjà
+    passée à ce stade), un filtre de LECTURE. Le propriétaire ou un
+    sous-compte admin peut prévisualiser le territoire d'un collègue
+    (`--sous-compte-id` explicite, ex. pour du support) ; un sous-compte non
+    admin reste TOUJOURS scopé à son propre territoire, sans pouvoir en
+    demander un autre — sinon un sous-compte à territoire restreint pourrait
+    simplement élargir sa propre vue en passant un autre id."""
     from falkye.models.sous_compte import SousCompte
 
-    if sous_compte_id is None:
-        return None
-    sc = session.get(SousCompte, sous_compte_id)
-    if sc is None or sc.profile_id != profile_id:
-        raise click.ClickException(f"Sous-compte {sous_compte_id} introuvable pour le profil {profile_id}.")
-    return sc
+    if sous_compte_id_demande is not None:
+        if principal.role != RoleSousCompte.ADMIN:
+            raise click.ClickException(
+                "Seul le propriétaire du profil ou un sous-compte admin peut prévisualiser "
+                "le territoire d'un autre sous-compte."
+            )
+        sc = session.get(SousCompte, sous_compte_id_demande)
+        if sc is None or sc.profile_id != principal.profile.id:
+            raise click.ClickException(f"Sous-compte {sous_compte_id_demande} introuvable pour ce profil.")
+        return sc
+
+    # Pas de demande explicite : un sous-compte non admin est auto-scopé à
+    # son propre territoire ; le propriétaire/un admin voit tout par défaut.
+    if principal.sous_compte is not None and principal.role != RoleSousCompte.ADMIN:
+        return principal.sous_compte
+    return None
 
 
 @dashboard.command("voir")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 @click.option(
     "--employes-min", type=int, default=None, help="Filtre par taille d'entreprise estimée (spec section 4bis)."
 )
@@ -689,7 +960,9 @@ def _resoudre_sous_compte(session, profile_id, sous_compte_id):
     "--sous-compte-id",
     type=int,
     default=None,
-    help="Scope les dossiers au territoire assigné à ce sous-compte (spec section 4bis, Radar+).",
+    help="Prévisualise le territoire assigné à CE sous-compte (spec section 4bis, Radar+) — "
+    "réservé au propriétaire/un admin ; un sous-compte non admin est de toute façon "
+    "auto-scopé à son propre territoire sans avoir besoin de cette option.",
 )
 @click.option(
     "--usage",
@@ -711,20 +984,18 @@ def dashboard_voir(profile_id, employes_min, employes_max, sous_compte_id, usage
     pertinence/confiance, site web et coordonnées, statut de suivi, taille
     d'entreprise estimée."""
     from falkye.models.notification import Notification
-    from falkye.models.profile import Profile
     from falkye.taille_entreprise import correspond_au_filtre, estimer_taille
 
     session = get_session()
     try:
-        p = session.get(Profile, profile_id)
-        if p is None:
-            raise click.ClickException(f"Profil {profile_id} introuvable")
+        principal = _identite_courante(session, profile_id=profile_id)
+        p = principal.profile
         _verifier_plan_dashboard(p)
-        sous_compte = _resoudre_sous_compte(session, profile_id, sous_compte_id)
+        sous_compte = _resoudre_scope_territoire(session, principal, sous_compte_id)
 
         notifications_qs = (
             session.query(Notification)
-            .filter(Notification.profile_id == profile_id)
+            .filter(Notification.profile_id == p.id)
             .order_by(Notification.created_at.desc())
             .all()
         )
@@ -797,20 +1068,16 @@ def dashboard_statuts():
 @dashboard.command("statut")
 @click.option("--notification-id", required=True, type=int)
 @click.option("--statut", "statut_id", required=True, help="Voir `dashboard statuts` pour les valeurs possibles.")
-@click.option(
-    "--sous-compte-id",
-    type=int,
-    default=None,
-    help="Identifie le sous-compte à l'origine du changement (spec section 4bis) — "
-    "refusé si son rôle est lecture_seule. Voir falkye/models/sous_compte.py pour "
-    "la portée réelle (pas une authentification) de cette vérification.",
-)
-def dashboard_statut(notification_id, statut_id, sous_compte_id):
+def dashboard_statut(notification_id, statut_id):
     """Change le statut de suivi d'une notification — déclenche automatiquement
     la rétroaction de pertinence si le statut choisi est marqué
-    `declenche_retroaction` au registre (ex. "Pas pertinent", spec section 4bis)."""
+    `declenche_retroaction` au registre (ex. "Pas pertinent", spec section 4bis).
+
+    L'auteur du changement est désormais l'identité VÉRIFIÉE de la session
+    active (falkye/auth.py), refusé si son rôle est lecture_seule — plus de
+    `--sous-compte-id` déclaratif (voir falkye/models/sous_compte.py pour ce
+    que ça corrige)."""
     from falkye.models.notification import Notification
-    from falkye.models.sous_compte import RoleSousCompte
     from falkye.models.statut_suivi import StatutSuivi
     from falkye.registry.loader import get_registry
     from falkye.statut_suivi import appliquer_statut
@@ -822,11 +1089,10 @@ def dashboard_statut(notification_id, statut_id, sous_compte_id):
             raise click.ClickException(f"Notification {notification_id} introuvable")
         if session.get(StatutSuivi, statut_id) is None:
             raise click.ClickException(f"Statut de suivi inconnu : {statut_id} (voir `dashboard statuts`)")
-        sous_compte = _resoudre_sous_compte(session, n.profile_id, sous_compte_id)
-        if sous_compte is not None and sous_compte.role == RoleSousCompte.LECTURE_SEULE:
-            raise click.ClickException(
-                f"Sous-compte {sous_compte_id} en lecture seule — ne peut pas modifier un statut de suivi."
-            )
+
+        principal = _identite_courante(session, profile_id=n.profile_id)
+        if principal.role == RoleSousCompte.LECTURE_SEULE:
+            raise click.ClickException("Votre rôle (lecture_seule) ne peut pas modifier un statut de suivi.")
 
         retroaction_appliquee = appliquer_statut(session, n, statut_id, get_registry())
         if retroaction_appliquee:
@@ -840,7 +1106,7 @@ def dashboard_statut(notification_id, statut_id, sous_compte_id):
 
 
 @dashboard.command("synthese")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 @click.option("--jours", type=int, default=90, help="Fenêtre de temps (défaut 90 jours, environ un trimestre).")
 @click.option(
     "--territoire",
@@ -868,21 +1134,18 @@ def dashboard_synthese(profile_id, jours, territoire_filtre, secteur_detail):
     from datetime import datetime, timedelta, timezone
 
     from falkye.models.notification import Notification
-    from falkye.models.profile import Profile
     from falkye.registry.loader import get_registry
     from falkye.synthese import generer_synthese
 
     session = get_session()
     try:
-        p = session.get(Profile, profile_id)
-        if p is None:
-            raise click.ClickException(f"Profil {profile_id} introuvable")
+        p = _identite_courante(session, profile_id=profile_id).profile
         _verifier_plan_dashboard(p)
 
         depuis = datetime.now(timezone.utc) - timedelta(days=jours)
         notifications_qs = (
             session.query(Notification)
-            .filter(Notification.profile_id == profile_id, Notification.created_at >= depuis)
+            .filter(Notification.profile_id == p.id, Notification.created_at >= depuis)
             .all()
         )
         if territoire_filtre:
@@ -920,7 +1183,7 @@ def dashboard_synthese(profile_id, jours, territoire_filtre, secteur_detail):
 
 
 @dashboard.command("carte")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 @click.option("--sortie", "chemin_sortie", required=True, type=click.Path(dir_okay=False))
 def dashboard_carte(profile_id, chemin_sortie):
     """Génère une carte géographique interactive (fichier HTML autonome, spec
@@ -932,17 +1195,14 @@ def dashboard_carte(profile_id, chemin_sortie):
     from falkye.carte import PointCarte, generer_carte_html
     from falkye.geocoding import geocoder_entreprise
     from falkye.models.notification import Notification
-    from falkye.models.profile import Profile
 
     session = get_session()
     try:
-        p = session.get(Profile, profile_id)
-        if p is None:
-            raise click.ClickException(f"Profil {profile_id} introuvable")
+        p = _identite_courante(session, profile_id=profile_id).profile
         _verifier_plan_dashboard(p)
 
         notifications_qs = (
-            session.query(Notification).filter(Notification.profile_id == profile_id).all()
+            session.query(Notification).filter(Notification.profile_id == p.id).all()
         )
 
         points = []
@@ -984,6 +1244,7 @@ def dashboard_modele(notification_id):
         n = session.get(Notification, notification_id)
         if n is None:
             raise click.ClickException(f"Notification {notification_id} introuvable")
+        _identite_courante(session, profile_id=n.profile_id)
         click.echo(generer_amorce(n))
     finally:
         session.close()
@@ -995,16 +1256,14 @@ def resume():
 
 
 @resume.command("envoyer")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 @click.option("--jours", default=7)
 def resume_envoyer(profile_id, jours):
     from falkye.summary import generer_et_envoyer_resume
 
     session = get_session()
     try:
-        p = session.get(Profile, profile_id)
-        if p is None:
-            raise click.ClickException(f"Profil {profile_id} introuvable")
+        p = _identite_courante(session, profile_id=profile_id).profile
         summary = generer_et_envoyer_resume(session, p, jours=jours)
         click.echo(f"Résumé #{summary.id} généré : {len(summary.notification_ids)} notification(s) incluse(s)")
     finally:
@@ -1033,15 +1292,13 @@ def ponderation_presets():
 
 
 @ponderation.command("voir")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 def ponderation_voir(profile_id):
     from falkye.ponderation import ponderation_pour_profil
 
     session = get_session()
     try:
-        p = session.get(Profile, profile_id)
-        if p is None:
-            raise click.ClickException(f"Profil {profile_id} introuvable")
+        p = _identite_courante(session, profile_id=profile_id).profile
         pond = ponderation_pour_profil(session, p)
         click.echo(
             f"Profil #{p.id} (plan={p.plan.value}) — pondération effective "
@@ -1057,7 +1314,7 @@ def ponderation_voir(profile_id):
 
 
 @ponderation.command("appliquer")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 @click.option("--preset", "preset_id", required=True, help="Voir `ponderation presets` pour les valeurs possibles.")
 def ponderation_appliquer(profile_id, preset_id):
     """Applique une alerte composite préconfigurée à ce profil (remplace toute
@@ -1068,17 +1325,15 @@ def ponderation_appliquer(profile_id, preset_id):
 
     session = get_session()
     try:
-        p = session.get(Profile, profile_id)
-        if p is None:
-            raise click.ClickException(f"Profil {profile_id} introuvable")
+        p = _identite_courante(session, profile_id=profile_id).profile
 
         alerte = alerte_composite(preset_id)
         if alerte is None:
             raise click.ClickException(f"Alerte composite inconnue : {preset_id} (voir `ponderation presets`)")
 
-        ligne = session.query(PonderationPersonnalisee).filter_by(profile_id=profile_id).one_or_none()
+        ligne = session.query(PonderationPersonnalisee).filter_by(profile_id=p.id).one_or_none()
         if ligne is None:
-            ligne = PonderationPersonnalisee(profile_id=profile_id)
+            ligne = PonderationPersonnalisee(profile_id=p.id)
             session.add(ligne)
 
         pond = alerte.ponderation
@@ -1099,19 +1354,20 @@ def ponderation_appliquer(profile_id, preset_id):
 
 
 @ponderation.command("reinitialiser")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 def ponderation_reinitialiser(profile_id):
     from falkye.models.ponderation_personnalisee import PonderationPersonnalisee
 
     session = get_session()
     try:
-        ligne = session.query(PonderationPersonnalisee).filter_by(profile_id=profile_id).one_or_none()
+        p = _identite_courante(session, profile_id=profile_id).profile
+        ligne = session.query(PonderationPersonnalisee).filter_by(profile_id=p.id).one_or_none()
         if ligne is None:
-            click.echo(f"Profil #{profile_id} — aucune pondération personnalisée à réinitialiser.")
+            click.echo(f"Profil #{p.id} — aucune pondération personnalisée à réinitialiser.")
             return
         session.delete(ligne)
         session.commit()
-        click.echo(f"Profil #{profile_id} — pondération réinitialisée aux valeurs par défaut de FALKYE.")
+        click.echo(f"Profil #{p.id} — pondération réinitialisée aux valeurs par défaut de FALKYE.")
     finally:
         session.close()
 
@@ -1127,16 +1383,14 @@ def billing():
 
 
 @billing.command("radar-checkout")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 def billing_radar_checkout(profile_id):
     """Crée une session Stripe Checkout pour débloquer le plan Radar et affiche son URL."""
     from falkye.billing.stripe_client import creer_session_paiement_radar
 
     session = get_session()
     try:
-        p = session.get(Profile, profile_id)
-        if p is None:
-            raise click.ClickException(f"Profil {profile_id} introuvable")
+        p = _identite_courante(session, profile_id=profile_id).profile
         url = creer_session_paiement_radar(p)
         click.echo(url)
     finally:
@@ -1144,18 +1398,16 @@ def billing_radar_checkout(profile_id):
 
 
 @billing.command("statut")
-@click.option("--profile-id", required=True, type=int)
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
 def billing_statut(profile_id):
     """Affiche le plan effectif du profil et l'état de son abonnement Stripe, s'il existe."""
     from falkye.models.subscription import Subscription
 
     session = get_session()
     try:
-        p = session.get(Profile, profile_id)
-        if p is None:
-            raise click.ClickException(f"Profil {profile_id} introuvable")
+        p = _identite_courante(session, profile_id=profile_id).profile
         click.echo(f"Profil #{p.id} — plan={p.plan.value}")
-        abo = session.query(Subscription).filter_by(profile_id=profile_id).one_or_none()
+        abo = session.query(Subscription).filter_by(profile_id=p.id).one_or_none()
         if abo is None:
             click.echo("  Aucun abonnement Stripe enregistré.")
         else:
@@ -1205,7 +1457,13 @@ def billing_definir_plan(profile_id, plan_value):
     """Change le plan d'un profil manuellement — pour tester le moteur sans compte
     Stripe réel, ou pour un ajustement administratif ponctuel. Le chemin normal
     reste le webhook Stripe (billing traiter-webhook / un vrai point de terminaison
-    HTTP une fois déployé) ; ceci contourne délibérément la facturation."""
+    HTTP une fois déployé) ; ceci contourne délibérément la facturation, donc
+    RÉSERVÉ AU MODE OPÉRATEUR (FALKYE_OPERATOR=1) — jamais une action en
+    libre-service, un client ne doit pas pouvoir se donner Radar+ gratuitement."""
+    if not _mode_operateur():
+        raise click.ClickException(
+            "Réservé au mode opérateur (FALKYE_OPERATOR=1) — contourne la facturation, jamais en libre-service."
+        )
     session = get_session()
     try:
         p = session.get(Profile, profile_id)
