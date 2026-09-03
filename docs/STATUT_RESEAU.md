@@ -1817,9 +1817,64 @@ manquante` en mode opérateur) : gating de plan confirmé (`dashboard voir`
 refuse correctement le profil #1, plan Écho). Les écritures de test
 (lien clientèle cible temporaire, entrée de diagnostic "Test smoke") ont été
 retirées après vérification — jamais laissées dans la base réelle comme
-configuration fabriquée d'Alexandre. Le chemin hors-profil bout-en-bout
-(bonus/redirection sur une vraie notification Radar+) reste validé
-uniquement par les tests unitaires (`tests/test_pertinence.py`) — aucune
-donnée Radar+ réelle disponible dans cette base pour l'exercer en direct.
+configuration fabriquée d'Alexandre.
 
 **Construit et testé (392/392, dont 26 nouveaux/réécrits).**
+
+## Chemin "hors profil déclaré" — validé de bout en bout (2026-09-03)
+
+Limite honnête notée à la livraison des trois chantiers ci-dessus : le
+chemin hors-profil bout-en-bout (bonus/redirection sur une vraie
+notification Radar+) n'était validé que par les tests unitaires
+(`tests/test_pertinence.py`), faute de client Radar+ réel. Demande explicite
+d'Alexandre : combler ce trou par un scénario contre une base TEMPORAIRE,
+même méthode que le scénario d'authentification déjà validé ainsi (voir
+plus haut, "Validé de bout en bout contre un scénario réel") — **jamais un
+vrai client Radar+ ni des données fabriquées dans la base de développement
+réelle.**
+
+**Scénario construit** (`falkye/db.py::init_db` + CLI `profile create` /
+`billing definir-plan` / `profile add-need` / `profile lier-sphere` /
+`profile lier-client-cible`, puis appel direct à `falkye.engine._traiter_
+entreprise_pour_profil`/`deliver_notification` pour fabriquer trois signaux
+et déclencher le moteur complet — la fabrication d'un `Company`/`Signal`
+n'a pas de commande CLI dédiée, contrairement au reste du scénario, parce
+que les signaux réels ne viennent que des connecteurs) :
+
+- Profil Radar+ avec UN besoin ("implantation de systèmes de gestion
+  d'espaces"), sphère liée `immobilier_gestion_espaces` (poids 100),
+  clientèle cible DÉCLARÉE `pme_privees_generales` (poids 100).
+- **Cas A — désaccord confiant** : entreprise détectée avec
+  `secteur_activite_libelle="Commission scolaire"` (matche
+  `organismes_publics_institutionnels` au Niveau 1, synonyme réel du
+  registre) contre un signal REQ "nouvel établissement". Résultat observé :
+  `hors_profil=True`, **score de pertinence 60/100 (AA) — identique au cas
+  sans aucune donnée "qui"** (cas C ci-dessous), la preuve concrète que le
+  désaccord n'a produit AUCUN malus ; `deliver_notification` appelé
+  explicitement — **zéro ligne `NotificationDelivery` créée** (le canal
+  courriel n'a même pas été tenté, contrairement aux deux autres cas) ;
+  `dashboard voir` affiche ce dossier dans sa section "Hors profil déclaré"
+  séparée, jamais mêlé aux deux dossiers normaux.
+- **Cas B — accord** : entreprise avec `secteur_activite_libelle="PME
+  manufacturière"` (matche `pme_privees_generales`, même catégorie que le
+  besoin). Résultat : `hors_profil=False`, score 72/100 (60 de base **+12
+  de bonus clientèle cible**, le plafond `BONUS_QUI_MAX`), livraison
+  RÉELLEMENT tentée (1 ligne `NotificationDelivery`, statut `echec` —
+  SMTP non configuré dans cet environnement, comportement attendu et déjà
+  documenté ailleurs, pas un signe d'échec du mécanisme "qui").
+- **Cas C — absence de signal "qui"** : entreprise avec un secteur hors
+  catalogue clientèle cible (Niveau 1 ne trouve aucune correspondance).
+  Résultat : `hors_profil=False`, score 60/100 (aucun bonus NI malus),
+  livraison tentée normalement — confirme qu'une absence de signal n'est
+  JAMAIS traitée comme un désaccord confiant (deux conditions distinctes
+  dans `bonus_et_redirection_qui`, maintenant prouvées séparément en
+  conditions réelles, pas seulement en isolation unitaire).
+
+**Comportement observé conforme au design à chaque étape**, sur les trois
+cas simultanément dans la MÊME base temporaire (aucune contamination
+croisée observée entre les trois dossiers). Fichier DB temporaire supprimé
+après le scénario — jamais conservé, jamais rapproché de la base réelle.
+
+**Construit et testé (392/392, inchangé — ce scénario est un script de
+validation ponctuel, pas une suite pytest permanente, même statut que le
+scénario d'authentification équivalent).**

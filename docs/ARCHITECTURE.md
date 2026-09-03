@@ -1400,6 +1400,36 @@ encore configuré cette dimension pour ce besoin, et son profil est au plan
 
 Sauvegarde du fichier DB prise avant toute modification de schéma.
 
+### Chemin "hors profil déclaré" — validé de bout en bout (2026-09-03)
+
+Demande explicite d'Alexandre, après la livraison ci-dessus : combler la
+limite honnête notée alors (le chemin bonus/redirection "qui" n'était
+validé que par des tests unitaires) par un scénario contre une base
+TEMPORAIRE — même méthode que le scénario d'authentification déjà validé
+ainsi (voir docs/STATUT_RESEAU.md), plutôt que d'attendre un vrai client
+Radar+ ou de fabriquer des données dans la base réelle.
+
+Trois entreprises, un seul besoin Radar+ (clientèle cible déclarée
+`pme_privees_generales`), traitées via un appel direct à
+`falkye.engine._traiter_entreprise_pour_profil`/`deliver_notification`
+(fabriquer un `Company`/`Signal` n'a pas de commande CLI dédiée — les
+signaux réels ne viennent que des connecteurs) :
+
+- **Désaccord confiant** (entreprise classée `organismes_publics_
+  institutionnels`) → `hors_profil=True`, score IDENTIQUE au cas sans
+  aucune donnée "qui" (60/100 dans les deux cas — preuve concrète qu'il n'y
+  a AUCUN malus), zéro tentative de livraison, section "Hors profil
+  déclaré" du tableau de bord.
+- **Accord** (même catégorie que le besoin) → `hors_profil=False`, bonus
+  +12 (plafond `BONUS_QUI_MAX`), livraison RÉELLEMENT tentée.
+- **Absence de signal "qui"** → `hors_profil=False`, ni bonus ni malus,
+  livraison tentée normalement — confirme que l'absence de signal n'est
+  jamais traitée comme un désaccord.
+
+Voir docs/STATUT_RESEAU.md, section "Chemin 'hors profil déclaré' — validé
+de bout en bout", pour le détail complet du scénario et les résultats
+observés. Fichier DB temporaire supprimé après coup.
+
 ## Polyvalence d'utilisation (spec section 9, ajoutée le 2026-08-31)
 
 Exigence originale (2026-08-31) : le produit doit rester utilisable par
