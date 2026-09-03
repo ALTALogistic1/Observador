@@ -129,18 +129,63 @@ def _sphere_principale(signal_type_id: str, registry: Registry) -> str | None:
     return spheres[0] if spheres else None
 
 
-def base_match(
-    match: MatchResult, signal_type_id: str, registry: Registry, ponderation: PonderationValeurs = PONDERATION_DEFAUT
-) -> float:
-    """Score de base d'UN match, avant bonus — exposé (pas préfixé `_`) car
-    falkye/engine.py s'en sert aussi pour choisir, parmi plusieurs signaux et
-    besoins matchés, la sphère la plus pertinente à retenir pour la notification
-    (comparaison par tier, pas seulement "le premier match rencontré")."""
+def base_match_pour_sphere(
+    match: MatchResult,
+    sphere_id: str,
+    signal_type_id: str,
+    registry: Registry,
+    ponderation: PonderationValeurs = PONDERATION_DEFAUT,
+) -> float | None:
+    """Score de base d'UN match, POUR une sphère précise parmi celles liées au
+    besoin (spec section 8bis, lien sphère↔besoin plusieurs-à-plusieurs
+    pondéré) — `None` si `sphere_id` n'est même pas liée à ce besoin (rien à
+    calculer).
+
+    - Correspondance qualitative (mot-clé précis, Signal 3) : `base_aaa`
+      INCHANGÉ pour n'importe quelle sphère liée — preuve indépendante du
+      poids de la sphère, jamais mise à l'échelle (confirmé par Alexandre :
+      "correspondance qualitative... inchangée, jamais mise à l'échelle par
+      un poids de sphère — preuve indépendante").
+    - Sphère générique = sphère PRINCIPALE du type de signal → `base_aa ×
+      (poids/100)`.
+    - Sphère générique = sphère secondaire → `base_a × (poids/100)`. Un lien
+      à poids 100 se comporte exactement comme avant cette évolution ; un
+      lien à poids 50 (partage exact, ex. le cas Hector) atterrit à
+      mi-chemin.
+    - Sphère liée mais ni qualitative ni générique pour CE signal précis →
+      `None` (rien à en tirer, comme avant)."""
+    poids_lien = next((sm.poids for sm in match.spheres_liees if sm.sphere_id == sphere_id), None)
+    if poids_lien is None:
+        return None
     if match.correspondance_qualitative:
         return ponderation.base_aaa
-    if match.profile_need.sphere_id == _sphere_principale(signal_type_id, registry):
-        return ponderation.base_aa
-    return ponderation.base_a
+    if sphere_id not in match.spheres_generiques_ids:
+        return None
+    fraction = poids_lien / 100.0
+    if sphere_id == _sphere_principale(signal_type_id, registry):
+        return ponderation.base_aa * fraction
+    return ponderation.base_a * fraction
+
+
+def meilleure_sphere_pour_match(
+    match: MatchResult,
+    signal_type_id: str,
+    registry: Registry,
+    ponderation: PonderationValeurs = PONDERATION_DEFAUT,
+) -> tuple[float, str | None]:
+    """Parmi TOUTES les sphères liées au besoin de ce match, la meilleure
+    (score, sphere_id) — utilisé par falkye/engine.py pour choisir, parmi
+    plusieurs signaux et besoins matchés, la sphère la plus pertinente à
+    retenir pour la notification (comparaison par tier, pas seulement "le
+    premier match rencontré"). `(0.0, None)` si le besoin n'a aucune sphère
+    liée (pas encore configuré côté "quoi")."""
+    if not match.spheres_liees:
+        return (0.0, None)
+    candidats = [
+        (base_match_pour_sphere(match, sm.sphere_id, signal_type_id, registry, ponderation) or 0.0, sm.sphere_id)
+        for sm in match.spheres_liees
+    ]
+    return max(candidats, key=lambda c: c[0])
 
 
 def bonus_signal_absence(
@@ -198,12 +243,66 @@ def bonus_velocite(signaux: list[Signal], ponderation: PonderationValeurs = POND
     )
 
 
+BONUS_QUI_MAX = 12.0
+# Fourchette confirmée par Alexandre le 2026-09-03 : "+10 à +15" — même ordre
+# de grandeur que les autres bonus circonstanciels (bonus_absence, bonus
+# d'expansion inter-provinciale) plutôt qu'une nouvelle échelle. Un
+# désaccord CONFIRMÉ (le "qui" de l'entreprise est connu et ne correspond
+# PAS au "qui" déclaré du besoin) ne devient JAMAIS un malus silencieux ici
+# — voir hors_profil ci-dessous et falkye/engine.py pour le routage vers le
+# canal séparé, réservé Radar+.
+
+
 @dataclass
 class PertinenceResult:
     score_pertinence: float  # 0-100, interne — jamais affiché tel quel (voir niveau)
     niveau: NiveauPertinence
     bonus_absence: float
     bonus_velocite: float
+    bonus_qui: float = 0.0
+    # True = le "qui" de l'entreprise est CONNU et ne correspond à AUCUN
+    # client cible déclaré pour ce besoin — jamais reflété comme un malus
+    # dans score_pertinence (bonus_qui reste 0.0 dans ce cas), seulement ce
+    # drapeau, que falkye/engine.py utilise pour router la notification vers
+    # le canal "hors profil déclaré" plutôt que le flux normal.
+    hors_profil: bool = False
+
+
+def bonus_et_redirection_qui(
+    client_cible_ids_entreprise: list[str],
+    clients_cibles_lies_besoin: list[tuple[str, float]],
+) -> tuple[float, bool]:
+    """Bonus circonstanciel (spec section 8bis) si le "qui" de l'entreprise
+    recoupe le "qui" déclaré du besoin — JAMAIS un gate (des services
+    horizontaux existent, un "qui" étroit ne doit jamais créer de faux
+    négatif). Les deux listes sont déjà résolues par l'appelant
+    (falkye/engine.py) : ce module reste pur, sans requête DB — même principe
+    que falkye/scoring.py::calculer_score et bonus_expansion_interprovinciale.
+
+    - Besoin sans restriction déclarée (aucun lien "qui", OU un lien vers
+      `aucune_restriction`) → (0.0, False) : rien à comparer, comportement
+      historique inchangé.
+    - "Qui" de l'entreprise INCONNU (liste vide — souvent le cas, voir le gap
+      institutionnel réel trouvé contre le miroir REQ) → (0.0, False) :
+      absence d'info n'est JAMAIS un malus.
+    - Recoupement → bonus proportionnel au poids du lien "qui" le plus fort
+      concerné, jamais au-delà de BONUS_QUI_MAX.
+    - Désaccord CONFIRMÉ (les deux listes sont non vides, aucun recoupement)
+      → (0.0, True) : jamais un malus silencieux, une redirection."""
+    from falkye.models.client_cible import ID_AUCUNE_RESTRICTION
+
+    ids_besoin = {cc_id for cc_id, _ in clients_cibles_lies_besoin}
+    if not ids_besoin or ID_AUCUNE_RESTRICTION in ids_besoin:
+        return 0.0, False
+    if not client_cible_ids_entreprise:
+        return 0.0, False
+
+    intersection = ids_besoin & set(client_cible_ids_entreprise)
+    if intersection:
+        poids_max = max(poids for cc_id, poids in clients_cibles_lies_besoin if cc_id in intersection)
+        return BONUS_QUI_MAX * (poids_max / 100.0), False
+
+    return 0.0, True
 
 
 def calculer_pertinence(
@@ -214,37 +313,48 @@ def calculer_pertinence(
     registry: Registry,
     poids_sphere: float = 1.0,
     ponderation: PonderationValeurs = PONDERATION_DEFAUT,
+    client_cible_ids_entreprise: list[str] | None = None,
+    clients_cibles_lies_besoin: list[tuple[str, float]] | None = None,
 ) -> PertinenceResult:
     """Calcule la pertinence pour LA sphère retenue pour cette notification
     (falkye/engine.py choisit une seule sphère représentative par notification,
     même simplification déjà en place avant cette mise à jour). Prend le MEILLEUR
     tier atteint parmi tous les signaux contribuant à cette sphère précise (même
     principe que le score de confiance : le signal dominant, pas une moyenne),
-    puis ajoute les bonus signal-par-absence et vélocité.
+    puis ajoute les bonus signal-par-absence, vélocité, et "qui" (spec section
+    8bis — voir bonus_et_redirection_qui ci-dessus).
 
     `poids_sphere` (spec section 4bis, "Lien avec la rétroaction utilisateur") :
     multiplicateur 0.4-1.0 appliqué à la SEULE base de correspondance, jamais aux
-    bonus signal-par-absence/vélocité — la rétroaction dit "cette sphère
-    correspond moins bien à ce que je cherche", pas "je fais moins confiance à la
-    vélocité ou à l'absence d'un signal", deux mécanismes indépendants du choix
-    de sphère. Voir falkye/retroaction.py:poids_pour_sphere.
+    autres bonus — la rétroaction dit "cette sphère correspond moins bien à ce
+    que je cherche", un mécanisme indépendant du choix de sphère. Voir
+    falkye/retroaction.py:poids_pour_sphere.
 
     `ponderation` (spec section 4bis, fonctionnalité Radar+ "pondération du
     moteur de score personnalisable") : remplace PONDERATION_DEFAUT pour un
     profil Radar+ qui a défini sa propre pondération — voir
-    falkye/ponderation.py:ponderation_pour_profil, appelé par falkye/engine.py."""
+    falkye/ponderation.py:ponderation_pour_profil, appelé par falkye/engine.py.
+
+    `client_cible_ids_entreprise`/`clients_cibles_lies_besoin` : listes DÉJÀ
+    RÉSOLUES par l'appelant (falkye/engine.py) — ce module reste pur, aucune
+    requête DB. `None` (comportement par défaut) = comme si aucune des deux
+    listes n'était renseignée, bonus_qui=0.0, hors_profil=False (compatible
+    avec tout appelant antérieur à cette fonctionnalité)."""
     bases = [
-        base_match(m, signal.signal_type_id, registry, ponderation)
+        base_match_pour_sphere(m, sphere_choisie, signal.signal_type_id, registry, ponderation)
         for signal in signaux_pertinents
         for m in matches_par_signal.get(signal.id, [])
-        if m.profile_need.sphere_id == sphere_choisie
     ]
+    bases = [b for b in bases if b is not None]
     base = (max(bases) if bases else ponderation.base_a) * poids_sphere
 
     b_absence = bonus_signal_absence(company, sphere_choisie, registry, ponderation)
     b_velocite = bonus_velocite(signaux_pertinents, ponderation)
+    b_qui, hors_profil = bonus_et_redirection_qui(
+        client_cible_ids_entreprise or [], clients_cibles_lies_besoin or []
+    )
 
-    score = min(100.0, base + b_absence + b_velocite)
+    score = min(100.0, base + b_absence + b_velocite + b_qui)
 
     if score >= SEUIL_AAA:
         niveau = NiveauPertinence.AAA
@@ -254,7 +364,12 @@ def calculer_pertinence(
         niveau = NiveauPertinence.A
 
     return PertinenceResult(
-        score_pertinence=round(score, 1), niveau=niveau, bonus_absence=b_absence, bonus_velocite=b_velocite
+        score_pertinence=round(score, 1),
+        niveau=niveau,
+        bonus_absence=b_absence,
+        bonus_velocite=b_velocite,
+        bonus_qui=b_qui,
+        hors_profil=hors_profil,
     )
 
 

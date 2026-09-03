@@ -11,7 +11,7 @@ Deux origines, jamais confondues :
                     une sphère EXISTANTE que le Niveau 1 n'a pas su reconnaître —
                     enrichissement silencieux du dictionnaire de CETTE sphère,
                     jamais création d'une nouvelle sphère (voir
-                    falkye/models/candidat_sphere.py pour le cas contraire).
+                    falkye/models/diagnostic_journal.py pour le cas contraire).
 
 Le texte reste toujours ce qu'il est : un point de repère pour le matching local
 (Niveau 1), jamais une garantie que la sphère est LA bonne pour un utilisateur

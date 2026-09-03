@@ -41,12 +41,35 @@ MOTS_CLES_TRANSFORMATION = [
 ]
 
 
+@dataclass(frozen=True)
+class SphereMatch:
+    """Un lien sphère du besoin (falkye/models/profile_need_sphere.py::
+    ProfileNeedSphere), repris tel quel avec son poids — spec section 8bis
+    (2026-09-03, lien sphère↔besoin plusieurs-à-plusieurs, pondéré)."""
+
+    sphere_id: str
+    poids: float
+
+
 @dataclass
 class MatchResult:
     profile_need: ProfileNeed
-    sphere_generique: bool  # correspondance via la table signal -> sphères (générique)
-    correspondance_qualitative: bool  # correspondance via mots-clés/titre (précise, Signal 3)
+    # TOUS les liens sphère de ce besoin (pas seulement ceux probables pour CE
+    # signal précis) — nécessaire pour l'attribution d'une correspondance
+    # qualitative (spec : preuve indépendante de la sphère, voir
+    # falkye/pertinence.py::base_match_pour_sphere).
+    spheres_liees: list[SphereMatch]
+    # Sous-ensemble de spheres_liees dont l'id est probable pour CE signal
+    # précis (falkye/registry/signal_types.yaml::spheres_probables) — c'était
+    # `sphere_generique: bool` avant la pondération plusieurs-à-plusieurs.
+    spheres_generiques_ids: set[str] = field(default_factory=set)
+    correspondance_qualitative: bool = False  # correspondance via mots-clés/titre (précise, Signal 3)
     mots_cles_trouves: list[str] = field(default_factory=list)
+
+    @property
+    def sphere_generique(self) -> bool:
+        """Compat : au moins une sphère liée est probable pour ce signal."""
+        return bool(self.spheres_generiques_ids)
 
 
 def spheres_probables(signal_type_id: str, registry: Registry) -> list[str]:
@@ -95,10 +118,11 @@ def _territoire_ok(need: ProfileNeed, raw: RawSignal) -> bool:
 
 
 def match_profile(raw: RawSignal, profile: Profile, registry: Registry) -> list[MatchResult]:
-    """Pour chaque paire sphère+usage du profil (mécanique fournisseur — voir
-    Profile.besoins_fournisseur), détermine si ce signal la concerne, via la table
-    générique signal->sphères et/ou via la correspondance qualitative précise —
-    puis via le territoire propre à ce besoin, le cas échéant (spec section 4bis)."""
+    """Pour chaque besoin du profil (mécanique fournisseur — voir
+    Profile.besoins_fournisseur), détermine si ce signal le concerne, via la table
+    générique signal->sphères (contre N'IMPORTE LEQUEL des liens sphère du besoin,
+    spec section 8bis) et/ou via la correspondance qualitative précise — puis via
+    le territoire propre à ce besoin, le cas échéant (spec section 4bis)."""
     spheres_generiques = set(spheres_probables(raw.signal_type_id, registry))
     resultats: list[MatchResult] = []
 
@@ -106,18 +130,22 @@ def match_profile(raw: RawSignal, profile: Profile, registry: Registry) -> list[
         if not _territoire_ok(need, raw):
             continue
 
-        sphere_ok = need.sphere_id in spheres_generiques
+        spheres_liees = [SphereMatch(sphere_id=l.sphere_id, poids=l.poids) for l in need.spheres_liees]
+        spheres_generiques_ids = {
+            sm.sphere_id for sm in spheres_liees if sm.sphere_id in spheres_generiques
+        }
         mots_cles_trouves: list[str] = []
         if raw.signal_type_id == "recrutement_massif":
             mots_cles_trouves = correspondance_qualitative_titre(
                 raw.titre_ou_description, need.liste_mots_cles()
             )
 
-        if sphere_ok or mots_cles_trouves:
+        if spheres_generiques_ids or mots_cles_trouves:
             resultats.append(
                 MatchResult(
                     profile_need=need,
-                    sphere_generique=sphere_ok,
+                    spheres_liees=spheres_liees,
+                    spheres_generiques_ids=spheres_generiques_ids,
                     correspondance_qualitative=bool(mots_cles_trouves),
                     mots_cles_trouves=mots_cles_trouves,
                 )

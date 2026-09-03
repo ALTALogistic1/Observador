@@ -87,6 +87,17 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     inclus_dans_resume: Mapped[bool] = mapped_column(default=False)
 
+    # Canal "hors profil déclaré" (spec section 8bis, 2026-09-03) — True quand
+    # le signal correspond à la sphère du besoin mais l'entreprise ne
+    # correspond PAS, avec confiance, au "qui" (client cible) déclaré pour ce
+    # besoin (falkye/pertinence.py — jamais un malus silencieux sur le score,
+    # une redirection). Réservé Radar+ (falkye/engine.py) : jamais livré par
+    # courriel/webhook par défaut, jamais mélangé aux notifications
+    # normales du tableau de bord — une section séparée, explicitement
+    # étiquetée. False = comportement historique inchangé (aucune
+    # notification antérieure à cette fonctionnalité n'est reclassée).
+    hors_profil: Mapped[bool] = mapped_column(default=False, nullable=False)
+
     company = relationship("Company", back_populates="notifications")
     profile = relationship("Profile")
     profile_need = relationship("ProfileNeed")

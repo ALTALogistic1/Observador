@@ -1758,3 +1758,68 @@ spécifiquement sur ce cas réel — le résultat retenu doit être l'une des
 deux sphères plausibles, jamais une troisième inventée.
 
 **Construit et testé (366/366, dont 3 nouveaux).**
+
+## Sphère ↔ besoin plusieurs-à-plusieurs pondérée, dimension "qui", journal de diagnostic généralisé (2026-09-03)
+
+Trois chantiers construits ensemble, en un seul bloc (demande explicite
+d'Alexandre), suite au cas Hector qui a exposé qu'un besoin peut légitimement
+toucher plusieurs sphères à la fois. Voir `docs/ARCHITECTURE.md`, section
+"Sphère ↔ besoin plusieurs-à-plusieurs pondérée...", pour l'architecture
+complète — trois questions posées explicitement par Alexandre avant tout
+code, toutes vérifiées contre de vraies données ou tranchées par décision
+produit avant le codage :
+
+1. **Le regroupement grossier des secteurs REQ n'est PAS une base valable
+   pour un registre "clientèle cible"** — vérifié contre le vrai miroir REQ
+   (2,7M lignes) : les organismes publics et institutionnels (commissions
+   scolaires, sociétés de transport, municipalités, CISSS/CIUSSS) — des
+   clientèles B2B réelles — n'y figurent pas comme catégorie utilisable,
+   parce que le REQ ne couvre que les entités inscrites au registre des
+   entreprises. D'où `registry/clients_cibles.yaml`, registre TOTALEMENT
+   indépendant, avec une entrée `organismes_publics_institutionnels` ajoutée
+   spécifiquement pour ce gap.
+2. "Qui" s'intègre au score de pertinence existant (bonus plafonné à 12
+   points), jamais un troisième axe visible séparé.
+3. Le "hors profil déclaré" est une redirection (`Notification.hors_profil`,
+   canal distinct), jamais un malus silencieux sur le score.
+
+Deux ajustements non négociables demandés par Alexandre avant le code, tous
+deux intégrés : (1) un point d'entrée conversationnel unique en texte libre
+(`profile configurer-besoin`), jamais un écran de pourcentages — les poids
+sont calculés, affichés après coup comme donnée de transparence secondaire ;
+(2) le départage d'égalité entre sphères liées passe par le raisonnement
+contextuel du Niveau 2 lui-même, jamais une règle mécanique arbitraire — "le
+poids EST déjà le classement" (design confirmé par Alexandre comme
+"exactement le niveau d'élégance qu'on voulait").
+
+**Migration de la base de développement réelle** : sauvegarde du fichier DB
+prise avant toute modification de schéma. `profile_needs.sphere_id` retirée
+(recréation de table SQLite — `ALTER TABLE ... DROP COLUMN` refusé tant
+qu'une contrainte de clé étrangère porte sur la colonne, procédure standard
+`RENAME` + `CREATE` + `INSERT ... SELECT` + `DROP` appliquée). Table
+`candidats_spheres` (vide) supprimée au profit de `journal_diagnostic`.
+Cinq nouvelles tables créées, `clients_cibles.yaml` semé (9 entrées).
+`notifications.hors_profil` ajoutée par `ALTER TABLE ... ADD COLUMN` (table
+préexistante, hors de portée de `init_db()`).
+
+Le besoin réel d'Alexandre (`profile #1`, "implantation Hector") réétabli
+comme lien pondéré `ProfileNeedSphere(sphere_id="technologie_systemes_ti",
+poids=100.0)` — même sphère que la réassignation précédente, maintenant sous
+la forme N:N. Vérifié après coup (`profile list`, mode opérateur) : affiche
+correctement `sphères : technologie_systemes_ti(100)`, `clientèle cible :
+non configuré` (rien fabriqué — non configurée par Alexandre à ce jour, et
+son profil est au plan Écho, hors de portée du canal hors-profil de toute
+façon).
+
+**Smoke-testé contre la base réelle** (`profile lier-client-cible`,
+`profile definir-sphere-principale`, `diagnostic lister`/`ajouter-source-
+manquante` en mode opérateur) : gating de plan confirmé (`dashboard voir`
+refuse correctement le profil #1, plan Écho). Les écritures de test
+(lien clientèle cible temporaire, entrée de diagnostic "Test smoke") ont été
+retirées après vérification — jamais laissées dans la base réelle comme
+configuration fabriquée d'Alexandre. Le chemin hors-profil bout-en-bout
+(bonus/redirection sur une vraie notification Radar+) reste validé
+uniquement par les tests unitaires (`tests/test_pertinence.py`) — aucune
+donnée Radar+ réelle disponible dans cette base pour l'exercer en direct.
+
+**Construit et testé (392/392, dont 26 nouveaux/réécrits).**

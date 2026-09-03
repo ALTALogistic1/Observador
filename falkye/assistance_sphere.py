@@ -26,13 +26,13 @@ franchement l'échec et d'escalader.
 """
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
 from falkye.models.sphere import Sphere
 from falkye.models.sphere_synonyme import SphereSynonyme
+from falkye.texte_matching import motif_present
 
 
 @dataclass(frozen=True)
@@ -72,11 +72,7 @@ def suggerer_spheres_niveau1(
     par_sphere: dict[str, dict] = {}
     for synonyme, sphere in synonymes:
         motif = synonyme.texte.lower().strip()
-        # Bornes de mot ((?<!\w)/(?!\w) plutôt que \b) pour rester correct sur les
-        # lettres accentuées ET sur les synonymes contenant une apostrophe (ex.
-        # "gestion d'inventaire") sans faire matcher un acronyme court à
-        # l'intérieur d'un mot plus long (ex. "TI" dans "implantation").
-        if not motif or not re.search(rf"(?<!\w){re.escape(motif)}(?!\w)", texte_lower):
+        if not motif_present(texte_lower, motif):
             continue
         entree = par_sphere.setdefault(
             sphere.id, {"nom": sphere.nom, "mots_cles": set()}

@@ -160,6 +160,22 @@ class SphereDef:
 
 
 @dataclass(frozen=True)
+class ClientCibleDef:
+    """Une catégorie de client cible ("qui", spec section 8bis, 2026-09-03) —
+    voir registry/clients_cibles.yaml pour le contexte complet (pourquoi ce
+    registre est indépendant du regroupement de secteurs REQ). Même structure
+    que SphereDef (id, nom, synonymes pour le Niveau 1), même principe
+    d'extensibilité (noyau curé ici, enrichissements en base via
+    falkye/models/client_cible_synonyme.py, origine="ia_niveau2")."""
+
+    id: str
+    nom: str
+    est_personnalisee: bool = False
+    proposee_par: str | None = None
+    synonymes: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class StatutSuiviDef:
     """Statut de suivi du tableau de bord (spec section 4bis, ajoutée le
     2026-09-02, "Radar et Radar+ seulement") — même principe d'extensibilité que
@@ -267,6 +283,7 @@ class Registry:
     sources: dict[str, SourceDef] = field(default_factory=dict)
     signal_types: dict[str, SignalTypeDef] = field(default_factory=dict)
     spheres: dict[str, SphereDef] = field(default_factory=dict)
+    clients_cibles: dict[str, ClientCibleDef] = field(default_factory=dict)
     notification_channels: dict[str, NotificationChannelDef] = field(default_factory=dict)
     statuts_suivi: dict[str, StatutSuiviDef] = field(default_factory=dict)
     # Clé (sphere_id, source_id) — voir registry/champs_pertinents.yaml.
@@ -306,6 +323,9 @@ class Registry:
 
     def sphere(self, sphere_id: str) -> SphereDef | None:
         return self.spheres.get(sphere_id)
+
+    def client_cible(self, client_cible_id: str) -> ClientCibleDef | None:
+        return self.clients_cibles.get(client_cible_id)
 
     def statut_suivi(self, statut_id: str) -> StatutSuiviDef | None:
         return self.statuts_suivi.get(statut_id)
@@ -391,6 +411,7 @@ def load_registry() -> Registry:
     sources_raw = _load_yaml("sources.yaml")["sources"]
     signals_raw = _load_yaml("signal_types.yaml")["signal_types"]
     spheres_raw = _load_yaml("spheres.yaml")["spheres"]
+    clients_cibles_raw = _load_yaml("clients_cibles.yaml")["clients_cibles"]
     channels_raw = _load_yaml("notification_channels.yaml")["channels"]
     statuts_suivi_raw = _load_yaml("statuts_suivi.yaml")["statuts_suivi"]
     champs_pertinents_raw = _load_yaml("champs_pertinents.yaml")["champs_pertinents"]
@@ -400,6 +421,7 @@ def load_registry() -> Registry:
     sources = {s["id"]: SourceDef(**s) for s in sources_raw}
     signal_types = {s["id"]: SignalTypeDef(**s) for s in signals_raw}
     spheres = {s["id"]: SphereDef(**s) for s in spheres_raw}
+    clients_cibles = {c["id"]: ClientCibleDef(**c) for c in clients_cibles_raw}
     notification_channels = {c["id"]: NotificationChannelDef(**c) for c in channels_raw}
     statuts_suivi = {s["id"]: StatutSuiviDef(**s) for s in statuts_suivi_raw}
     champs_pertinents = {
@@ -415,10 +437,19 @@ def load_registry() -> Registry:
             f"est_defaut: true (trouvé {nb_defauts})."
         )
 
+    from falkye.models.client_cible import ID_AUCUNE_RESTRICTION
+
+    if ID_AUCUNE_RESTRICTION not in clients_cibles:
+        raise ValueError(
+            f"registry/clients_cibles.yaml doit déclarer l'entrée sentinelle "
+            f"'{ID_AUCUNE_RESTRICTION}' (falkye/models/client_cible.py::ID_AUCUNE_RESTRICTION)."
+        )
+
     return Registry(
         sources=sources,
         signal_types=signal_types,
         spheres=spheres,
+        clients_cibles=clients_cibles,
         notification_channels=notification_channels,
         statuts_suivi=statuts_suivi,
         champs_pertinents=champs_pertinents,

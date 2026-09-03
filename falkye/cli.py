@@ -11,10 +11,15 @@ import click
 from falkye.db import (
     get_session,
     init_db,
+    seed_client_cible_synonymes_from_registry,
+    seed_clients_cibles_from_registry,
     seed_sphere_synonymes_from_registry,
     seed_spheres_from_registry,
 )
+from falkye.models.diagnostic_journal import DiagnosticJournal, TypeDiagnostic
 from falkye.models.profile import PlanTarifaire, Profile, ProfileNeed, Sensibilite, TypeProfil
+from falkye.models.profile_need_client_cible import ProfileNeedClientCible
+from falkye.models.profile_need_sphere import ProfileNeedSphere
 from falkye.models.sous_compte import RoleSousCompte
 from falkye.registry.loader import get_registry
 
@@ -30,6 +35,8 @@ def init_db_cmd():
     init_db()
     seed_spheres_from_registry()
     seed_sphere_synonymes_from_registry()
+    seed_clients_cibles_from_registry()
+    seed_client_cible_synonymes_from_registry()
     click.echo("Base de données initialisée.")
 
 
@@ -536,7 +543,6 @@ def profile_create(
 
 @profile.command("add-need")
 @click.option("--profile-id", required=True, type=int)
-@click.option("--sphere-id", required=True)
 @click.option(
     "--usage",
     "usage_precis",
@@ -555,12 +561,16 @@ def profile_create(
     "usage × territoire sous un seul profil (ex. recrutement-QC et recrutement-ON). "
     "Omis = aucun filtrage géographique pour ce besoin (comportement historique).",
 )
-def profile_add_need(profile_id, sphere_id, usage_precis, mots_cles, type_besoin, territoire):
+def profile_add_need(profile_id, usage_precis, mots_cles, type_besoin, territoire):
+    """Crée un besoin SANS sphère liée — utiliser ensuite `falkye profile
+    configurer-besoin` (recommandé, assistance IA) ou `falkye profile
+    lier-sphere` (manuel) pour le rattacher à une ou plusieurs sphères. Le
+    lien sphère↔besoin est désormais plusieurs-à-plusieurs et pondéré (spec
+    section 8bis, 2026-09-03) — plus une colonne unique sur ce besoin."""
     session = get_session()
     try:
         need = ProfileNeed(
             profile_id=profile_id,
-            sphere_id=sphere_id,
             usage_precis=usage_precis,
             mots_cles=mots_cles,
             type_besoin=type_besoin,
@@ -568,7 +578,10 @@ def profile_add_need(profile_id, sphere_id, usage_precis, mots_cles, type_besoin
         )
         session.add(need)
         session.commit()
-        click.echo(f"Besoin ajouté au profil {profile_id} : id={need.id}")
+        click.echo(
+            f"Besoin ajouté au profil {profile_id} : id={need.id} (sans sphère liée pour l'instant — "
+            f"voir `falkye profile configurer-besoin` ou `falkye profile lier-sphere`)."
+        )
     finally:
         session.close()
 
@@ -584,77 +597,342 @@ def profile_list():
                 f"sensibilite_pertinence={p.sensibilite_pertinence.value}"
             )
             for n in p.besoins:
+                spheres_txt = ", ".join(
+                    f"{l.sphere_id}({l.poids:.0f})" for l in sorted(n.spheres_liees, key=lambda l: -l.poids)
+                ) or "aucune"
+                qui_txt = ", ".join(
+                    f"{l.client_cible_id}({l.poids:.0f})"
+                    for l in sorted(n.clients_cibles_lies, key=lambda l: -l.poids)
+                ) or "non configuré"
                 click.echo(
-                    f"    - [id={n.id}, {n.type_besoin}] {n.sphere_id}: {n.usage_precis} "
-                    f"(mots-clés: {n.mots_cles}, territoire: {n.territoire or 'aucun'})"
+                    f"    - [id={n.id}, {n.type_besoin}] {n.usage_precis} "
+                    f"(mots-clés: {n.mots_cles}, territoire: {n.territoire or 'aucun'})\n"
+                    f"        sphères : {spheres_txt}\n"
+                    f"        clientèle cible : {qui_txt}"
                 )
     finally:
         session.close()
 
 
-@profile.command("suggerer-sphere")
-@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
-@click.option("--description", required=True, help="Description libre de votre usage.")
-@click.option(
-    "--niveau2/--no-niveau2",
-    default=True,
-    help="Autoriser l'escalade au Niveau 2 (Claude, Radar/Radar+ seulement) si le "
-    "Niveau 1 ne trouve rien — défaut : autorisé.",
-)
-def profile_suggerer_sphere(profile_id, description, niveau2):
-    """Assistance à la configuration du profil par IA (spec Radar+, point 8,
-    ajoutée le 2026-09-03) — LECTURE SEULE : affiche des sphères candidates pour
-    votre description, ne modifie JAMAIS vos besoins automatiquement. Une
-    suggestion reste toujours une proposition à confirmer via `profile
-    add-need`, jamais une classification silencieuse."""
+def _est_tie_niveau1(suggestions) -> bool:
+    """Au moins deux candidats à ÉGALITÉ EXACTE au score maximal (spec section
+    8bis) — le déclencheur du départage Niveau 2, distinct d'un échec total."""
+    if len(suggestions) < 2:
+        return False
+    top = suggestions[0].score
+    return sum(1 for s in suggestions if s.score == top) >= 2
+
+
+def _normaliser_poids_niveau1(scores: dict[str, float]) -> dict[str, float]:
+    """Met à l'échelle un dict {id: score brut Niveau 1} sur 0-100, le plus
+    fort = 100, les autres proportionnels — confirmé par Alexandre :
+    "le résultat du Niveau 1... devient directement les poids proposés"."""
+    maximum = max(scores.values()) if scores else 0
+    if maximum <= 0:
+        return {k: 0.0 for k in scores}
+    return {k: round(100.0 * v / maximum, 1) for k, v in scores.items()}
+
+
+def _proposer_liens_spheres(session, profile_obj, texte, niveau2_autorise):
+    """Retourne (liens [(sphere_id, poids)], rapport texte) — jamais d'écriture,
+    voir docstring de `profile configurer-besoin`."""
     from falkye.assistance_sphere import suggerer_spheres_niveau1
     from falkye.assistance_sphere_ia import (
         AssistanceIANonConfiguree,
         PlanInsuffisantPourAssistanceIA,
-        suggerer_sphere_niveau2,
+        departager_spheres_niveau2,
+        suggerer_spheres_niveau2,
     )
 
+    suggestions = suggerer_spheres_niveau1(session, texte)
+
+    if suggestions and _est_tie_niveau1(suggestions):
+        if niveau2_autorise:
+            try:
+                resultat = departager_spheres_niveau2(session, profile_obj, texte, suggestions)
+                liens = [(l.sphere_id, l.poids) for l in resultat.liens]
+                rapport = "\n".join(
+                    f"  - {l.sphere_id} ({l.sphere_nom}) — poids {l.poids:.0f}" for l in resultat.liens
+                )
+                rapport += f"\n  Niveau 2 (départage d'égalité) — raisonnement : {resultat.raisonnement}"
+                return liens, rapport
+            except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree):
+                pass  # repli silencieux : poids égaux ci-dessous, pas d'erreur bloquante
+        candidats_egalite = [s for s in suggestions if s.score == suggestions[0].score]
+        liens = [(s.sphere_id, 100.0) for s in candidats_egalite]
+        rapport = "\n".join(
+            f"  - {s.sphere_id} ({s.sphere_nom}) — poids 100 (égalité exacte au Niveau 1, "
+            f"départage Niveau 2 indisponible pour ce plan)"
+            for s in candidats_egalite
+        )
+        return liens, rapport
+
+    if suggestions:
+        bruts = {s.sphere_id: float(s.score) for s in suggestions}
+        poids = _normaliser_poids_niveau1(bruts)
+        liens = [(s.sphere_id, poids[s.sphere_id]) for s in suggestions]
+        rapport = "\n".join(
+            f"  - {s.sphere_id} ({s.sphere_nom}) — poids {poids[s.sphere_id]:.0f} "
+            f"(mots-clés : {', '.join(s.mots_cles_matches)})"
+            for s in suggestions
+        )
+        return liens, rapport
+
+    if not niveau2_autorise:
+        return [], "  Aucune correspondance locale (Niveau 1). Niveau 2 non demandé (--no-niveau2)."
+    try:
+        resultat = suggerer_spheres_niveau2(session, profile_obj, texte)
+    except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree) as exc:
+        return [], f"  Aucune correspondance locale (Niveau 1). Niveau 2 indisponible : {exc}"
+    if not resultat.liens:
+        return [], (
+            f"  Aucune sphère existante ne correspond (Niveau 1 et Niveau 2, confiance="
+            f"{resultat.confiance}). Journalisé pour examen (#{resultat.candidat_diagnostic_id}, "
+            f"voir `falkye diagnostic lister`).\n  Raisonnement : {resultat.raisonnement}"
+        )
+    liens = [(l.sphere_id, l.poids) for l in resultat.liens]
+    rapport = "\n".join(f"  - {l.sphere_id} ({l.sphere_nom}) — poids {l.poids:.0f} (Niveau 2)" for l in resultat.liens)
+    rapport += f"\n  Raisonnement : {resultat.raisonnement}"
+    return liens, rapport
+
+
+def _proposer_liens_client_cible(session, profile_obj, texte, niveau2_autorise):
+    """Miroir exact de _proposer_liens_spheres, registre ClientCible."""
+    from falkye.assistance_client_cible import suggerer_clients_cibles_niveau1
+    from falkye.assistance_client_cible_ia import (
+        AssistanceIANonConfiguree,
+        PlanInsuffisantPourAssistanceIA,
+        departager_clients_cibles_niveau2,
+        suggerer_clients_cibles_niveau2,
+    )
+
+    suggestions = suggerer_clients_cibles_niveau1(session, texte)
+
+    if suggestions and _est_tie_niveau1(suggestions):
+        if niveau2_autorise:
+            try:
+                resultat = departager_clients_cibles_niveau2(session, profile_obj, texte, suggestions)
+                liens = [(l.client_cible_id, l.poids) for l in resultat.liens]
+                rapport = "\n".join(
+                    f"  - {l.client_cible_id} ({l.client_cible_nom}) — poids {l.poids:.0f}"
+                    for l in resultat.liens
+                )
+                rapport += f"\n  Niveau 2 (départage d'égalité) — raisonnement : {resultat.raisonnement}"
+                return liens, rapport
+            except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree):
+                pass
+        candidats_egalite = [s for s in suggestions if s.score == suggestions[0].score]
+        liens = [(s.client_cible_id, 100.0) for s in candidats_egalite]
+        rapport = "\n".join(
+            f"  - {s.client_cible_id} ({s.client_cible_nom}) — poids 100 (égalité exacte au Niveau 1, "
+            f"départage Niveau 2 indisponible pour ce plan)"
+            for s in candidats_egalite
+        )
+        return liens, rapport
+
+    if suggestions:
+        bruts = {s.client_cible_id: float(s.score) for s in suggestions}
+        poids = _normaliser_poids_niveau1(bruts)
+        liens = [(s.client_cible_id, poids[s.client_cible_id]) for s in suggestions]
+        rapport = "\n".join(
+            f"  - {s.client_cible_id} ({s.client_cible_nom}) — poids {poids[s.client_cible_id]:.0f} "
+            f"(mots-clés : {', '.join(s.mots_cles_matches)})"
+            for s in suggestions
+        )
+        return liens, rapport
+
+    if not niveau2_autorise:
+        return [], "  Aucune correspondance locale (Niveau 1). Niveau 2 non demandé (--no-niveau2)."
+    try:
+        resultat = suggerer_clients_cibles_niveau2(session, profile_obj, texte)
+    except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree) as exc:
+        return [], f"  Aucune correspondance locale (Niveau 1). Niveau 2 indisponible : {exc}"
+    if not resultat.liens:
+        return [], (
+            f"  Aucune catégorie existante ne correspond, même pas 'aucune restriction' "
+            f"(Niveau 1 et Niveau 2, confiance={resultat.confiance}). Journalisé pour examen "
+            f"(#{resultat.candidat_diagnostic_id}, voir `falkye diagnostic lister`).\n"
+            f"  Raisonnement : {resultat.raisonnement}"
+        )
+    liens = [(l.client_cible_id, l.poids) for l in resultat.liens]
+    rapport = "\n".join(
+        f"  - {l.client_cible_id} ({l.client_cible_nom}) — poids {l.poids:.0f} (Niveau 2)"
+        for l in resultat.liens
+    )
+    rapport += f"\n  Raisonnement : {resultat.raisonnement}"
+    return liens, rapport
+
+
+@profile.command("configurer-besoin")
+@click.option("--profile-id", type=int, default=None, help=_AIDE_PROFILE_ID_PORTAIL)
+@click.option("--usage", "usage_precis", required=True, help="Texte libre décrivant votre service (\"quoi\").")
+@click.option(
+    "--client-cible",
+    "client_cible_texte",
+    default=None,
+    help="Texte libre décrivant votre clientèle cible (\"qui\") — omis = 'qui' non configuré "
+    "pour ce besoin (comportement par défaut sûr : aucun bonus/redirection tant qu'il n'est "
+    "pas configuré).",
+)
+@click.option("--mots-cles", default=None, help="Séparés par des virgules.")
+@click.option("--type-besoin", type=click.Choice(["offre", "besoin"]), default="offre")
+@click.option("--territoire", default=None, help="Voir `profile add-need --help`.")
+@click.option(
+    "--confirmer",
+    is_flag=True,
+    default=False,
+    help="Crée le besoin avec la proposition affichée. Sans ce flag : aperçu seulement, "
+    "rien n'est écrit.",
+)
+@click.option(
+    "--niveau2/--no-niveau2",
+    default=True,
+    help="Autoriser l'escalade au Niveau 2 (Claude, Radar/Radar+ seulement) si le Niveau 1 "
+    "échoue ou produit une égalité exacte — défaut : autorisé.",
+)
+def profile_configurer_besoin(
+    profile_id, usage_precis, client_cible_texte, mots_cles, type_besoin, territoire, confirmer, niveau2
+):
+    """Point d'entrée conversationnel UNIQUE pour configurer un besoin (spec
+    section 8bis, 2026-09-03) : décrivez votre service et, si vous le
+    souhaitez, votre clientèle cible, EN TEXTE LIBRE — l'assistance IA à deux
+    paliers propose une configuration complète (sphère(s) pondérée(s), et
+    clientèle cible le cas échéant), prête à confirmer en un clic
+    (--confirmer). Jamais un écran de pourcentages à manipuler : les poids
+    sont calculés pour vous, une donnée de transparence secondaire, pas
+    l'interface elle-même. Le raffinement manuel (`profile lier-sphere`,
+    `profile lier-client-cible`, `profile definir-sphere-principale`) reste
+    disponible après coup, jamais une étape obligatoire.
+
+    Aperçu par défaut (sans --confirmer) : la proposition est recalculée à
+    chaque appel, y compris un éventuel appel Niveau 2 — relancer avec
+    --confirmer une fois satisfait plutôt que d'itérer, pour éviter un second
+    appel IA inutile."""
     session = get_session()
     try:
         profile_obj = _identite_courante(session, profile_id=profile_id).profile
 
-        suggestions = suggerer_spheres_niveau1(session, description)
-        if suggestions:
-            click.echo("Suggestions (Niveau 1 — correspondance locale par mots-clés, gratuit) :")
-            for s in suggestions:
-                click.echo(
-                    f"  - {s.sphere_id} ({s.sphere_nom}) — score={s.score}, "
-                    f"mots-clés matchés : {', '.join(s.mots_cles_matches)}"
-                )
-            click.echo("Proposition à confirmer : ajoutez le besoin retenu avec `falkye profile add-need`.")
-            return
+        liens_spheres, rapport_spheres = _proposer_liens_spheres(session, profile_obj, usage_precis, niveau2)
+        click.echo('Proposition — sphère(s) ("quoi") :')
+        click.echo(rapport_spheres)
 
-        click.echo("Niveau 1 : aucune correspondance locale trouvée.")
-        if not niveau2:
-            click.echo("Niveau 2 non demandé (--no-niveau2).")
-            return
-
-        try:
-            suggestion2 = suggerer_sphere_niveau2(session, profile_obj, description)
-        except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree) as exc:
-            raise click.ClickException(str(exc)) from exc
-
-        if suggestion2.sphere_id is None:
-            click.echo(
-                f"Niveau 2 (Claude) : aucune sphère existante ne correspond avec confiance "
-                f"({suggestion2.confiance}). Journalisé pour examen (candidat "
-                f"#{suggestion2.candidat_sphere_id}, voir `falkye sphere candidats`).\n"
-                f"Raisonnement : {suggestion2.raisonnement}"
+        liens_qui: list[tuple[str, float]] = []
+        if client_cible_texte:
+            liens_qui, rapport_qui = _proposer_liens_client_cible(
+                session, profile_obj, client_cible_texte, niveau2
             )
+            click.echo('\nProposition — clientèle cible ("qui") :')
+            click.echo(rapport_qui)
+
+        if not confirmer:
+            click.echo("\nAperçu seulement — ajoutez --confirmer pour créer ce besoin avec cette configuration.")
+            return
+
+        if not liens_spheres:
+            raise click.ClickException("Aucune sphère retenue — impossible de confirmer sans au moins une sphère.")
+
+        need = ProfileNeed(
+            profile_id=profile_obj.id,
+            usage_precis=usage_precis,
+            mots_cles=mots_cles,
+            type_besoin=type_besoin,
+            territoire=territoire,
+        )
+        session.add(need)
+        session.flush()
+        for sphere_id, poids in liens_spheres:
+            session.add(ProfileNeedSphere(profile_need_id=need.id, sphere_id=sphere_id, poids=poids))
+        for client_cible_id, poids in liens_qui:
+            session.add(ProfileNeedClientCible(profile_need_id=need.id, client_cible_id=client_cible_id, poids=poids))
+        session.commit()
+        click.echo(
+            f"\nBesoin créé : id={need.id}, {len(liens_spheres)} sphère(s) liée(s), "
+            f"{len(liens_qui)} client(s) cible(s) lié(s)."
+        )
+    finally:
+        session.close()
+
+
+@profile.command("lier-sphere")
+@click.option("--need-id", required=True, type=int)
+@click.option("--sphere-id", required=True)
+@click.option("--poids", type=float, default=100.0, show_default=True)
+def profile_lier_sphere(need_id, sphere_id, poids):
+    """Raffinement manuel — ajoute ou met à jour un lien sphère↔besoin (spec
+    section 8bis). Jamais une étape obligatoire : `profile configurer-besoin`
+    couvre le parcours normal."""
+    session = get_session()
+    try:
+        need = session.get(ProfileNeed, need_id)
+        if need is None:
+            raise click.ClickException(f"Besoin {need_id} introuvable.")
+        lien = (
+            session.query(ProfileNeedSphere)
+            .filter_by(profile_need_id=need_id, sphere_id=sphere_id)
+            .one_or_none()
+        )
+        if lien is None:
+            lien = ProfileNeedSphere(profile_need_id=need_id, sphere_id=sphere_id, poids=poids)
+            session.add(lien)
         else:
-            extra = f" (synonyme retenu pour la prochaine fois : {suggestion2.synonyme_retenu!r})" \
-                if suggestion2.synonyme_retenu else ""
-            click.echo(
-                f"Niveau 2 (Claude) : {suggestion2.sphere_id} ({suggestion2.sphere_nom}) — "
-                f"confiance={suggestion2.confiance}{extra}.\n"
-                f"Raisonnement : {suggestion2.raisonnement}"
+            lien.poids = poids
+        session.commit()
+        click.echo(f"Lien sphère mis à jour : besoin #{need_id} -> {sphere_id} (poids {poids:.0f}).")
+    finally:
+        session.close()
+
+
+@profile.command("lier-client-cible")
+@click.option("--need-id", required=True, type=int)
+@click.option("--client-cible-id", required=True)
+@click.option("--poids", type=float, default=100.0, show_default=True)
+def profile_lier_client_cible(need_id, client_cible_id, poids):
+    """Miroir exact de `profile lier-sphere`, registre ClientCible."""
+    session = get_session()
+    try:
+        need = session.get(ProfileNeed, need_id)
+        if need is None:
+            raise click.ClickException(f"Besoin {need_id} introuvable.")
+        lien = (
+            session.query(ProfileNeedClientCible)
+            .filter_by(profile_need_id=need_id, client_cible_id=client_cible_id)
+            .one_or_none()
+        )
+        if lien is None:
+            lien = ProfileNeedClientCible(profile_need_id=need_id, client_cible_id=client_cible_id, poids=poids)
+            session.add(lien)
+        else:
+            lien.poids = poids
+        session.commit()
+        click.echo(f"Lien clientèle cible mis à jour : besoin #{need_id} -> {client_cible_id} (poids {poids:.0f}).")
+    finally:
+        session.close()
+
+
+@profile.command("definir-sphere-principale")
+@click.option("--need-id", required=True, type=int)
+@click.option("--sphere-id", required=True, help="La sphère (déjà liée) à promouvoir comme principale.")
+def profile_definir_sphere_principale(need_id, sphere_id):
+    """Inversion simple d'un départage — jamais besoin de manipuler un
+    pourcentage : nomme la sphère voulue, le système ajuste les poids en
+    arrière-plan pour qu'elle devienne la plus élevée (spec section 8bis,
+    "aussi simplement que possible"). Fonctionne avec deux sphères liées ou
+    plus."""
+    session = get_session()
+    try:
+        need = session.get(ProfileNeed, need_id)
+        if need is None:
+            raise click.ClickException(f"Besoin {need_id} introuvable.")
+        lien_vise = next((l for l in need.spheres_liees if l.sphere_id == sphere_id), None)
+        if lien_vise is None:
+            raise click.ClickException(
+                f"{sphere_id} n'est pas liée au besoin #{need_id} — voir `profile lier-sphere` d'abord."
             )
-            click.echo("Proposition à confirmer : ajoutez le besoin retenu avec `falkye profile add-need`.")
+        poids_max_actuel = max(l.poids for l in need.spheres_liees)
+        if lien_vise.poids < poids_max_actuel:
+            lien_vise.poids = poids_max_actuel + 1.0
+        session.commit()
+        click.echo(f"{sphere_id} est maintenant la sphère principale du besoin #{need_id} (poids {lien_vise.poids:.0f}).")
     finally:
         session.close()
 
@@ -891,44 +1169,79 @@ def souscompte_list(profile_id):
 
 
 @cli.group()
-def sphere():
-    """Sphères de besoin (spec section 4) — inclut les candidats journalisés par
-    le Niveau 2 de l'assistance IA à la configuration (spec Radar+, point 8)."""
+def diagnostic():
+    """Journal de diagnostic généralisé (spec section 8bis, 2026-09-03) —
+    remplace `sphere candidats` : candidats de sphère/clientèle cible non
+    résolus par le Niveau 2, ET sources de données manquantes trouvées en
+    cours de route (falkye/models/diagnostic_journal.py)."""
 
 
-@sphere.command("candidats")
+@diagnostic.command("lister")
+@click.option(
+    "--type",
+    "type_diagnostic",
+    type=click.Choice([t.value for t in TypeDiagnostic]),
+    default=None,
+    help="Filtrer par type (défaut : tous les types).",
+)
 @click.option(
     "--statut",
     default="a_examiner",
     help="Filtrer par statut (a_examiner par défaut) — passer une chaîne vide pour tous les statuts.",
 )
-def sphere_candidats(statut):
-    """Liste les cas que le Niveau 2 (Claude) n'a pu rattacher à AUCUNE sphère
-    existante — journalisés pour examen humain, JAMAIS auto-résolus (garde-fou
-    non négociable, voir falkye/assistance_sphere_ia.py). RÉSERVÉ AU MODE
-    OPÉRATEUR (FALKYE_OPERATOR=1) : ce journal traverse tous les profils, ce
-    n'est pas une donnée propre à un seul client."""
-    from falkye.models.candidat_sphere import CandidatSphere
-
+def diagnostic_lister(type_diagnostic, statut):
+    """Liste les entrées du journal de diagnostic — cas non résolus par le
+    Niveau 2 (JAMAIS auto-résolus, garde-fou non négociable) et sources
+    manquantes journalisées manuellement. RÉSERVÉ AU MODE OPÉRATEUR
+    (FALKYE_OPERATOR=1) : ce journal traverse tous les profils."""
     if not _mode_operateur():
         raise click.ClickException(
             "Réservé au mode opérateur (FALKYE_OPERATOR=1) — ce journal traverse tous les profils."
         )
     session = get_session()
     try:
-        query = session.query(CandidatSphere)
+        query = session.query(DiagnosticJournal)
+        if type_diagnostic:
+            query = query.filter(DiagnosticJournal.type_diagnostic == type_diagnostic)
         if statut:
-            query = query.filter(CandidatSphere.statut == statut)
-        candidats = query.order_by(CandidatSphere.created_at.desc()).all()
-        if not candidats:
-            click.echo("Aucun candidat.")
+            query = query.filter(DiagnosticJournal.statut == statut)
+        entrees = query.order_by(DiagnosticJournal.created_at.desc()).all()
+        if not entrees:
+            click.echo("Aucune entrée.")
             return
-        for c in candidats:
+        for e in entrees:
+            profil_txt = f"profil=#{e.profile_id}" if e.profile_id is not None else "profil=(aucun)"
             click.echo(
-                f"#{c.id} [{c.created_at:%Y-%m-%d %H:%M}] profil=#{c.profile_id} statut={c.statut}\n"
-                f"    description : {c.texte_description}\n"
-                f"    raisonnement niveau 2 : {c.resume_niveau2 or '(aucun)'}"
+                f"#{e.id} [{e.created_at:%Y-%m-%d %H:%M}] type={e.type_diagnostic.value} "
+                f"{profil_txt} statut={e.statut}\n"
+                f"    description : {e.texte_description}\n"
+                f"    raisonnement niveau 2 : {e.resume_niveau2 or '(aucun)'}"
             )
+    finally:
+        session.close()
+
+
+@diagnostic.command("ajouter-source-manquante")
+@click.option("--description", required=True, help="Note décrivant la source de données manquante.")
+@click.option("--profile-id", type=int, default=None, help="Optionnel — rattache à un profil précis.")
+def diagnostic_ajouter_source_manquante(description, profile_id):
+    """Journalise manuellement une source de données qui devrait exister mais
+    n'existe pas encore dans le registre (ex. un organisme public absent du
+    REQ, un fonds de financement découvert en creusant un persona) — jamais
+    un appel Niveau 2, une observation produit. RÉSERVÉ AU MODE OPÉRATEUR."""
+    if not _mode_operateur():
+        raise click.ClickException("Réservé au mode opérateur (FALKYE_OPERATOR=1).")
+    session = get_session()
+    try:
+        entree = DiagnosticJournal(
+            type_diagnostic=TypeDiagnostic.SOURCE_MANQUANTE,
+            profile_id=profile_id,
+            texte_description=description,
+            statut="a_examiner",
+        )
+        session.add(entree)
+        session.commit()
+        click.echo(f"Source manquante journalisée : #{entree.id}")
     finally:
         session.close()
 
@@ -1172,7 +1485,16 @@ def dashboard_voir(profile_id, employes_min, employes_max, sous_compte_id, usage
             click.echo("Aucun dossier pour ce profil (avec ce(s) filtre(s), le cas échéant).")
             return
 
-        for n in notifications_qs:
+        # Canal "hors profil déclaré" (spec section 8bis, 2026-09-03, réservé
+        # Radar+) — JAMAIS mélangé aux notifications normales : section
+        # séparée, affichée après, explicitement étiquetée. Ces lignes
+        # n'existent de toute façon que pour un profil Radar+ (gating fait
+        # dans falkye/engine.py), le filtrage ci-dessous est donc purement
+        # un tri d'affichage, pas un gate additionnel.
+        notifications_normales = [n for n in notifications_qs if not n.hors_profil]
+        notifications_hors_profil = [n for n in notifications_qs if n.hors_profil]
+
+        for n in notifications_normales:
             company = n.company
             nom = company.nom_officiel_req or company.nom_detecte
             pertinence_txt = n.niveau_pertinence.value if n.niveau_pertinence else "n/d"
@@ -1193,6 +1515,22 @@ def dashboard_voir(profile_id, employes_min, employes_max, sous_compte_id, usage
                     f"(territoire: {n.profile_need.territoire or 'aucun'})"
                 )
             click.echo(f"└─ Statut de suivi : {statut}")
+
+        if notifications_hors_profil:
+            click.echo("")
+            click.echo(
+                "── Hors profil déclaré — correspond à votre sphère mais pas à la "
+                "clientèle cible que vous avez déclarée, à valider ──"
+            )
+            for n in notifications_hors_profil:
+                company = n.company
+                nom = company.nom_officiel_req or company.nom_detecte
+                click.echo(f"┌─ #{n.id} {nom}")
+                click.echo(
+                    f"│  Pertinence {n.niveau_pertinence.value if n.niveau_pertinence else 'n/d'} · "
+                    f"Confiance {n.niveau_confiance.value} ({n.score_confiance}/100)"
+                )
+                click.echo(f"└─ {n.justification_resumee}")
     finally:
         session.close()
 

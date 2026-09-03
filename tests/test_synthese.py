@@ -92,7 +92,7 @@ def test_synthese_repartition_par_niveau_pertinence(registry):
 def test_synthese_repartition_par_territoire(registry):
     c1 = Company(nom_detecte="A", nom_detecte_normalise="a")
     c2 = Company(nom_detecte="B", nom_detecte_normalise="b")
-    need_qc = ProfileNeed(profile_id=1, sphere_id="x", territoire="Québec")
+    need_qc = ProfileNeed(profile_id=1, territoire="Québec")
     s = generer_synthese(
         [_notification(1, c1, profile_need=need_qc), _notification(2, c2, profile_need=None)], registry
     )

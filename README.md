@@ -107,19 +107,18 @@ python -m falkye.cli profile create \
   --courriel vous@exemple.com --nom "Profil A" \
   --ville Montréal --region Montréal --etat-province Québec \
   --rayon-km 100 --sensibilite-confiance eleve --sensibilite-pertinence moyen
-python -m falkye.cli profile add-need \
-  --profile-id 1 --sphere-id technologie_systemes_ti \
+python -m falkye.cli profile configurer-besoin --profile-id 1 --confirmer \
   --usage "Implantation de systèmes de gestion d'inventaire et d'actifs" \
-  --mots-cles "implantation,gestion d'inventaire,ERP,WMS"
+  --mots-cles "implantation,gestion d'inventaire,ERP,WMS"    # sphère(s) proposée(s) et liée(s) automatiquement
 
 # Exemple 2 : courtier en assurance commerciale — même mécanique, autre sphère
 python -m falkye.cli profile create \
   --courriel autre@exemple.com --nom "Profil B" \
   --ville Québec --region "Capitale-Nationale" --etat-province Québec \
   --rayon-km 75 --sensibilite-confiance moyen --sensibilite-pertinence moyen
-python -m falkye.cli profile add-need \
-  --profile-id 2 --sphere-id assurance_gestion_risques \
+python -m falkye.cli profile configurer-besoin --profile-id 2 --confirmer \
   --usage "Courtage en assurance commerciale PME" \
+  --client-cible "PME, tous secteurs" \
   --mots-cles "assurance responsabilité,gestion des risques"
 
 python -m falkye.cli registry sources             # état du registre de sources
@@ -183,9 +182,9 @@ environnement de développement, voir `docs/STATUT_RESEAU.md`.
 ```bash
 # Un compte Radar+ gère plusieurs combinaisons sphère/usage × territoire sous UN
 # SEUL profil, plutôt qu'un profil par combinaison :
-python -m falkye.cli profile add-need --profile-id 1 --sphere-id rh_recrutement_dotation \
+python -m falkye.cli profile configurer-besoin --profile-id 1 --confirmer \
   --usage "Recrutement spécialisé" --territoire Québec
-python -m falkye.cli profile add-need --profile-id 1 --sphere-id rh_recrutement_dotation \
+python -m falkye.cli profile configurer-besoin --profile-id 1 --confirmer \
   --usage "Recrutement spécialisé" --territoire Ontario
 
 python -m falkye.cli dashboard voir --profile-id 1 --usage "Recrutement" --territoire Québec
@@ -234,22 +233,50 @@ python -m falkye.cli crm mapper-statut --profile-id 1 --provider hubspot \
 python -m falkye.cli crm statut --profile-id 1        # état de synchronisation (fiches poussées, étape connue)
 ```
 
-### Assistance à la configuration du profil par IA
+### Assistance à la configuration du profil par IA — sphère(s) N:N + clientèle cible
 
 ```bash
-python -m falkye.cli profile suggerer-sphere --description \
-  "implantation de systèmes de gestion d'inventaire pour PME manufacturières"  # Niveau 1 gratuit (tous plans)
-python -m falkye.cli sphere candidats                                          # cas non résolus par le Niveau 2 (mode opérateur)
+# Point d'entrée conversationnel UNIQUE — texte libre, jamais un écran de
+# pourcentages : aperçu par défaut, --confirmer pour créer le besoin.
+python -m falkye.cli profile configurer-besoin --profile-id 1 \
+  --usage "implantation de systèmes de gestion d'inventaire pour PME manufacturières" \
+  --client-cible "PME manufacturières"        # "qui" optionnel — omis = non configuré, aucun impact
+python -m falkye.cli profile configurer-besoin --profile-id 1 --confirmer \
+  --usage "implantation de systèmes ERP/WMS" --mots-cles "implantation,ERP,WMS"
+
+# Raffinement manuel après coup — jamais une étape obligatoire :
+python -m falkye.cli profile lier-sphere --need-id 1 --sphere-id technologie_systemes_ti --poids 80
+python -m falkye.cli profile lier-client-cible --need-id 1 --client-cible-id pme_privees_generales --poids 100
+python -m falkye.cli profile definir-sphere-principale --need-id 1 --sphere-id technologie_systemes_ti
+
+python -m falkye.cli diagnostic lister                                         # cas non résolus par le Niveau 2 (mode opérateur)
+python -m falkye.cli diagnostic ajouter-source-manquante --description "..."   # journal généralisé, hors classification
 ```
 
-Deux niveaux (spec Radar+, point 8) : correspondance locale par mots-clés
-(Niveau 1, gratuit, tous plans) puis, seulement si le Niveau 1 échoue, un
-appel Claude à sortie contrainte par schéma (Niveau 2, Radar/Radar+, gate
-binaire sans quota) — le schéma de sortie rend structurellement impossible au
-Niveau 2 d'inventer une nouvelle sphère : un cas non rattachable est
-journalisé pour examen humain, jamais auto-résolu. Toujours une proposition à
-confirmer via `profile add-need`, jamais une classification silencieuse. Voir
-`docs/ARCHITECTURE.md` pour le détail complet.
+Deux niveaux (spec section 8bis, 2026-09-03), pour DEUX dimensions
+indépendantes du besoin — le "quoi" (sphère(s), plusieurs-à-plusieurs et
+pondérées) et le "qui" (clientèle cible, registre `ClientCible` distinct,
+jamais dérivé des secteurs REQ) : correspondance locale par mots-clés
+(Niveau 1, gratuit, tous plans) puis, seulement si le Niveau 1 échoue ou
+produit une égalité exacte entre plusieurs candidats, un appel Claude à
+sortie contrainte par schéma (Niveau 2, Radar/Radar+, gate binaire sans
+quota) qui retourne un ENSEMBLE de liens pondérés plutôt qu'un seul id — le
+même changement de schéma sert à la fois le cas général plusieurs-sphères et
+le départage d'égalité (aucune règle mécanique comme l'ordre alphabétique :
+le poids EST déjà le classement, retenu par le raisonnement contextuel du
+modèle sur la description). Le schéma de sortie rend structurellement
+impossible au Niveau 2 d'inventer une nouvelle sphère ou catégorie : un cas
+non rattachable est journalisé (`journal_diagnostic`, table généralisée qui
+remplace l'ancienne `candidats_spheres`) pour examen humain, jamais
+auto-résolu. Toujours une proposition à confirmer, jamais une classification
+silencieuse. Voir `docs/ARCHITECTURE.md` pour le détail complet.
+
+**Bonus/redirection "qui" (Radar+ seulement)** : un désaccord confiant entre
+la clientèle cible déclarée du besoin et la clientèle probable de
+l'entreprise détectée n'est JAMAIS un malus silencieux sur le score de
+pertinence — c'est une redirection (`Notification.hors_profil`), affichée
+dans une section distincte de `dashboard voir`, jamais mêlée aux dossiers
+normaux ni poussée aux canaux/CRM habituels.
 
 ### Détection d'expansion inter-provinciale (Radar minimum)
 

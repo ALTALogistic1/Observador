@@ -138,6 +138,16 @@ class ProfileNeed(Base):
     `usage_precis` (colonne SQL renommée sur la base réelle, migration
     ponctuelle — voir docs/STATUT_RESEAU.md) ; `service_precis` n'existe plus.
 
+    **Sphère(s) — lien plusieurs-à-plusieurs, pas une colonne unique** (spec
+    section 8bis, 2026-09-03) : `sphere_id` RETIRÉ complètement (jamais gardé
+    en parallèle comme raccourci dénormalisé) au profit de
+    `falkye/models/profile_need_sphere.py::ProfileNeedSphere` — un service
+    précis peut légitimement appartenir à plusieurs sphères à la fois, chacune
+    avec son propre poids (0-100). Voir `sphere_principale` ci-dessous pour la
+    sphère "principale", toujours DÉRIVÉE (jamais une colonne séparée). Même
+    principe pour la dimension "qui" (client cible), voir
+    `falkye/models/profile_need_client_cible.py::ProfileNeedClientCible`.
+
     `type_besoin` distingue, pour la porte ouverte fournisseur/client :
       - "offre"   : ce que l'utilisateur offre comme fournisseur (mécanique Phase 1)
       - "besoin"  : un besoin propre à l'utilisateur en tant que client (structure
@@ -148,7 +158,6 @@ class ProfileNeed(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     profile_id: Mapped[int] = mapped_column(ForeignKey("profiles.id"), nullable=False)
-    sphere_id: Mapped[str] = mapped_column(ForeignKey("spheres.id"), nullable=False)
 
     type_besoin: Mapped[str] = mapped_column(String(20), nullable=False, default="offre")
 
@@ -182,9 +191,28 @@ class ProfileNeed(Base):
     territoire: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     profile: Mapped[Profile] = relationship(back_populates="besoins")
-    sphere = relationship("Sphere")
+    spheres_liees: Mapped[list["ProfileNeedSphere"]] = relationship(
+        back_populates="profile_need", cascade="all, delete-orphan"
+    )
+    clients_cibles_lies: Mapped[list["ProfileNeedClientCible"]] = relationship(
+        back_populates="profile_need", cascade="all, delete-orphan"
+    )
 
     def liste_mots_cles(self) -> list[str]:
         if not self.mots_cles:
             return []
         return [m.strip() for m in self.mots_cles.split(",") if m.strip()]
+
+    def sphere_principale(self) -> "ProfileNeedSphere | None":
+        """Le lien sphère au poids le plus élevé — TOUJOURS dérivé, jamais une
+        colonne séparée (spec section 8bis : "aucune source de vérité qui
+        peut diverger"). None si aucune sphère n'est encore liée."""
+        if not self.spheres_liees:
+            return None
+        return max(self.spheres_liees, key=lambda l: l.poids)
+
+    def client_cible_principal(self) -> "ProfileNeedClientCible | None":
+        """Même principe que sphere_principale, côté client cible."""
+        if not self.clients_cibles_lies:
+            return None
+        return max(self.clients_cibles_lies, key=lambda l: l.poids)

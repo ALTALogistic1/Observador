@@ -1,0 +1,82 @@
+"""Assistance à la configuration du profil par IA — Niveau 1, dimension "qui"
+(client cible) — spec section 8bis, ajoutée le 2026-09-03.
+
+Miroir structurel exact de falkye/assistance_sphere.py (même mécanisme,
+registre différent) : correspondance LOCALE mot-à-mot (falkye/
+texte_matching.py::motif_present), gratuite, tous plans, contre le
+dictionnaire de synonymes de chaque client cible (registry/
+clients_cibles.yaml::ClientCibleDef.synonymes, resynchronisé en base via
+falkye.db.seed_client_cible_synonymes_from_registry, enrichi par le Niveau 2
+— falkye/assistance_client_cible_ia.py — sans jamais changer ce module).
+
+Le catalogue inclut la sentinelle `aucune_restriction`
+(falkye/models/client_cible.py::ID_AUCUNE_RESTRICTION) comme un membre
+NORMAL du dictionnaire de synonymes — un texte contenant "tous types
+d'entreprises" matche cette entrée exactement comme n'importe quelle autre
+catégorie matcherait la sienne. Pas de traitement spécial ici : la
+distinction "réponse positive vs correspondance non trouvée" n'a de sens
+qu'au Niveau 2 (falkye/assistance_client_cible_ia.py), qui doit décider quoi
+faire d'une liste VRAIMENT vide — ce module se contente de rapporter ce qu'il
+trouve, comme pour la sphère."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from sqlalchemy.orm import Session
+
+from falkye.models.client_cible import ClientCible
+from falkye.models.client_cible_synonyme import ClientCibleSynonyme
+from falkye.texte_matching import motif_present
+
+
+@dataclass(frozen=True)
+class SuggestionClientCible:
+    """Miroir de falkye/assistance_sphere.py::SuggestionSphere."""
+
+    client_cible_id: str
+    client_cible_nom: str
+    score: int  # nombre de synonymes DISTINCTS trouvés
+    mots_cles_matches: list[str] = field(default_factory=list)
+    niveau: int = 1
+
+
+def suggerer_clients_cibles_niveau1(
+    db_session: Session, texte_description: str, limite: int = 3
+) -> list[SuggestionClientCible]:
+    """Catégories candidates pour `texte_description`, triées par score
+    décroissant. Liste VIDE = échec du Niveau 1 (aucune correspondance, PAS
+    MÊME "aucune_restriction") — le signal utilisé par
+    falkye/assistance_client_cible_ia.py pour décider de déclencher le
+    Niveau 2."""
+    if not texte_description or not texte_description.strip():
+        return []
+
+    texte_lower = texte_description.lower()
+
+    synonymes = (
+        db_session.query(ClientCibleSynonyme, ClientCible)
+        .join(ClientCible, ClientCible.id == ClientCibleSynonyme.client_cible_id)
+        .all()
+    )
+
+    par_categorie: dict[str, dict] = {}
+    for synonyme, client_cible in synonymes:
+        motif = synonyme.texte.lower().strip()
+        if not motif_present(texte_lower, motif):
+            continue
+        entree = par_categorie.setdefault(
+            client_cible.id, {"nom": client_cible.nom, "mots_cles": set()}
+        )
+        entree["mots_cles"].add(synonyme.texte)
+
+    suggestions = [
+        SuggestionClientCible(
+            client_cible_id=cle,
+            client_cible_nom=donnees["nom"],
+            score=len(donnees["mots_cles"]),
+            mots_cles_matches=sorted(donnees["mots_cles"]),
+        )
+        for cle, donnees in par_categorie.items()
+    ]
+    suggestions.sort(key=lambda s: (-s.score, s.client_cible_nom))
+    return suggestions[:limite]

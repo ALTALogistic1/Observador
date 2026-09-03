@@ -302,3 +302,25 @@ def test_gestion_inventaire_actifs_retiree_du_registre_des_spheres():
 
     signal_type = registry.signal_type("financement_expansion")
     assert "gestion_inventaire_actifs" not in signal_type.spheres_probables
+
+
+# --- Registre clients_cibles.yaml (spec section 8bis, 2026-09-03) ---
+
+
+def test_registre_reel_a_l_entree_sentinelle_aucune_restriction():
+    from falkye.models.client_cible import ID_AUCUNE_RESTRICTION
+
+    registry = load_registry()
+    assert ID_AUCUNE_RESTRICTION in registry.clients_cibles
+
+
+def test_registre_reel_a_une_categorie_institutionnelle_publique():
+    """Ajoutée en réponse directe au gap trouvé contre le vrai miroir REQ —
+    voir docs/ARCHITECTURE.md."""
+    registry = load_registry()
+    assert "organismes_publics_institutionnels" in registry.clients_cibles
+
+
+def test_client_cible_retourne_none_pour_un_id_inconnu():
+    registry = load_registry()
+    assert registry.client_cible("id_inexistant_xyz") is None

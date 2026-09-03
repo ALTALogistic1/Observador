@@ -1,0 +1,108 @@
+# Registre des clients cibles ("qui") — spec section 8bis (2026-09-03).
+#
+# Nouvelle dimension, distincte de la sphère de besoin ("quoi", registry/
+# spheres.yaml). Liste de départ, volontairement large — comme spheres.yaml,
+# extensible : un utilisateur qui ne se reconnaît dans aucune catégorie
+# existante peut en proposer une nouvelle (ClientCible avec
+# est_personnalisee=True) sans casser la structure.
+#
+# JAMAIS dérivé du regroupement grossier de secteurs REQ
+# (registry/secteurs_grossiers.yaml) — vérifié contre le vrai miroir REQ
+# (2,7M lignes réelles) que les grands organismes publics/institutionnels
+# n'y apparaissent presque jamais comme entités elles-mêmes, et que la
+# taxonomie commerciale privée des 11 catégories existantes ne les couvre
+# pas (voir falkye/models/client_cible.py pour le détail complet). D'où la
+# catégorie organismes_publics_institutionnels ci-dessous, indépendante.
+#
+# `aucune_restriction` (premier de la liste) est un membre RÉEL du
+# catalogue, pas un sentinel absent — une déclaration POSITIVE "s'applique
+# largement", distincte d'une correspondance non trouvée (voir
+# falkye/assistance_client_cible_ia.py). Ne jamais le retirer ni changer son
+# id : falkye/models/client_cible.py::ID_AUCUNE_RESTRICTION en dépend.
+#
+# `synonymes` : même principe que SphereDef.synonymes — premier jet de
+# mots-clés en français pour le Niveau 1 (falkye/assistance_client_cible.py),
+# point de départ, pas une liste fermée ni exhaustive.
+
+clients_cibles:
+  - id: aucune_restriction
+    nom: "Aucune restriction — s'applique largement"
+    synonymes:
+      - "aucune restriction"
+      - "tous types d'entreprises"
+      - "tout type de clientèle"
+      - "large éventail"
+      - "peu importe le secteur"
+      - "sans distinction"
+
+  - id: pme_privees_generales
+    nom: "PME privées, tous secteurs"
+    synonymes:
+      - "PME"
+      - "petites et moyennes entreprises"
+      - "entreprises privées"
+
+  - id: grandes_entreprises_privees
+    nom: "Grandes entreprises privées"
+    synonymes:
+      - "grandes entreprises"
+      - "grands comptes"
+      - "multinationales"
+
+  - id: organismes_publics_institutionnels
+    nom: "Organismes publics et institutionnels"
+    # Catégorie ajoutée en réponse directe au gap trouvé contre le vrai REQ
+    # (voir docstring de falkye/models/client_cible.py) — commissions
+    # scolaires, sociétés de transport en commun, municipalités, réseau de
+    # la santé : des organismes créés par leur propre loi constitutive,
+    # largement absents du REQ comme entités directes.
+    synonymes:
+      - "commission scolaire"
+      - "centre de services scolaire"
+      - "société de transport"
+      - "municipalité"
+      - "ville de"
+      - "organisme public"
+      - "gouvernement"
+      - "réseau de la santé"
+      - "CISSS"
+      - "CIUSSS"
+
+  - id: organismes_sans_but_lucratif
+    nom: "Organismes à but non lucratif"
+    synonymes:
+      - "OBNL"
+      - "organisme à but non lucratif"
+      - "organisme communautaire"
+      - "fondation"
+
+  - id: commerces_detail_consommateurs
+    nom: "Commerces de détail / consommateurs"
+    synonymes:
+      - "commerce de détail"
+      - "grand public"
+      - "consommateurs"
+      - "particuliers"
+
+  - id: cabinets_professionnels
+    nom: "Cabinets professionnels (comptables, avocats, ingénieurs)"
+    synonymes:
+      - "cabinet comptable"
+      - "cabinet d'avocats"
+      - "cabinet d'ingénieurs"
+      - "professionnels"
+
+  - id: secteur_manufacturier_industriel
+    nom: "Secteur manufacturier et industriel"
+    synonymes:
+      - "manufacturier"
+      - "industriel"
+      - "usine"
+      - "production"
+
+  - id: secteur_agroalimentaire
+    nom: "Secteur agroalimentaire"
+    synonymes:
+      - "agroalimentaire"
+      - "agricole"
+      - "producteurs agricoles"

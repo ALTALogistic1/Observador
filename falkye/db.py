@@ -113,6 +113,59 @@ def seed_sphere_synonymes_from_registry() -> None:
         session.close()
 
 
+def seed_clients_cibles_from_registry() -> None:
+    """Synchronise la table ClientCible avec registry/clients_cibles.yaml —
+    même principe que seed_spheres_from_registry (spec section 8bis,
+    2026-09-03)."""
+    from falkye.models.client_cible import ClientCible
+    from falkye.registry.loader import get_registry
+
+    registry = get_registry()
+    session = get_session()
+    try:
+        existing_ids = {c.id for c in session.query(ClientCible.id).all()}
+        for client_cible_def in registry.clients_cibles.values():
+            if client_cible_def.id not in existing_ids:
+                session.add(
+                    ClientCible(id=client_cible_def.id, nom=client_cible_def.nom, est_personnalisee=False)
+                )
+        session.commit()
+    finally:
+        session.close()
+
+
+def seed_client_cible_synonymes_from_registry() -> None:
+    """Synchronise la table ClientCibleSynonyme avec registry/clients_cibles.yaml
+    (champ `synonymes`) — même principe que seed_sphere_synonymes_from_registry :
+    seules les entrées origine="registre" sont gérées ici, jamais les synonymes
+    appris par le Niveau 2 (origine="ia_niveau2"). Idempotent."""
+    from falkye.models.client_cible_synonyme import ClientCibleSynonyme
+    from falkye.registry.loader import get_registry
+
+    registry = get_registry()
+    session = get_session()
+    try:
+        existants = {
+            (s.client_cible_id, s.texte.lower())
+            for s in session.query(ClientCibleSynonyme.client_cible_id, ClientCibleSynonyme.texte)
+            .filter(ClientCibleSynonyme.origine == "registre")
+            .all()
+        }
+        for client_cible_def in registry.clients_cibles.values():
+            for texte in client_cible_def.synonymes:
+                cle = (client_cible_def.id, texte.lower())
+                if cle not in existants:
+                    session.add(
+                        ClientCibleSynonyme(
+                            client_cible_id=client_cible_def.id, texte=texte, origine="registre"
+                        )
+                    )
+                    existants.add(cle)
+        session.commit()
+    finally:
+        session.close()
+
+
 def seed_statuts_suivi_from_registry() -> None:
     """Synchronise la table StatutSuivi avec le registre YAML (statuts_suivi.yaml),
     sans jamais toucher aux statuts personnalisés ajoutés par les utilisateurs

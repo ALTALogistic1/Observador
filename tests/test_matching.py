@@ -3,7 +3,19 @@ from datetime import datetime, timezone
 
 from falkye.matching import correspondance_qualitative_titre, match_profile, spheres_probables
 from falkye.models.profile import Profile, ProfileNeed
+from falkye.models.profile_need_sphere import ProfileNeedSphere
 from falkye.sources.base import RawSignal
+
+
+def _need(sphere_id="gestion_projet", poids=100.0, usage_precis="test", territoire=None, profile_id=1):
+    """Construit un ProfileNeed avec UN lien sphère (spec section 8bis, lien
+    plusieurs-à-plusieurs) — objets Python nus, sans session, comme le reste
+    de ce fichier."""
+    need = ProfileNeed(
+        profile_id=profile_id, usage_precis=usage_precis, territoire=territoire, type_besoin="offre"
+    )
+    need.spheres_liees = [ProfileNeedSphere(sphere_id=sphere_id, poids=poids)]
+    return need
 
 
 def test_spheres_probables_appel_offres(registry):
@@ -30,9 +42,7 @@ def test_match_profile_financement_acces_capital_matche_un_signal_financement(re
     sphère doit maintenant produire un MatchResult pour un signal
     financement_expansion, alors que ce n'était pas le cas avant le correctif."""
     profile = Profile(courriel="test@exemple.com", nom="Profil Test")
-    need = ProfileNeed(
-        profile_id=1, sphere_id="financement_acces_capital", usage_precis="cautionnement", type_besoin="offre"
-    )
+    need = _need(sphere_id="financement_acces_capital", usage_precis="cautionnement")
     profile.besoins = [need]
 
     raw = RawSignal(
@@ -45,6 +55,7 @@ def test_match_profile_financement_acces_capital_matche_un_signal_financement(re
     matches = match_profile(raw, profile, registry)
     assert len(matches) == 1
     assert matches[0].sphere_generique is True
+    assert matches[0].spheres_generiques_ids == {"financement_acces_capital"}
 
 
 def test_correspondance_qualitative_detecte_mot_cle_profil():
@@ -68,18 +79,64 @@ def test_correspondance_qualitative_titre_absent():
     assert correspondance_qualitative_titre(None, mots_cles_profil=["implantation"]) == []
 
 
+# --- Sphères multiples pondérées (spec section 8bis, 2026-09-03) ---
+
+
+def test_match_profile_matche_via_n_importe_laquelle_des_spheres_liees(registry):
+    """Un besoin peut être lié à plusieurs sphères à la fois — un signal
+    matche dès qu'UNE SEULE d'entre elles est probable pour ce type de
+    signal, peu importe son poids."""
+    profile = Profile(courriel="test@exemple.com", nom="Profil Test")
+    need = ProfileNeed(profile_id=1, usage_precis="test", type_besoin="offre")
+    need.spheres_liees = [
+        ProfileNeedSphere(sphere_id="gestion_projet", poids=50.0),
+        ProfileNeedSphere(sphere_id="rh_recrutement_dotation", poids=50.0),
+    ]
+    profile.besoins = [need]
+
+    raw = RawSignal(
+        signal_type_id="appel_offres",
+        nom_entreprise="Entreprise Test Inc.",
+        detected_at=datetime.now(timezone.utc),
+        source_ref="ref-1",
+    )
+    matches = match_profile(raw, profile, registry)
+    assert len(matches) == 1
+    assert matches[0].spheres_generiques_ids == {"gestion_projet"}
+    # Les deux liens restent portés par le match (pour l'attribution qualitative
+    # éventuelle), même si un seul est probable pour CE signal précis.
+    assert {sm.sphere_id for sm in matches[0].spheres_liees} == {"gestion_projet", "rh_recrutement_dotation"}
+
+
+def test_match_profile_besoin_sans_sphere_liee_ne_matche_que_par_mots_cles(registry):
+    """Un besoin sans AUCUNE sphère liée (pas encore configuré côté "quoi")
+    ne peut jamais matcher via la table générique — seule une correspondance
+    qualitative (mots-clés) peut encore produire un MatchResult."""
+    profile = Profile(courriel="test@exemple.com", nom="Profil Test")
+    need = ProfileNeed(profile_id=1, usage_precis="test", mots_cles="implantation", type_besoin="offre")
+    need.spheres_liees = []
+    profile.besoins = [need]
+
+    raw = RawSignal(
+        signal_type_id="recrutement_massif",
+        nom_entreprise="Entreprise Test Inc.",
+        detected_at=datetime.now(timezone.utc),
+        source_ref="ref-1",
+        titre_ou_description="Directeur implantation ERP",
+    )
+    matches = match_profile(raw, profile, registry)
+    assert len(matches) == 1
+    assert matches[0].spheres_generiques_ids == set()
+    assert matches[0].correspondance_qualitative is True
+
+
 # --- Territoire par besoin (spec section 4bis, "Profils de recherche multiples
 # simultanés") ---
 
 
 def _profile_avec_besoin(sphere_id="gestion_projet", territoire=None):
     profile = Profile(courriel="test@exemple.com", nom="Profil Test")
-    # type_besoin="offre" explicite : la valeur par défaut de la colonne SQLAlchemy
-    # ne s'applique qu'au flush, pas sur un objet Python nu — besoins_fournisseur()
-    # filtre sur cette valeur et la trouverait None sinon.
-    need = ProfileNeed(
-        profile_id=1, sphere_id=sphere_id, usage_precis="test", territoire=territoire, type_besoin="offre"
-    )
+    need = _need(sphere_id=sphere_id, territoire=territoire)
     profile.besoins = [need]
     return profile, need
 
@@ -126,12 +183,8 @@ def test_match_profile_deux_besoins_meme_sphere_territoires_differents(registry)
     """Le cas central de la spec : recrutement-QC et recrutement-ON sous un
     seul profil, chacun une combinaison indépendante."""
     profile = Profile(courriel="test@exemple.com", nom="Profil Test")
-    need_qc = ProfileNeed(
-        profile_id=1, sphere_id="gestion_projet", usage_precis="QC", territoire="Québec", type_besoin="offre"
-    )
-    need_on = ProfileNeed(
-        profile_id=1, sphere_id="gestion_projet", usage_precis="ON", territoire="Ontario", type_besoin="offre"
-    )
+    need_qc = _need(sphere_id="gestion_projet", usage_precis="QC", territoire="Québec")
+    need_on = _need(sphere_id="gestion_projet", usage_precis="ON", territoire="Ontario")
     profile.besoins = [need_qc, need_on]
 
     raw_qc = _raw(ville="Québec", region="Québec")

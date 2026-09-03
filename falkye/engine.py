@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from falkye import expansion_interprovinciale, pertinence, ponderation, retroaction
+from falkye.assistance_client_cible import suggerer_clients_cibles_niveau1
 from falkye.crm_sync import pousser_notification_vers_crm, sonder_statuts_crm
 from falkye.db import get_session
 from falkye.enrichment import enrichir_entreprise
@@ -199,7 +200,10 @@ def _traiter_entreprise_pour_profil(
     signaux_pertinents: list[Signal] = []
     justifications: dict[int, str] = {}
     matches_par_signal: dict[int, list[MatchResult]] = {}
-    meilleur_global: tuple[float, MatchResult] | None = None  # (base_pertinence, match) — voir plus bas
+    # (base_pertinence, match, sphere_id) — la sphère qui a atteint ce score
+    # précis parmi TOUTES celles liées au besoin (spec section 8bis, lien
+    # sphère↔besoin plusieurs-à-plusieurs), voir plus bas.
+    meilleur_global: tuple[float, MatchResult, str] | None = None
 
     # Pondération de pertinence (spec section 4bis, Radar+ "pondération du moteur
     # de score personnalisable") — résolue une fois par profil, utilisée à la
@@ -240,14 +244,18 @@ def _traiter_entreprise_pour_profil(
         # spec introduit maintenant un vrai classement entre ces tiers (section 6),
         # donc le choix de sphère doit en tenir compte plutôt que d'être arbitraire.
         for m in matches:
-            base = pertinence.base_match(m, signal.signal_type_id, registry, ponderation_profil)
+            base, sphere_du_match = pertinence.meilleure_sphere_pour_match(
+                m, signal.signal_type_id, registry, ponderation_profil
+            )
+            if sphere_du_match is None:
+                continue  # besoin sans aucune sphère liée — rien à retenir (spec section 8bis)
             if meilleur_global is None or base > meilleur_global[0]:
-                meilleur_global = (base, m)
+                meilleur_global = (base, m, sphere_du_match)
 
-    if not signaux_pertinents:
+    if not signaux_pertinents or meilleur_global is None:
         return None
 
-    sphere_choisie = meilleur_global[1].profile_need.sphere_id
+    sphere_choisie = meilleur_global[2]
     # Combinaison sphère/usage × territoire à l'origine de cette notification
     # (spec section 4bis, "Profils de recherche multiples simultanés") — le
     # ProfileNeed du MEILLEUR match global, cohérent avec sphere_choisie
@@ -309,6 +317,25 @@ def _traiter_entreprise_pour_profil(
         signaux_pertinents, bonus_expansion_interprovinciale=evaluation_expansion.bonus
     )
     poids_sphere = retroaction.poids_pour_sphere(db_session, profile.id, sphere_choisie)
+
+    # Dimension "qui" (client cible, spec section 8bis, 2026-09-03) — RÉSERVÉE
+    # AU PLAN RADAR+ dans son ENSEMBLE (bonus ET redirection "hors profil"),
+    # même principe que ponderation.py/webhook_channel.py : pas de gating
+    # partiel entre les deux effets d'une même fonctionnalité. Pour tout
+    # autre plan, les deux listes restent vides — bonus_et_redirection_qui
+    # retombe alors sur son comportement par défaut sûr (0.0, False),
+    # comportement historique inchangé.
+    client_cible_ids_entreprise: list[str] = []
+    clients_cibles_lies_besoin: list[tuple[str, float]] = []
+    if profile.plan == PlanTarifaire.RADAR_PLUS:
+        need_choisi = meilleur_global[1].profile_need
+        clients_cibles_lies_besoin = [(l.client_cible_id, l.poids) for l in need_choisi.clients_cibles_lies]
+        if clients_cibles_lies_besoin:
+            suggestions_qui = suggerer_clients_cibles_niveau1(
+                db_session, company.secteur_activite_libelle or ""
+            )
+            client_cible_ids_entreprise = [s.client_cible_id for s in suggestions_qui]
+
     pertinence_result = pertinence.calculer_pertinence(
         company,
         signaux_pertinents,
@@ -317,6 +344,8 @@ def _traiter_entreprise_pour_profil(
         registry,
         poids_sphere=poids_sphere,
         ponderation=ponderation_profil,
+        client_cible_ids_entreprise=client_cible_ids_entreprise,
+        clients_cibles_lies_besoin=clients_cibles_lies_besoin,
     )
     if not franchit_seuil_sensibilite(score_result.niveau, profile.sensibilite_confiance.value):
         return None
@@ -334,16 +363,24 @@ def _traiter_entreprise_pour_profil(
         sphere_probable_id=sphere_choisie,
         profile_need_id=profile_need_choisi_id,
         statut_suivi_id=registry.statut_suivi_par_defaut().id,
+        hors_profil=pertinence_result.hors_profil,
         justification_resumee=(
             f"{len(signaux_pertinents)} signal(aux) détecté(s), "
             f"bonus de corroboration {score_result.bonus_corroboration:.0f} pts "
             f"(confiance), pertinence {pertinence_result.niveau.value}"
             + (f" (+{pertinence_result.bonus_absence:.0f} absence)" if pertinence_result.bonus_absence else "")
             + (f" (+{pertinence_result.bonus_velocite:.0f} vélocité)" if pertinence_result.bonus_velocite else "")
+            + (f" (+{pertinence_result.bonus_qui:.0f} clientèle cible)" if pertinence_result.bonus_qui else "")
             + (
                 f" (+{score_result.bonus_expansion_interprovinciale:.0f} pts, "
                 f"{evaluation_expansion.texte_hedge})"
                 if evaluation_expansion.texte_hedge
+                else ""
+            )
+            + (
+                " — HORS PROFIL DÉCLARÉ : correspond à la sphère mais pas à la "
+                "clientèle cible déclarée pour ce besoin, à valider."
+                if pertinence_result.hors_profil
                 else ""
             )
             + "."
@@ -366,6 +403,15 @@ def _traiter_entreprise_pour_profil(
 
 
 def deliver_notification(db_session: Session, notification: Notification, registry: Registry) -> None:
+    # Canal "hors profil déclaré" (spec section 8bis, 2026-09-03) : jamais
+    # livré par courriel/webhook PAR DÉFAUT — visible uniquement dans le
+    # tableau de bord (section séparée, falkye/cli.py::dashboard_voir),
+    # cohérent avec "jamais mélangé aux notifications normales". La
+    # notification existe bel et bien en base (jamais un signal perdu), seule
+    # la livraison automatique est court-circuitée ici.
+    if notification.hors_profil:
+        return
+
     contenu = formatter_notification(notification, registry)
     for channel_def in registry.canaux_actifs():
         channel = channel_def.charger_canal()

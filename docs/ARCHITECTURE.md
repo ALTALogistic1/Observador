@@ -918,6 +918,13 @@ mécanisme pour toutes les sphères, pas une exception : `matching.py::
 match_profile` compare `need.sphere_id` à l'ensemble `spheres_probables(raw.
 signal_type_id, registry)`, sans jamais inspecter `raw.champs`.
 
+*(Mise à jour 2026-09-03 : `need.sphere_id` — colonne unique — n'existe plus.
+`match_profile` compare désormais CHACUNE des sphères de `need.spheres_liees`
+(lien plusieurs-à-plusieurs pondéré) à `spheres_probables(...)` ; voir la
+section "Sphère ↔ besoin plusieurs-à-plusieurs pondérée" plus bas. Le
+principe décrit ici — le lien reste au niveau du `signal_type_id` en entier —
+est inchangé, seule la cardinalité sphère↔besoin a changé.)*
+
 **Le principe "jamais une source activée en bloc, toujours champ par champ
 pour réduire le bruit" existe bel et bien dans le code réel — mais à une
 AUTRE couche, celle de la CALIBRATION à l'ingestion (`SourceDef.
@@ -1099,6 +1106,13 @@ Le seul usage de ML retenu dans tout le produit — deux niveaux, jamais un seul
 mécanisme unique, pour que le coût par appel reste proportionnel à la
 difficulté réelle du cas.
 
+**Cette section décrit l'état INITIAL du mécanisme (une sphère unique par
+besoin). Il a été généralisé le 2026-09-03 même — voir la section "Sphère ↔
+besoin plusieurs-à-plusieurs pondérée, dimension 'qui', journal de diagnostic
+généralisé" plus bas pour l'architecture ACTUELLE (l'essentiel du
+raisonnement Niveau 1/Niveau 2 ci-dessous reste vrai, seul le SCHÉMA de
+sortie et le nombre de résultats possibles ont changé).**
+
 **Niveau 1 — `falkye/assistance_sphere.py`, gratuit, tous les plans (Écho
 compris).** Correspondance MOT-À-MOT (bornée par des limites de mot, jamais une
 sous-chaîne brute) entre la description libre de l'utilisateur et le
@@ -1111,43 +1125,280 @@ pendant la validation avec de vraies données (voir docs/STATUT_RESEAU.md) :
 l'acronyme "TI" matchait à l'intérieur du mot "implan**ta-ti**on" avant
 l'ajout des bornes de mot (regex `(?<!\w)…(?!\w)`, insensible aux lettres
 accentuées et aux apostrophes des synonymes composés comme "gestion
-d'inventaire").
+d'inventaire") — ce matcher à bornes de mot est maintenant partagé
+(`falkye/texte_matching.py::motif_present`) entre la dimension sphère et la
+dimension "qui".
 
 Liste VIDE de suggestions = échec du Niveau 1 — c'est CE signal, et rien
 d'autre, qui déclenche le Niveau 2.
 
-**Niveau 2 — `falkye/assistance_sphere_ia.py`, réservé Radar/Radar+, gating
-BINAIRE (pas de système de quota — confirmé par Alexandre le 2026-09-03).**
-Un appel Claude (`anthropic` SDK, `claude-haiku-4-5` par défaut — voir
-docstring du module pour la justification du choix de modèle) avec une sortie
-JSON CONTRAINTE PAR SCHÉMA (`output_config`, `additionalProperties: false`) :
-le champ `sphere_id` est une `enum` fermée = les sphères EXISTANTES en base au
-moment de l'appel, plus une valeur sentinelle `aucune_correspondance`.
+**Niveau 2 — réservé Radar/Radar+, gating BINAIRE (pas de système de quota —
+confirmé par Alexandre le 2026-09-03).** Un appel Claude (`anthropic` SDK,
+`claude-haiku-4-5` par défaut — voir docstring du module pour la
+justification du choix de modèle) avec une sortie JSON CONTRAINTE PAR SCHÉMA
+(`output_config`, `additionalProperties: false`) : l'id retourné est une
+`enum` fermée = les entrées EXISTANTES du catalogue au moment de l'appel,
+plus une valeur sentinelle `aucune_correspondance`.
 
 **C'est ce garde-fou-là — confirmé par Alexandre comme "exactement ce qu'on
 voulait, pas juste une instruction" — qui rend structurellement IMPOSSIBLE au
-Niveau 2 d'inventer une nouvelle sphère : aucune sortie valide du modèle ne
+Niveau 2 d'inventer une nouvelle catégorie : aucune sortie valide du modèle ne
 peut nommer un id qui n'existe pas déjà.** Un cas `aucune_correspondance` est
-journalisé dans `CandidatSphere` (`falkye/models/candidat_sphere.py`,
-`statut="a_examiner"`) — jamais auto-résolu, exactement comme la sphère
-"Financement / accès au capital" a été ajoutée par décision humaine après
-avoir croisé plusieurs personas (voir section précédente), jamais par un
-mécanisme automatique. `falkye sphere candidats` (réservé au mode opérateur —
-ce journal traverse tous les profils) liste ces cas pour révision.
+journalisé (`DiagnosticJournal`, `statut="a_examiner"`) — jamais auto-résolu,
+exactement comme la sphère "Financement / accès au capital" a été ajoutée par
+décision humaine après avoir croisé plusieurs personas (voir section
+précédente), jamais par un mécanisme automatique. `falkye diagnostic lister`
+(réservé au mode opérateur — ce journal traverse tous les profils) liste ces
+cas pour révision.
 
-Un cas rattaché à une sphère EXISTANTE peut silencieusement enrichir SON
-dictionnaire de synonymes (`SphereSynonyme(origine="ia_niveau2")`) — jamais
-`registry/spheres.yaml`, jamais la table `Sphere` elle-même.
+Un cas rattaché à une entrée EXISTANTE du catalogue peut silencieusement
+enrichir SON dictionnaire de synonymes (`SphereSynonyme`/`ClientCibleSynonyme`,
+`origine="ia_niveau2"`) — jamais le YAML source, jamais la table catalogue
+elle-même.
 
 **Toujours une proposition, jamais une classification silencieuse** : ni le
 Niveau 1 ni le Niveau 2 n'écrivent `profile_needs` — `falkye profile
-suggerer-sphere` (lecture seule) affiche la ou les suggestions, l'utilisateur
-confirme via `falkye profile add-need` s'il est d'accord.
+configurer-besoin` (aperçu par défaut) affiche la proposition, l'utilisateur
+confirme avec `--confirmer` s'il est d'accord.
 
 STATUT DE VALIDATION : construit et testé contre le SDK Anthropic mocké
-(`tests/test_assistance_sphere_ia.py`) — aucune clé `ANTHROPIC_API_KEY` réelle
-disponible dans cet environnement de développement, même situation que
-Stripe/HubSpot/Pipedrive (voir docs/STATUT_RESEAU.md).
+(`tests/test_assistance_sphere_ia.py`, `tests/test_assistance_client_cible_ia.py`)
+— aucune clé `ANTHROPIC_API_KEY` réelle disponible dans cet environnement de
+développement, même situation que Stripe/HubSpot/Pipedrive (voir
+docs/STATUT_RESEAU.md).
+
+## Sphère ↔ besoin plusieurs-à-plusieurs pondérée, dimension "qui", journal de diagnostic généralisé (spec section 8bis, 2026-09-03)
+
+**Déclencheur réel** : le cas Hector lui-même (voir "Retrait de 'Gestion
+d'inventaire et d'actifs'" plus haut) a exposé qu'un besoin peut légitimement
+appartenir à PLUSIEURS sphères à la fois — l'ancienne colonne unique
+`ProfileNeed.sphere_id` forçait un choix arbitraire entre deux candidats
+également valides (`technologie_systemes_ti` vs `production_operations_
+manufacturieres`) plutôt que de représenter les deux. Alexandre a demandé une
+architecture avant tout code, avec trois questions explicites à répondre :
+
+1. **Le regroupement grossier des secteurs REQ (`falkye/registry/
+   secteurs_grossiers.yaml`) peut-il servir de base à un registre "clientèle
+   cible" ?** Vérifié contre le vrai miroir REQ (2,7M lignes) avant de
+   concevoir quoi que ce soit : **invalide**. Le regroupement REQ classe des
+   ENTREPRISES par secteur d'activité économique — les organismes publics et
+   institutionnels (commissions scolaires, sociétés de transport,
+   municipalités, CISSS/CIUSSS) qui sont des clientèles cibles B2B tout à
+   fait réelles n'y apparaissent PAS comme catégorie distincte utile, parce
+   que le REQ ne couvre que les entités inscrites au registre des entreprises
+   — pas les organismes publics. D'où un registre `ClientCible` **totalement
+   indépendant** (`registry/clients_cibles.yaml`), avec une entrée
+   `organismes_publics_institutionnels` ajoutée SPÉCIFIQUEMENT pour combler
+   ce vide, jamais dérivée de `secteurs_grossiers`.
+2. **Comment les deux axes (confiance, pertinence) combinent-ils avec cette
+   nouvelle dimension "qui" ?** "Qui" ne devient JAMAIS un troisième axe
+   visible — il s'intègre au score de pertinence existant (bonus plafonné,
+   voir plus bas), jamais une indicateur d'en-tête séparé.
+3. **Traitement concret du "hors profil"** (désaccord confiant entre la
+   clientèle déclarée et la clientèle détectée de l'entreprise) : jamais un
+   malus silencieux sur le score — une REDIRECTION (canal séparé), réservée
+   Radar+.
+
+Alexandre a confirmé le design SANS réserve, puis ajouté deux exigences non
+négociables avant le code :
+
+- **Simplicité d'usage, pour le "quoi" ET le "qui"** : jamais un écran de
+  pourcentages à manipuler. Un seul point d'entrée conversationnel en texte
+  libre (`profile configurer-besoin`) — les poids sont CALCULÉS, une donnée
+  de transparence secondaire affichée après coup, pas l'interface
+  elle-même. Le raffinement manuel (`profile lier-sphere`, `profile
+  lier-client-cible`, `profile definir-sphere-principale`) reste disponible,
+  jamais une étape obligatoire.
+- **Départage d'égalité SANS règle mécanique** : quand le Niveau 1 trouve
+  plusieurs sphères à SCORE EXACTEMENT ÉGAL, ce n'est PAS une règle arbitraire
+  (ex. ordre alphabétique) qui tranche laquelle devient "la sphère
+  principale" — c'est le Niveau 2, avec son propre raisonnement contextuel
+  sur la description complète, exactement comme n'importe quel autre appel
+  Niveau 2. **"Le poids EST déjà le classement — aucune règle mécanique n'est
+  nécessaire"** (design confirmé par Alexandre) : la sphère avec le plus haut
+  poids retourné par le modèle EST la sphère principale, par construction,
+  sans champ ni règle séparée. L'utilisateur peut ensuite inverser ce choix
+  aussi simplement que possible (`profile definir-sphere-principale`).
+
+### Modèles
+
+`ProfileNeedSphere` (`profile_need_spheres`) et `ProfileNeedClientCible`
+(`profile_need_clients_cibles`) — deux tables de jonction pondérées
+(`poids: float`, défaut 100.0), miroir l'une de l'autre. **Aucune colonne
+`est_primaire` séparée** — la sphère/clientèle "principale" d'un besoin est
+TOUJOURS dérivée comme `max(poids)` au moment de la lecture
+(`ProfileNeed.sphere_principale()` / `.client_cible_principal()`), jamais
+une seconde source de vérité stockée qui pourrait diverger du poids réel.
+`ProfileNeed.sphere_id` est retiré ENTIÈREMENT (colonne supprimée, pas
+seulement dépréciée).
+
+`ClientCible` (`clients_cibles`) + `ClientCibleSynonyme`
+(`client_cible_synonymes`) — registre extensible, exact miroir de
+`Sphere`/`SphereSynonyme` (`est_personnalisee`/`proposee_par`, synchronisé
+depuis `registry/clients_cibles.yaml` par `db.seed_clients_cibles_from_
+registry`/`seed_client_cible_synonymes_from_registry`, jamais aucune
+entrée `origine="ia_niveau2"` touchée par le seed). Neuf entrées de
+départ, dont la sentinelle `aucune_restriction` (`ID_AUCUNE_RESTRICTION`,
+`falkye/models/client_cible.py`) — **une ligne RÉELLE du catalogue, PAS un
+second sentinel Niveau 2** : le modèle la sélectionne via le tableau normal
+`liens`, exactement comme n'importe quelle autre catégorie. Seul
+`aucune_correspondance` (le "je ne sais pas") reste un sentinel véritable
+pour la dimension "qui" — simplification retenue une fois réalisé que
+"aucune restriction" est naturellement sélectionnable depuis le catalogue
+normal, sans logique de schéma spéciale.
+
+`DiagnosticJournal` (`journal_diagnostic`, `TypeDiagnostic` enum :
+`candidat_sphere` / `candidat_client_cible` / `source_manquante`) remplace
+l'ancien `CandidatSphere`, à usage unique — `profile_id` désormais nullable
+(une source manquante journalisée manuellement peut ne se rattacher à AUCUN
+profil précis).
+
+`Notification.hors_profil: bool` (défaut `False`) — la marque de redirection
+pour un désaccord "qui" confiant.
+
+### Assistance IA généralisée (`falkye/assistance_ia.py`)
+
+Le moteur Niveau 1/Niveau 2 est désormais PARTAGÉ entre les deux dimensions
+plutôt que dupliqué : `falkye/assistance_sphere.py`/`assistance_client_
+cible.py` (Niveau 1, mots-clés) et `assistance_sphere_ia.py`/`assistance_
+client_cible_ia.py` (Niveau 2, enveloppes minces autour du moteur commun
+`assistance_ia.py`).
+
+**Schéma de sortie unifié — le changement central qui sert DEUX besoins à la
+fois** (design salué par Alexandre : "exactement le niveau d'élégance qu'on
+voulait") : au lieu de retourner UN id, le Niveau 2 retourne toujours un
+ENSEMBLE `liens: [{id, poids}]`. Ce même changement sert :
+1. le cas général plusieurs-sphères (un besoin peut légitimement toucher
+   plusieurs sphères à la fois, chacune avec son poids) ;
+2. le départage d'égalité (les poids retournés SONT le classement — pas de
+   champ ni de règle séparée pour désigner "la sphère principale").
+
+Deux modes d'appel distincts :
+- `classifier_niveau2(catalogue, sentinelles, ...)` — catalogue COMPLET +
+  sentinelle(s), utilisé quand le Niveau 1 échoue totalement (liste vide).
+- `departager_niveau2(candidats, ...)` — catalogue RESTREINT aux seuls
+  candidats retournés par le Niveau 1 (pas encore réduit aux seuls candidats
+  À ÉGALITÉ — simplification d'implémentation, le modèle pondère
+  naturellement), AUCUNE sentinelle (le Niveau 1 a déjà trouvé au moins une
+  correspondance, il ne s'agit plus de savoir SI ça correspond mais LEQUEL
+  domine), utilisé quand le Niveau 1 trouve un tie exact au score maximal.
+
+Les deux fonctions publiques ne prennent AUCUNE session DB — appels API purs,
+la persistance (journalisation, enrichissement de synonymes) reste la
+responsabilité des enveloppes minces (`assistance_sphere_ia.py`/
+`assistance_client_cible_ia.py`), qui appellent le moteur commun puis
+persistent le résultat.
+
+### Classification "qui" de l'entreprise détectée
+
+Réutilise TEL QUEL le matcher Niveau 1 existant (`suggerer_clients_cibles_
+niveau1`) contre `company.secteur_activite_libelle` — aucun nouveau
+mécanisme, gratuit, local. Décision délibérée compte tenu du gap de
+couverture institutionnelle du REQ déjà identifié (question 1 ci-dessus) :
+un effort raisonnable, pas une garantie, cohérent avec le principe de ne
+jamais construire un nouveau mécanisme de classification coûteux sans qu'il
+ait été demandé.
+
+### `matching.py` / `pertinence.py`
+
+`MatchResult.spheres_liees: list[SphereMatch]` — TOUTES les sphères liées au
+besoin (pas seulement la "sphère probable" du signal). `spheres_generiques_
+ids` — le SOUS-ENSEMBLE probable pour CE signal précis (résultat de
+l'intersection avec `spheres_probables(...)`).
+
+`pertinence.py::base_match_pour_sphere(match, sphere_id, ...)` remplace
+l'ancien `base_match()` à sphère unique — calcule la base A/AA/AAA pour UNE
+sphère précise du lien, mise à l'échelle par son poids
+(`base_x * (poids_lien / 100.0)`). `meilleure_sphere_pour_match(...)` choisit,
+parmi toutes les sphères liées d'un match, celle qui produit la meilleure
+base — c'est CETTE sphère qui devient `Notification.sphere_probable_id`,
+jamais un choix arbitraire.
+
+**Bonus "qui" (`BONUS_QUI_MAX = 12.0`) et redirection**
+(`bonus_et_redirection_qui`) :
+- Aucune clientèle cible configurée pour le besoin, OU le besoin porte
+  `aucune_restriction` parmi ses liens → bonus nul, jamais de redirection
+  (comportement par défaut sûr, cohérent avec "qui omis = non configuré,
+  aucun impact").
+- Intersection non vide entre la clientèle détectée de l'entreprise et la
+  clientèle liée au besoin → bonus proportionnel au poids du lien qui a
+  matché (jamais une redirection).
+- Clientèle du besoin connue, clientèle de l'entreprise connue, AUCUNE
+  intersection → **bonus nul, `hors_profil=True`** — jamais un malus. Un
+  désaccord confiant est un signal de ROUTAGE, pas une pénalité sur le
+  score : l'information peut rester pertinente pour un autre besoin/segment,
+  elle ne doit simplement pas se mêler au flux normal.
+- Clientèle de l'entreprise inconnue (best-effort du Niveau 1 échoué) →
+  bonus nul, PAS de redirection (absence de signal ≠ désaccord confiant).
+
+`calculer_pertinence(...)` prend maintenant `client_cible_ids_entreprise`/
+`clients_cibles_lies_besoin` (défauts `None` → liste vide, jamais fabriqués),
+`score = min(100.0, base + b_absence + b_velocite + b_qui)`.
+
+### `engine.py` — intégration et gating
+
+`_traiter_entreprise_pour_profil` choisit désormais la MEILLEURE sphère
+parmi toutes celles liées au besoin (`meilleure_sphere_pour_match`), plutôt
+que de comparer contre une seule sphère fixe. La classification "qui" de
+l'entreprise (et donc le bonus/la redirection) n'est calculée QUE pour un
+profil Radar+ — **gating étendu à TOUT l'axe "qui" (bonus ET redirection),
+pas seulement au canal hors-profil explicitement demandé** : extension
+assumée de ma part, cohérente avec les précédents de gating à un seul palier
+déjà en place ailleurs (`ponderation.py`, `webhook_channel.py`), présentée
+dans le plan et non contestée par Alexandre avant le codage.
+
+`deliver_notification()` : garde en tout début — une notification
+`hors_profil=True` n'emprunte AUCUN canal (email/webhook) ni push CRM. La
+ligne `Notification` elle-même reste écrite en base (créée par les mêmes
+portes confiance/pertinence qu'avant, JAMAIS un nouveau seuil de création) —
+seule la LIVRAISON est court-circuitée, pour que `dashboard voir` puisse
+l'afficher dans sa section séparée.
+
+### CLI
+
+`profile configurer-besoin` — point d'entrée conversationnel unique
+(`--usage`, `--client-cible` optionnel, aperçu par défaut, `--confirmer`
+pour créer). Logique d'escalade partagée (`_proposer_liens_spheres`/
+`_proposer_liens_client_cible`) : Niveau 1 → égalité exacte au score max ⇒
+`departager_..._niveau2` (repli sur poids égaux à 100 si le plan/la clé API
+manque — jamais un blocage dur) → non vide sans égalité ⇒ scores Niveau 1
+normalisés directement en poids 0-100 → vide ⇒ escalade au Niveau 2 complet
+ou échec proprement journalisé.
+
+`profile lier-sphere` / `profile lier-client-cible` (raffinement manuel,
+`--poids`) ; `profile definir-sphere-principale` (promeut une sphère au-delà
+du poids max actuel, `+1.0`, aucun plafond — accepté comme inoffensif).
+`diagnostic lister` / `diagnostic ajouter-source-manquante` remplacent
+`sphere candidats` (réservés au mode opérateur, journal généralisé). `profile
+add-need` ne prend plus `--sphere-id` — crée un besoin SANS sphère liée, à
+rattacher ensuite via `configurer-besoin` ou `lier-sphere`. `dashboard voir`
+scinde désormais ses cartes en deux sections : dossiers normaux, puis dossiers
+hors profil déclaré (Radar+), jamais mélangés.
+
+### Migration de la base de développement réelle
+
+Colonne `profile_needs.sphere_id` retirée (recréation de table SQLite —
+`DROP COLUMN` refusé tant qu'une contrainte de clé étrangère porte sur la
+colonne) ; table `candidats_spheres` (vide) supprimée au profit de
+`journal_diagnostic`. Cinq nouvelles tables créées (`profile_need_spheres`,
+`clients_cibles`, `client_cible_synonymes`, `profile_need_clients_cibles`,
+`journal_diagnostic`), registre `clients_cibles.yaml` semé (9 entrées).
+`notifications.hors_profil` ajoutée par `ALTER TABLE ... ADD COLUMN` (table
+préexistante, hors de portée de `init_db()`/`create_all`).
+
+**Le besoin réel d'Alexandre lui-même** (`profile #1`, "implantation
+Hector") a été réétabli comme lien pondéré :
+`ProfileNeedSphere(profile_need_id=1, sphere_id="technologie_systemes_ti",
+poids=100.0)` — exactement la même sphère que la réassignation précédente
+(voir "Retrait de 'Gestion d'inventaire et d'actifs'"), maintenant
+représentée sous la nouvelle forme N:N plutôt que perdue dans la migration.
+Vérifié après coup (`profile list`, mode opérateur) : le besoin affiche
+correctement `sphères : technologie_systemes_ti(100)`,
+`clientèle cible : non configuré` (jamais fabriqué — Alexandre n'a pas
+encore configuré cette dimension pour ce besoin, et son profil est au plan
+Écho, hors de portée du canal hors-profil de toute façon).
+
+Sauvegarde du fichier DB prise avant toute modification de schéma.
 
 ## Polyvalence d'utilisation (spec section 9, ajoutée le 2026-08-31)
 
