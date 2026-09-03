@@ -45,7 +45,7 @@ Promesse centrale : remplacer des heures de veille manuelle par une liste courte
 | Ville / région / état-province / pays | Localisation de l'utilisateur |
 | Rayon de déplacement acceptable | Distance/zone dans laquelle l'utilisateur est prêt à travailler |
 | Sphère(s) de besoin | Catégorie générique réutilisable — voir liste complète ci-dessous |
-| Service(s) précis | Spécifique à l'utilisateur (ex. Alexandre : implantation Hector) — **plusieurs paires sphère+service possibles en parallèle** |
+| Service(s) précis | Spécifique à l'utilisateur (ex. "implantation de systèmes ERP/WMS") — **plusieurs paires sphère+service possibles en parallèle** |
 | Sensibilité de notification | Seuil Faible/Moyen/Élevé filtrant les signaux selon leur score de confiance |
 
 Chaque paire sphère+service est scannée en parallèle ; la notification précise laquelle a matché.
@@ -65,7 +65,7 @@ Le produit tel que conçu pour le prototype 1 sert exclusivement le point de vue
 ### Mode de saisie
 
 - **Sphère de besoin :** liste prédéfinie (sélection dans la liste ci-dessus), pour que le système puisse faire correspondre automatiquement les signaux détectés à une catégorie cohérente. Extensible au besoin (voir ci-dessus).
-- **Service précis :** **texte libre**, saisi par l'utilisateur, car chaque utilisateur décrit sa spécialité avec ses propres mots (ex. "implantation Hector" pour Alexandre). Une liste fermée serait trop limitante ici.
+- **Service précis :** **texte libre**, saisi par l'utilisateur, car chaque utilisateur décrit sa spécialité avec ses propres mots (ex. "implantation de systèmes ERP/WMS"). Une liste fermée serait trop limitante ici.
 - Suggestion : ajouter en parallèle un ou deux **mots-clés/tags optionnels**, choisis ou extraits par l'utilisateur, pour enrichir le texte libre sans le remplacer et faciliter la correspondance future.
 
 ### Liste des sphères de besoin
@@ -155,8 +155,31 @@ Reprises depuis la charte FALKYE (section 7, grille de décision) : chaque fonct
    - **Niveau 1** : classification rapide et peu coûteuse (similarité de texte/embeddings, ou modèle léger) qui associe la description aux sphères déjà connues.
    - **Niveau 2, déclenché seulement quand le niveau 1 échoue à trouver une correspondance confiante** : un modèle plus capable analyse la description en profondeur pour comprendre pourquoi elle ne correspond à rien de connu. **Garde-fou obligatoire, cohérent avec le principe d'extensibilité (section 4/9) :** le niveau 2 peut enrichir silencieusement le dictionnaire de synonymes d'une sphère déjà existante (ex. reconnaître qu'une nouvelle formulation désigne une sphère connue) — mais **ne doit jamais créer seul une toute nouvelle sphère dans le registre officiel sans confirmation humaine**, exactement comme la sphère "Financement / accès au capital" a été ajoutée par décision humaine plutôt qu'automatiquement. Un cas que le niveau 2 ne peut rattacher à rien d'existant doit être journalisé comme candidat de nouvelle sphère à examiner, pas auto-créé.
    - **Bénéfice secondaire aligné avec la charte, section 8 :** un journal des descriptions mal classées devient une vraie source de découverte de nouvelles sphères, plutôt que d'attendre de tomber dessus par hasard.
-   - **Exemple concret illustrant pourquoi ce n'est pas trivial :** "Spécialiste de gestion d'inventaire et en implantation de solutions logistiques" (le cas d'usage d'origine du projet, Alexandre lui-même) ne correspond à aucune sphère dédiée dans le registre — volontairement retiré de la liste des sphères (section 4), parce que c'est un **service précis**, pas une catégorie de besoin générique. Ce texte doit se rattacher à une sphère existante — Logistique/transport/gestion de flotte ou Technologie/systèmes/TI sont deux candidates plausibles, sans qu'aucune ne soit évidemment la bonne réponse. C'est exactement le genre de cas ambigu que le Niveau 2 doit trancher, pas un choix à figer d'avance dans le registre.
-   - **Gating par plan à trancher :** un appel à un modèle de langage a un coût réel par utilisation — à réserver aux paliers payants (Écho n'étant lui-même jamais gratuit, dès 29,99$/mois, ça reste à trancher si Écho a accès à la version complète ou seulement au niveau 1, moins coûteux).
+   - **Exemple concret illustrant pourquoi ce n'est pas trivial :** un service qui touche à la fois à l'implantation d'un système logiciel et à une préoccupation opérationnelle (ex. gestion d'inventaire) peut légitimement se rattacher à plusieurs sphères existantes sans qu'aucune ne soit évidemment la seule bonne réponse. C'est exactement le genre de cas ambigu que le Niveau 2 doit trancher, pas un choix à figer d'avance dans le registre.
+   - **Gating par plan :** Niveau 1 gratuit, disponible à tous les plans y compris Écho (coût nul, pas un enrichissement de résultat). Niveau 2 réservé à Radar/Radar+, bascule binaire par plan, sans système de quota.
+
+### 8bis. Lien sphère↔service plusieurs-à-plusieurs, pondéré, et dimension "qui" (client cible) — architecture confirmée, en cours de construction
+
+Évolution du point 8 ci-dessus, née de la constatation qu'un service peut légitimement appartenir à plusieurs sphères à la fois (un cas réel a produit un partage à égalité exact entre deux sphères au Niveau 1 — forcer un seul gagnant aurait perdu du signal), et que la sphère répond seulement "quoi", jamais "à qui l'utilisateur veut vendre".
+
+**A. Lien plusieurs-à-plusieurs :** `ProfileNeed.sphere_id` retiré complètement (pas gardé en parallèle comme raccourci dénormalisé) au profit d'une table de jonction `ProfileNeedSphere` (profile_need_id, sphere_id, poids 0-100, contrainte d'unicité). Pas de colonne `est_primaire` séparée — dérivée du lien au poids le plus élevé, pour ne jamais avoir deux sources de vérité. Le même flux `profile suggerer-sphere` (Niveau 1/2) produit directement l'ensemble de liens pondérés, plutôt qu'un seul choix à retaper à la main.
+
+**B. Dimension "qui" (client cible) :** miroir structurel du mécanisme sphère (`ClientCible`, `ClientCibleSynonyme`, `ProfileNeedClientCible`), mais **jamais dérivé du regroupement de secteurs REQ** — vérifié contre le vrai miroir REQ (2,7M lignes) que les grands organismes publics/institutionnels (commissions scolaires, sociétés de transport) n'y apparaissent presque jamais comme entités elles-mêmes, et que le peu qui y apparaît (syndicats, fondations satellites) produit soit un faux ami, soit rien dans les 11 catégories existantes, toutes bâties sur une taxonomie commerciale privée. Un registre curé indépendant est nécessaire, incluant explicitement une catégorie institutionnelle/publique. **"Aucune restriction / s'applique largement" est une réponse positive et distincte**, jamais une absence — ne doit jamais escalader au Niveau 2 ni se journaliser comme cas non résolu, contrairement à "aucune correspondance trouvée".
+
+**C. Généralisation du journal de diagnostic :** `CandidatSphere` devient une table de diagnostic unique avec discriminant (`candidat_sphere` | `candidat_client_cible` | `source_manquante`), pour capturer aussi les cas "qui" non résolus et les sources manquantes trouvées en cours de route (ex. un fonds de subvention découvert en diagnostiquant un cas précis) — un seul mécanisme plutôt que trois séparés.
+
+**Combinaison dans le score de pertinence (A/AA/AAA), un seul indice affiché, cohérent avec le principe d'unification (section 6) :**
+- Correspondance qualitative (mot-clé précis du profil) → inchangée, jamais mise à l'échelle par un poids de sphère — preuve indépendante.
+- Sphère matchée = sphère principale (poids le plus élevé) → base AA × (poids/100).
+- Sphère matchée = sphère secondaire → base A × (poids/100). Un lien à poids 100 se comporte exactement comme avant l'évolution; un lien à poids 50 (partage exact) atterrit à mi-chemin.
+- Correspondance "qui" confirmée → bonus circonstanciel, même fourchette que les bonus déjà établis (+10 à +15), jamais un gate. Absence d'info → bonus nul, jamais un malus. **Désaccord confirmé** (le "qui" de l'entreprise est connu et ne correspond pas au "qui" déclaré) → ne devient jamais un malus silencieux, redirige plutôt vers le canal séparé ci-dessous.
+- Territoire : inchangé, reste un filtre en amont (gate binaire), pas un axe qui s'empile dans le score.
+
+**Canal "hors profil déclaré" — Radar+ seulement :** un signal qui correspond à la sphère mais tombe hors du "qui" déclaré est montré séparément dans le tableau de bord, étiqueté explicitement ("Hors profil déclaré — correspond à votre sphère mais pas à votre clientèle cible habituelle"), jamais fondu dans les notifications normales, jamais poussé par courriel/webhook par défaut, ne compte pas dans les seuils de sensibilité existants. Même cadence que la veille normale, juste un embranchement différent au moment du routage.
+
+**Deux exigences additionnelles, non négociables :**
+- **Simplicité d'utilisation pour le QUOI et le QUI** : peu importe la richesse du mécanisme (poids, sphères multiples, catégories), la configuration utilisateur reste une conversation en texte libre — l'IA propose une configuration complète prête à confirmer, jamais un écran de pourcentages à manipuler. Le raffinement manuel (`profile lier-sphere`) reste une option, jamais une étape obligatoire.
+- **Départage en cas de tie exact** : le Niveau 2 tranche quelle sphère devient principale selon son propre raisonnement contextuel — jamais une règle mécanique arbitraire (ordre alphabétique, premier trouvé). L'utilisateur peut inverser cet ordre après coup, aussi simplement que possible.
 
 Notées pour une feuille de route plus lointaine : rapports exportables automatisés en marque blanche, authentification SSO/SAML complète.
 
