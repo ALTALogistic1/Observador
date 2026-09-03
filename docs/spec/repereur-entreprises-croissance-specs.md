@@ -482,6 +482,36 @@ Le produit doit rester utilisable par une multitude de types d'utilisateurs, pas
 
 ## 9bis. Structure de plans tarifaires et portail de sources payantes
 
+### Référence unique — toutes les sources et toutes les décisions budgétaires, en un seul endroit
+
+**Ne jamais dupliquer cette liste ailleurs dans le document — toujours mettre à jour ici, et pointer vers cette section depuis partout ailleurs.**
+
+| Source | Utilité dans FALKYE | Écho | Radar | Radar+ | Manière de payer | Statut |
+|---|---|---|---|---|---|---|
+| REQ | Identification, dossier cumulatif, source Piste du Québec | ✓ | ✓ | ✓ | Gratuit | Actif |
+| SEAO | Contrats publics décrochés | ✓ | ✓ | ✓ | Gratuit | Actif |
+| Corporations Canada | Immatriculation fédérale | ✓ | ✓ | ✓ | Gratuit | Actif |
+| Investissement Québec | Subventions et financement public | ✓ | ✓ | ✓ | Gratuit | Actif |
+| EIMT positive | Recrutement, avec nom d'employeur | ✓ | ✓ | ✓ | Gratuit | Actif |
+| Guichet-Emplois | Recrutement, volume d'embauche | ✓ | ✓ | ✓ | Gratuit | Actif |
+| Deloitte Fast 50 | Classement de croissance | ✓ | ✓ | ✓ | Gratuit | Actif |
+| Licences Vancouver | Détection C.-B., source Réflexion | ✓ | ✓ | ✓ | Gratuit | Actif |
+| Licences Toronto | Détection Ontario, source Réflexion | ✓ | ✓ | ✓ | Gratuit | Actif |
+| Contrats Nouvelle-Écosse | Détection N.-É., source Réflexion | ✓ | ✓ | ✓ | Gratuit | Actif |
+| RDPRM | Enrichit le signal financement (garanties sur prêts) | — | ✓ | ✓ | Nous payons, à l'unité (11$/nom, 4$/NIV) | Actif, via import manuel |
+| TheirStack | Recrutement au-delà de Guichet-Emplois/EIMT | — | ✓ | ✓ | Nous payons, inclus dans l'abonnement client | Actif |
+| HubSpot | Intégration CRM | — | ✓ | ✓ | Le client paie son propre compte | Actif |
+| Pipedrive | Intégration CRM | — | ✓ | ✓ | Le client paie son propre compte | Actif |
+| Crunchbase | Financement par capital de risque privé | — | — | ✓ | Nous paierions (49-99$ US/mois) | **Décision jamais tranchée** |
+| Houski | Transactions immobilières commerciales | — | — | ✓ | Le client paie sa propre clé | Candidat, validation canadienne requise |
+| ProcureData | Contrats gouvernementaux multi-provinciaux | — | ✓ | ✓ | Nous paierions (49$/mois, palier gratuit à valider) | Candidat, jamais transmis à Claude Code |
+| Registre d'entreprises de Colombie-Britannique | Équivalent du REQ pour la C.-B. | — | ✓ | ✓ | Nous paierions (montant inconnu) | Question d'expansion territoriale, pas un choix de palier |
+| Consultation individuelle par NEQ | Vrais noms d'actionnaires/administrateurs (anonymisés dans l'extrait gratuit du gouvernement) | — | — | — | Nous paierions à l'unité | **Aucun palier assigné — zone grise LPRPDE (usage secondaire d'une donnée publique à des fins de prospection), avis juridique requis avant toute activation** |
+
+**Note sur "notre abonnement Houski" :** sert uniquement à valider le connecteur techniquement — jamais à servir de source partagée pour l'ensemble des clients Radar+, qui apportent chacun leur propre clé en production.
+
+### Structure de plans tarifaires
+
 Décidée après la conception initiale de ce document — trois plans, avec un seul chantier de portail sous-jacent, pas deux.
 
 | Plan | Prix | Sources | Portail |
@@ -496,7 +526,7 @@ Toute source ajoutée par un utilisateur Radar+ doit suivre le même gabarit de 
 
 **Décision de priorisation (premier cas concret à construire) :** plutôt que de bâtir le portail dans l'abstrait, on le construit contre un premier cas réel. Source payante prioritaire : **agrégateur de recrutement, fournisseur TheirStack confirmé** (choisi plutôt qu'Apify — API structurée et légale, conçue pour ce cas d'usage précis, vs une place de marché de scrapers avec risque de conformité aux conditions d'utilisation des plateformes sources), pour réactiver pleinement le signal recrutement au-delà de Guichet-Emplois/EIMT, au bénéfice du persona agences de recrutement (Radar) et de tous les personas qui utilisent la vitesse/le volume d'embauche comme signal croisé secondaire. Solution de paiement retenue pour la couche Radar : **Stripe**, choix standard pour ce type de produit au Canada.
 
-**Deuxième source payante candidate, pour Radar+ : Houski (houski.ca)**, API canadienne de données de propriétés, pour le persona courtiers immobilier commercial. Couverture commerciale confirmée réelle dans la documentation technique (champ `commercial_use`, `area_commercial_list_price_per_sq_m`, `expand_listing_event` pour les transactions/annonces) — pas seulement une mention marketing, contrairement à ce qu'une première recherche superficielle laissait croire (voir charte, section 8 : ne jamais présumer une limite non testée). 99$ US/mois minimum, payé à l'usage au-delà. **Validation en conditions réelles requise avant d'engager le budget de façon continue** — profondeur de couverture canadienne spécifiquement non confirmée dans la documentation seule.
+**Deuxième source payante candidate, pour Radar+ : Houski (houski.ca)**, API canadienne de données de propriétés, pour le persona courtiers immobilier commercial. Couverture commerciale confirmée réelle dans la documentation technique (champ `commercial_use`, `area_commercial_list_price_per_sq_m`, `expand_listing_event` pour les transactions/annonces) — pas seulement une mention marketing, contrairement à ce qu'une première recherche superficielle laissait croire (voir charte, section 8 : ne jamais présumer une limite non testée). 99$ US/mois minimum, payé à l'usage au-delà. **Validation en conditions réelles requise avant d'engager le budget de façon continue** — profondeur de couverture canadienne spécifiquement non confirmée dans la documentation seule. **Précision importante, cohérente avec le modèle Radar+ (section 9bis) : notre abonnement Houski sert uniquement à valider le connecteur techniquement — jamais à servir de source partagée pour l'ensemble des clients Radar+.** En production, chaque client Radar+ intéressé apporte et paie sa propre clé Houski, exactement comme HubSpot/Pipedrive — nous ne payons ni ne redistribuons cet accès à qui que ce soit.
 
 **Format standard des cartes de source dans le portail (Radar et Radar+) :** chaque option de source présentée au client doit afficher deux éléments, jamais une seule ligne générique — le **domaine/type de la source** et **l'avantage concret que cette source apporte**, pour que le client choisisse en connaissance de cause plutôt que sur un nom de marque seul. Gabarit à suivre pour toute source ajoutée au registre :
 
