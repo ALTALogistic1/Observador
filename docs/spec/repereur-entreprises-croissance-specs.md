@@ -462,6 +462,19 @@ Toute source ajoutée par un utilisateur Radar+ doit suivre le même gabarit de 
 
 **Décision de priorisation (premier cas concret à construire) :** plutôt que de bâtir le portail dans l'abstrait, on le construit contre un premier cas réel. Source payante prioritaire : **agrégateur de recrutement, fournisseur TheirStack confirmé** (choisi plutôt qu'Apify — API structurée et légale, conçue pour ce cas d'usage précis, vs une place de marché de scrapers avec risque de conformité aux conditions d'utilisation des plateformes sources), pour réactiver pleinement le signal recrutement au-delà de Guichet-Emplois/EIMT, au bénéfice du persona agences de recrutement (Radar) et de tous les personas qui utilisent la vitesse/le volume d'embauche comme signal croisé secondaire. Solution de paiement retenue pour la couche Radar : **Stripe**, choix standard pour ce type de produit au Canada.
 
+**Deuxième source payante candidate, pour Radar+ : Houski (houski.ca)**, API canadienne de données de propriétés, pour le persona courtiers immobilier commercial. Couverture commerciale confirmée réelle dans la documentation technique (champ `commercial_use`, `area_commercial_list_price_per_sq_m`, `expand_listing_event` pour les transactions/annonces) — pas seulement une mention marketing, contrairement à ce qu'une première recherche superficielle laissait croire (voir charte, section 8 : ne jamais présumer une limite non testée). 99$ US/mois minimum, payé à l'usage au-delà. **Validation en conditions réelles requise avant d'engager le budget de façon continue** — profondeur de couverture canadienne spécifiquement non confirmée dans la documentation seule.
+
+**Format standard des cartes de source dans le portail (Radar et Radar+) :** chaque option de source présentée au client doit afficher deux éléments, jamais une seule ligne générique — le **domaine/type de la source** et **l'avantage concret que cette source apporte**, pour que le client choisisse en connaissance de cause plutôt que sur un nom de marque seul. Gabarit à suivre pour toute source ajoutée au registre :
+
+| Source | Domaine/type | Avantage concret affiché |
+|---|---|---|
+| TheirStack | Agrégateur de données de recrutement | Signal de croissance via l'embauche active, au-delà de Guichet-Emplois/EIMT |
+| HubSpot | CRM marketing + vente unifiés | Pour unifier marketing et vente, ou si vous faites déjà du marketing entrant |
+| Pipedrive | CRM vente pure | Simple et rapide à configurer, abordable, pour une équipe de vente sans marketing intégré |
+| Houski | Données de propriétés commerciales/résidentielles (Canada/É.-U.) | Signal de transactions et d'évaluations immobilières commerciales, pour les courtiers |
+
+**Principe qui en découle, cohérent avec la charte section 8 :** ne jamais présumer qu'un client sait déjà quoi choisir entre deux options similaires — toujours vérifier et afficher la vraie distinction (comme HubSpot/Pipedrive, où la distinction réelle est la structure d'équipe et le besoin marketing, pas le secteur d'activité comme on l'avait d'abord supposé) plutôt qu'une affirmation plausible mais non vérifiée.
+
 
 
 Dès qu'une entreprise est détectée par une source, peu importe le signal, le système doit tenter de trouver son site web officiel et d'en extraire un contexte léger — ce processus se fait systématiquement, à chaque entreprise détectée, pas seulement pour celles qui franchissent le seuil de notification. C'est la **dernière étape du pipeline, juste avant l'avertissement de l'utilisateur** : elle bonifie le profil de l'entreprise repérée avant que la notification soit envoyée.

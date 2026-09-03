@@ -194,7 +194,13 @@ class CrmProviderDef:
     propriété/champ CRM, ajustable par connexion (falkye/models/
     crm_connection.py::CrmConnection.champs_mappage_override) — voir la note
     Pipedrive dans le YAML pour pourquoi ce n'est qu'un défaut, pas une vérité
-    universelle."""
+    universelle.
+
+    `domaine_type`/`avantage_concret` : format standard des cartes de source à
+    l'étape de connexion, portail Radar/Radar+ (spec section 9bis, ajouté le
+    2026-09-02) — jamais un nom de marque seul, toujours ces deux éléments
+    affichés ensemble pour que le client choisisse en connaissance de cause.
+    Voir `falkye crm fournisseurs`."""
 
     id: str
     nom: str
@@ -202,6 +208,8 @@ class CrmProviderDef:
     module: str | None
     objet_crm_cible: str | None
     champs_mappage: dict[str, str] = field(default_factory=dict)
+    domaine_type: str | None = None
+    avantage_concret: str | None = None
     notes: str | None = None
 
     @property

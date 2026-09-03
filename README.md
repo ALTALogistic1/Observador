@@ -207,6 +207,7 @@ python -m falkye.cli dashboard voir --profile-id 1 --sous-compte-id 1          #
 ### Intégration CRM (HubSpot, Pipedrive — Radar ET Radar+)
 
 ```bash
+python -m falkye.cli crm fournisseurs                 # cartes de source (domaine/type + avantage concret)
 python -m falkye.cli crm connecter --profile-id 1 --provider hubspot --jeton pat-xxxxx
 python -m falkye.cli crm mapper-statut --profile-id 1 --provider hubspot \
   --statut pas_pertinent --valeur-crm "Fermé perdu"   # correspondance statut ↔ étape CRM, une à la fois

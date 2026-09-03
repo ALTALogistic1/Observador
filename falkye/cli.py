@@ -374,6 +374,20 @@ def crm():
     set-webhook`), pas de flux OAuth2 — voir falkye/notifications/crm/base.py."""
 
 
+@crm.command("fournisseurs")
+def crm_fournisseurs():
+    """Liste les fournisseurs CRM disponibles — étape de connexion d'une
+    source, portail Radar/Radar+ (spec section 9bis, ajoutée le 2026-09-02) :
+    jamais un nom de marque seul, toujours le domaine/type ET l'avantage
+    concret affichés ensemble, pour que le client choisisse en connaissance
+    de cause avant d'appeler `crm connecter`."""
+    from falkye.registry.loader import get_registry
+
+    for p in get_registry().fournisseurs_crm_actifs():
+        click.echo(f"{p.nom} — {p.domaine_type or 'non documenté'}")
+        click.echo(f"  {p.avantage_concret or 'non documenté'}")
+
+
 @crm.command("connecter")
 @click.option("--profile-id", required=True, type=int)
 @click.option("--provider", "fournisseur", required=True, type=click.Choice(["hubspot", "pipedrive"]))

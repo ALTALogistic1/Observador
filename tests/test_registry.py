@@ -181,6 +181,25 @@ def test_registre_reel_hubspot_a_un_mappage_par_defaut_avec_statut_suivi():
     assert hubspot.champs_mappage["neq"] == "falkye_neq"
 
 
+def test_registre_reel_hubspot_et_pipedrive_ont_domaine_type_et_avantage_concret():
+    """Format standard des cartes de source à l'étape de connexion, portail
+    Radar/Radar+ (spec section 9bis, ajoutée le 2026-09-02) — jamais un nom de
+    marque seul. Texte exact du tableau de référence de la spec."""
+    registry = load_registry()
+
+    hubspot = registry.fournisseur_crm("hubspot")
+    assert hubspot.domaine_type == "CRM marketing + vente unifiés"
+    assert hubspot.avantage_concret == (
+        "Pour unifier marketing et vente, ou si vous faites déjà du marketing entrant"
+    )
+
+    pipedrive = registry.fournisseur_crm("pipedrive")
+    assert pipedrive.domaine_type == "CRM vente pure"
+    assert pipedrive.avantage_concret == (
+        "Simple et rapide à configurer, abordable, pour une équipe de vente sans marketing intégré"
+    )
+
+
 def test_fournisseur_crm_retourne_none_pour_un_id_inconnu():
     registry = load_registry()
     assert registry.fournisseur_crm("salesforce") is None

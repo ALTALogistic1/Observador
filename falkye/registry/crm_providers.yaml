@@ -13,6 +13,16 @@
 #   statut            actif | a_developper
 #   module            chemin du module (falkye.notifications.crm.<module>)
 #   objet_crm_cible   objet CRM utilisé pour représenter une entreprise repérée
+#   domaine_type      étape de connexion d'une source, portail Radar/Radar+
+#   avantage_concret  (spec section 9bis, "Format standard des cartes de
+#                      source") — jamais un nom de marque seul, toujours ces
+#                      deux éléments affichés ensemble pour que le client
+#                      choisisse en connaissance de cause plutôt que sur la
+#                      notoriété. Voir `falkye crm fournisseurs`. Même gabarit
+#                      prévu pour TheirStack (registry/sources.yaml) et Houski
+#                      une fois leurs cartes de sélection construites dans le
+#                      portail — pas ajouté à ces registres-là dans cette
+#                      passe, portée limitée au travail CRM déjà en cours.
 #   champs_mappage    {champ_falkye: propriété/champ CRM} par défaut — voir
 #                      falkye/notifications/crm/base.py::valeurs_a_pousser pour
 #                      la liste des champs_falkye disponibles. Ajustable par
@@ -26,6 +36,8 @@ crm_providers:
     statut: actif
     module: falkye.notifications.crm.hubspot_channel
     objet_crm_cible: "companies"
+    domaine_type: "CRM marketing + vente unifiés"
+    avantage_concret: "Pour unifier marketing et vente, ou si vous faites déjà du marketing entrant"
     champs_mappage:
       nom: name
       neq: falkye_neq
@@ -50,6 +62,8 @@ crm_providers:
     statut: actif
     module: falkye.notifications.crm.pipedrive_channel
     objet_crm_cible: "organizations"
+    domaine_type: "CRM vente pure"
+    avantage_concret: "Simple et rapide à configurer, abordable, pour une équipe de vente sans marketing intégré"
     champs_mappage:
       nom: name
       neq: falkye_neq

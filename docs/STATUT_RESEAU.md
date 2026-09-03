@@ -1500,3 +1500,28 @@ si le volume de notifications justifie l'investissement (normalisation
 contre un vrai référentiel externe, plus lourde à construire et à valider).
 
 **Construit et testé (316/316, dont 9 nouveaux).**
+
+## Cartes de source à l'étape de connexion — CRM (2026-09-02)
+
+Demande d'Alexandre, spec section 9bis mise à jour : chaque option de source
+présentée au client dans le portail (Radar/Radar+) doit afficher deux
+éléments, jamais un nom de marque seul — le domaine/type de la source et
+l'avantage concret qu'elle apporte, pour que le client choisisse en
+connaissance de cause. Portée limitée au travail CRM déjà en cours (demande
+explicite), pas une passe séparée.
+
+**Construit** : `CrmProviderDef.domaine_type`/`avantage_concret`
+(`registry/crm_providers.yaml`) — texte exact du tableau de référence de la
+spec (HubSpot : "CRM marketing + vente unifiés" / "Pour unifier marketing et
+vente, ou si vous faites déjà du marketing entrant" ; Pipedrive : "CRM vente
+pure" / "Simple et rapide à configurer, abordable, pour une équipe de vente
+sans marketing intégré"). Exposé via `falkye crm fournisseurs` (nouvelle
+commande, consultée avant `crm connecter`).
+
+TheirStack et Houski portent le même gabarit dans la spec (tableau de
+référence complet, section 9bis) mais ne sont PAS ajoutés à leurs registres
+respectifs dans cette passe — leurs cartes de sélection n'existent pas
+encore dans le portail (portée limitée par la demande d'Alexandre :
+"quand leurs cartes de sélection existeront"), noté pour plus tard.
+
+**Construit et testé (317/317, dont 1 nouveau).**

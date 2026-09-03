@@ -714,11 +714,26 @@ pertinence (spec section 4bis, `falkye/retroaction.py`) s'applique qu'un
 statut "Pas pertinent" vienne d'un clic au tableau de bord ou d'un
 changement lu côté CRM par `sonder_statuts_crm`.
 
-**CLI** : `crm connecter` (jeton + `identifiant_compte` + mappage override
-optionnel), `crm mapper-statut` (une correspondance statut ↔ étape CRM à la
-fois), `crm statut` (état de synchronisation par profil). `scan veille`
-affiche désormais le nombre de statuts synchronisés depuis un CRM
-(`ScanReport.nb_statuts_crm_synchronises`).
+**Cartes de source à l'étape de connexion, portail Radar/Radar+** (spec
+section 9bis, ajoutée le 2026-09-02) : chaque option de source présentée au
+client doit afficher DEUX éléments, jamais un nom de marque seul — le
+domaine/type de la source et l'avantage concret qu'elle apporte, pour que le
+client choisisse en connaissance de cause plutôt que sur la notoriété (ex.
+HubSpot vs Pipedrive : la vraie distinction est la structure d'équipe et le
+besoin marketing, pas le secteur d'activité). `CrmProviderDef.domaine_type`/
+`avantage_concret` (`registry/crm_providers.yaml`), exposés via `falkye crm
+fournisseurs` — texte exact du tableau de référence de la spec, pas une
+paraphrase. Même gabarit prévu pour TheirStack et Houski une fois leurs
+cartes de sélection construites dans le portail — pas ajouté à leurs
+registres dans cette passe, portée limitée au travail CRM déjà en cours
+(demande explicite d'Alexandre : "si ça s'insère facilement à ce stade").
+
+**CLI** : `crm fournisseurs` (cartes de source ci-dessus), `crm connecter`
+(jeton + `identifiant_compte` + mappage override optionnel), `crm
+mapper-statut` (une correspondance statut ↔ étape CRM à la fois), `crm
+statut` (état de synchronisation par profil). `scan veille` affiche
+désormais le nombre de statuts synchronisés depuis un CRM (`ScanReport.
+nb_statuts_crm_synchronises`).
 
 **Même limite de validation que TheirStack/Stripe/géocodage** : aucun accès
 réseau vers les vraies API HubSpot/Pipedrive dans cet environnement —
