@@ -51,7 +51,10 @@ signal_types:
       - "Récence de l'inscription ou du versement"
       - "Confirmation directe (nom + montant précis) vs mention indirecte"
     spheres_probables:
-      - gestion_inventaire_actifs
+      # gestion_inventaire_actifs retirée le 2026-09-03 (sphère supprimée du
+      # registre, voir registry/spheres.yaml) — les deux sphères restantes
+      # les plus proches (équipement/inventaire de production) couvrent déjà
+      # ce cas, jamais un dangling id laissé en place.
       - logistique_transport_flotte
       - production_operations_manufacturieres
       - comptabilite_finance_fiscalite

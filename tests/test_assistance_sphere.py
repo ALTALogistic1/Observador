@@ -25,6 +25,39 @@ def _semer_spheres(db_session):
     db_session.flush()
 
 
+def _semer_registre_reel(db_session):
+    """Sème db_session avec le VRAI registre (registry/spheres.yaml), pas une
+    liste réduite — utilisé pour valider un cas réel contre les synonymes
+    réellement livrés, pas une approximation de test."""
+    from falkye.registry.loader import load_registry
+
+    registry = load_registry()
+    for sphere_def in registry.spheres.values():
+        db_session.add(Sphere(id=sphere_def.id, nom=sphere_def.nom))
+        for texte in sphere_def.synonymes:
+            db_session.add(SphereSynonyme(sphere_id=sphere_def.id, texte=texte, origine="registre"))
+    db_session.flush()
+
+
+def test_cas_reel_ambigu_gestion_inventaire_logistique_vs_ti_echoue_au_niveau1(db_session):
+    """Régression du retrait de "gestion_inventaire_actifs" (2026-09-03,
+    correction d'architecture d'Alexandre — voir registry/spheres.yaml) :
+    "spécialiste de gestion d'inventaire et en implantation de solutions
+    logistiques" (le cas d'usage d'origine du projet lui-même) ne doit
+    correspondre à AUCUNE sphère au Niveau 1 contre le VRAI registre — le
+    pluriel "logistiques" ne matche pas le synonyme "logistique" (bornes de
+    mot strictes, comportement attendu et documenté, pas un bogue), et aucun
+    autre synonyme réel ne couvre ce texte. C'est CE constat, vérifié ici
+    contre les données réelles, qui doit déclencher l'escalade au Niveau 2
+    (voir tests/test_assistance_sphere_ia.py::
+    test_cas_reel_ambigu_gestion_inventaire_logistique_vs_ti)."""
+    _semer_registre_reel(db_session)
+    suggestions = suggerer_spheres_niveau1(
+        db_session, "Spécialiste de gestion d'inventaire et en implantation de solutions logistiques"
+    )
+    assert suggestions == []
+
+
 def test_trouve_la_sphere_avec_le_plus_de_mots_cles_matches(db_session):
     _semer_spheres(db_session)
     suggestions = suggerer_spheres_niveau1(

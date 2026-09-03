@@ -286,3 +286,19 @@ def test_registre_reel_a_les_quatre_sources_provinciales_attendues():
         "licences_toronto": "on",
     }
     assert all(isinstance(code, str) for code in codes.values())
+
+
+# --- Retrait de "gestion_inventaire_actifs" (correction d'architecture, 2026-09-03) ---
+
+
+def test_gestion_inventaire_actifs_retiree_du_registre_des_spheres():
+    """Ce n'était pas une catégorie de besoin générique mais un service précis
+    (le cas d'usage d'origine du projet) — retirée au profit d'un rattachement
+    par l'assistance IA à deux paliers (falkye/assistance_sphere.py /
+    falkye/assistance_sphere_ia.py). Régression : aucun dangling id ne doit
+    subsister nulle part dans le registre."""
+    registry = load_registry()
+    assert "gestion_inventaire_actifs" not in registry.spheres
+
+    signal_type = registry.signal_type("financement_expansion")
+    assert "gestion_inventaire_actifs" not in signal_type.spheres_probables

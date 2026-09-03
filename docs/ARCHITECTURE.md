@@ -1025,6 +1025,74 @@ encore validé contre un usage réel, à ajuster si l'usage le contredit,
 principe directeur #9). Extensible sans migration de code : ajouter une
 entrée au YAML suffit, suivant le même principe que le reste du registre.
 
+### Retrait de "Gestion d'inventaire et d'actifs" (correction d'architecture, 2026-09-03)
+
+Cette sphère était présente depuis la Phase 1 (reprise directement de la
+liste de départ de la spec, section 4) — mais Alexandre l'a identifiée
+après coup comme une erreur de catégorisation : ce n'était pas une
+catégorie de besoin GÉNÉRIQUE comme les autres sphères, c'était un
+**service précis** — le cas d'usage d'origine du projet lui-même
+(implantation Hector). Elle a été retirée au profit d'un rattachement par
+l'assistance IA à deux paliers (section précédente) plutôt que d'avoir sa
+propre sphère dédiée — cohérent avec le principe que le registre curé doit
+rester un ensemble de catégories vraiment génériques, pas une collection
+de services individuels.
+
+**Vérification avant suppression** (exigée explicitement par Alexandre,
+"pour ne rien casser silencieusement") — trois références réelles trouvées
+et traitées, aucune laissée en suspens :
+1. `registry/signal_types.yaml::financement_expansion.spheres_probables`
+   la listait — retirée de la liste ; les sphères restantes
+   (`logistique_transport_flotte`, `production_operations_manufacturieres`,
+   etc.) couvrent déjà le cas équipement/inventaire de production, aucun
+   remplacement n'était nécessaire.
+2. `README.md` l'utilisait comme exemple de `profile add-need` — remplacée
+   par `technologie_systemes_ti` (voir point 3).
+3. **La base de développement réelle** portait une référence bien réelle :
+   le `ProfileNeed` d'Alexandre lui-même (`profile #1`, "Implantation de
+   systèmes de gestion d'inventaire et d'actifs (Hector)"). Réassigné à
+   `technologie_systemes_ti` — décision informée par le Niveau 1 lui-même,
+   exécuté contre le texte réel de ce besoin (`implantation, gestion
+   d'inventaire, ERP, WMS, amélioration continue`) : deux candidats à
+   score égal (`technologie_systemes_ti` via "ERP",
+   `production_operations_manufacturieres` via "amélioration continue"),
+   `technologie_systemes_ti` retenu comme le plus spécifique des deux
+   (ERP/WMS nomment précisément le type de logiciel implanté, "amélioration
+   continue" est un terme générique qui ne décrit pas ce que fait
+   spécifiquement Hector) — **décision assumée, pas arbitraire, mais
+   ajustable par Alexandre en un mot s'il préfère l'autre candidat.**
+   Les 8 lignes `SphereSynonyme` propres à cette sphère (origine="registre")
+   ont aussi été supprimées de la base réelle (orphelines une fois la
+   sphère retirée du registre) avant la suppression de la ligne `Sphere`
+   elle-même, pour respecter la contrainte de clé étrangère sans jamais
+   avoir à la contourner.
+
+**Synonymes retirés, pas redistribués** : les mots-clés propres à cette
+sphère ("gestion d'inventaire", "RFID", "codes-barres", etc., voir
+`registry/spheres.yaml`) ont été supprimés purement et simplement, jamais
+rattachés en bloc à une autre sphère existante — les y rattacher aurait
+recréé exactement le raccourci que cette correction retire (un texte comme
+"gestion d'inventaire" doit désormais rester ambigu au Niveau 1 et
+escalader au Niveau 2, pas être pré-tranché par un mot-clé statique).
+
+**Cas de test réel retenu par Alexandre** : "spécialiste de gestion
+d'inventaire et en implantation de solutions logistiques" — volontairement
+ambigu entre `logistique_transport_flotte` et `technologie_systemes_ti`,
+sans réponse évidente d'avance. Confirmé contre le VRAI registre
+(`tests/test_assistance_sphere.py::
+test_cas_reel_ambigu_gestion_inventaire_logistique_vs_ti_echoue_au_niveau1`) :
+liste vide au Niveau 1 — le pluriel "logistiques" ne matche pas le synonyme
+"logistique" (bornes de mot strictes, comportement attendu, pas un bogue),
+confirmant que ce cas escalade correctement au Niveau 2. Testé côté Niveau 2
+avec le SDK Anthropic mocké
+(`tests/test_assistance_sphere_ia.py::
+test_cas_reel_ambigu_gestion_inventaire_logistique_vs_ti`) : le résultat
+retenu par le modèle doit être L'UNE des deux sphères plausibles du
+catalogue, jamais une troisième inventée — le garde-fou structurel
+(enum fermée, voir section précédente) validé sur ce cas réel précis, pas
+seulement sur un exemple synthétique. Validation en direct (vrai appel
+API) toujours en attente d'une clé `ANTHROPIC_API_KEY` réelle.
+
 ## Assistance à la configuration du profil par IA (spec Radar+, point 8, ajoutée le 2026-09-03)
 
 Le seul usage de ML retenu dans tout le produit — deux niveaux, jamais un seul
@@ -1123,7 +1191,9 @@ construit, toujours valide sur le fond (seul le nom du champ a changé) :
 - **Non modifié, jugé conforme** : l'ordre des sphères dans `spheres.yaml` (avec
   "Gestion d'inventaire et d'actifs" en premier) suit fidèlement l'ordre de la
   liste donnée par la spec elle-même (section 4) — ce n'est pas un choix de
-  priorisation du code.
+  priorisation du code. (Note historique : cette sphère a depuis été RETIRÉE du
+  registre le 2026-09-03 — voir section "Extensibilité des sphères de besoin"
+  plus bas — ce constat d'audit reste exact pour la date où il a été écrit.)
 - **Attribution de décisions produit** ("décision d'Alexandre" dans certains
   commentaires de `registry/*.yaml`) : conservée telle quelle — ça crédite qui a
   tranché une question budgétaire/produit (ex. statut du RDPRM), ça n'encode

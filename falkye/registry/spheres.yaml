@@ -15,17 +15,22 @@
 # fichier. La sphère elle-même (nom, id) reste inchangée par ce champ.
 
 spheres:
-  - id: gestion_inventaire_actifs
-    nom: "Gestion d'inventaire et d'actifs"
-    synonymes:
-      - "gestion d'inventaire"
-      - "gestion des stocks"
-      - "suivi d'actifs"
-      - "traçabilité des actifs"
-      - "codes-barres"
-      - "RFID"
-      - "entreposage"
-      - "gestion d'entrepôt"
+  # "Gestion d'inventaire et d'actifs" RETIRÉE le 2026-09-03 (correction
+  # d'architecture d'Alexandre) : ce n'était pas une catégorie de besoin
+  # générique comme les autres, c'était un SERVICE précis (le cas d'usage
+  # d'origine du projet lui-même, implantation Hector) — n'a jamais dû avoir
+  # sa propre sphère dédiée. Un texte décrivant ce service doit maintenant se
+  # rattacher à une sphère existante via l'assistance IA à deux paliers
+  # (falkye/assistance_sphere.py / falkye/assistance_sphere_ia.py), pas via
+  # un raccourci de mots-clés dédié — voir docs/ARCHITECTURE.md pour
+  # l'analyse complète, dont le cas de test volontairement ambigu retenu par
+  # Alexandre lui-même ("spécialiste de gestion d'inventaire et en
+  # implantation de solutions logistiques", entre Logistique/transport/
+  # gestion de flotte et Technologie/systèmes/TI, sans réponse évidente
+  # d'avance). Les synonymes propres à cette sphère (gestion d'inventaire,
+  # RFID, codes-barres, etc.) ont été retirés plutôt que redistribués à une
+  # autre sphère — les y rattacher directement aurait recréé le même
+  # raccourci que cette correction retire.
   - id: rh_recrutement_dotation
     nom: "Ressources humaines / recrutement / dotation"
     synonymes:

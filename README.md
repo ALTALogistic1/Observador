@@ -108,7 +108,7 @@ python -m falkye.cli profile create \
   --ville Montréal --region Montréal --etat-province Québec \
   --rayon-km 100 --sensibilite-confiance eleve --sensibilite-pertinence moyen
 python -m falkye.cli profile add-need \
-  --profile-id 1 --sphere-id gestion_inventaire_actifs \
+  --profile-id 1 --sphere-id technologie_systemes_ti \
   --usage "Implantation de systèmes de gestion d'inventaire et d'actifs" \
   --mots-cles "implantation,gestion d'inventaire,ERP,WMS"
 

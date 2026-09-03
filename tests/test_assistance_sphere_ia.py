@@ -163,3 +163,53 @@ def test_aucune_correspondance_journalise_un_candidat(db_session, monkeypatch, m
 
     # Jamais de sphère créée pour ce cas.
     assert db_session.query(Sphere).count() == 2
+
+
+# --- Cas réel volontairement ambigu (retenu par Alexandre le 2026-09-03, en
+# retirant "gestion_inventaire_actifs" du registre — voir registry/spheres.yaml
+# et docs/ARCHITECTURE.md, section "Extensibilité des sphères de besoin") ---
+
+
+def test_cas_reel_ambigu_gestion_inventaire_logistique_vs_ti(db_session, monkeypatch, mocker):
+    """"Spécialiste de gestion d'inventaire et en implantation de solutions
+    logistiques" (le cas d'usage d'origine du projet, Alexandre lui-même) ne
+    correspond à aucune sphère dédiée depuis le retrait de
+    "gestion_inventaire_actifs" du registre — volontairement ambigu entre
+    Logistique/transport/gestion de flotte et Technologie/systèmes/TI, sans
+    réponse évidente d'avance (confirmé côté Niveau 1 : aucune correspondance
+    locale, voir tests/test_assistance_sphere.py). Ce test valide que le
+    Niveau 2 reste capable de trancher — vers L'UNE des deux sphères
+    plausibles, jamais une troisième inventée — sur cette description réelle,
+    pas seulement sur un exemple synthétique."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-x")
+    profile = _profile(db_session, plan=PlanTarifaire.RADAR_PLUS)
+    _semer_spheres(db_session)  # cybersecurite + logistique_transport_flotte
+    db_session.add(Sphere(id="technologie_systemes_ti", nom="Technologie / systèmes / TI"))
+    db_session.flush()
+
+    _mock_reponse_anthropic(
+        mocker,
+        {
+            "sphere_id": "logistique_transport_flotte",
+            "confiance": "moyenne",
+            "raisonnement": (
+                "La gestion d'inventaire et l'implantation de solutions logistiques "
+                "relèvent d'abord de la chaîne logistique ; Technologie/systèmes/TI "
+                "serait aussi défendable, mais le vocabulaire employé (inventaire, "
+                "solutions logistiques) penche vers la logistique elle-même."
+            ),
+            "synonyme_a_retenir": "solutions logistiques",
+        },
+    )
+
+    suggestion = suggerer_sphere_niveau2(
+        db_session,
+        profile,
+        "Spécialiste de gestion d'inventaire et en implantation de solutions logistiques",
+    )
+
+    # Le résultat retenu par le modèle est L'UNE des deux sphères plausibles du
+    # catalogue — jamais une autre, jamais inventée (garde-fou structurel).
+    assert suggestion.sphere_id in {"logistique_transport_flotte", "technologie_systemes_ti"}
+    assert suggestion.candidat_sphere_id is None
+    assert suggestion.synonyme_retenu == "solutions logistiques"

@@ -1709,3 +1709,52 @@ présent pour `req`/`licences_toronto`/`licences_vancouver`/
 ce jour), pas un signe que le mécanisme échoue silencieusement.
 
 **Construit et testé (363/363, dont 15 nouveaux).**
+
+## Retrait de la sphère "Gestion d'inventaire et d'actifs" (2026-09-03)
+
+Correction d'architecture demandée par Alexandre : cette sphère n'était pas
+une catégorie de besoin générique mais un service précis (le cas d'usage
+d'origine du projet, implantation Hector) — retirée au profit d'un
+rattachement par l'assistance IA à deux paliers. Voir
+`docs/ARCHITECTURE.md`, section "Retrait de 'Gestion d'inventaire et
+d'actifs'", pour l'analyse complète.
+
+**Vérifié avant suppression, comme demandé explicitement** — trois
+références réelles trouvées, toutes traitées avant toute suppression :
+`registry/signal_types.yaml::financement_expansion.spheres_probables`
+(retirée, pas remplacée — les sphères restantes couvrent déjà le cas),
+`README.md` (exemple mis à jour vers `technologie_systemes_ti`), et **la
+base de développement réelle** — le `ProfileNeed` d'Alexandre lui-même
+(`profile #1`) référençait cette sphère.
+
+**Réassignation de la base réelle** : `ProfileNeed.sphere_id` du profil #1
+("Implantation de systèmes de gestion d'inventaire et d'actifs (Hector)")
+réassigné à `technologie_systemes_ti`. Décision informée par le Niveau 1
+lui-même, exécuté contre le texte réel de ce besoin
+(`falkye profile suggerer-sphere --profile-id 1 --description "..."`,
+mode opérateur) : deux candidats à score ÉGAL (`technologie_systemes_ti`
+via le mot-clé "ERP", `production_operations_manufacturieres` via
+"amélioration continue") — `technologie_systemes_ti` retenu comme choix le
+plus spécifique (ERP/WMS nomment précisément le type de logiciel implanté).
+**Décision assumée, ajustable en un mot par Alexandre s'il préfère
+l'autre candidat** — pas présentée comme la seule réponse possible. Les 8
+lignes `SphereSynonyme` propres à cette sphère (`origine="registre"`)
+supprimées de la base réelle avant la suppression de la ligne `Sphere`
+elle-même (ordre requis par la contrainte de clé étrangère). Vérifié après
+coup : `falkye init-db` idempotent (34 sphères, aucune orpheline),
+`profile list` confirme la réassignation.
+
+**Cas de test réel ajouté, retenu par Alexandre lui-même** : "spécialiste
+de gestion d'inventaire et en implantation de solutions logistiques" —
+volontairement ambigu entre Logistique/transport/gestion de flotte et
+Technologie/systèmes/TI. Confirmé contre le VRAI registre chargé
+(`falkye profile suggerer-sphere`, mode opérateur) : Niveau 1 échoue
+proprement (liste vide — "logistiques" au pluriel ne matche pas le
+synonyme "logistique", bornes de mot strictes, comportement attendu),
+déclenchant correctement l'escalade au Niveau 2. Testé côté Niveau 2 avec
+le SDK Anthropic mocké (aucune clé réelle disponible ici, même situation
+que partout ailleurs) : le garde-fou structurel (enum fermée) validé
+spécifiquement sur ce cas réel — le résultat retenu doit être l'une des
+deux sphères plausibles, jamais une troisième inventée.
+
+**Construit et testé (366/366, dont 3 nouveaux).**
