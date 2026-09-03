@@ -359,6 +359,91 @@ historiques (antérieures à cette restructuration) ont `score_pertinence`/
 `niveau_pertinence` = `NULL` — jamais de valeur inventée pour combler l'historique
 (principe directeur #1) ; affiché comme "non disponible" plutôt qu'un palier.
 
+## Détection d'expansion inter-provinciale (spec Radar+, point 7, ajoutée le 2026-09-03)
+
+"Nouvelle capacité générale, pas liée à une seule sphère" (spec) : repère quand
+une même entreprise apparaît dans les signaux de croissance de plusieurs
+provinces (ex. REQ au Québec ET licences Toronto/Vancouver ET contrats
+Nouvelle-Écosse), peu importe la sphère de besoin du profil qui la reçoit.
+
+**Limite honnête, non négociable (exigence explicite d'Alexandre avant tout
+code)** : aucun identifiant unique n'est partagé entre le REQ et les
+registres/licences des autres provinces — le seul rapprochement possible est
+PAR NOM, une heuristique imparfaite (faux positifs : deux entreprises
+différentes, nom similaire ; faux négatifs : même entreprise, raison sociale
+différente d'une province à l'autre). Jamais présenté comme garanti — deux
+garde-fous, jamais un seul :
+1. **Structurel** — le bonus de confiance qui en découle est plafonné à
+   `BONUS_EXPANSION_INTERPROVINCIALE_MAX = 15` points sur 100
+   (`falkye/scoring.py`), jamais assez à lui seul pour faire basculer un
+   signal faible en confiance élevée.
+2. **Textuel** — `justification_resumee` porte toujours un libellé
+   explicitement hedgé ("présence possible en Ontario — nom similaire à 87% —
+   à valider"), jamais présenté comme un fait acquis.
+
+**D'où vient "quelle province" pour une source** : `SourceDef.province_code`
+(`registry/sources.yaml`), un champ délibérément DISTINCT de `SourceDef.
+region` (texte libre à granularité incohérente — "Vancouver" vs "Québec" vs
+"Canada", impropre à une comparaison programmatique). Seules 4 sources le
+portent aujourd'hui : `req` → `qc`, `licences_vancouver` → `bc`,
+`licences_toronto` → `on`, `contrats_nouvelle_ecosse` → `ns`. Tout le reste
+(fédéral, national, classements pancanadiens) reste `None` — jamais deviné,
+simplement exclu du mécanisme.
+
+**Bogue réel trouvé et corrigé en construisant cette grille** : `province_code:
+on` NU (non quoté) dans le YAML était lu comme le booléen `True` par PyYAML
+(YAML 1.1 traite `on`/`off`/`yes`/`no` comme des mots-clés booléens) —
+`SourceDef("licences_toronto").province_code` valait `True`, pas la chaîne
+`"on"`. Corrigé en quotant explicitement (`province_code: "on"`), test de
+régression ajouté (`tests/test_registry.py::
+test_registre_reel_a_les_quatre_sources_provinciales_attendues`).
+
+**Le rapprochement lui-même** (`falkye/expansion_interprovinciale.py::
+detecter_expansions`) : `rapidfuzz.fuzz.WRatio`, même scorer déjà utilisé dans
+`falkye/resolution.py` et `falkye/sources/req.py` (un seul algorithme de
+correspondance floue dans tout le projet). Seuil plancher `SEUIL_
+RAPPROCHEMENT = 80` pour même enregistrer un lien candidat — plus bas que les
+92 de `resolution.py::SEUIL_RESOLUTION_CONFIANTE` (ici le rapprochement se
+fait par nom SEUL, entre deux registres différents, jamais confirmé par un
+identifiant commun comme le NEQ, donc structurellement plus faible), mais
+reste une vraie barre. Nouvelle table `LienInterprovincial`
+(`falkye/models/expansion_interprovinciale.py`) — un LIEN, JAMAIS une
+fusion : les deux `Company` (dossiers cumulatifs) restent distincts et
+traçables, seul le rapprochement est stocké, avec son score.
+
+Tourne en **passe par lot**, greffée sur `run_veille_continue` — APRÈS
+l'ingestion mais AVANT `generer_notifications` (le bonus doit déjà exister en
+base au moment où le score de chaque notification est calculé, sinon les
+liens détectés pendant CE cycle n'auraient d'effet qu'au cycle suivant).
+Rattrapage manuel via `falkye scan detecter-expansions` (balaye tout le
+dossier cumulatif — utile après l'activation initiale ou l'ajout d'une
+nouvelle source provinciale). Idempotent : ne recrée jamais un lien déjà
+enregistré pour la même paire.
+
+**Axe choisi : confiance, pas pertinence** — la pertinence répond à "est-ce
+que ÇA correspond à MON profil", l'expansion inter-provinciale ne dit rien
+sur le profil de l'utilisateur, elle dit "est-ce que cette entreprise est
+VRAIMENT en croissance" — une preuve corroborante de plus, dans l'esprit du
+bonus de corroboration multi-signaux déjà présent (`falkye/scoring.py::
+BONUS_CORROBORATION_*`) mais séparé et plafonné plus bas (structurellement
+plus faible, voir ci-dessus). `calculer_score` reste PUR (aucune requête DB) :
+le bonus est résolu une fois par `engine.py` (`expansion_interprovinciale.py::
+evaluer_pour_company`) et passé en paramètre, jamais calculé à l'intérieur de
+`scoring.py`.
+
+**Gating : RADAR minimum, jamais Écho** — décision produit d'Alexandre
+(2026-09-03), PAS une contrainte de coût technique (le calcul est local,
+aucun appel externe) : "un bonus qui améliore réellement la qualité d'un
+résultat déjà présent est un enrichissement, et notre principe est qu'aucun
+enrichissement de résultat ne reste dans Écho, peu importe son coût de
+calcul." Principe potentiellement réutilisable pour de futurs enrichissements
+similaires — noté ici pour référence, pas encore formalisé comme principe
+directeur global tant qu'un deuxième cas réel ne le confirme pas. Le gating
+vit dans `engine.py` (`if profile.plan != PlanTarifaire.ECHO`), jamais dans
+`expansion_interprovinciale.py` lui-même — même principe que
+`falkye/ponderation.py`/`falkye/pertinence.py`, où le module reste agnostique
+du plan et l'appelant gate au moment de l'usage.
+
 ## Structure de plans tarifaires et portail de sources payantes (spec section 9bis)
 
 Trois plans (`falkye/models/profile.py::PlanTarifaire`) — ÉCHO / RADAR / RADAR_PLUS,

@@ -260,3 +260,29 @@ def test_secteur_grossier_retourne_none_pour_un_id_inconnu():
 def test_secteur_grossier_retourne_la_definition_declaree():
     registry = Registry(secteurs_grossiers=[SecteurGrossierDef(id="a", nom="A", mots_cles=["x"])])
     assert registry.secteur_grossier("a").nom == "A"
+
+
+# --- province_code (spec Radar+, point 7, ajouté le 2026-09-03) ---
+
+
+def test_province_code_par_defaut_est_none():
+    source = _source("x", "actif")
+    assert source.province_code is None
+
+
+def test_registre_reel_a_les_quatre_sources_provinciales_attendues():
+    """Régression du bogue YAML réel trouvé en construisant cette grille : "on"
+    (Ontario) nu est lu comme booléen True par PyYAML (YAML 1.1) — doit rester
+    quoté ("on") dans sources.yaml, sinon licences_toronto.province_code
+    devient True au lieu de "on"."""
+    registry = load_registry()
+    codes = {
+        source_id: s.province_code for source_id, s in registry.sources.items() if s.province_code
+    }
+    assert codes == {
+        "req": "qc",
+        "contrats_nouvelle_ecosse": "ns",
+        "licences_vancouver": "bc",
+        "licences_toronto": "on",
+    }
+    assert all(isinstance(code, str) for code in codes.values())

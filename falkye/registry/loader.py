@@ -64,6 +64,14 @@ class SourceDef:
     # (falkye/engine.py) — jamais l'ingestion elle-même, qui reste globale au
     # dossier cumulatif (spec section 5) comme pour toute autre source.
     plan_minimum: str = "echo"
+    # Détection d'expansion inter-provinciale (spec Radar+, point 7, ajoutée le
+    # 2026-09-03) — code de PROVINCE précis (qc/on/bc/ns/...), délibérément
+    # DISTINCT de `region` ci-dessus (texte libre à granularité incohérente —
+    # "Vancouver" vs "Québec" vs "Canada", impropre à une comparaison
+    # programmatique). None = territoire non provincial (fédéral, national,
+    # pancanadien) ou pas encore cartographié — jamais deviné, la source est
+    # simplement exclue du mécanisme (falkye/expansion_interprovinciale.py).
+    province_code: str | None = None
 
     @property
     def est_actif(self) -> bool:

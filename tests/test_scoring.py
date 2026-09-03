@@ -158,3 +158,42 @@ def test_calculer_score_leve_erreur_sans_signal():
 )
 def test_franchit_seuil_sensibilite(niveau, sensibilite, attendu):
     assert franchit_seuil_sensibilite(niveau, sensibilite) == attendu
+
+
+# --- bonus_expansion_interprovinciale (spec Radar+, point 7, ajouté le 2026-09-03) ---
+
+
+def test_bonus_expansion_interprovinciale_absent_par_defaut():
+    now = datetime.now(timezone.utc)
+    result = calculer_score([_signal("registre_corporatif", detected_at=now, champs={
+        "type_changement": "nouvel_etablissement",
+    })], now=now)
+    assert result.bonus_expansion_interprovinciale == 0.0
+
+
+def test_bonus_expansion_interprovinciale_s_ajoute_au_score():
+    now = datetime.now(timezone.utc)
+    sans_bonus = calculer_score(
+        [_signal("registre_corporatif", detected_at=now, champs={"type_changement": "changement_adresse"})],
+        now=now,
+    )
+    avec_bonus = calculer_score(
+        [_signal("registre_corporatif", detected_at=now, champs={"type_changement": "changement_adresse"})],
+        now=now,
+        bonus_expansion_interprovinciale=15.0,
+    )
+    assert avec_bonus.score_confiance == pytest.approx(sans_bonus.score_confiance + 15.0)
+    assert avec_bonus.bonus_expansion_interprovinciale == 15.0
+
+
+def test_bonus_expansion_interprovinciale_plafonne_meme_si_lappelant_depasse():
+    """Garde-fou structurel (falkye/expansion_interprovinciale.py) : même si un
+    appelant passait par erreur une valeur au-delà du plafond, calculer_score
+    ne la laisse jamais s'appliquer telle quelle."""
+    now = datetime.now(timezone.utc)
+    result = calculer_score(
+        [_signal("registre_corporatif", detected_at=now, champs={"type_changement": "changement_adresse"})],
+        now=now,
+        bonus_expansion_interprovinciale=999.0,
+    )
+    assert result.bonus_expansion_interprovinciale == 15.0

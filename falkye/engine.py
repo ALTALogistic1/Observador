@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from falkye import pertinence, ponderation, retroaction
+from falkye import expansion_interprovinciale, pertinence, ponderation, retroaction
 from falkye.crm_sync import pousser_notification_vers_crm, sonder_statuts_crm
 from falkye.db import get_session
 from falkye.enrichment import enrichir_entreprise
@@ -30,7 +30,7 @@ from falkye.models.notification import (
     NotificationDelivery,
     NotificationSignal,
 )
-from falkye.models.profile import Profile
+from falkye.models.profile import PlanTarifaire, Profile
 from falkye.models.run_log import SourceRunLog
 from falkye.models.signal import Signal
 from falkye.notifications.formatter import formatter_notification
@@ -62,6 +62,11 @@ class ScanReport:
     # CRM ajoutée le 2026-09-02) — 0 par défaut pour run_recherche_ponctuelle,
     # qui ne sonde pas (voir run_veille_continue, seul mode où le sondage a lieu).
     nb_statuts_crm_synchronises: int = 0
+    # Détection d'expansion inter-provinciale (falkye/expansion_
+    # interprovinciale.py, spec Radar+ point 7, ajoutée le 2026-09-03) — 0 par
+    # défaut pour run_recherche_ponctuelle, même raison que ci-dessus (passe
+    # par lot greffée sur le cycle de veille continue seulement).
+    nb_liens_interprovinciaux_detectes: int = 0
 
 
 def ingest_source(
@@ -286,12 +291,23 @@ def _traiter_entreprise_pour_profil(
     if not company.est_presentable():
         return None  # exclusion silencieuse (spec section 6)
 
+    # Détection d'expansion inter-provinciale (spec Radar+, point 7, ajoutée le
+    # 2026-09-03) — bonus de confiance, RÉSERVÉ AU PLAN RADAR MINIMUM (jamais
+    # Écho, même si le calcul lui-même est gratuit : décision produit
+    # d'Alexandre, "aucun enrichissement de résultat ne reste dans Écho, peu
+    # importe son coût de calcul" — voir falkye/expansion_interprovinciale.py).
+    evaluation_expansion = expansion_interprovinciale.EvaluationExpansion(bonus=0.0, texte_hedge=None)
+    if profile.plan != PlanTarifaire.ECHO:
+        evaluation_expansion = expansion_interprovinciale.evaluer_pour_company(db_session, company)
+
     # Deux axes indépendants, combinés en MATRICE — pas en moyenne (spec section 6,
     # restructurée) : un signal peu pertinent n'est jamais montré même si sa
     # confiance est élevée, et vice-versa. Chaque axe a son propre curseur de
     # sensibilité (Profile.sensibilite_confiance / sensibilite_pertinence) ; les
     # DEUX portes doivent s'ouvrir, sans compensation possible de l'une par l'autre.
-    score_result = calculer_score(signaux_pertinents)
+    score_result = calculer_score(
+        signaux_pertinents, bonus_expansion_interprovinciale=evaluation_expansion.bonus
+    )
     poids_sphere = retroaction.poids_pour_sphere(db_session, profile.id, sphere_choisie)
     pertinence_result = pertinence.calculer_pertinence(
         company,
@@ -324,6 +340,12 @@ def _traiter_entreprise_pour_profil(
             f"(confiance), pertinence {pertinence_result.niveau.value}"
             + (f" (+{pertinence_result.bonus_absence:.0f} absence)" if pertinence_result.bonus_absence else "")
             + (f" (+{pertinence_result.bonus_velocite:.0f} vélocité)" if pertinence_result.bonus_velocite else "")
+            + (
+                f" (+{score_result.bonus_expansion_interprovinciale:.0f} pts, "
+                f"{evaluation_expansion.texte_hedge})"
+                if evaluation_expansion.texte_hedge
+                else ""
+            )
             + "."
         ),
     )
@@ -403,6 +425,15 @@ def run_veille_continue(profile_ids: list[int] | None = None, lookback_days: int
         since = datetime.now(timezone.utc) - timedelta(days=lookback_days)
         ingestion = ingest_all_active_sources(db_session, since, registry, mode="veille_continue")
 
+        # Détection d'expansion inter-provinciale (falkye/expansion_
+        # interprovinciale.py, spec Radar+ point 7) — greffée ICI, APRÈS
+        # l'ingestion mais AVANT generer_notifications : le bonus de confiance
+        # qu'elle alimente doit déjà exister en base au moment où
+        # _traiter_entreprise_pour_profil calcule le score de chaque
+        # notification, sans quoi les liens détectés PENDANT ce cycle
+        # n'auraient d'effet qu'au cycle SUIVANT.
+        nouveaux_liens = expansion_interprovinciale.detecter_expansions(db_session, registry)
+
         query = select(Profile)
         if profile_ids:
             query = query.where(Profile.id.in_(profile_ids))
@@ -422,6 +453,7 @@ def run_veille_continue(profile_ids: list[int] | None = None, lookback_days: int
             ingestion=ingestion,
             nb_notifications_creees=len(notifications),
             nb_statuts_crm_synchronises=nb_statuts_crm,
+            nb_liens_interprovinciaux_detectes=len(nouveaux_liens),
         )
     finally:
         db_session.close()

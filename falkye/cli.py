@@ -976,6 +976,34 @@ def scan_ponctuel(profile_id, lookback_days, historique_complet):
     _afficher_rapport(report)
 
 
+@scan.command("detecter-expansions")
+def scan_detecter_expansions():
+    """Rattrapage manuel de la détection d'expansion inter-provinciale (spec
+    Radar+, point 7) — balaye TOUT le dossier cumulatif plutôt que la passe
+    incrémentale déjà greffée sur `scan veille`. Utile après l'activation
+    initiale du mécanisme ou l'ajout d'une nouvelle source à
+    SourceDef.province_code. Idempotent : ne recrée jamais un lien déjà
+    enregistré."""
+    from falkye.db import get_session
+    from falkye.expansion_interprovinciale import detecter_expansions
+    from falkye.registry.loader import get_registry
+
+    session = get_session()
+    try:
+        registry = get_registry()
+        nouveaux = detecter_expansions(session, registry)
+        session.commit()
+        click.echo(f"Liens inter-provinciaux détectés : {len(nouveaux)}")
+        for lien in nouveaux:
+            click.echo(
+                f"  #{lien.id} : company #{lien.company_id_a} ({lien.province_a}) "
+                f"<-> company #{lien.company_id_b} ({lien.province_b}) — "
+                f"score {lien.score_correspondance:.0f}"
+            )
+    finally:
+        session.close()
+
+
 def _afficher_rapport(report):
     click.echo(f"Mode : {report.mode.value}")
     for r in report.ingestion:
@@ -986,6 +1014,8 @@ def _afficher_rapport(report):
     click.echo(f"Notifications créées : {report.nb_notifications_creees}")
     if report.nb_statuts_crm_synchronises:
         click.echo(f"Statuts synchronisés depuis un CRM : {report.nb_statuts_crm_synchronises}")
+    if report.nb_liens_interprovinciaux_detectes:
+        click.echo(f"Liens inter-provinciaux détectés : {report.nb_liens_interprovinciaux_detectes}")
 
 
 @cli.group()

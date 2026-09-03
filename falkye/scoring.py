@@ -28,6 +28,17 @@ FRAICHEUR_PLANCHER = 0.15
 BONUS_CORROBORATION_PAR_TYPE_SUPPLEMENTAIRE = 12.0
 BONUS_CORROBORATION_MAX = 30.0
 
+# Détection d'expansion inter-provinciale (spec Radar+, point 7, ajoutée le
+# 2026-09-03) — bonus séparé, PLAFONNÉ PLUS BAS que la corroboration
+# multi-signaux ci-dessus (15 vs 30) parce que le rapprochement par nom entre
+# deux registres différents est structurellement une preuve plus faible
+# qu'une vraie corroboration au sein d'un même registre. Valeur calculée par
+# falkye/expansion_interprovinciale.py::evaluer_pour_company (jamais résolue
+# ici : ce module reste pur, sans dépendance DB — voir calculer_score
+# ci-dessous, appelé par falkye/engine.py avec la valeur déjà résolue et le
+# plan déjà vérifié, réservé Radar minimum, jamais Écho).
+BONUS_EXPANSION_INTERPROVINCIALE_MAX = 15.0
+
 SEUIL_ELEVE = 70.0
 SEUIL_MOYEN = 40.0
 
@@ -170,12 +181,23 @@ class ScoreResult:
     niveau: NiveauConfiance
     detail_par_signal: dict[int, float]  # signal.id -> contribution (base * fraîcheur)
     bonus_corroboration: float
+    bonus_expansion_interprovinciale: float = 0.0
 
 
-def calculer_score(signaux: list[Signal], now: datetime | None = None) -> ScoreResult:
+def calculer_score(
+    signaux: list[Signal],
+    now: datetime | None = None,
+    bonus_expansion_interprovinciale: float = 0.0,
+) -> ScoreResult:
     """Calcule le score unifié pour un groupe de signaux contribuant à une même
     notification consolidée (même Company, spec section 6 "corroboration
-    multi-signaux")."""
+    multi-signaux").
+
+    `bonus_expansion_interprovinciale` : valeur DÉJÀ résolue par l'appelant
+    (falkye/expansion_interprovinciale.py::evaluer_pour_company), jamais
+    calculée ici — ce module reste pur (aucune requête DB), comme avant
+    l'ajout de ce mécanisme. 0.0 par défaut = comportement inchangé pour tout
+    appelant qui ne le passe pas."""
     if not signaux:
         raise ValueError("calculer_score nécessite au moins un signal")
 
@@ -197,7 +219,9 @@ def calculer_score(signaux: list[Signal], now: datetime | None = None) -> ScoreR
         (len(types_distincts) - 1) * BONUS_CORROBORATION_PAR_TYPE_SUPPLEMENTAIRE,
     )
 
-    score_final = max(0.0, min(100.0, score_dominant + bonus))
+    bonus_expansion = max(0.0, min(BONUS_EXPANSION_INTERPROVINCIALE_MAX, bonus_expansion_interprovinciale))
+
+    score_final = max(0.0, min(100.0, score_dominant + bonus + bonus_expansion))
 
     if score_final >= SEUIL_ELEVE:
         niveau = NiveauConfiance.ELEVE
@@ -211,6 +235,7 @@ def calculer_score(signaux: list[Signal], now: datetime | None = None) -> ScoreR
         niveau=niveau,
         detail_par_signal=contributions,
         bonus_corroboration=bonus,
+        bonus_expansion_interprovinciale=bonus_expansion,
     )
 
 

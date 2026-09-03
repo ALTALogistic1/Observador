@@ -129,6 +129,7 @@ sources:
       - date_derniere_maj
     cout: gratuit
     region: "Québec"
+    province_code: qc  # détection d'expansion inter-provinciale, spec Radar+ point 7 (voir falkye/expansion_interprovinciale.py)
     connecteur: falkye.sources.req  # conservé pour detect_from_file — pas appelé par la boucle automatisée (methode_acces=import_manuel)
     regle_calibration: >
       Seuls deux types de changement génèrent un signal : nouvel établissement
@@ -702,6 +703,7 @@ sources:
       - description_sommaire
     cout: gratuit
     region: "Nouvelle-Écosse"
+    province_code: ns  # détection d'expansion inter-provinciale, spec Radar+ point 7 (voir falkye/expansion_interprovinciale.py)
     connecteur: falkye.sources.contrats_nouvelle_ecosse
     regle_calibration: >
       Même logique que SEAO/contrats_federaux (voir leurs regle_calibration
@@ -743,6 +745,7 @@ sources:
       - date_emission
     cout: gratuit
     region: "Vancouver"
+    province_code: bc  # détection d'expansion inter-provinciale, spec Radar+ point 7 (voir falkye/expansion_interprovinciale.py)
     connecteur: falkye.sources.licences_vancouver
     regle_calibration: >
       NON NÉGOCIABLE avant activation (spec section 7, "Principe de calibration"),
@@ -801,6 +804,7 @@ sources:
       - date_emission
     cout: gratuit
     region: "Toronto"
+    province_code: "on"  # détection d'expansion inter-provinciale, spec Radar+ point 7 (voir falkye/expansion_interprovinciale.py) — quoté : "on" nu serait lu comme booléen par PyYAML (YAML 1.1)
     connecteur: falkye.sources.licences_toronto
     regle_calibration: >
       Même règle "NON NÉGOCIABLE" que licences_vancouver (voir sa

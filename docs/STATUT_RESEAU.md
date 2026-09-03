@@ -1651,3 +1651,61 @@ avec l'absence de clé API). Vérifié après coup : les tables existantes sont
 inchangées.
 
 **Construit et testé (348/348, dont 12 nouveaux).**
+
+## Détection d'expansion inter-provinciale (2026-09-03)
+
+Spec Radar+, point 7. Plan confirmé par Alexandre le 2026-09-03 après deux
+questions ouvertes tranchées explicitement : `province_code` inline sur
+`SourceDef` (plutôt qu'un registre séparé) et gating par plan — d'abord
+proposé universel (aucun coût de calcul), puis CORRIGÉ par Alexandre en
+RADAR minimum : "un bonus qui améliore réellement la qualité d'un résultat
+déjà présent est un enrichissement, et notre principe est qu'aucun
+enrichissement de résultat ne reste dans Écho, peu importe son coût de
+calcul." Voir `docs/ARCHITECTURE.md`, section "Détection d'expansion
+inter-provinciale", pour l'analyse complète.
+
+**Construit** :
+- `registry/sources.yaml::SourceDef.province_code` — renseigné pour les 4
+  sources dont le territoire est une province précise et vérifiable (req=qc,
+  licences_vancouver=bc, licences_toronto=on, contrats_nouvelle_ecosse=ns) ;
+  `None` partout ailleurs (fédéral/national/pancanadien), jamais deviné.
+- **Bogue réel trouvé et corrigé en construisant cette grille** :
+  `province_code: on` NU dans le YAML était lu comme le booléen Python
+  `True` par PyYAML (YAML 1.1 traite `on`/`off`/`yes`/`no` comme des
+  mots-clés booléens, pas seulement `true`/`false`) — confirmé en
+  interrogeant le registre chargé (`SourceDef("licences_toronto").
+  province_code == True`, pas `"on"`). Corrigé en quotant explicitement
+  (`province_code: "on"`) avant toute utilisation en aval ; test de
+  régression ajouté (`tests/test_registry.py::
+  test_registre_reel_a_les_quatre_sources_provinciales_attendues`) pour que
+  ce piège classique de YAML ne puisse pas se reproduire silencieusement sur
+  un futur ajout de province.
+- `falkye/models/expansion_interprovinciale.py::LienInterprovincial` — un
+  LIEN, jamais une fusion des deux `Company` concernés.
+- `falkye/expansion_interprovinciale.py` — `detecter_expansions` (passe par
+  lot, `rapidfuzz.fuzz.WRatio`, seuil 80, idempotent) et `evaluer_pour_
+  company` (bonus de confiance plafonné à 15, mis à l'échelle linéaire entre
+  le seuil et 100 ; libellé toujours hedgé, jamais un fait).
+- `falkye/scoring.py` — `BONUS_EXPANSION_INTERPROVINCIALE_MAX = 15`,
+  `calculer_score` accepte le bonus déjà résolu en paramètre (module resté
+  pur, aucune requête DB ajoutée).
+- `falkye/engine.py::run_veille_continue` — passe de détection greffée APRÈS
+  l'ingestion, AVANT `generer_notifications` (le bonus doit exister en base
+  avant que le score de chaque notification soit calculé). Gating `if
+  profile.plan != PlanTarifaire.ECHO` au point d'usage
+  (`_traiter_entreprise_pour_profil`), jamais dans le module lui-même — même
+  principe que `falkye/ponderation.py`/`falkye/pertinence.py`.
+- CLI : `falkye scan detecter-expansions` (rattrapage manuel, balaye tout le
+  dossier cumulatif) ; `_afficher_rapport` affiche le compteur de nouveaux
+  liens pour `scan veille`.
+
+**Migration de la base de développement réelle** : table
+`liens_interprovinciaux` créée (`init_db()`, additif). `falkye scan
+detecter-expansions` exécuté contre la base réelle : **0 lien détecté** —
+résultat honnête et attendu, vérifié en amont (aucun signal réel encore
+présent pour `req`/`licences_toronto`/`licences_vancouver`/
+`contrats_nouvelle_ecosse` dans cette base — seuls `seao` (2065),
+`investissement_quebec` (953) et `contrats_federaux` (2) ont des signaux à
+ce jour), pas un signe que le mécanisme échoue silencieusement.
+
+**Construit et testé (363/363, dont 15 nouveaux).**

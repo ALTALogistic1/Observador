@@ -251,9 +251,27 @@ journalisé pour examen humain, jamais auto-résolu. Toujours une proposition à
 confirmer via `profile add-need`, jamais une classification silencieuse. Voir
 `docs/ARCHITECTURE.md` pour le détail complet.
 
+### Détection d'expansion inter-provinciale (Radar minimum)
+
+```bash
+python -m falkye.cli scan detecter-expansions   # rattrapage manuel, balaie tout le dossier cumulatif
+```
+
+Repère quand une même entreprise apparaît dans les signaux de croissance de
+plusieurs provinces (ex. REQ au Québec ET licences Toronto/Vancouver ET
+contrats Nouvelle-Écosse) — rapprochement PAR NOM seulement (aucun
+identifiant unique partagé entre ces registres), jamais présenté comme
+garanti : bonus de confiance plafonné à 15 points sur 100, toujours accompagné
+d'un libellé hedgé ("nom similaire à 87% — à valider") dans la notification.
+Passe par lot greffée sur `scan veille`. Réservé au plan Radar minimum —
+décision produit, pas une contrainte de coût (le calcul est local) : "aucun
+enrichissement de résultat ne reste dans Écho". Voir `docs/ARCHITECTURE.md`
+pour le détail complet.
+
 Les fonctionnalités Radar+ ci-dessus sont réservées au plan Radar+
-(`PlanTarifaire.RADAR_PLUS`) — l'intégration CRM fait exception (disponible
-dès Radar). Dans tous les cas, un profil sous le plan requis peut préparer sa
+(`PlanTarifaire.RADAR_PLUS`) — l'intégration CRM et la détection d'expansion
+inter-provinciale font exception (disponibles dès Radar). Dans tous les cas,
+un profil sous le plan requis peut préparer sa
 configuration à l'avance, elle prend simplement effet une fois le plan
 basculé. Voir `docs/ARCHITECTURE.md` pour le détail complet.
 
