@@ -35,6 +35,36 @@ def test_formatter_notification_remplit_les_donnees_structurees(registry):
     assert d["signaux"][0]["justification"] == "Contrat décroché"
 
 
+def test_formatter_corps_texte_nomme_la_categorie_pas_la_source(registry):
+    """Principe de neutralité des libellés (charte, section 6, élargie le
+    2026-09-03) : le corps du courriel liste chaque signal par sa CATÉGORIE
+    (registry/signal_types.yaml::nom), jamais par le nom de la source elle-même
+    — donnees_structurees.signaux[].source_id reste inchangé (payload
+    machine-à-machine du webhook Radar+, une donnée technique, pas un libellé
+    lu par un humain)."""
+    company = Company(nom_detecte="Entreprise Test", nom_detecte_normalise="entreprise test")
+    signal = Signal(
+        id=1, company_id=1, source_id="seao", signal_type_id="appel_offres",
+        source_ref="ref-1", titre_ou_description="Contrat test", champs={},
+    )
+    n = Notification(
+        company_id=1, profile_id=1, mode=ModeUsage.VEILLE_CONTINUE,
+        score_confiance=70.0, niveau_confiance=NiveauConfiance.ELEVE,
+        justification_resumee="test résumé",
+    )
+    n.company = company
+    n.signaux_contributifs = [NotificationSignal(signal=signal, justification="Contrat décroché")]
+
+    contenu = formatter_notification(n, registry)
+
+    assert "SEAO" not in contenu.corps_texte
+    assert "Système électronique d'appel d'offres" not in contenu.corps_texte
+    assert "Appel d'offres public décroché" in contenu.corps_texte
+    # Le payload structuré, lui, garde source_id — donnée technique consommée
+    # par le système du client (CRM/ERP), pas un libellé.
+    assert contenu.donnees_structurees["signaux"][0]["source_id"] == "seao"
+
+
 def test_formatter_notification_niveau_pertinence_none_pour_historique(registry):
     """Notification antérieure au système de pertinence — NULL, pas une valeur
     inventée (principe directeur #1)."""

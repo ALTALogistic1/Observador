@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from falkye import expansion_interprovinciale, pertinence, ponderation, retroaction
-from falkye.assistance_client_cible import suggerer_clients_cibles_niveau1
+from falkye.assistance_client_cible import suggerer_clients_cibles_niveau1_pour_company
 from falkye.crm_sync import pousser_notification_vers_crm, sonder_statuts_crm
 from falkye.db import get_session
 from falkye.enrichment import enrichir_entreprise
@@ -331,9 +331,12 @@ def _traiter_entreprise_pour_profil(
         need_choisi = meilleur_global[1].profile_need
         clients_cibles_lies_besoin = [(l.client_cible_id, l.poids) for l in need_choisi.clients_cibles_lies]
         if clients_cibles_lies_besoin:
-            suggestions_qui = suggerer_clients_cibles_niveau1(
-                db_session, company.secteur_activite_libelle or ""
-            )
+            # Classification cross-source (spec section 8bis, point 2, 2026-09-03) —
+            # voir la docstring de suggerer_clients_cibles_niveau1_pour_company pour
+            # le détail des champs volontairement exclus (donneur d'ordre, poste
+            # affiché, etc.) et pourquoi company.secteur_activite_libelle EST déjà la
+            # fusion cross-source pour REQ et les licences municipales hors Québec.
+            suggestions_qui = suggerer_clients_cibles_niveau1_pour_company(db_session, company)
             client_cible_ids_entreprise = [s.client_cible_id for s in suggestions_qui]
 
     pertinence_result = pertinence.calculer_pertinence(

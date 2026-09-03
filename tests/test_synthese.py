@@ -6,7 +6,13 @@ ici est donc la même que celle utilisée en production, pas une simulation."""
 from falkye.models.company import Company
 from falkye.models.notification import ModeUsage, NiveauConfiance, NiveauPertinence, Notification
 from falkye.models.profile import ProfileNeed
-from falkye.synthese import SECTEUR_NON_CLASSE, SECTEUR_NON_PRECISE, TERRITOIRE_AUCUN, generer_synthese
+from falkye.synthese import (
+    CLIENT_CIBLE_NON_CLASSE,
+    SECTEUR_NON_CLASSE,
+    SECTEUR_NON_PRECISE,
+    TERRITOIRE_AUCUN,
+    generer_synthese,
+)
 
 
 def _notification(company_id, company, profile_need=None, niveau_pertinence=NiveauPertinence.AA):
@@ -98,3 +104,30 @@ def test_synthese_repartition_par_territoire(registry):
     )
     assert s.par_territoire["Québec"] == 1
     assert s.par_territoire[TERRITOIRE_AUCUN] == 1
+
+
+# --- Répartition par clientèle cible (spec section 8bis, point 3, 2026-09-03) ---
+
+
+def test_synthese_par_client_cible_vide_sans_classifications_fournies(registry):
+    """`classifications_qui` omis (None, défaut) = par_client_cible reste VIDE
+    plutôt que de fabriquer un "(non classé)" pour tout le monde — distingue
+    "pas encore calculé" de "calculé, rien trouvé" (synthese.py reste pur,
+    aucun accès DB ici — voir docstring du module)."""
+    c1 = Company(nom_detecte="A", nom_detecte_normalise="a")
+    s = generer_synthese([_notification(1, c1)], registry)
+    assert s.par_client_cible == {}
+
+
+def test_synthese_par_client_cible_regroupe_selon_le_dict_fourni(registry):
+    c1 = Company(nom_detecte="A", nom_detecte_normalise="a")
+    c2 = Company(nom_detecte="B", nom_detecte_normalise="b")
+    c3 = Company(nom_detecte="C", nom_detecte_normalise="c")
+    classifications = {1: "PME privées, tous secteurs", 2: "PME privées, tous secteurs", 3: None}
+    s = generer_synthese(
+        [_notification(1, c1), _notification(2, c2), _notification(3, c3)],
+        registry,
+        classifications,
+    )
+    assert s.par_client_cible["PME privées, tous secteurs"] == 2
+    assert s.par_client_cible[CLIENT_CIBLE_NON_CLASSE] == 1

@@ -188,8 +188,8 @@ python -m falkye.cli profile configurer-besoin --profile-id 1 --confirmer \
   --usage "Recrutement spécialisé" --territoire Ontario
 
 python -m falkye.cli dashboard voir --profile-id 1 --usage "Recrutement" --territoire Québec
-python -m falkye.cli dashboard synthese --profile-id 1 --jours 90       # vue agrégée par secteur/territoire
-python -m falkye.cli dashboard synthese --profile-id 1 --secteur-detail # + libellés REQ bruts derrière le regroupement
+python -m falkye.cli dashboard synthese --profile-id 1 --jours 90       # vue agrégée par secteur/territoire ET clientèle cible
+python -m falkye.cli dashboard synthese --profile-id 1 --secteur-detail # + libellés bruts derrière le regroupement
 ```
 
 ### Authentification réelle par utilisateur (mot de passe + session)
@@ -294,6 +294,26 @@ Passe par lot greffée sur `scan veille`. Réservé au plan Radar minimum —
 décision produit, pas une contrainte de coût (le calcul est local) : "aucun
 enrichissement de résultat ne reste dans Écho". Voir `docs/ARCHITECTURE.md`
 pour le détail complet.
+
+### Dédoublonnage des entreprises sans NEQ (mode opérateur)
+
+```bash
+python -m falkye.cli scan detecter-doublons              # rattrapage manuel, réservé au mode opérateur
+python -m falkye.cli diagnostic lister --type candidat_fusion_entreprise
+python -m falkye.cli diagnostic confirmer-fusion --id 42  # applique une fusion 90-95 examinée manuellement
+python -m falkye.cli diagnostic rejeter-fusion --id 43    # écarte un candidat, aucune donnée touchée
+```
+
+Deux seuils, jamais un seul — une entreprise sans NEQ détectée sous un nom
+légèrement différent (`falkye/dedup_entreprises.py`, rapprochement
+`rapidfuzz.fuzz.WRatio`, même scorer que la résolution REQ) : score >=95
+fusionnée automatiquement (journalisée à titre informationnel), score 90-95
+jamais fusionnée seule — journalisée pour examen manuel. Contrairement à la
+détection d'expansion inter-provinciale, JAMAIS greffée automatiquement sur
+`scan veille` (une fusion peut supprimer une vraie fiche) — rattrapage
+strictement manuel. Voir `docs/ARCHITECTURE.md`/`docs/STATUT_RESEAU.md` pour
+le détail complet, y compris un bogue réel trouvé et corrigé (compagnies à
+numéro québécoises) avant toute application définitive contre la base réelle.
 
 Les fonctionnalités Radar+ ci-dessus sont réservées au plan Radar+
 (`PlanTarifaire.RADAR_PLUS`) — l'intégration CRM et la détection d'expansion

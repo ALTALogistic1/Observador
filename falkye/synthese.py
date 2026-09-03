@@ -28,7 +28,22 @@ forcé. `par_secteur_detail` garde le libellé brut (granularité d'origine,
 jamais perdue) pour qui veut inspecter ce qui tombe dans "(non classé)". PAS
 un remplacement du SCIAN/NAICS — un vrai regroupement par code SCIAN reste
 l'amélioration future si le volume de notifications justifie
-l'investissement (voir docs/ARCHITECTURE.md)."""
+l'investissement (voir docs/ARCHITECTURE.md).
+
+RÉPARTITION PAR CLIENTÈLE CIBLE — dimension complémentaire ajoutée le
+2026-09-03, réponse directe au gap trouvé en construisant `par_secteur` :
+une entreprise détectée UNIQUEMENT via une source hors Québec n'a pas
+toujours de secteur classifiable par `secteurs_grossiers.yaml` (vocabulaire
+anglais/municipal, jamais couvert par le regroupement SCIAN grossier
+construit contre le vocabulaire français du REQ), et tombait donc
+systématiquement en "(non classé)" — peu importe son vrai domaine.
+`clients_cibles.yaml` (registre INDÉPENDANT de toute source, spec section
+8bis) sert ici de dimension d'agrégation de repli, jamais un remplacement
+de `par_secteur` : `classifications_qui` (calculé par l'appelant via
+`falkye.assistance_client_cible::suggerer_clients_cibles_niveau1_pour_
+company`, JAMAIS ici — ce module reste pur, aucun accès DB, la
+classification "qui" en a besoin pour lire `ClientCibleSynonyme`) — un dict
+`{company_id: nom_de_categorie | None}` déjà résolu."""
 from __future__ import annotations
 
 from collections import Counter
@@ -39,6 +54,7 @@ from falkye.registry.loader import Registry
 
 SECTEUR_NON_PRECISE = "(non précisé)"
 SECTEUR_NON_CLASSE = "(non classé)"
+CLIENT_CIBLE_NON_CLASSE = "(non classé)"
 TERRITOIRE_AUCUN = "(aucun territoire assigné)"
 
 
@@ -47,16 +63,29 @@ class SyntheseAgregee:
     nb_entreprises: int  # distinctes, pas le nombre de notifications
     par_secteur: Counter = field(default_factory=Counter)  # regroupement grossier (mots-clés)
     par_secteur_detail: Counter = field(default_factory=Counter)  # libellé REQ brut, granularité d'origine
+    par_client_cible: Counter = field(default_factory=Counter)  # dimension complémentaire, clients_cibles.yaml
     par_niveau_pertinence: Counter = field(default_factory=Counter)
     par_territoire: Counter = field(default_factory=Counter)
 
 
-def generer_synthese(notifications: list[Notification], registry: Registry) -> SyntheseAgregee:
+def generer_synthese(
+    notifications: list[Notification],
+    registry: Registry,
+    classifications_qui: dict[int, str | None] | None = None,
+) -> SyntheseAgregee:
     """Une entreprise comptée UNE SEULE FOIS même si plusieurs notifications
     existent pour elle dans la période (ex. plusieurs signaux détectés à des
-    moments différents) — "X entreprises détectées", pas "X notifications"."""
+    moments différents) — "X entreprises détectées", pas "X notifications".
+
+    `classifications_qui` : {company_id: nom de catégorie clients_cibles.yaml
+    ou None} — DÉJÀ RÉSOLU par l'appelant (falkye/cli.py::dashboard_synthese),
+    ce module reste pur (voir docstring du module). Omis (`None`, défaut) =
+    `par_client_cible` reste un Counter vide plutôt que de fabriquer un
+    "(non classé)" pour tout le monde — distingue "pas encore calculé" de
+    "calculé, rien trouvé"."""
     par_secteur: Counter = Counter()
     par_secteur_detail: Counter = Counter()
+    par_client_cible: Counter = Counter()
     par_niveau: Counter = Counter()
     par_territoire: Counter = Counter()
     entreprises_vues: set[int] = set()
@@ -79,6 +108,10 @@ def generer_synthese(notifications: list[Notification], registry: Registry) -> S
                 categorie = registry.secteur_grossier(categorie_id)
                 par_secteur[categorie.nom if categorie else categorie_id] += 1
 
+        if classifications_qui is not None:
+            nom_categorie_qui = classifications_qui.get(n.company_id)
+            par_client_cible[nom_categorie_qui or CLIENT_CIBLE_NON_CLASSE] += 1
+
         niveau = n.niveau_pertinence.value if n.niveau_pertinence else "n/d (historique)"
         par_niveau[niveau] += 1
 
@@ -89,6 +122,7 @@ def generer_synthese(notifications: list[Notification], registry: Registry) -> S
         nb_entreprises=len(entreprises_vues),
         par_secteur=par_secteur,
         par_secteur_detail=par_secteur_detail,
+        par_client_cible=par_client_cible,
         par_niveau_pertinence=par_niveau,
         par_territoire=par_territoire,
     )

@@ -1246,6 +1246,59 @@ def diagnostic_ajouter_source_manquante(description, profile_id):
         session.close()
 
 
+@diagnostic.command("confirmer-fusion")
+@click.option("--id", "diagnostic_id", required=True, type=int)
+def diagnostic_confirmer_fusion(diagnostic_id):
+    """Confirme manuellement un candidat de fusion d'entreprises (score 90-95,
+    spec section 8bis, point 4, 2026-09-03) — applique la fusion (réassigne
+    Signal/Notification du candidat vers le principal, supprime le candidat).
+    JAMAIS automatique à ce score — décision d'Alexandre : "une fusion
+    incorrecte est trop coûteuse à défaire". RÉSERVÉ AU MODE OPÉRATEUR."""
+    if not _mode_operateur():
+        raise click.ClickException("Réservé au mode opérateur (FALKYE_OPERATOR=1).")
+    from falkye.dedup_entreprises import fusionner
+    from falkye.models.company import Company
+
+    session = get_session()
+    try:
+        entree = session.get(DiagnosticJournal, diagnostic_id)
+        if entree is None or entree.type_diagnostic != TypeDiagnostic.CANDIDAT_FUSION_ENTREPRISE:
+            raise click.ClickException(f"#{diagnostic_id} n'est pas un candidat de fusion d'entreprises.")
+        if entree.statut != "a_examiner":
+            raise click.ClickException(f"#{diagnostic_id} a déjà été traité (statut={entree.statut}).")
+        principal = session.get(Company, entree.company_id_principal)
+        candidat = session.get(Company, entree.company_id_candidat)
+        if principal is None or candidat is None:
+            raise click.ClickException(
+                f"#{diagnostic_id} : une des deux entreprises n'existe plus (déjà fusionnée ailleurs?)."
+            )
+        fusionner(session, principal, candidat)
+        entree.statut = "fusionne_confirme"
+        session.commit()
+        click.echo(f"Fusion confirmée : #{candidat.id} réassigné vers #{principal.id}.")
+    finally:
+        session.close()
+
+
+@diagnostic.command("rejeter-fusion")
+@click.option("--id", "diagnostic_id", required=True, type=int)
+def diagnostic_rejeter_fusion(diagnostic_id):
+    """Rejette manuellement un candidat de fusion — les deux fiches restent
+    distinctes, aucune donnée touchée. RÉSERVÉ AU MODE OPÉRATEUR."""
+    if not _mode_operateur():
+        raise click.ClickException("Réservé au mode opérateur (FALKYE_OPERATOR=1).")
+    session = get_session()
+    try:
+        entree = session.get(DiagnosticJournal, diagnostic_id)
+        if entree is None or entree.type_diagnostic != TypeDiagnostic.CANDIDAT_FUSION_ENTREPRISE:
+            raise click.ClickException(f"#{diagnostic_id} n'est pas un candidat de fusion d'entreprises.")
+        entree.statut = "ecarte"
+        session.commit()
+        click.echo(f"Candidat de fusion #{diagnostic_id} écarté.")
+    finally:
+        session.close()
+
+
 @cli.group()
 def scan():
     """Lancer un scan (spec section 5)."""
@@ -1269,7 +1322,7 @@ def scan_veille(profile_id, lookback_days):
     show_default=True,
     help="Fenêtre de recherche par source. \"Plus large\" (spec section 5) que la veille "
     "continue par défaut (60 jours vs 30), mais pas illimité — un historique complet "
-    "peut représenter des centaines de fichiers pour une source comme le SEAO. "
+    "peut représenter des centaines de fichiers pour une source à grand volume. "
     "Utiliser --historique-complet pour lever cette borne.",
 )
 @click.option(
@@ -1278,7 +1331,7 @@ def scan_veille(profile_id, lookback_days):
     is_flag=True,
     default=False,
     help="Ignore --lookback-days et remonte tout l'historique disponible de chaque source "
-    "(peut représenter plusieurs heures pour une source à large archive, ex. SEAO).",
+    "(peut représenter plusieurs heures pour une source à large archive).",
 )
 def scan_ponctuel(profile_id, lookback_days, historique_complet):
     from falkye.engine import run_recherche_ponctuelle
@@ -1317,13 +1370,76 @@ def scan_detecter_expansions():
         session.close()
 
 
+@scan.command("detecter-doublons")
+def scan_detecter_doublons():
+    """Rattrapage manuel de détection/fusion de doublons d'entreprises sans
+    NEQ (spec section 8bis, point 4, 2026-09-03) — balaye tout le dossier
+    cumulatif. RÉSERVÉ AU MODE OPÉRATEUR : contrairement à `scan
+    detecter-expansions` (jamais destructif, ne fait qu'ajouter un lien),
+    cette commande peut FUSIONNER — et donc supprimer — de vraies fiches
+    Company à score >=95 (voir falkye/dedup_entreprises.py). Jamais greffée
+    automatiquement sur `scan veille`, contrairement à la détection
+    d'expansion inter-provinciale — décision délibérée compte tenu du
+    caractère irréversible d'une fusion, même à un seuil élevé. Idempotent :
+    une paire déjà fusionnée ou déjà journalisée n'est jamais retraitée."""
+    if not _mode_operateur():
+        raise click.ClickException(
+            "Réservé au mode opérateur (FALKYE_OPERATOR=1) — action potentiellement destructive."
+        )
+    from falkye.dedup_entreprises import detecter_doublons
+
+    session = get_session()
+    try:
+        rapport = detecter_doublons(session)
+        session.commit()
+        click.echo(f"Fusions automatiques (score >=95) : {rapport.nb_fusions_auto}")
+        click.echo(
+            f"Candidats journalisés pour examen manuel (score 90-95) : {rapport.nb_candidats_journalises}"
+        )
+        if rapport.nb_candidats_journalises:
+            click.echo("Voir `falkye diagnostic lister --type candidat_fusion_entreprise`.")
+    finally:
+        session.close()
+
+
+def _categorie_pour_source(registry, source_id):
+    """Catégorie de signal neutre pour une source — JAMAIS le nom de la source
+    elle-même dans un rapport de scan (libre-service, `scan veille`/`scan
+    ponctuel`) — principe de neutralité des libellés (charte, section 6,
+    élargie le 2026-09-03). Chaque source active du registre n'est associée
+    qu'à UNE seule catégorie (`SourceDef.signal_associe`, vérifié le
+    2026-09-03) — pas d'ambiguïté à trancher ici."""
+    source_def = registry.sources.get(source_id)
+    if not source_def or not source_def.signal_associe:
+        return source_id  # repli honnête si le registre ne sait pas classer — rarissime
+    signal_type = registry.signal_types.get(source_def.signal_associe[0])
+    return signal_type.nom if signal_type else source_def.signal_associe[0]
+
+
 def _afficher_rapport(report):
     click.echo(f"Mode : {report.mode.value}")
+    registry = get_registry()
+    # Agrégé par CATÉGORIE de signal, jamais par source précise (voir
+    # _categorie_pour_source) — le détail par source individuelle (y compris les
+    # messages d'erreur, potentiellement révélateurs) reste consultable via
+    # SourceRunLog, en mode opérateur seulement.
+    par_categorie: dict[str, dict] = {}
     for r in report.ingestion:
+        entree = par_categorie.setdefault(
+            _categorie_pour_source(registry, r.source_id),
+            {"nouveaux": 0, "dupliques": 0, "erreurs": 0},
+        )
         if r.erreur:
-            click.echo(f"  ⚠ {r.source_id}: {r.erreur}")
+            entree["erreurs"] += 1
         else:
-            click.echo(f"  ✓ {r.source_id}: {r.nb_signaux_nouveaux} nouveaux, {r.nb_signaux_dupliques} déjà connus")
+            entree["nouveaux"] += r.nb_signaux_nouveaux
+            entree["dupliques"] += r.nb_signaux_dupliques
+    for categorie, compte in sorted(par_categorie.items()):
+        marqueur = "⚠" if compte["erreurs"] else "✓"
+        detail = f"{compte['nouveaux']} nouveaux, {compte['dupliques']} déjà connus"
+        if compte["erreurs"]:
+            detail += f" ({compte['erreurs']} source(s) en erreur — détail : mode opérateur)"
+        click.echo(f"  {marqueur} {categorie}: {detail}")
     click.echo(f"Notifications créées : {report.nb_notifications_creees}")
     if report.nb_statuts_crm_synchronises:
         click.echo(f"Statuts synchronisés depuis un CRM : {report.nb_statuts_crm_synchronises}")
@@ -1604,7 +1720,7 @@ def dashboard_statut(notification_id, statut_id):
     "secteur_detail",
     is_flag=True,
     default=False,
-    help="Affiche aussi les libellés REQ bruts (granularité d'origine) derrière le "
+    help="Affiche aussi les libellés bruts (granularité d'origine) derrière le "
     "regroupement grossier — utile pour inspecter ce qui tombe dans « (non classé) ».",
 )
 def dashboard_synthese(profile_id, jours, territoire_filtre, secteur_detail):
@@ -1617,6 +1733,7 @@ def dashboard_synthese(profile_id, jours, territoire_filtre, secteur_detail):
     intermédiaire, PAS un vrai SCIAN/NAICS ; voir docs/ARCHITECTURE.md."""
     from datetime import datetime, timedelta, timezone
 
+    from falkye.assistance_client_cible import suggerer_clients_cibles_niveau1_pour_company
     from falkye.models.notification import Notification
     from falkye.registry.loader import get_registry
     from falkye.synthese import generer_synthese
@@ -1640,7 +1757,18 @@ def dashboard_synthese(profile_id, jours, territoire_filtre, secteur_detail):
                 if n.profile_need and (n.profile_need.territoire or "").strip().lower() == t
             ]
 
-        synthese = generer_synthese(notifications_qs, get_registry())
+        # Classification "qui" (spec section 8bis, point 3, 2026-09-03) — résolue
+        # ICI (accès DB requis pour ClientCibleSynonyme), jamais dans
+        # falkye/synthese.py qui reste pur. Une seule classification par
+        # entreprise distincte, pas par notification.
+        classifications_qui: dict[int, str | None] = {}
+        for n in notifications_qs:
+            if n.company_id in classifications_qui:
+                continue
+            suggestions = suggerer_clients_cibles_niveau1_pour_company(session, n.company)
+            classifications_qui[n.company_id] = suggestions[0].client_cible_nom if suggestions else None
+
+        synthese = generer_synthese(notifications_qs, get_registry(), classifications_qui)
 
         sous_titre = f", territoire « {territoire_filtre} »" if territoire_filtre else ""
         click.echo(f"Synthèse — profil #{p.id}, {jours} derniers jours{sous_titre}")
@@ -1650,9 +1778,13 @@ def dashboard_synthese(profile_id, jours, territoire_filtre, secteur_detail):
         for secteur, n in synthese.par_secteur.most_common():
             click.echo(f"  {secteur} : {n}")
         if secteur_detail:
-            click.echo("\nDétail par libellé REQ brut :")
+            click.echo("\nDétail par libellé brut :")
             for secteur, n in synthese.par_secteur_detail.most_common():
                 click.echo(f"  {secteur} : {n}")
+
+        click.echo("\nRépartition par clientèle cible (dimension complémentaire) :")
+        for categorie, n in synthese.par_client_cible.most_common():
+            click.echo(f"  {categorie} : {n}")
 
         click.echo("\nRépartition par niveau de pertinence :")
         for niveau, n in synthese.par_niveau_pertinence.most_common():

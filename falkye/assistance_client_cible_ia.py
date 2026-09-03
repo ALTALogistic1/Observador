@@ -39,7 +39,11 @@ _CONTEXTE = (
     "représente une clientèle délibérément non restreinte (\"s'applique largement\", "
     "\"tous types d'entreprises\") — c'est une réponse VALIDE et positive au même titre "
     "qu'une catégorie précise, sélectionne-la normalement si le texte l'indique, ce "
-    "n'est PAS un cas d'échec."
+    "n'est PAS un cas d'échec. Si le texte décrit une clientèle si large qu'elle "
+    "correspondrait à une TRÈS large proportion des catégories du catalogue (pas "
+    "seulement deux ou trois qui se recoupent, mais la quasi-totalité), retourne "
+    "directement \"aucune_restriction\" seule plutôt qu'une longue liste de liens — "
+    "c'est la même situation exprimée plus simplement, pas un cas différent."
 )
 
 

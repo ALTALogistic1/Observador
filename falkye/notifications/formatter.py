@@ -30,9 +30,14 @@ def formatter_notification(notification: Notification, registry: Registry) -> No
     lignes_signaux = []
     for ns in notification.signaux_contributifs:
         signal = ns.signal
-        source = registry.sources.get(signal.source_id)
-        source_nom = source.nom if source else signal.source_id
-        lignes_signaux.append(f"  • [{source_nom}] {ns.justification}")
+        # Catégorie de signal (registry/signal_types.yaml::nom), JAMAIS le nom de
+        # la source elle-même — principe de neutralité des libellés (charte,
+        # section 6, élargie le 2026-09-03) : aucun libellé visible par
+        # l'utilisateur ne doit nommer une source précise, en dehors du portail de
+        # sources payantes (falkye registry sources / falkye crm fournisseurs).
+        signal_type = registry.signal_types.get(signal.signal_type_id)
+        categorie_nom = signal_type.nom if signal_type else signal.signal_type_id
+        lignes_signaux.append(f"  • [{categorie_nom}] {ns.justification}")
 
     corps_texte = (
         f"Entreprise repérée : {nom}\n"

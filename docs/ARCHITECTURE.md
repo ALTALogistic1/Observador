@@ -1521,3 +1521,176 @@ défaut — `profile.courriel` — sans le redéfinir ; `WebhookChannel` retourn
 `profile.webhook_url`, ou `None` si le profil n'est pas Radar+) — le moteur ne
 sait toujours pas qu'un canal précis existe, seulement qu'il faut lui demander
 sa destination avant de tenter une livraison.
+
+## Sept points de suivi post-livraison — sphère N:N/qui/hors-profil (2026-09-03)
+
+Alexandre a demandé une vérification en sept points après la livraison des
+trois chantiers précédents et de leur validation bout en bout. Le point 1
+était une question de données (réponse ci-dessous) ; les points 2-7 ont fait
+l'objet d'un plan avant tout code, confirmé sans réserve, puis codés.
+
+### Point 1 — portée réelle de `champs_pertinents.yaml`
+
+Compilé contre le code des 15 connecteurs actifs (pas seulement l'observé,
+qui ne couvrait que 3 sources dans la base réelle au moment de vérifier) :
+`req` (10 clés), `licences_vancouver` (9), `licences_toronto` (8), `eimt`
+(7), `contrats_federaux`/`contrats_nouvelle_ecosse`/`guichet_emplois`/
+`permis_construction_laval`/`rob_top_growing`/`seao`/`subventions_federales`
+(6 chacune), `corporations_canada` (5), `deloitte_fast50` (4),
+`investissement_quebec` (2), `rdprm` (0 — stub, aucune production de signal
+avant la Phase 2). Sert de base à toute extension future de
+`registry/champs_pertinents.yaml` (règle déjà tranchée par Alexandre : garder
+un champ si au moins une sphère liée du profil le juge pertinent).
+
+### Point 2 — classification "qui" cross-source (`falkye/assistance_client_cible.py::suggerer_clients_cibles_niveau1_pour_company`)
+
+`company.secteur_activite_libelle` EST DÉJÀ la fusion cross-source pour REQ
+et les licences municipales hors Québec — vérifié dans le code plutôt que
+supposé (`falkye/resolution.py::resolve_company` propage `raw.secteur_
+activite=brute.type_entreprise` pour `licences_toronto`/`licences_
+vancouver`, même champ, même rôle que le secteur REQ). Aucun changement de
+mécanisme nécessaire pour ces deux-là.
+
+Les autres champs disponibles à travers les signaux d'une entreprise
+(`donneur_ordre`/`ministere` de SEAO/contrats fédéraux/Nouvelle-Écosse/
+subventions, `titre_poste`/`profession` du recrutement, `description_
+tender`) sont DÉLIBÉRÉMENT exclus, documentés comme tels dans la docstring
+de la fonction : ces champs décrivent le DONNEUR D'ORDRE, le POSTE affiché,
+ou le CONTRAT — jamais la clientèle propre de l'entreprise détectée
+elle-même. Les inclure classerait à tort une firme d'ingénierie privée
+comme "organismes publics et institutionnels" simplement parce qu'elle a
+décroché un contrat d'un ministère. Aucune escalade Niveau 2 pour une
+entreprise détectée (coût IA par entreprise scannée jamais introduit sans
+demande explicite) — sans signal classifiable, liste vide, jamais une
+catégorie forcée.
+
+### Point 3 — tableaux agrégés par clientèle cible + neutralité des libellés
+
+`falkye/synthese.py::SyntheseAgregee.par_client_cible` — nouvelle dimension
+d'agrégation, COMPLÉMENTAIRE à `par_secteur` (regroupement grossier SCIAN),
+jamais un remplacement. Réponse au gap trouvé en construisant `par_secteur` :
+une entreprise détectée uniquement via une source hors Québec pouvait avoir
+un secteur classifiable (point 2 le confirme) mais tomber quand même en
+"(non classé)" parce que `secteurs_grossiers.yaml` est construit contre le
+vocabulaire français du REQ, pas contre les catégories de licences
+municipales anglaises. `clients_cibles.yaml`, registre INDÉPENDANT de toute
+source, sert de repli. `classifications_qui` (le dict `{company_id: nom}`)
+est calculé par l'APPELANT (`falkye/cli.py::dashboard_synthese`, accès DB
+requis pour `ClientCibleSynonyme`) — `falkye/synthese.py` reste pur, aucun
+accès DB, comme avant.
+
+**Charte de neutralité des libellés, élargie** : "aucun libellé visible par
+l'utilisateur ne doit jamais nommer une source précise", avec pour seule
+exception délibérée le portail de sources payantes (`falkye registry
+sources`, `falkye crm fournisseurs`) et les outils d'exploitation qui
+opèrent DIRECTEMENT sur une source par construction (`import-manuel`, jamais
+accessible via une identité de profil/session — traité dans la même
+catégorie que le portail, confirmé par Alexandre). Deux fuites réelles
+trouvées et corrigées :
+1. `falkye/notifications/formatter.py` — le corps du courriel nommait la
+   source en clair (`"[SEAO (Système électronique d'appel d'offres du
+   Québec)] ..."`). Remplacé par la CATÉGORIE de signal (`registry/
+   signal_types.yaml::nom`, déjà neutre, déjà en place) — donnée existante,
+   aucun nouveau registre. Le payload structuré du webhook Radar+, lui,
+   garde `source_id` : c'est une donnée TECHNIQUE consommée par le système
+   du client (CRM/ERP), pas un libellé lu par un humain — confirmé par
+   Alexandre comme hors du principe.
+2. `falkye/cli.py::_afficher_rapport` (`scan veille`/`scan ponctuel`,
+   commandes libre-service) — affichait le `source_id` brut. Agrégé
+   maintenant par catégorie de signal (`_categorie_pour_source`, chaque
+   source active n'étant associée qu'à une seule catégorie — vérifié, pas
+   d'ambiguïté à trancher) ; le détail par source individuelle (y compris
+   les messages d'erreur, potentiellement révélateurs) reste consultable
+   via `SourceRunLog`, en mode opérateur seulement.
+
+### Point 4 — dédoublonnage des entreprises sans NEQ (`falkye/dedup_entreprises.py`)
+
+**Confirmé, avec preuve plutôt qu'une supposition** : `falkye/resolution.py::
+_find_unresolved_company` ne faisait qu'une correspondance EXACTE par nom
+normalisé pour toute entreprise sans NEQ — jamais floue, contrairement à la
+résolution REQ et au rapprochement inter-provincial. Vérifié contre les
+1337 entreprises réellement sans NEQ dans la base réelle avant de coder : 76
+paires à similarité >=90% déjà présentes (majoritairement des entités
+Québec dont la résolution REQ elle-même avait échoué, pas seulement les
+sources hors Québec — même mécanisme sous-jacent, portée plus large que ce
+qui avait été demandé).
+
+**Deux seuils, jamais un seul** — décision explicite d'Alexandre : "jamais
+de fusion automatique silencieuse... une fusion incorrecte est trop
+coûteuse à défaire pour la laisser à un seuil unique." Score >= 95 (`SEUIL_
+FUSION_AUTO`) : fusion APPLIQUÉE immédiatement (`falkye/dedup_
+entreprises.py::fusionner` réassigne Signal/Notification puis supprime le
+doublon), journalisée à titre purement informationnel
+(`DiagnosticJournal`, `statut="fusionne_auto"`). Score 90-95 (`SEUIL_
+FUSION_CANDIDAT`) : jamais fusionné seul, journalisé
+(`statut="a_examiner"`) pour confirmation manuelle
+(`falkye diagnostic confirmer-fusion`/`rejeter-fusion`). Même scorer unique
+du projet (`rapidfuzz.fuzz.WRatio`), même bonus de ville (+5) que la
+résolution REQ, recherche BORNÉE par préfixe (GLOB, même technique que
+`falkye.sources.req.resolve_neq_by_name` — jamais un balayage complet).
+Jamais contre une entreprise déjà résolue au REQ (`neq IS NOT NULL`).
+
+**BOGUE RÉEL TROUVÉ ET CORRIGÉ en validant contre la base réelle, avant
+toute conséquence durable** : les compagnies à numéro québécoises (ex.
+"9519-3801 Québec inc." vs "9519-3850 Québec inc.") produisent un score
+WRatio élevé (95.0, dans la fourchette de fusion AUTOMATIQUE) alors que ce
+sont des entités légalement DISTINCTES — le matricule numérique est
+l'identifiant réel, la similarité de chaînes de caractères est
+structurellement trompeuse ici (la partie commune "Québec inc." domine le
+score). Repéré immédiatement après un premier passage contre la base réelle
+(une fusion incorrecte avait déjà été appliquée) — base restaurée depuis la
+sauvegarde AVANT toute autre conséquence, garde-fou ajouté
+(`falkye/dedup_entreprises.py::_numero_entreprise` — deux noms de compagnie
+à numéro ne sont jamais comparés par similarité floue, seule une
+correspondance EXACTE du matricule compte), testé (3 tests dédiés), puis
+seulement ensuite réappliqué contre la base réelle. Voir docs/STATUT_
+RESEAU.md pour le récit complet et les résultats réels après correction.
+
+Ingestion (`falkye/resolution.py::resolve_company`) : après un échec de
+correspondance exacte, tente le rapprochement flou AVANT de créer une
+nouvelle fiche — >=95 ancre directement sur l'existant (aucune nouvelle
+fiche, aucun journal — rien à fusionner, juste un routage correct dès le
+départ) ; 90-95 crée quand même la nouvelle fiche MAIS journalise un
+candidat. Passe par lot rétroactive (`falkye scan detecter-doublons`,
+RÉSERVÉE AU MODE OPÉRATEUR — contrairement à `scan detecter-expansions`,
+jamais destructif, cette commande peut supprimer de vraies fiches, jamais
+greffée automatiquement sur `scan veille`) pour rattraper les doublons déjà
+présents. Idempotent des deux côtés.
+
+### Point 5 — rétroaction ciblée sur la sphère précise
+
+**Déjà correct, confirmé par lecture de code — aucun changement requis.**
+`falkye/retroaction.py::enregistrer_pas_pertinent` réduisait déjà
+uniquement le poids de `notification.sphere_probable_id`, qui EST déjà la
+sphère précise choisie par `meilleure_sphere_pour_match` (chantier
+précédent) parmi toutes celles liées au besoin — jamais toutes les sphères
+liées. `falkye/pertinence.py::calculer_pertinence` applique ce poids
+uniquement à la base de correspondance de CETTE sphère (`base_match_pour_
+sphere(m, sphere_choisie, ...)`), jamais aux autres bonus.
+
+### Point 6 — plusieurs "qui" par besoin
+
+**Premier volet déjà construit et déjà correct** (chantier précédent) :
+`ProfileNeedClientCible` (N:N), `profile lier-client-cible` (plusieurs
+liens possibles), et `bonus_et_redirection_qui` (bonus dès qu'AU MOINS un
+"qui" lié matche ; désaccord confiant seulement si l'INTERSECTION avec
+TOUS les "qui" liés est vide) satisfont déjà exactement ce qui était
+demandé. Rien à coder.
+
+**Deuxième volet, nouveau** : `_CONTEXTE` dans `falkye/assistance_client_
+cible_ia.py` (déjà un paramètre distinct de celui de la sphère) reçoit une
+instruction additionnelle — si la description correspond à une très large
+proportion des catégories du catalogue, le Niveau 2 retourne directement
+`aucune_restriction` seule plutôt qu'une longue liste de liens. Portée
+volontairement limitée au Niveau 2 (formulation d'Alexandre : "si l'IA
+détecte...") — le Niveau 1 (mots-clés, aucun raisonnement) garde son
+comportement actuel.
+
+### Point 7 — vérification globale ponctuelle
+
+Sweep ciblé (grep sur les ids/noms de sources connus à travers `cli.py`,
+`formatter.py`, `synthese.py`, `carte.py`, `premier_contact.py`,
+`notifications/*.py`) — au-delà des deux cas du point 3, rien d'autre
+trouvé. `signal.champs.get("donneur_ordre")` dans `premier_contact.py`
+n'est PAS une fuite : c'est une DONNÉE du signal (le nom du donneur d'ordre
+réel, partie du contenu détecté), pas un nom de source.

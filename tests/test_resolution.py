@@ -78,6 +78,76 @@ def test_meme_entreprise_non_resolue_deux_fois_reste_un_seul_dossier(db_session)
     assert c1.id == c2.id  # dossier cumulatif : pas de doublon pour le même nom non résolu
 
 
+# --- Rapprochement flou entre entreprises SANS NEQ (spec section 8bis, point
+# 4, 2026-09-03) — voir falkye/dedup_entreprises.py pour les deux seuils. ---
+
+
+def test_rapprochement_floue_score_eleve_ancre_sur_le_meme_dossier(db_session):
+    """"transport beaulieu inc" vs "transport beaulieux inc" (score ~97.8,
+    au-dessus de SEUIL_FUSION_AUTO=95) — jamais une nouvelle fiche créée,
+    ancrage direct sur le dossier existant, silencieux (aucun candidat créé
+    à ancrer, rien à journaliser)."""
+    c1 = resolve_company(db_session, _raw("Transport Beaulieu inc.", source_ref="a"))
+    c2 = resolve_company(db_session, _raw("Transport Beaulieux inc.", source_ref="b"))
+    assert c1.id == c2.id
+
+
+def test_rapprochement_floue_score_intermediaire_cree_un_candidat_journalise(db_session):
+    """"les services exp inc" vs "...compte principal" (score 90, dans la
+    fourchette [90, 95[) — JAMAIS fusionné seul : une nouvelle fiche est
+    quand même créée, mais un candidat est journalisé pour examen manuel."""
+    from falkye.models.diagnostic_journal import DiagnosticJournal, TypeDiagnostic
+
+    c1 = resolve_company(db_session, _raw("Les Services EXP inc.", source_ref="a"))
+    c2 = resolve_company(db_session, _raw("Les Services EXP inc. — compte principal", source_ref="b"))
+    assert c1.id != c2.id  # deux fiches distinctes, jamais fusionnées automatiquement
+
+    candidats = (
+        db_session.query(DiagnosticJournal)
+        .filter(DiagnosticJournal.type_diagnostic == TypeDiagnostic.CANDIDAT_FUSION_ENTREPRISE)
+        .all()
+    )
+    assert len(candidats) == 1
+    assert candidats[0].statut == "a_examiner"
+    assert candidats[0].company_id_principal == c1.id
+    assert candidats[0].company_id_candidat == c2.id
+    assert 90.0 <= candidats[0].score_similarite < 95.0
+
+
+def test_rapprochement_floue_score_faible_ne_journalise_rien(db_session):
+    """"entreprise alpha inc" vs "entreprise beta inc" (score ~82, sous
+    SEUIL_FUSION_CANDIDAT=90) — deux fiches distinctes, aucun candidat
+    journalisé (bruit, pas un doublon plausible)."""
+    from falkye.models.diagnostic_journal import DiagnosticJournal
+
+    c1 = resolve_company(db_session, _raw("Entreprise Alpha inc.", source_ref="a"))
+    c2 = resolve_company(db_session, _raw("Entreprise Beta inc.", source_ref="b"))
+    assert c1.id != c2.id
+    assert db_session.query(DiagnosticJournal).count() == 0
+
+
+def test_rapprochement_floue_jamais_contre_une_entreprise_resolue_au_neq(db_session):
+    """Un Company déjà résolu (neq NOT NULL, ici via un NEQ directement fourni
+    par le signal — découplé de la correspondance floue REQ, qui aurait sinon
+    elle-même résolu le 2e nom via son propre mécanisme et masqué le test) —
+    jamais un candidat de fusion, même à très forte ressemblance : un faux
+    positif fusionnerait un dossier à forte valeur avec un dossier incertain.
+    Aucun REQEntry en base ici, donc `resolve_neq_by_name` ne peut résoudre
+    ni l'un ni l'autre nom par lui-même — seul le rapprochement floue DE CE
+    MODULE est sous test."""
+    c1 = resolve_company(
+        db_session,
+        RawSignal(
+            signal_type_id="appel_offres", nom_entreprise="Transport Beaulieu inc.",
+            detected_at=datetime.now(timezone.utc), source_ref="a", neq="5555555555",
+        ),
+    )
+    assert c1.neq == "5555555555"
+
+    c2 = resolve_company(db_session, _raw("Transport Beaulieux inc.", source_ref="b"))
+    assert c2.id != c1.id  # jamais ancré sur c1 malgré la ressemblance — c1 a un NEQ
+
+
 def test_statut_radie_propage_depuis_req(db_session):
     db_session.add(
         REQEntry(

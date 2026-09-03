@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from falkye.models.client_cible import ClientCible
 from falkye.models.client_cible_synonyme import ClientCibleSynonyme
+from falkye.models.company import Company
 from falkye.texte_matching import motif_present
 
 
@@ -80,3 +81,38 @@ def suggerer_clients_cibles_niveau1(
     ]
     suggestions.sort(key=lambda s: (-s.score, s.client_cible_nom))
     return suggestions[:limite]
+
+
+def suggerer_clients_cibles_niveau1_pour_company(
+    db_session: Session, company: Company, limite: int = 3
+) -> list[SuggestionClientCible]:
+    """Classification "qui" d'une entreprise DÉTECTÉE (falkye/engine.py, jamais
+    dépendant d'une seule source — vérifié explicitement, 2026-09-03, contre les
+    champs réellement disponibles de chaque source active).
+
+    `company.secteur_activite_libelle` EST DÉJÀ la fusion cross-source pour les
+    deux sources qui peuvent légitimement le renseigner :
+      - REQ (`falkye/resolution.py::_enrich_from_req`, secteur_libelle officiel) ;
+      - `licences_toronto`/`licences_vancouver` (`raw.secteur_activite=brute.
+        type_entreprise`, propagé par `resolve_company` — même champ, même
+        rôle que le secteur REQ pour une entreprise hors Québec).
+    Aucun changement de mécanisme nécessaire ici pour ces deux-là : le simple
+    fait d'appeler ce matcher contre `company.secteur_activite_libelle` couvre
+    déjà les deux.
+
+    Les autres champs disponibles à travers les signaux de cette entreprise
+    (`donneur_ordre`/`ministere` de SEAO/contrats fédéraux/Nouvelle-Écosse/
+    subventions, `titre_poste`/`profession` du recrutement, `description_
+    tender`) sont DÉLIBÉRÉMENT exclus, pas oubliés : ces champs décrivent le
+    DONNEUR D'ORDRE, le POSTE affiché, ou le CONTRAT — jamais la clientèle
+    propre de l'entreprise détectée elle-même. Les inclure classerait à tort,
+    par exemple, une firme d'ingénierie privée comme "organismes publics et
+    institutionnels" simplement parce qu'elle a décroché un contrat d'un
+    ministère — le donneur d'ordre n'est pas le client-type de l'entreprise,
+    c'est SON client à elle pour CE contrat précis, une notion différente.
+
+    Sans signal classifiable (secteur vide ou sans correspondance), liste
+    vide — jamais une catégorie forcée, jamais d'escalade Niveau 2 pour une
+    entreprise détectée (coût IA par entreprise scannée jamais introduit sans
+    demande explicite — voir docs/ARCHITECTURE.md)."""
+    return suggerer_clients_cibles_niveau1(db_session, company.secteur_activite_libelle or "", limite=limite)

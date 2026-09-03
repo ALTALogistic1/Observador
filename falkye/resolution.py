@@ -13,6 +13,11 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from falkye.dedup_entreprises import (
+    SEUIL_FUSION_AUTO,
+    journaliser_candidat_fusion,
+    trouver_meilleur_candidat_fusion,
+)
 from falkye.models.company import Company, StatutLegal, StatutResolution
 from falkye.sources import req as req_source
 from falkye.sources.base import RawSignal
@@ -75,10 +80,27 @@ def resolve_company(db_session: Session, raw: RawSignal) -> Company:
     else:
         company = _find_unresolved_company(db_session, raw.nom_entreprise)
         if company is None:
-            company = Company(
-                neq=None, nom_detecte=raw.nom_entreprise, nom_detecte_normalise=normaliser(raw.nom_entreprise)
-            )
-            db_session.add(company)
+            # Correspondance EXACTE absente — avant de créer une NOUVELLE fiche,
+            # tente un rapprochement FLOU parmi les Company déjà sans NEQ (spec
+            # section 8bis, point 4, 2026-09-03 — voir falkye/dedup_entreprises.py
+            # pour le détail des deux seuils). L'entreprise existante trouvée est
+            # TOUJOURS le "principal" ici : elle existait déjà avant ce signal, donc
+            # forcément plus ancienne (`first_detected_at`) que la fiche qu'on
+            # s'apprête à créer.
+            nom_norm = normaliser(raw.nom_entreprise)
+            meilleur = trouver_meilleur_candidat_fusion(db_session, nom_norm, raw.ville)
+            if meilleur is not None and meilleur.score >= SEUIL_FUSION_AUTO:
+                company = meilleur.company  # ancrage fort — jamais une nouvelle fiche créée
+            else:
+                company = Company(
+                    neq=None, nom_detecte=raw.nom_entreprise, nom_detecte_normalise=nom_norm
+                )
+                db_session.add(company)
+                db_session.flush()  # company.id requis avant de journaliser un candidat
+                if meilleur is not None:  # 90 <= score < 95 — jamais fusionné seul
+                    journaliser_candidat_fusion(
+                        db_session, meilleur.company, company, meilleur.score, statut="a_examiner"
+                    )
         company.statut_resolution = (
             StatutResolution.AMBIGU if matches else StatutResolution.NON_TROUVE
         )

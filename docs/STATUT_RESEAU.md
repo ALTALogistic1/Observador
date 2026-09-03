@@ -1878,3 +1878,80 @@ après le scénario — jamais conservé, jamais rapproché de la base réelle.
 **Construit et testé (392/392, inchangé — ce scénario est un script de
 validation ponctuel, pas une suite pytest permanente, même statut que le
 scénario d'authentification équivalent).**
+
+## Sept points de suivi post-livraison — sphère N:N/qui/hors-profil (2026-09-03)
+
+Voir `docs/ARCHITECTURE.md`, section "Sept points de suivi post-livraison",
+pour l'analyse complète des sept points. Résumé opérationnel ici : ce qui a
+été construit, exécuté contre la base réelle, et — surtout — un bogue réel
+trouvé et corrigé AVANT toute conséquence durable.
+
+**Points 2, 3, 6 (deuxième volet) et 7** : construits (classification "qui"
+cross-source documentant les champs exclus, dimension `par_client_cible`
+dans `dashboard synthese`, deux fuites de libellés corrigées — courriel de
+notification et rapport de scan —, instruction Niveau 2 pour collapser vers
+`aucune_restriction`), testés (392 -> 397 avant le point 4). Confirmé contre
+des données réelles : classification "qui" testée contre un échantillon
+d'entreprises réelles avec secteur non vide — ex. "John Cockerill Cy-Bo
+Inc." (secteur "Manufacturier et distributeur de produits plastiques...")
+classé correctement "Secteur manufacturier et industriel" via le synonyme
+"manufacturier". Rapport de scan vérifié sans réseau réel (construction
+directe d'un `ScanReport` factice) : `seao` + `contrats_federaux` agrégés
+sous "Appel d'offres public décroché", jamais leur nom individuel.
+
+**Points 5** : vérifié correct par lecture de code, documenté, aucun
+changement.
+
+**Point 4 — dédoublonnage, le plus substantiel** : `falkye/dedup_
+entreprises.py` construit (deux seuils, 95/90, voir ARCHITECTURE.md),
+`falkye/resolution.py` étendu (fallback flou à l'ingestion), CLI (`scan
+detecter-doublons`, `diagnostic confirmer-fusion`/`rejeter-fusion`), 13
+tests unitaires.
+
+**Migration de la base de développement réelle, en deux temps — le second
+temps EST le point important** :
+
+1. Colonnes `journal_diagnostic.company_id_principal`/`company_id_
+   candidat`/`score_similarite` ajoutées (`ALTER TABLE`, table
+   préexistante). Sauvegarde complète prise AVANT toute modification.
+2. **Premier passage de `falkye scan detecter-doublons` contre la base
+   réelle** : 3 fusions automatiques, 39 candidats journalisés. En
+   inspectant le détail (`diagnostic lister`) avant de considérer le
+   travail terminé — pas après —, une fusion automatique s'est révélée
+   INCORRECTE : "9519-3801 Québec inc." fusionnée avec "9519-3850 Québec
+   inc." (score WRatio 95.0) — deux compagnies à numéro québécoises
+   DISTINCTES (le matricule EST l'identifiant légal ; deux matricules
+   différents = deux entités différentes, sans exception), la similarité de
+   chaînes de caractères ayant été trompée par la partie commune "Québec
+   inc.". **Base immédiatement restaurée depuis la sauvegarde** — aucune
+   autre conséquence, rien commité ni poussé entre-temps.
+3. Garde-fou ajouté (`_numero_entreprise` — deux compagnies à numéro ne
+   sont jamais comparées par similarité floue), 3 tests dédiés écrits
+   d'abord (dont une reproduction EXACTE du cas réel trouvé), suite
+   complète revalidée (417/417), PUIS seulement colonnes réappliquées et
+   `scan detecter-doublons` relancé.
+4. **Second passage, après correction** : 2 fusions automatiques (toutes
+   deux inspectées manuellement, plausibles — "SERVICE D'ÉQUIPEMENT G.D.
+   INC." / "Service d'équipements G.D. inc.", singulier/pluriel ; "Raymond
+   Chabot Grant Thornton & Cie S.E.N.C.R.L." / "... S.E.N.C.R.L.", avec/sans
+   "& Cie"), 20 candidats journalisés pour examen manuel. Certains de ces
+   20 candidats sont PROBABLEMENT de faux positifs à l'inspection (ex.
+   "Groupe TVA inc." / "Groupe A. inc.") — exactement le comportement
+   attendu de la fourchette 90-95 : jamais tranché automatiquement, laissé
+   à l'examen humain plutôt que deviné. Ces 20 candidats restent
+   volontairement intacts (statut `a_examiner`) — pas à moi de trancher
+   lesquels sont de vrais doublons, c'est le jugement d'Alexandre sur ses
+   propres données. Idempotence vérifiée : un troisième passage ne
+   retraite rien (0/0).
+
+**Sur le fond** : ce n'est pas un aléa sans conséquence — sans la
+vérification manuelle du détail après un premier passage (plutôt que de se
+fier au seul compte "3 fusions automatiques" et de continuer), cette fusion
+incorrecte serait restée en base, non détectée, jusqu'à ce qu'un profil
+Radar+ réel s'appuie dessus. Trouvé et corrigé parce que le principe déjà
+établi dans ce projet — vérifier contre de vraies données avant de
+considérer un mécanisme terminé — a été appliqué même après qu'un plan
+détaillé eut déjà été confirmé par Alexandre : un plan confirmé ne dispense
+pas de la vérification empirique de son exécution.
+
+**Construit et testé (417/417, dont 25 nouveaux).**
