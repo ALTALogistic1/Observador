@@ -130,6 +130,7 @@ sources:
     cout: gratuit
     region: "Québec"
     province_code: qc  # détection d'expansion inter-provinciale, spec Radar+ point 7 (voir falkye/expansion_interprovinciale.py)
+    licence_ouverte: "CC-BY-NC-SA 4.0"  # vérifiée le 2026-09-04 sur la fiche du jeu (donneesquebec.ca) — charte section 12ter. Pas d'usage commercial, partage dans les mêmes conditions (clause SA). Usage actuel personnel/non commercial, donc couvert — voir note ci-dessous pour l'échéance de revalidation.
     connecteur: falkye.sources.req  # conservé pour detect_from_file — pas appelé par la boucle automatisée (methode_acces=import_manuel)
     type_ingestion: instantane  # Chantier 1 (audit 2026-09-03, faille E) : pas de date par ligne, signal né d'une comparaison de deux instantanés — voir falkye/diff_engine.py
     cle_naturelle: [neq]  # identifiant stable et unique par entreprise, jamais réattribué
@@ -179,6 +180,18 @@ sources:
       adresse résolus correctement) — voir docs/STATUT_RESEAU.md pour le détail,
       dont une limite réelle de complétude d'adresse (dossiers anciens souvent sans
       établissement déclaré).
+
+      LICENCE VÉRIFIÉE le 2026-09-04 (Alexandre, charte section 12ter) : CC-BY-NC-SA
+      4.0, lue sur la fiche du jeu (donneesquebec.ca) — pas d'utilisation
+      commerciale, partage dans les mêmes conditions. L'usage actuel est personnel
+      et non commercial (produit non commercialisé), donc couvert. DÉCISION NON
+      TRANCHÉE, AVEC ÉCHÉANCE (charte section 15) : la demande d'autorisation au
+      titulaire des droits est reportée, déclenchée par le premier engagement
+      commercial (premier abonnement payant facturé) plutôt qu'une date fixe — ce
+      chantier n'entame aucune démarche tant que ce déclencheur n'est pas atteint.
+      À réexaminer explicitement avant le premier paiement Stripe réel (falkye/
+      billing/stripe_client.py) si celui-ci survient avant qu'une autorisation
+      ait été obtenue.
 
   # ---------------------------------------------------------------------
   # Phase 2 — gratuites, à développer (section 8 : toute source gratuite de
@@ -606,7 +619,7 @@ sources:
   - id: corporations_canada
     nom: "Corporations Canada (ISED) — registre fédéral"
     signal_associe: [registre_corporatif]
-    statut: actif
+    statut: en_pause  # MISE EN VEILLEUSE — voir note datée ci-dessous
     blocage_type: null
     methode_acces: donnees_ouvertes  # + api (temps réel, plus complet qu'un simple bulk)
     champs_pertinents:
@@ -664,6 +677,19 @@ sources:
       miroir part vide — comportement attendu d'une détection par diff, pas un
       bug ; seuls les rafraîchissements suivants seront réellement incrémentaux.
 
+      MISE EN VEILLEUSE le 2026-09-04 (décision d'Alexandre) : la portée du
+      produit devient prioritairement québécoise. Contrairement aux
+      subventions/contrats fédéraux et à l'EIMT positive (qui restent actifs
+      parce qu'ils font remonter des entreprises québécoises précises), ce
+      registre fédéral est un signal registre_corporatif générique, pas
+      rattaché à une entreprise québécoise en particulier — n'améliore pas les
+      résultats obtenus au Québec au sens de la nouvelle priorité. Plus
+      ordonnancée, plus maintenue, aucun correctif prévu. Code, tests et état
+      accumulé (EtatLigneSource/EtatSchemaSource, CorporationFederaleEntry —
+      694 844 lignes réelles migrées) restent en place pour une reprise sans
+      run de référence si la portée s'élargit. Retirée de l'argumentaire
+      produit (README.md).
+
   - id: contrats_federaux
     nom: "Divulgation proactive des contrats fédéraux"
     signal_associe: [appel_offres]
@@ -698,7 +724,7 @@ sources:
   - id: contrats_nouvelle_ecosse
     nom: "Contrats publics attribués — Nouvelle-Écosse"
     signal_associe: [appel_offres]
-    statut: actif
+    statut: en_pause  # MISE EN VEILLEUSE — voir note datée ci-dessous
     blocage_type: null
     methode_acces: api  # API SoQL (Socrata) — voir notes
     champs_pertinents:
@@ -738,10 +764,20 @@ sources:
       pas un contrat réellement gratuit. Crawl-delay: 1 dans le robots.txt du
       portail, aucun chemin /resource/ (l'API utilisée) interdit.
 
+      MISE EN VEILLEUSE le 2026-09-04 (décision d'Alexandre) : la portée du
+      produit devient prioritairement québécoise — un équivalent SEAO
+      purement néo-écossais n'améliore pas les résultats obtenus au Québec.
+      Plus ordonnancée, plus maintenue, aucun correctif prévu. Code et tests
+      restent en place pour une reprise directe si la portée s'élargit. Cette
+      source n'a jamais été rebranchée sur le moteur de diff générique
+      (chantier 1) — pas de type_ingestion instantane ici, donc pas
+      d'EtatLigneSource/EtatSchemaSource à préserver pour elle. Retirée de
+      l'argumentaire produit (README.md).
+
   - id: licences_vancouver
     nom: "Licences d'affaires — Ville de Vancouver"
     signal_associe: [registre_corporatif]
-    statut: actif
+    statut: en_pause  # MISE EN VEILLEUSE — voir note datée ci-dessous
     blocage_type: null
     methode_acces: donnees_ouvertes
     champs_pertinents:
@@ -800,10 +836,23 @@ sources:
       borne un appel `--historique-complet` (log d'avertissement explicite
       plutôt qu'échec silencieux).
 
+      MISE EN VEILLEUSE le 2026-09-04 (décision d'Alexandre) : la portée du
+      produit devient prioritairement québécoise — une source pancanadienne
+      n'est retenue que si elle améliore les résultats obtenus au Québec, ce
+      qui n'est pas le cas d'une source municipale hors Québec. Plus
+      ordonnancée (statut retiré de "actif", donc exclue de
+      sources_actives()/sources_actives_automatisees()), plus maintenue,
+      aucun correctif prévu — y compris le plafond de pagination Opendatasoft
+      documenté ci-dessus, qui reste tel quel. Rien n'est supprimé : code,
+      tests et état accumulé (EtatLigneSource/EtatSchemaSource,
+      LicenceMunicipaleEntry) restent en place, pour une reprise SANS run de
+      référence si la portée s'élargit à nouveau. Retirée de l'argumentaire
+      produit (README.md) — voir docs/STATUT_RESEAU.md pour le suivi complet.
+
   - id: licences_toronto
     nom: "Licences d'affaires — Ville de Toronto"
     signal_associe: [registre_corporatif]
-    statut: actif
+    statut: en_pause  # MISE EN VEILLEUSE — voir note datée ci-dessous
     blocage_type: null
     methode_acces: api  # API Datastore CKAN — voir notes
     champs_pertinents:
@@ -853,6 +902,12 @@ sources:
       INC", "9003088 CANADA CORP" — correspondance 100.0 avec Corporations
       Canada, cette dernière avec plusieurs adresses réellement distinctes
       confirmées, chacune un nouvel établissement légitime).
+
+      MISE EN VEILLEUSE le 2026-09-04 (décision d'Alexandre) : même raison et
+      mêmes conditions que licences_vancouver — voir sa note. Plus
+      ordonnancée, plus maintenue, aucun correctif prévu. Code, tests et état
+      accumulé (EtatLigneSource/EtatSchemaSource, LicenceMunicipaleEntry)
+      restent en place. Retirée de l'argumentaire produit (README.md).
 
   # ---------------------------------------------------------------------
   # Bloquées ou budgétaires — visibles dans le registre, non prioritaires

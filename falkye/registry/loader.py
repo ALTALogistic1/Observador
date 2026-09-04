@@ -95,6 +95,18 @@ class SourceDef:
     # jamais une seule constante globale (une source à 200 lignes et une à
     # 160 000 n'ont pas le même bruit normal).
     seuils_quarantaine: dict | None = None
+    # Variante EXACTE de licence ouverte lue sur la fiche du jeu de données
+    # précis (charte section 12ter — jamais présumée depuis le portail en
+    # bloc ; une licence ouverte se décline en plusieurs variantes, dont des
+    # variantes NC qui interdisent l'usage commercial). None = source non
+    # publiée sous licence ouverte (donnée propriétaire, API commerciale,
+    # accès contractuel...), pas encore vérifiée, ou statut légal couvert
+    # autrement (blocage_type). Un usage commercial sous licence NC exige une
+    # autorisation préalable de l'organisme — voir `notes` pour l'échéance de
+    # revalidation propre à chaque source concernée (charte section 15 : une
+    # vérification se périme, elle a besoin d'une échéance, pas d'une bonne
+    # intention).
+    licence_ouverte: str | None = None
 
     @property
     def est_actif(self) -> bool:

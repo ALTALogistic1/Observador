@@ -288,7 +288,7 @@ def registry():
 def registry_sources():
     reg = get_registry()
     for s in reg.sources.values():
-        marqueur = "✅" if s.est_actif else ("💤" if s.statut == "a_developper" else "⛔")
+        marqueur = "✅" if s.est_actif else ("💤" if s.statut == "a_developper" else ("⏸" if s.statut == "en_pause" else "⛔"))
         extra = f" — recherche: {s.lien_recherche}" if s.est_import_manuel and s.lien_recherche else ""
         click.echo(
             f"{marqueur} {s.id:35s} statut={s.statut:15s} signal={','.join(s.signal_associe)}{extra}"

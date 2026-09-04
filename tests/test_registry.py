@@ -36,6 +36,40 @@ def test_registre_reel_se_charge_sans_erreur():
     assert len(registry.sources_actives()) >= 3
 
 
+def test_source_en_pause_est_exclue_des_sources_actives():
+    """Régression (2026-09-04) : `en_pause` est un statut DISTINCT de `actif`
+    (planifié) et de `inactif` (bloqué légalement/budgétairement, jamais
+    codé) — une source en pause a du code, des tests et de l'état réel
+    conservés, simplement plus ordonnancée. `est_actif` doit rester strict :
+    seul `actif` compte."""
+    source = _source("x", "en_pause")
+    assert source.est_actif is False
+
+
+def test_sources_mises_en_veilleuse_le_2026_09_04_sont_exclues_du_registre_reel():
+    """Ajustement de portée (décision d'Alexandre, 2026-09-04) : priorité
+    québécoise — Toronto, Vancouver, Nouvelle-Écosse et Corporations Canada
+    ne sont plus ordonnancées, mais restent dans le registre (code/tests/état
+    conservés, pas supprimés) avec statut=en_pause plutôt que actif."""
+    registry = load_registry()
+    en_veilleuse = ["licences_toronto", "licences_vancouver", "contrats_nouvelle_ecosse", "corporations_canada"]
+    for source_id in en_veilleuse:
+        source = registry.sources[source_id]
+        assert source.statut == "en_pause", source_id
+        assert source.est_actif is False, source_id
+    actifs = {s.id for s in registry.sources_actives()}
+    assert actifs.isdisjoint(en_veilleuse)
+    # Toujours dans le registre (pas supprimées) — juste plus planifiées.
+    assert set(en_veilleuse) <= set(registry.sources)
+
+
+def test_req_porte_sa_licence_ouverte_verifiee():
+    """Découverte légale (charte section 12ter, 2026-09-04) : le REQ est en
+    CC-BY-NC-SA 4.0 — consignée au registre plutôt que présumée."""
+    registry = load_registry()
+    assert registry.sources["req"].licence_ouverte == "CC-BY-NC-SA 4.0"
+
+
 def test_toutes_les_sources_actives_reelles_ont_une_regle_de_calibration():
     """Le registre réel du projet respecte déjà le principe #3 — pas seulement le
     mécanisme de validation en isolation (voir tests ci-dessous)."""

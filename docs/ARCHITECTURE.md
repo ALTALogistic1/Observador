@@ -2184,3 +2184,32 @@ fois — un diff authentique et non trivial (le moteur compare réellement
 2 726 312 + 236 311 lignes à leur état stocké), mais idempotent par
 construction plutôt que reflétant un changement réel du registre depuis la
 migration. À corriger dès qu'un fichier REQ neuf redevient disponible.
+
+### Exigence de conception pour les futures sources instantané (constatée le 2026-09-04, suite du chantier 1)
+
+En clarifiant avec Alexandre le comportement du "run de référence" observé
+sur Toronto/Vancouver (voir `docs/STATUT_RESEAU.md`, "Suite du chantier 1"),
+un principe de conception s'est révélé absent du contrat du moteur
+générique : **`executer_diff` garantit que SON PROPRE calcul (apparitions/
+disparitions/modifications) est vide au premier run d'une source — il ne
+garantit RIEN sur ce qu'un connecteur fait AVEC ce résultat.** REQ et
+Corporations Canada respectent quand même le critère "aucun signal au run
+de référence" (mandat chantier 1, premier critère d'acceptation), mais
+seulement parce que leurs statistiques sont explicitement dérivées de
+`rapport.run_reference`/`rapport.resultat`. Toronto/Vancouver ne le font
+pas : leur filtre bespoke (`detecter_nouvelles_licences`) s'exécute
+inconditionnellement dès que le moteur confirme l'absence de quarantaine,
+avec sa PROPRE notion indépendante de "premier scan" (state d'un mirror
+bespoke, pas de `EtatSchemaSource`) — ce qui a produit de vrais signaux lors
+du premier appel du moteur générique, parce que ce mirror bespoke portait
+déjà un historique réel antérieur à ce chantier (voir le suivi pour le
+détail complet).
+
+**Règle à appliquer dès la construction de tout futur connecteur instantané
+(RACJ, établissements alimentaires Montréal — les deux prochaines sources
+de ce type) :** vérifier explicitement `rapport.run_reference` avant tout
+`yield` de signal dans `detect()`, jamais seulement compter sur l'état vide
+d'un mirror bespoke annexe. Si le connecteur n'a pas de mirror bespoke
+propre (le cas attendu pour RACJ/Montréal, connecteurs neufs), ce risque
+précis ne se manifeste pas — mais la vérification explicite reste la seule
+garantie qui ne dépend pas de cette absence.

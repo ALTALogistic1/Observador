@@ -2153,3 +2153,146 @@ signal.
 
 **Construit et testé (456/456, dont 9 nouveaux depuis le suivi précédent
 447/447).**
+
+## Suite du chantier 1 : clarification, mise en veilleuse hors Québec, double couche d'état (2026-09-04)
+
+Réponses aux questions posées par Alexandre après le rapport de rebranchement
+ci-dessus.
+
+**1. Les 4117/253 signaux du "run de référence" Toronto/Vancouver — ce ne
+sont pas des enregistrements d'état, ce sont de vrais `RawSignal` entrés
+dans le pipeline (persistés, comptés dans `nb_signaux_nouveaux`).** Mais ce
+n'est PAS une fuite du moteur générique : `executer_diff` a bien émis 0
+apparition/disparition/modification à son propre premier run — exactement
+comme pour REQ et Corporations Canada, où les statistiques dérivent
+explicitement de `rapport.run_reference`/`rapport.resultat`. Les signaux
+viennent d'ailleurs : le filtre bespoke `detecter_nouvelles_licences`
+(`falkye/sources/licences_municipales_communes.py`), une couche
+COMPLÈTEMENT SÉPARÉE avec sa PROPRE notion de "premier scan", basée sur
+`LicenceMunicipaleEntry` plutôt que sur `EtatSchemaSource`. Cette table
+n'était PAS vide à l'appel : elle porte l'historique réel accumulé par ces
+connecteurs en production, DEPUIS AVANT ce chantier. Le filtre bespoke a
+donc correctement identifié de vraies licences neuves depuis le DERNIER VRAI
+SCAN (pas depuis zéro) — pas du bruit, un vrai signal, seulement mal
+étiqueté "run de référence" dans le rapport de validation.
+
+Ce que ça révèle : je n'ai PAS migré l'état bespoke de Toronto/Vancouver
+(`LicenceMunicipaleEntry`) vers le moteur générique, contrairement à ce qui
+a été fait pour REQ/Corporations Canada — j'ai laissé le moteur générique
+amorcer à vide pendant que le mirror bespoke portait déjà un historique
+réel. Deux couches d'état pour la même source, désynchronisées au moment de
+ce premier appel. C'est exactement l'anomalie de la question 4 ci-dessous,
+rencontrée en pratique avant même d'être posée.
+
+**Risque pour RACJ et établissements alimentaires Montréal (prochaines
+sources instantané) : pas par ce mécanisme précis** — ce sont des
+connecteurs neufs sans mirror bespoke préexistant, donc leur premier vrai
+scan ET le premier run du moteur générique seront simultanément à vide.
+**Mais le principe général reste un vrai risque de conception : aucun
+connecteur ne vérifie explicitement `rapport.run_reference` avant d'émettre
+un signal.** REQ et Corporations Canada respectent le critère seulement
+parce que leurs statistiques sont câblées à partir de `rapport.resultat`/
+`run_reference` — Toronto/Vancouver ne le font pas du tout, leur filtre
+bespoke s'exécute inconditionnellement dès que le moteur confirme l'absence
+de quarantaine. **Exigence de conception consignée pour RACJ/Montréal**
+(chantier suivant, pas retouché ici puisque Toronto/Vancouver passent en
+veilleuse sans correctif) : tout connecteur instantané doit vérifier
+explicitement `rapport.run_reference` avant tout `yield` de signal, jamais
+seulement dépendre de l'état vide d'un mirror bespoke.
+
+**2. Mise en veilleuse hors Québec.** `licences_toronto`, `licences_vancouver`,
+`contrats_nouvelle_ecosse` et `corporations_canada` : `statut` passé de
+`actif` à `en_pause` dans `registry/sources.yaml` (nouvelle valeur de
+`SourceDef.statut`, déjà anticipée dans le type de `loader.py` mais jamais
+utilisée jusqu'ici — extensibilité du registre appliquée sans
+restructuration). `est_actif` reste strict (`statut == "actif"`), donc les 4
+sources sont automatiquement exclues de `sources_actives()`/
+`sources_actives_automatisees()` — plus ordonnancées par la boucle
+automatisée, sans aucun changement de code dans `engine.py`. Aucun
+correctif prévu pour ces 4 sources tant que la portée reste québécoise, y
+compris le plafond de pagination Opendatasoft de Vancouver (documenté,
+jamais corrigé). Code, tests et état accumulé (`EtatLigneSource`/
+`EtatSchemaSource`, `LicenceMunicipaleEntry`, `CorporationFederaleEntry`)
+restent intacts pour une reprise sans run de référence si la portée
+s'élargit — voir la note datée de chaque source dans `registry/sources.yaml`
+pour le détail. `README.md` mis à jour : la présentation de la couverture
+pancanadienne comme objectif produit est retirée, ces 4 sources ne sont plus
+présentées comme des acquis actifs. 2 nouveaux tests de régression
+(`tests/test_registry.py`) verrouillent l'exclusion et la conservation au
+registre.
+
+**3. REQ — validation contre un vrai fichier neuf.** Alexandre fournit
+l'édition du 2026-09-02 (ZIP 225 Mo, 6 CSV joints par NEQ, virgule, UTF-8).
+Commande : `falkye import-manuel fichier --source-id req --chemin
+<fichier>` — délègue à `REQConnector.detect_from_file`, qui route déjà vers
+le chemin rebranché (`_ingest_zip_req_reel`) validé ci-dessus. `--pas-de-
+reprocess` disponible si le retraitement complet de toutes les entreprises
+connues (comportement par défaut, utile pour débloquer la résolution NEQ
+d'entreprises déjà détectées par d'autres sources) doit être différé sur un
+import volumineux.
+
+**Risque de persistance réel, à trancher avant de promettre "garder deux
+éditions consécutives" : la base réelle de cet environnement
+(`data/falkye.sqlite3`, 2,7 Go — REQEntry, EtatLigneSource, tout l'état
+migré et validé ci-dessus) ET l'archive de diff (`cache/diff_archive/`) sont
+TOUTES DEUX exclues de git (`.gitignore`) et vivent uniquement dans le
+système de fichiers de ce conteneur de session.** Rien dans ce projet
+n'exporte ni ne sauvegarde cet état ailleurs. Le conteneur a survécu à de
+nombreuses sessions jusqu'ici, mais rien ne garantit qu'il survive
+indéfiniment — la consigne d'environnement est explicite : tout ce qui n'est
+pas commité disparaît à la récupération du conteneur. Concrètement : (a) je
+ne peux pas garantir aujourd'hui que ce fichier ZIP, une fois importé, reste
+disponible pour un rejeu futur au-delà de la durée de vie de ce conteneur ;
+(b) ce risque touche aussi TOUT ce que le chantier 2 s'apprête à construire
+(historique d'exécution, norme de volume apprise sur l'historique
+accumulé) — un historique qui peut disparaître d'un coup n'est pas une base
+fiable pour apprendre une norme. Solution pragmatique immédiate, en
+attendant une vraie décision d'infrastructure (hors périmètre de ce
+chantier, à trancher par Alexandre) : conserver le fichier de VOTRE côté
+plutôt que de compter sur cet environnement — je réutiliserai le même
+fichier si le conteneur redémarre à vide. Consigné, pas attaqué ici.
+
+**4. Double couche d'état — investigation, pas une décision mécanique de
+retrait.** `REQEntry`, `CorporationFederaleEntry` et `LicenceMunicipaleEntry`
+sont ACTIVEMENT écrits (upsert à chaque run non quarantiné, Phase 2) ET
+ACTIVEMENT lus — `REQEntry` par `falkye/resolution.py::resolve_neq_by_name`/
+`_enrich_from_req` (le pivot NEQ de tout le pipeline, selon la docstring du
+module lui-même), `CorporationFederaleEntry` et `LicenceMunicipaleEntry` par
+`resolve_corp_federale_by_name`/`detecter_nouvelles_licences` (consommateurs
+maintenant en veilleuse avec leurs sources, voir point 2). `EtatLigneSource`/
+`EtatSchemaSource` (moteur générique) ne sont lus par RIEN d'autre que
+`falkye/diff_engine.py` lui-même au run suivant.
+
+**Ce ne sont donc PAS deux vérités concurrentes sur le même fait — ce sont
+deux questions différentes, avec deux consommateurs différents :**
+`EtatLigneSource` répond à "ce run est-il sain (schéma/volume), par rapport
+au dernier run" (bookkeeping interne du moteur, jamais lu ailleurs) ;
+`REQEntry`/`CorporationFederaleEntry`/`LicenceMunicipaleEntry` répondent à
+"que sait-on aujourd'hui de cette entité précise" (identité/résolution,
+consommé par d'autres modules). Retirer `EtatLigneSource` casserait le
+mécanisme de quarantaine (l'objet même du chantier 1). Retirer `REQEntry`
+casserait `resolve_company` — "le pivot de tout le pipeline". **Aucune des
+deux ne survit à la place de l'autre : les deux restent nécessaires.**
+
+**Nuance honnête, à ne pas balayer :** `EtatLigneSource.donnees_normalisees`
+stocke aussi les valeurs des champs pertinents au dernier état connu — un
+recoupement de CONTENU (pas de rôle) avec `REQEntry` existe donc bel et
+bien. Il n'y a pas de risque de désynchronisation EN COURS D'EXÉCUTION (les
+deux sont dérivés, dans le même run, de la même donnée résolue en mémoire —
+`_EntrepriseResolue`/`_CorporationResolue`/`LicenceBrute`), mais il y a un
+vrai risque d'entretien : deux fonctions de mapping indépendantes par
+connecteur (`_ligne_entreprise` vs `_upsert_entreprise_reelle`, etc.) qui
+doivent rester manuellement synchronisées à chaque futur champ ajouté — rien
+ne les verrouille l'une à l'autre aujourd'hui. Proposé, pas construit ici
+(hors périmètre de ce message) : une vérification macro périodique
+comparant `EtatLigneSource.donnees_normalisees` à `REQEntry` par NEQ, à
+valider avec Alexandre avant construction.
+
+**5. Licence REQ.** CC-BY-NC-SA 4.0, vérifiée le 2026-09-04, consignée dans
+`registry/sources.yaml` (nouveau champ `SourceDef.licence_ouverte`) avec
+échéance événementielle (premier engagement commercial, pas de date fixe) —
+détail complet dans la note du registre. Aucune action de développement.
+
+**3 nouveaux tests** (`tests/test_registry.py` : exclusion `en_pause`,
+conservation au registre des 4 sources en veilleuse, `licence_ouverte` du
+REQ).
