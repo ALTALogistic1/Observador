@@ -56,8 +56,9 @@ from rapidfuzz import fuzz, process
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from falkye.diff_engine import LigneSnapshot, executer_diff, seuils_depuis_registre
 from falkye.models.req_entry import REQEntry
-from falkye.models.req_etablissement_entry import REQEtablissementEntry
+from falkye.registry.loader import get_registry
 from falkye.sources.base import RawSignal, SourceConnector
 from falkye.sources.ckan_client import DONNEES_QUEBEC_BASE, CKANClient
 from falkye.sources.column_mapping import normaliser as _normaliser
@@ -107,6 +108,30 @@ def _parse_statut(raw: str) -> str:
 # obligatoire "radiée" (spec section 6) — AI/NI ne sont ni l'un ni l'autre et
 # gardent leur code brut plutôt que d'être devinés vers une catégorie non confirmée.
 STATUTS_RADIES_CODES_REELS = {"RD", "RO", "RX"}
+
+# --- Rebranchement sur le moteur de diff générique (Chantier 1, suivi
+# 2026-09-04 : « rebrancher REQ en premier ») --------------------------------
+# REQ a DEUX grains de diff distincts, jamais fusionnés en un seul appel au
+# moteur : le grain ENTREPRISE (registry/sources.yaml:req.champs_pertinents —
+# détecte le changement d'adresse du siège) et le grain ÉTABLISSEMENT (interne
+# à ce module, pas dans le registre — détecte le nouvel établissement
+# secondaire). Ce sont deux partitions indépendantes de falkye/diff_engine.py
+# ("req" et "req_etablissements"), chacune avec son propre état et sa propre
+# quarantaine — un schéma cassé dans Etablissements.csv seul ne doit jamais
+# passer inaperçu simplement parce qu'Entreprise.csv, lui, est intact.
+CHAMPS_PERTINENTS_REQ = {"neq", "nom_entreprise", "secteur_activite", "adresses", "statut", "date_derniere_maj"}
+CHAMPS_PERTINENTS_REQ_ETABLISSEMENTS = {
+    "adresse", "ville", "code_postal", "secteur_libelle", "nom_etablissement", "principal",
+}
+# "secteur_code" est délibérément EXCLU de l'empreinte comparée par le moteur
+# (mais reste capté dans le signal — voir plus bas) : l'ancien miroir bespoke
+# REQEtablissementEntry ne l'a jamais stocké, donc l'état migré depuis ce
+# miroir (chantier 1, migration plutôt qu'un run de référence) ne pourrait
+# jamais le connaître — comparer contre une valeur structurellement absente
+# ferait apparaître une "modification" sur la quasi-totalité des
+# établissements dès le premier vrai import suivant la migration, un faux
+# positif de masse, pas un vrai changement. secteur_libelle (déjà dans
+# l'empreinte) porte la même information de façon lisible.
 
 
 def _decoder_statut_reel(code: str | None) -> str:
@@ -321,6 +346,12 @@ class IngestStats:
     changements_adresse: list[dict] | None = None
     nouveaux_etablissements: list[dict] | None = None  # chemin plat legacy uniquement (voir docstring)
     nouveaux_etablissements_secondaires: list[dict] | None = None  # chemin réel — signal "fort"
+    # Rebranchement chantier 1 : un import (entreprise OU établissement grain)
+    # mis en quarantaine par falkye/diff_engine.py ne touche NI REQEntry NI
+    # aucun signal — voir _ingest_zip_req_reel. `quarantaine_motif` porte la
+    # valeur de l'enum MotifQuarantaine (chaîne) du premier grain en cause.
+    quarantaine: bool = False
+    quarantaine_motif: str | None = None
 
     def __post_init__(self):
         self.changements_adresse = self.changements_adresse or []
@@ -328,19 +359,33 @@ class IngestStats:
         self.nouveaux_etablissements_secondaires = self.nouveaux_etablissements_secondaires or []
 
 
-def _upsert_entreprise_reelle(
-    db_session: Session,
-    row: dict,
-    noms: dict[str, str],
-    etablissements: dict[str, list[_EtabLeger]],
-    stats: IngestStats,
-) -> None:
-    """Traite une ligne d'Entreprise.csv en la joignant aux index NEQ->nom
-    (Nom.csv) et NEQ->établissements (Etablissements.csv) déjà chargés en
-    mémoire par `_ingest_zip_req_reel`."""
+@dataclass(frozen=True)
+class _EntrepriseResolue:
+    """Une ligne d'Entreprise.csv déjà jointe à Nom.csv/Etablissements.csv —
+    prête pour l'upsert REQEntry, SANS aucune décision de diff (déléguée au
+    moteur générique, voir _ingest_zip_req_reel). Extrait de l'ancien
+    `_upsert_entreprise_reelle`, qui mêlait jointure, upsert et diff en une
+    seule passe — désormais trois responsabilités séparées."""
+
+    neq: str
+    nom: str
+    statut: str
+    date_maj: datetime | None
+    adresse: str | None
+    ville: str | None
+    code_postal: str | None
+    secteur_code: str | None
+    secteur_libelle: str | None
+
+
+def _resoudre_entreprise(
+    row: dict, noms: dict[str, str], etablissements: dict[str, list[_EtabLeger]]
+) -> _EntrepriseResolue | None:
+    """Jointure PURE (aucune écriture, aucune décision de diff) d'une ligne
+    d'Entreprise.csv aux index NEQ->nom et NEQ->établissements."""
     neq = (row.get("NEQ") or "").strip()
     if not neq:
-        return
+        return None
 
     nom = noms.get(neq)
     if not nom:
@@ -348,7 +393,7 @@ def _upsert_entreprise_reelle(
         # Nom.csv) mais REQEntry.nom est non-nullable — ignorer plutôt que
         # deviner un nom, conforme au principe de ne jamais interpréter en silence.
         logger.warning("REQ: NEQ %s présent dans Entreprise.csv mais absent de Nom.csv, ignoré", neq)
-        return
+        return None
 
     statut = _decoder_statut_reel(row.get("COD_STAT_IMMAT"))
     date_maj = _parse_date(row.get("DAT_MAJ_INDEX_NOM"))
@@ -377,135 +422,271 @@ def _upsert_entreprise_reelle(
         secteur_code = (row.get("COD_ACT_ECON_CAE") or "").strip() or None
         secteur_libelle = _desc_secteur(row.get("DESC_ACT_ECON_ASSUJ"))
 
-    existing = db_session.get(REQEntry, neq)
-    entreprise_deja_connue = existing is not None
+    return _EntrepriseResolue(
+        neq=neq, nom=nom, statut=statut, date_maj=date_maj,
+        adresse=adresse, ville=ville, code_postal=code_postal,
+        secteur_code=secteur_code, secteur_libelle=secteur_libelle,
+    )
 
+
+def _upsert_entreprise_reelle(db_session: Session, r: _EntrepriseResolue) -> None:
+    """Upsert PUR de REQEntry (miroir de résolution — falkye/resolution.py,
+    falkye/verification.py) — plus aucune décision de diff ici, seulement
+    appelé APRÈS que le moteur générique (falkye/diff_engine.py) ait confirmé
+    que ce run n'est pas en quarantaine."""
+    existing = db_session.get(REQEntry, r.neq)
     if existing is None:
         db_session.add(
             REQEntry(
-                neq=neq,
-                nom=nom,
-                nom_normalise=_normaliser(nom),
-                adresse=adresse,
-                ville=ville,
+                neq=r.neq, nom=r.nom, nom_normalise=_normaliser(r.nom),
+                adresse=r.adresse, ville=r.ville,
                 region=None,  # pas de région administrative dans le vrai schéma REQ — voir docstring module
-                code_postal=code_postal,
-                secteur_code=secteur_code,
-                secteur_libelle=secteur_libelle,
-                statut=statut,
-                date_maj_req=date_maj,
+                code_postal=r.code_postal, secteur_code=r.secteur_code, secteur_libelle=r.secteur_libelle,
+                statut=r.statut, date_maj_req=r.date_maj,
             )
         )
-        stats.entrees_nouvelles += 1
     else:
-        changement_adresse = adresse is not None and adresse != existing.adresse and existing.adresse is not None
-        if changement_adresse:
-            stats.changements_adresse.append(
-                {"neq": neq, "nom": nom, "ancienne_adresse": existing.adresse, "nouvelle_adresse": adresse}
-            )
-        if existing.nom != nom or existing.adresse != adresse or existing.statut != statut:
-            stats.entrees_mises_a_jour += 1
-        existing.nom = nom
-        existing.nom_normalise = _normaliser(nom)
-        existing.adresse = adresse
-        existing.ville = ville
-        existing.code_postal = code_postal
-        existing.secteur_code = secteur_code
-        existing.secteur_libelle = secteur_libelle
-        existing.statut = statut
-        existing.date_maj_req = date_maj
-
-    _diff_etablissements_secondaires(db_session, neq, etabs, entreprise_deja_connue=entreprise_deja_connue, stats=stats)
+        existing.nom = r.nom
+        existing.nom_normalise = _normaliser(r.nom)
+        existing.adresse = r.adresse
+        existing.ville = r.ville
+        existing.code_postal = r.code_postal
+        existing.secteur_code = r.secteur_code
+        existing.secteur_libelle = r.secteur_libelle
+        existing.statut = r.statut
+        existing.date_maj_req = r.date_maj
 
 
-def _diff_etablissements_secondaires(
-    db_session: Session,
-    neq: str,
-    etabs: list[_EtabLeger],
-    *,
-    entreprise_deja_connue: bool,
-    stats: IngestStats,
-) -> None:
-    """Signal "nouvel établissement secondaire" (fort, spec section 7, Signal 4) —
-    distinct du changement d'adresse du siège (moyen, géré dans
-    _upsert_entreprise_reelle ci-dessus). Ne se déclenche QUE pour un
-    établissement SECONDAIRE (IND_ETAB_PRINC='N') apparu chez une entreprise
-    DÉJÀ connue lors d'un import précédent — sinon la toute première
-    immatriculation d'une entreprise (avec son tout premier établissement)
-    déclencherait à tort ce signal fort, ce qui violerait le principe de
-    calibration (une nouvelle entreprise n'est pas une entreprise EN croissance)."""
-    for etab in etabs:
-        existant = db_session.get(REQEtablissementEntry, (neq, etab.no_suf_etab))
-        if existant is None:
-            if entreprise_deja_connue and not etab.principal:
-                stats.nouveaux_etablissements_secondaires.append(
-                    {
-                        "neq": neq,
-                        "no_suf_etab": etab.no_suf_etab,
-                        "adresse": etab.adresse,
-                        "nom_etablissement": etab.nom_etablissement,
-                        # Déjà captés sur _EtabLeger mais jamais propagés jusqu'ici
-                        # (trouvé le 2026-09-02, spec section 6 "Filtrage par
-                        # champ, contextuel au profil") — capter largement à
-                        # l'ingestion pour que la grille de pertinence par champ
-                        # (falkye/pertinence.py::filtrer_champs_pertinents) ait
-                        # quelque chose à filtrer plus tard, par profil.
-                        "secteur_code": etab.secteur_code,
-                        "secteur_libelle": etab.secteur_libelle,
-                    }
-                )
-            db_session.add(
-                REQEtablissementEntry(
-                    neq=neq,
-                    no_suf_etab=etab.no_suf_etab,
-                    principal=etab.principal,
-                    adresse=etab.adresse,
-                    ville=etab.ville,
-                    code_postal=etab.code_postal,
-                    secteur_libelle=etab.secteur_libelle,
-                    nom_etablissement=etab.nom_etablissement,
-                )
-            )
-        else:
-            existant.principal = etab.principal
-            existant.adresse = etab.adresse
-            existant.ville = etab.ville
-            existant.code_postal = etab.code_postal
-            existant.secteur_libelle = etab.secteur_libelle
-            existant.nom_etablissement = etab.nom_etablissement
+def _ligne_entreprise(r: _EntrepriseResolue) -> LigneSnapshot:
+    return LigneSnapshot(
+        cle=r.neq,
+        champs={
+            "neq": r.neq,
+            "nom_entreprise": r.nom,
+            "secteur_activite": r.secteur_libelle,
+            "adresses": r.adresse,
+            "statut": r.statut,
+            "date_derniere_maj": str(r.date_maj) if r.date_maj else None,
+        },
+    )
 
 
-_INTERVALLE_COMMIT = 5000  # lignes entre deux commits intermédiaires
+def _cle_etablissement(neq: str, no_suf_etab: str) -> str:
+    return f"{neq}|{no_suf_etab}"
+
+
+def _ligne_etablissement(neq: str, etab: _EtabLeger) -> LigneSnapshot:
+    # "secteur_code" volontairement absent — voir CHAMPS_PERTINENTS_REQ_ETABLISSEMENTS.
+    return LigneSnapshot(
+        cle=_cle_etablissement(neq, etab.no_suf_etab),
+        champs={
+            "adresse": etab.adresse,
+            "ville": etab.ville,
+            "code_postal": etab.code_postal,
+            "secteur_libelle": etab.secteur_libelle,
+            "nom_etablissement": etab.nom_etablissement,
+            "principal": etab.principal,
+        },
+    )
+
+
+def _colonnes_entreprise_vues(entete_entreprise: list[str], entete_nom: list[str], entete_etablissements: list[str]) -> dict[str, str]:
+    """`colonnes_vues` du grain entreprise pour le moteur générique — dans le
+    VOCABULAIRE LOGIQUE de CHAMPS_PERTINENTS_REQ (comme `LigneSnapshot.champs`,
+    pas les en-têtes CSV brutes : c'est ce que teste déjà
+    tests/test_diff_engine.py), mais renseigné seulement quand la colonne
+    brute dont ce champ logique dépend RÉELLEMENT existe encore dans les 3
+    CSV joints — sinon la disparition d'une colonne brute (ex. NOM_ASSUJ
+    retiré de Nom.csv) resterait invisible au moteur, qui ne verrait jamais
+    passer le nom logique "manquant" puisque `noms.get(neq)` retournerait
+    simplement None pour tout le monde plutôt que déclencher la quarantaine."""
+    colonnes: dict[str, str] = {}
+    if "NEQ" in entete_entreprise:
+        colonnes["neq"] = "str"
+    if "NOM_ASSUJ" in entete_nom:
+        colonnes["nom_entreprise"] = "str"
+    if "COD_STAT_IMMAT" in entete_entreprise:
+        colonnes["statut"] = "str"
+    if "DAT_MAJ_INDEX_NOM" in entete_entreprise:
+        colonnes["date_derniere_maj"] = "str"
+    # adresses/secteur_activite : dérivables via Etablissements.csv (voie
+    # principale) OU, à défaut, le repli domicile d'Entreprise.csv — pertinent
+    # tant qu'AU MOINS une des deux voies existe encore.
+    if "LIGN1_ADR" in entete_etablissements or "ADR_DOMCL_LIGN1_ADR" in entete_entreprise:
+        colonnes["adresses"] = "str"
+    if "DESC_ACT_ECON_ETAB" in entete_etablissements or "DESC_ACT_ECON_ASSUJ" in entete_entreprise:
+        colonnes["secteur_activite"] = "str"
+    return colonnes
+
+
+_MAPPING_COLONNES_ETABLISSEMENTS = {
+    "adresse": "LIGN1_ADR",
+    "ville": "LIGN2_ADR",  # ville dérivée de LIGN2_ADR, voir _decouper_adresse
+    "code_postal": "LIGN4_ADR",
+    # "secteur_code" volontairement absent — voir CHAMPS_PERTINENTS_REQ_ETABLISSEMENTS.
+    "secteur_libelle": "DESC_ACT_ECON_ETAB",
+    "nom_etablissement": "NOM_ETAB",
+    "principal": "IND_ETAB_PRINC",
+}
+
+
+def _colonnes_etablissements_vues(entete_etablissements: list[str]) -> dict[str, str]:
+    return {
+        logique: "str"
+        for logique, brute in _MAPPING_COLONNES_ETABLISSEMENTS.items()
+        if brute in entete_etablissements
+    }
+
+
+_INTERVALLE_COMMIT = 5000  # lignes entre deux commits intermédiaires (phase d'upsert uniquement)
 
 
 def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | None) -> IngestStats:
     """Ingestion du VRAI fichier REQ (Entreprise.csv + Nom.csv + Etablissements.csv
     joints par NEQ — voir docstring du module pour la structure confirmée le
-    2026-08-31). Charge d'abord les deux index (Nom.csv, Etablissements.csv,
-    ~280 Mo + ~35 Mo) en mémoire — bornés au nombre d'entreprises/établissements
-    distincts, pas au nombre de lignes brutes — puis balaie Entreprise.csv
-    (~630 Mo, ~3 millions de lignes réelles) en flux, une seule fois.
+    2026-08-31). Rebranchée sur le moteur de diff générique (Chantier 1, suivi
+    2026-09-04) — DEUX PHASES, jamais mélangées :
 
-    Commit intermédiaire tous les _INTERVALLE_COMMIT lignes (pas seulement à la
-    toute fin) : sur un fichier de cette taille, un import complet peut prendre
-    un temps significatif — un commit périodique borne la perte de travail en
-    cas d'interruption (leçon tirée d'un premier essai interrompu avant son
-    commit final, voir docs/STATUT_RESEAU.md) sans changer le résultat final
-    (les stats/signaux ne sont produits qu'à la toute fin, sur l'ensemble)."""
+    Phase 1 — construit les DEUX instantanés (grain entreprise, grain
+    établissement) SANS ÉCRIRE UNE SEULE LIGNE en base, puis les soumet au
+    moteur générique (falkye/diff_engine.py::executer_diff). Si L'UN OU
+    L'AUTRE grain est mis en quarantaine, la phase 2 n'a jamais lieu : le
+    miroir de résolution REQEntry (falkye/resolution.py, falkye/
+    verification.py — utilisé par TOUTES les autres sources) reste
+    INTACT, exactement comme l'état de diff lui-même — un import REQ corrompu
+    ne doit pas seulement s'abstenir de produire un signal, il ne doit RIEN
+    écrire nulle part (extension du garde-fou du mandat à la totalité du
+    pipeline REQ, pas seulement à ses signaux).
+
+    Phase 2 — seulement si aucun grain n'est en quarantaine : upsert PUR de
+    REQEntry (`_upsert_entreprise_reelle`, plus aucune décision de diff, déjà
+    prise par le moteur) puis dérivation des RawSignal à partir des
+    `ResultatDiff` retournés par les deux appels au moteur (voir plus bas).
+
+    REQEtablissementEntry n'est plus alimenté : sa seule raison d'être était
+    ce diff établissement-grain, désormais porté par `EtatLigneSource
+    ("req_etablissements")` — voir falkye/models/req_etablissement_entry.py.
+
+    Mémoire : les deux index (Nom.csv, Etablissements.csv) et les deux
+    instantanés (entreprise, établissement) sont tenus en mémoire simultanément
+    pendant la phase 1 — de l'ordre de quelques Go sur le fichier réel actuel
+    (~2,7M entreprises), validé lors de la macro-vérification du chantier 1."""
     noms = _charger_index_noms(zf)
     etablissements = _charger_index_etablissements(zf)
 
-    stats = IngestStats()
+    # --- Phase 1 : instantanés, aucune écriture ---
+    entete_entreprise: list[str] = []
+    lignes_entreprise: list[LigneSnapshot] = []
+    resolues: list[_EntrepriseResolue] = []
+    lignes_lues = 0
     with zf.open("Entreprise.csv") as raw:
         text = io.TextIOWrapper(raw, encoding="utf-8-sig", errors="replace")
-        for row in csv.DictReader(text):
-            if limit is not None and stats.lignes_lues >= limit:
+        reader = csv.DictReader(text)
+        entete_entreprise = list(reader.fieldnames or [])
+        for row in reader:
+            if limit is not None and lignes_lues >= limit:
                 break
-            stats.lignes_lues += 1
-            _upsert_entreprise_reelle(db_session, row, noms, etablissements, stats)
-            if stats.lignes_lues % _INTERVALLE_COMMIT == 0:
-                db_session.commit()
-                logger.info("REQ (fichier réel): %s lignes traitées jusqu'ici", stats.lignes_lues)
+            lignes_lues += 1
+            r = _resoudre_entreprise(row, noms, etablissements)
+            if r is None:
+                continue
+            resolues.append(r)
+            lignes_entreprise.append(_ligne_entreprise(r))
+
+    entete_nom = _en_tete_csv(zf, "Nom.csv")
+    entete_etablissements = _en_tete_csv(zf, "Etablissements.csv")
+    colonnes_entreprise = _colonnes_entreprise_vues(entete_entreprise, entete_nom, entete_etablissements)
+    colonnes_etab = _colonnes_etablissements_vues(entete_etablissements)
+    lignes_etab = [
+        _ligne_etablissement(neq, etab) for neq, etabs in etablissements.items() for etab in etabs
+    ]
+
+    registry = get_registry()
+    source_def = registry.sources.get("req")
+    seuils_entreprise = seuils_depuis_registre(source_def.seuils_quarantaine) if source_def else None
+
+    rapport_entreprise = executer_diff(
+        db_session, "req", lignes_entreprise, colonnes_entreprise, CHAMPS_PERTINENTS_REQ, seuils=seuils_entreprise
+    )
+    rapport_etab = executer_diff(
+        db_session, "req_etablissements", lignes_etab, colonnes_etab, CHAMPS_PERTINENTS_REQ_ETABLISSEMENTS
+    )
+
+    stats = IngestStats(lignes_lues=lignes_lues)
+    if rapport_entreprise.quarantaine or rapport_etab.quarantaine:
+        motif = rapport_entreprise.motif_quarantaine or rapport_etab.motif_quarantaine
+        stats.quarantaine = True
+        stats.quarantaine_motif = motif.value if motif else None
+        logger.warning(
+            "REQ: import mis en quarantaine (grain entreprise=%s, grain établissements=%s) — "
+            "REQEntry non touché, aucun signal produit. Voir `falkye quarantaine lister`.",
+            rapport_entreprise.motif_quarantaine.value if rapport_entreprise.quarantaine else "ok",
+            rapport_etab.motif_quarantaine.value if rapport_etab.quarantaine else "ok",
+        )
+        db_session.commit()  # persiste l'incident de quarantaine déjà journalisé par le moteur
+        return stats
+
+    # --- Phase 2 : upsert du miroir de résolution (jamais de diff ici) ---
+    for i, r in enumerate(resolues, start=1):
+        _upsert_entreprise_reelle(db_session, r)
+        if i % _INTERVALLE_COMMIT == 0:
+            db_session.commit()
+            logger.info("REQ (fichier réel): %s lignes de résolution appliquées jusqu'ici", i)
+
+    # --- Dérivation des signaux à partir du diff DÉJÀ calculé par le moteur ---
+    if rapport_entreprise.run_reference:
+        # Run de référence (jamais de candidat, mandat chantier 1) : amorce
+        # l'état, REQEntry peuplé, mais aucun changements_adresse/nouvel_
+        # etablissement_secondaire — même comportement qu'avant (une toute
+        # première immatriculation n'est jamais un signal).
+        stats.entrees_nouvelles = len(lignes_entreprise)
+    else:
+        stats.entrees_nouvelles = len(rapport_entreprise.resultat.apparitions)
+        stats.entrees_mises_a_jour = len(rapport_entreprise.resultat.modifications)
+        for m in rapport_entreprise.resultat.modifications:
+            # Même règle de calibration qu'avant : un changement d'adresse ne
+            # compte que si une adresse était DÉJÀ connue (une entreprise qui
+            # en obtient une pour la première fois n'a pas "changé" d'adresse).
+            if "adresses" in m.champs_changes and m.champs_avant.get("adresses") is not None:
+                stats.changements_adresse.append(
+                    {
+                        "neq": m.cle,
+                        "nom": m.champs_apres.get("nom_entreprise") or "",
+                        "ancienne_adresse": m.champs_avant.get("adresses"),
+                        "nouvelle_adresse": m.champs_apres.get("adresses"),
+                    }
+                )
+
+    if not rapport_etab.run_reference:
+        # Signal fort UNIQUEMENT pour un établissement SECONDAIRE apparu chez
+        # une entreprise DÉJÀ connue — "déjà connue" est ici exprimé par le
+        # moteur lui-même : un NEQ qui apparaît CE run au grain entreprise
+        # (jamais vu avant) exclut ses établissements de ce signal, même
+        # règle de calibration que l'ancien `entreprise_deja_connue`.
+        neq_nouvelles_entreprises = (
+            {l.cle for l in rapport_entreprise.resultat.apparitions} if rapport_entreprise.resultat else set()
+        )
+        # secteur_code n'est pas dans l'empreinte diffée (voir CHAMPS_PERTINENTS_
+        # REQ_ETABLISSEMENTS) mais reste voulu dans le signal — récupéré ici
+        # directement depuis l'index déjà en mémoire (source de vérité pour CE
+        # run), pas depuis l.champs.
+        secteur_code_par_cle = {
+            _cle_etablissement(neq, e.no_suf_etab): e.secteur_code for neq, etabs in etablissements.items() for e in etabs
+        }
+        for l in rapport_etab.resultat.apparitions:
+            neq, no_suf_etab = l.cle.split("|", 1)
+            if neq in neq_nouvelles_entreprises or l.champs.get("principal"):
+                continue
+            stats.nouveaux_etablissements_secondaires.append(
+                {
+                    "neq": neq,
+                    "no_suf_etab": no_suf_etab,
+                    "adresse": l.champs.get("adresse"),
+                    "nom_etablissement": l.champs.get("nom_etablissement"),
+                    "secteur_code": secteur_code_par_cle.get(l.cle),
+                    "secteur_libelle": l.champs.get("secteur_libelle"),
+                }
+            )
 
     db_session.commit()
     return stats

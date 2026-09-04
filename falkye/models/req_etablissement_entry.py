@@ -10,6 +10,14 @@ entreprise déjà connue (spec section 7, Signal 4 : "nouvel établissement
 secondaire = fort"), un signal distinct du changement d'adresse du siège
 (REQEntry.adresse, "moyen") et qui ne peut pas être détecté avec un miroir à une
 seule ligne par NEQ.
+
+GELÉ depuis le rebranchement de REQ sur le moteur de diff générique (Chantier 1,
+suivi 2026-09-04) : ce diff établissement-grain est désormais porté par
+`EtatLigneSource` (partition "req_etablissements", falkye/diff_engine.py), qui
+protège en plus contre un changement de schéma et un volume aberrant — ce que
+ce miroir n'a jamais su faire. `falkye/sources/req.py` n'écrit PLUS ici — la
+table et son contenu historique restent en place (jamais de suppression), mais
+plus aucune ligne n'est ajoutée ni mise à jour.
 """
 from __future__ import annotations
 

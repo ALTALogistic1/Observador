@@ -40,11 +40,24 @@ DEUX filtres appliqués en cascade, aucun optionnel :
    puisqu'un nom de personne ne correspond à aucune corporation.
 
 LIMITE DE PAGINATION RÉELLE (Opendatasoft, pas propre à ce connecteur) :
-`offset + limit <= 10000` par requête — au-delà, l'API refuse (confirmé). Un
-scan à fenêtre courte (60-90 jours, défaut du moteur) reste très en dessous
-(~2 900 lignes/90 jours observées) ; un appel `since=None` (historique
-complet) s'arrête au plafond avec un avertissement explicite plutôt que
-d'échouer silencieusement ou de boucler indéfiniment.
+`offset + limit <= 10000` par requête — au-delà, l'API refuse (confirmé).
+
+REBRANCHÉ sur le moteur de diff générique (Chantier 1, suivi 2026-09-04).
+`detect()` appelle désormais TOUJOURS `iter_licences(session, since=None)` —
+`since` ignoré pour la collecte, même changement délibéré que pour
+licences_toronto.py (voir sa docstring pour le raisonnement complet : une
+fenêtre incrémentale comparée à l'état cumulatif ferait apparaître, à tort,
+l'essentiel de l'historique comme "disparu" à chaque exécution). Limite
+honnête PROPRE à Vancouver, contrairement à Toronto : le plafond de
+pagination Opendatasoft (10 000) est BIEN EN DEÇÀ de la population réelle
+(~168 000 licences actives) — l'instantané soumis au moteur n'est donc
+JAMAIS complet ici, seulement les 10 000 licences les PLUS RÉCENTES
+(`order_by` inversé en DESCENDANT pour ce cas — auparavant ascendant,
+pertinent seulement pour un vrai scan fenêtré). La détection de disparition
+reste donc structurellement AFFAIBLIE pour Vancouver (une vraie disparition
+au-delà des 10 000 plus récentes ne sera jamais vue) — limite documentée,
+pas corrigée ici (lever le plafond appartient au fournisseur de données, pas
+à ce chantier).
 """
 from __future__ import annotations
 
@@ -55,11 +68,18 @@ from datetime import datetime, timezone
 import requests
 from dateutil import parser as dateutil_parser
 
+from falkye.diff_engine import LigneSnapshot, executer_diff, seuils_depuis_registre
+from falkye.registry.loader import get_registry
 from falkye.resolution import SEUIL_AMBIGUITE_ECART_MIN, SEUIL_RESOLUTION_CONFIANTE
 from falkye.sources.base import RawSignal, SourceConnector
 from falkye.sources.ckan_client import DEFAULT_USER_AGENT
 from falkye.sources.corporations_canada import resolve_corp_federale_by_name
-from falkye.sources.licences_municipales_communes import LicenceBrute, detecter_nouvelles_licences
+from falkye.sources.licences_municipales_communes import (
+    CHAMPS_PERTINENTS_MUNIC,
+    LicenceBrute,
+    colonnes_vues_depuis_lignes,
+    detecter_nouvelles_licences,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +87,13 @@ MUNICIPALITE = "Vancouver"
 API_URL = "https://opendata.vancouver.ca/api/explore/v2.1/catalog/datasets/business-licences/records"
 TAILLE_PAGE = 100
 PLAFOND_OPENDATASOFT = 10_000  # offset + limit <= 10000, confirmé — voir docstring du module
+
+_MAPPING_COLONNES_VANCOUVER = {
+    "nom_entreprise": "businessname",
+    "adresse": "street",  # colonne représentative — voir docstring du module
+    "type_entreprise": "businesstype",
+    "date_emission": "issueddate",
+}
 
 
 def _parse_date(raw: str | None) -> datetime | None:
@@ -94,16 +121,23 @@ def iter_licences(session: requests.Session, since: datetime | None) -> Iterator
     """Pagine sur l'API Opendatasoft — filtrage par date fait CÔTÉ SERVEUR
     (`where`), même principe que datastore_search côté CKAN ailleurs dans ce
     projet. S'arrête au plafond de pagination de la plateforme (voir
-    docstring du module) plutôt que d'échouer."""
+    docstring du module) plutôt que d'échouer.
+
+    Ordre de tri conditionnel : ASCENDANT pour un vrai scan fenêtré (`since`
+    fourni — pagination stable et exhaustive DANS la fenêtre), DESCENDANT
+    pour un instantané non fenêtré (`since=None`, le seul cas appelé par
+    `detect()` depuis le chantier 1) — le plafond de 10 000 doit alors capter
+    les licences les PLUS RÉCENTES, pas les plus anciennes."""
     clause = 'status="Issued"'
     if since:
         clause += f" and issueddate>=date'{since.strftime('%Y-%m-%dT%H:%M:%S')}'"
+    direction = "asc" if since else "desc"
 
     offset = 0
     while offset + TAILLE_PAGE <= PLAFOND_OPENDATASOFT:
         params = {
             "where": clause,
-            "order_by": "issueddate asc, licencersn asc",  # ordre stable pour une pagination fiable
+            "order_by": f"issueddate {direction}, licencersn {direction}",  # ordre stable pour une pagination fiable
             "limit": TAILLE_PAGE,
             "offset": offset,
         }
@@ -129,17 +163,19 @@ def iter_licences(session: requests.Session, since: datetime | None) -> Iterator
 
 class LicencesVancouverConnector(SourceConnector):
     def detect(self, since: datetime | None, db_session) -> Iterator[RawSignal]:
+        # `since` REÇU MAIS IGNORÉ pour la collecte (voir docstring du
+        # module, Chantier 1) — conservé pour l'interface SourceConnector.
         session = requests.Session()
         session.headers.setdefault("User-Agent", DEFAULT_USER_AGENT)
 
         try:
-            lignes = list(iter_licences(session, since))
+            lignes_brutes = list(iter_licences(session, None))
         except requests.RequestException as exc:
             logger.warning("Licences Vancouver: échec de la récupération: %s", exc)
             return
 
         brutes_par_cle: dict[str, dict] = {}
-        for row in lignes:
+        for row in lignes_brutes:
             nom = (row.get("businessname") or "").strip()
             if not nom:
                 continue
@@ -152,9 +188,41 @@ class LicencesVancouverConnector(SourceConnector):
             )
             # une même entreprise+adresse peut apparaître plusieurs fois dans une même
             # page (révisions de licence) — on ne garde que la ligne la plus récente
-            # pour le diff, `row` original conservé à part pour construire le signal
+            # pour le diff, `row` original conservé à part pour construire le signal.
+            # MÊME clé que le moteur générique (cle_naturelle = nom+adresse pour
+            # Vancouver, voir registry/sources.yaml) — pas une coïncidence.
             brutes_par_cle[f"{nom}|{adresse or ''}"] = {"brute": brute, "row": row}
 
+        lignes_snapshot = [
+            LigneSnapshot(
+                cle=cle,
+                champs={
+                    "nom_entreprise": c["brute"].nom,
+                    "adresse": c["brute"].adresse,
+                    "type_entreprise": c["brute"].type_entreprise,
+                    "date_emission": c["row"].get("issueddate"),
+                },
+            )
+            for cle, c in brutes_par_cle.items()
+        ]
+        colonnes_vues = colonnes_vues_depuis_lignes(lignes_brutes, _MAPPING_COLONNES_VANCOUVER)
+
+        registry = get_registry()
+        source_def = registry.sources.get("licences_vancouver")
+        seuils = seuils_depuis_registre(source_def.seuils_quarantaine) if source_def else None
+        rapport = executer_diff(
+            db_session, "licences_vancouver", lignes_snapshot, colonnes_vues, CHAMPS_PERTINENTS_MUNIC, seuils=seuils
+        )
+        if rapport.quarantaine:
+            logger.warning(
+                "Licences Vancouver: import mis en quarantaine (%s) — aucun signal produit. "
+                "Voir `falkye quarantaine lister`.",
+                rapport.motif_quarantaine.value if rapport.motif_quarantaine else None,
+            )
+            return
+
+        # --- Filtre bespoke (inchangé) — APPLIQUÉ SEULEMENT si le moteur
+        # générique confirme que ce run n'est pas en quarantaine. ---
         candidates = list(brutes_par_cle.values())
         nouvelles = detecter_nouvelles_licences(db_session, MUNICIPALITE, [c["brute"] for c in candidates])
         nouvelles_ids = {id(n) for n in nouvelles}

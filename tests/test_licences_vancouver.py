@@ -6,7 +6,10 @@ le vrai portail (205 329 lignes réelles, très à jour) — voir
 docs/STATUT_RESEAU.md. Les fragments ci-dessous reproduisent le VRAI format
 confirmé (champs Opendatasoft `businessname`/`unit`/`house`/`street`/...),
 pas des données inventées au hasard."""
-from falkye.sources.licences_vancouver import _composer_adresse, _parse_date
+import responses
+
+from falkye.models.licence_municipale_entry import LicenceMunicipaleEntry
+from falkye.sources.licences_vancouver import API_URL, LicencesVancouverConnector, _composer_adresse, _parse_date
 
 # Vraie ligne (tronquée) confirmée le 2026-09-01 — "Lululemon Athletica Canada Inc"
 _LIGNE_REELLE_AVEC_UNITE = {
@@ -62,3 +65,54 @@ def test_composer_adresse_ignore_les_champs_numeriques_house_house_zero():
     adresse = _composer_adresse(ligne)
     assert "None" not in adresse
     assert "1280" in adresse
+
+
+# ---------------------------------------------------------------------------
+# Rebranchement sur le moteur de diff générique (Chantier 1, suivi
+# 2026-09-04) — quarantaine AVANT tout signal ET avant toute mutation de
+# LicenceMunicipaleEntry.
+# ---------------------------------------------------------------------------
+_URL_DATASTORE = API_URL
+
+
+def _ligne_brute(numero, nom):
+    return {
+        "licencenumber": numero,
+        "businessname": nom,
+        "businesstype": "Type test",
+        "issueddate": "2026-01-01T00:00:00+00:00",
+        "status": "Issued",
+        "unit": None,
+        "house": "1",
+        "street": "TEST ST",
+        "city": "Vancouver",
+        "province": "BC",
+    }
+
+
+def _reponse(lignes):
+    return {"results": lignes}
+
+
+@responses.activate
+def test_vancouver_run_reference_amorce_etat_sans_signal(db_session, registry):
+    lignes = [_ligne_brute(f"L{i}", f"Entreprise {i} inc.") for i in range(5)]
+    responses.add(responses.GET, _URL_DATASTORE, json=_reponse(lignes), status=200)
+
+    connector = LicencesVancouverConnector(source_def=registry.sources["licences_vancouver"])
+    assert list(connector.detect(None, db_session)) == []
+
+
+@responses.activate
+def test_vancouver_quarantaine_ne_touche_pas_licencemunicipaleentry(db_session, registry):
+    connector = LicencesVancouverConnector(source_def=registry.sources["licences_vancouver"])
+
+    lignes_ref = [_ligne_brute(f"L{i:04d}", f"Entreprise {i} inc.") for i in range(300)]
+    responses.add(responses.GET, _URL_DATASTORE, json=_reponse(lignes_ref), status=200)
+    list(connector.detect(None, db_session))
+    assert db_session.query(LicenceMunicipaleEntry).filter_by(municipalite="Vancouver").count() == 300
+
+    responses.add(responses.GET, _URL_DATASTORE, json=_reponse([_ligne_brute("L9999", "Nouvelle inc.")]), status=200)
+    signaux = list(connector.detect(None, db_session))
+    assert signaux == []
+    assert db_session.query(LicenceMunicipaleEntry).filter_by(municipalite="Vancouver").count() == 300

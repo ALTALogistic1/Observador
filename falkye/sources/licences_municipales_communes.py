@@ -39,6 +39,27 @@ def _cle(municipalite: str, nom: str, adresse: str | None) -> str:
     return f"{normaliser(nom)}|{normaliser(adresse or '')}"
 
 
+# Rebranchement sur le moteur de diff générique (Chantier 1, suivi
+# 2026-09-04) — vocabulaire logique PARTAGÉ par licences_toronto.py et
+# licences_vancouver.py (registry/sources.yaml, mêmes champs_pertinents pour
+# les deux villes). La clé du moteur générique, elle, N'EST PAS partagée
+# (voir SourceDef.cle_naturelle par ville) — Toronto : identifiant_licence
+# (persistant) ; Vancouver : composite nom+adresse (le numéro de licence y
+# est réattribué chaque année, voir docs/ARCHITECTURE.md).
+CHAMPS_PERTINENTS_MUNIC = {"nom_entreprise", "adresse", "type_entreprise", "date_emission"}
+
+
+def colonnes_vues_depuis_lignes(lignes_brutes: list[dict], mapping: dict[str, str]) -> dict[str, str]:
+    """`colonnes_vues` pour le moteur générique — présentes seulement quand
+    la colonne API/CSV brute dont dépend le champ logique existe réellement
+    dans les lignes récupérées CE run (même principe que req.py::
+    _colonnes_entreprise_vues)."""
+    presentes: set[str] = set()
+    for row in lignes_brutes:
+        presentes.update(row.keys())
+    return {logique: "str" for logique, brute in mapping.items() if brute in presentes}
+
+
 def detecter_nouvelles_licences(
     db_session: Session, municipalite: str, lignes: list[LicenceBrute]
 ) -> list[LicenceBrute]:

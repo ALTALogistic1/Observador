@@ -44,7 +44,9 @@ from rapidfuzz import fuzz, process
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from falkye.diff_engine import LigneSnapshot, executer_diff, seuils_depuis_registre
 from falkye.models.corp_federale_entry import CorporationFederaleEntry
+from falkye.registry.loader import get_registry
 from falkye.sources.base import RawSignal, SourceConnector
 from falkye.sources.ckan_client import OPEN_CANADA_BASE, CKANClient
 from falkye.sources.column_mapping import normaliser as _normaliser
@@ -79,6 +81,15 @@ COLUMN_ALIASES_OPTIONNELS: dict[str, list[str]] = {
 
 STATUTS_ACTIFS = {"active", "actif", "active corporation"}
 
+# Rebranchement sur le moteur de diff générique (Chantier 1, suivi 2026-09-04)
+# — un seul grain ici (pas de sous-structure "établissement" comme le REQ),
+# le vocabulaire logique correspond directement à registry/sources.yaml:
+# corporations_canada.champs_pertinents.
+CHAMPS_PERTINENTS_CORP = {
+    "numero_corporation_federale", "nom", "statut", "adresse_bureau_enregistre", "date_incorporation",
+    "loi_constitutive",
+}
+
 
 def _parse_date(raw: str | None) -> datetime | None:
     if not raw:
@@ -95,6 +106,10 @@ class IngestStats:
     lignes_lues: int = 0
     nouvelles_corporations_actives: list[dict] = field(default_factory=list)  # comptage/audit seulement, pas un signal
     changements_adresse: list[dict] = field(default_factory=list)
+    # Rebranchement chantier 1 : un run mis en quarantaine par falkye/
+    # diff_engine.py ne touche NI CorporationFederaleEntry NI aucun signal.
+    quarantaine: bool = False
+    quarantaine_motif: str | None = None
 
 
 def _filtrer_ressources_actives(resources: list[dict]) -> list[dict]:
@@ -106,56 +121,22 @@ def _filtrer_ressources_actives(resources: list[dict]) -> list[dict]:
     return [r for r in resources if "inactive" not in (r.get("name") or "").lower()]
 
 
-def ingest_snapshot(db_session: Session, limit: int | None = None) -> IngestStats:
-    """Télécharge les ressources "corporations actives" (une par langue/type) et
-    met à jour le miroir local, en détectant les nouvelles corporations actives
-    (signal) par comparaison à l'état précédemment connu."""
-    client = CKANClient(OPEN_CANADA_BASE)
-    resources = _filtrer_ressources_actives(
-        client.resources(CORPORATIONS_PACKAGE_ID, format_filter="CSV", name_contains="active")
-    )
-    if not resources:
-        raise RuntimeError(
-            f"Aucune ressource CSV 'active' trouvée pour {CORPORATIONS_PACKAGE_ID!r} — "
-            "le jeu de données a peut-être changé de structure."
-        )
-
-    stats = IngestStats()
-    columns: dict[str, str] | None = None
-    colonnes_optionnelles: dict[str, str] = {}
-
-    for resource in resources:
-        path = client.download(resource)
-        with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
-            reader = csv.DictReader(f)
-            if columns is None:
-                fieldnames = reader.fieldnames or []
-                columns = resolve_columns(fieldnames, COLUMN_ALIASES)
-                for logical, aliases in COLUMN_ALIASES_OPTIONNELS.items():
-                    try:
-                        colonnes_optionnelles.update(resolve_columns(fieldnames, {logical: aliases}))
-                    except ValueError:
-                        pass  # champ optionnel absent — pas bloquant
-
-            for row in reader:
-                if limit is not None and stats.lignes_lues >= limit:
-                    break
-                stats.lignes_lues += 1
-                _upsert_row(db_session, row, columns, colonnes_optionnelles, stats)
-
-        if limit is not None and stats.lignes_lues >= limit:
-            break
-
-    db_session.commit()
-    return stats
+@dataclass(frozen=True)
+class _CorporationResolue:
+    numero: str
+    nom: str
+    statut_brut: str
+    adresse: str | None
+    province: str | None
+    loi: str | None
 
 
-def _upsert_row(
-    db_session: Session, row: dict, columns: dict[str, str], colonnes_optionnelles: dict[str, str], stats: IngestStats
-) -> None:
+def _resoudre_corporation(row: dict, columns: dict[str, str], colonnes_optionnelles: dict[str, str]) -> _CorporationResolue | None:
+    """Extraction PURE (aucune écriture, aucune décision de diff) d'une ligne
+    brute — voir ingest_snapshot pour la séparation en deux phases."""
     numero = (row.get(columns["numero"]) or "").strip()
     if not numero:
-        return
+        return None
     nom = (row.get(columns["nom"]) or "").strip()
     statut_brut = (row.get(columns["statut"]) or "").strip()
     province = (row.get(columns["province"]) or "").strip() or None
@@ -168,49 +149,182 @@ def _upsert_row(
     ]
     adresse = ", ".join(p for p in parties_adresse if p) or None
 
-    date_inc = None  # pas de colonne fiable pour la date de constitution — voir COLUMN_ALIASES
     loi = None
     if "loi" in colonnes_optionnelles:
         loi = (row.get(colonnes_optionnelles["loi"]) or "").strip() or None
 
-    existing = db_session.get(CorporationFederaleEntry, numero)
-    if existing is None:
-        entry = CorporationFederaleEntry(
-            numero_corporation=numero,
-            nom=nom,
-            nom_normalise=_normaliser(nom),
-            statut=statut_brut,
-            adresse=adresse,
-            province=province,
-            loi_constitutive=loi,
-            date_incorporation=date_inc,
-        )
-        db_session.add(entry)
-        # Comptage/audit seulement (ex. logging) — PAS un signal : une toute
-        # nouvelle incorporation n'est pas une entreprise en croissance (voir
-        # correction de calibration dans la docstring du module).
-        if statut_brut.lower() in STATUTS_ACTIFS:
-            stats.nouvelles_corporations_actives.append({"numero": numero, "nom": nom, "adresse": adresse})
-        return
+    return _CorporationResolue(numero=numero, nom=nom, statut_brut=statut_brut, adresse=adresse, province=province, loi=loi)
 
-    changement_adresse = (
-        adresse is not None
-        and adresse != existing.adresse
-        and existing.adresse is not None
-        and statut_brut.lower() in STATUTS_ACTIFS
+
+def _ligne_corporation(r: _CorporationResolue) -> LigneSnapshot:
+    return LigneSnapshot(
+        cle=r.numero,
+        champs={
+            "numero_corporation_federale": r.numero,
+            "nom": r.nom,
+            "statut": r.statut_brut,
+            "adresse_bureau_enregistre": r.adresse,
+            "date_incorporation": None,  # jamais dérivée de façon fiable — voir docstring module
+            "loi_constitutive": r.loi,
+        },
     )
-    if changement_adresse:
-        stats.changements_adresse.append(
-            {"numero": numero, "nom": nom, "ancienne_adresse": existing.adresse, "nouvelle_adresse": adresse}
+
+
+def _upsert_corporation(db_session: Session, r: _CorporationResolue) -> None:
+    """Upsert PUR de CorporationFederaleEntry — plus aucune décision de diff
+    ici, seulement appelé APRÈS que le moteur générique ait confirmé que ce
+    run n'est pas en quarantaine."""
+    existing = db_session.get(CorporationFederaleEntry, r.numero)
+    if existing is None:
+        db_session.add(
+            CorporationFederaleEntry(
+                numero_corporation=r.numero, nom=r.nom, nom_normalise=_normaliser(r.nom),
+                statut=r.statut_brut, adresse=r.adresse, province=r.province,
+                loi_constitutive=r.loi, date_incorporation=None,
+            )
+        )
+    else:
+        existing.nom = r.nom
+        existing.nom_normalise = _normaliser(r.nom)
+        existing.statut = r.statut_brut
+        existing.adresse = r.adresse
+        existing.province = r.province
+        existing.loi_constitutive = r.loi
+        existing.date_incorporation = None
+
+
+def ingest_snapshot(db_session: Session, limit: int | None = None) -> IngestStats:
+    """Télécharge les ressources "corporations actives" (une par langue/type) et
+    met à jour le miroir local, en détectant les changements pertinents par
+    comparaison à l'état précédemment connu. Rebranché sur le moteur de diff
+    générique (Chantier 1, suivi 2026-09-04) — DEUX PHASES, comme falkye/
+    sources/req.py::_ingest_zip_req_reel : la phase 1 construit l'instantané
+    SANS RIEN ÉCRIRE (ici), la phase 2 (upsert + dérivation des signaux, voir
+    `_traiter_instantane`) n'a lieu QUE si le moteur confirme que ce run n'est
+    pas en quarantaine — un import corrompu ne doit rien écrire nulle part,
+    pas seulement s'abstenir de signal."""
+    client = CKANClient(OPEN_CANADA_BASE)
+    resources = _filtrer_ressources_actives(
+        client.resources(CORPORATIONS_PACKAGE_ID, format_filter="CSV", name_contains="active")
+    )
+    if not resources:
+        raise RuntimeError(
+            f"Aucune ressource CSV 'active' trouvée pour {CORPORATIONS_PACKAGE_ID!r} — "
+            "le jeu de données a peut-être changé de structure."
         )
 
-    existing.nom = nom
-    existing.nom_normalise = _normaliser(nom)
-    existing.statut = statut_brut
-    existing.adresse = adresse
-    existing.province = province
-    existing.loi_constitutive = loi
-    existing.date_incorporation = date_inc
+    lignes: list[LigneSnapshot] = []
+    resolues: list[_CorporationResolue] = []
+    lignes_lues = 0
+    colonnes_vues: dict[str, str] = {}
+
+    for resource in resources:
+        path = client.download(resource)
+        with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames or []
+            columns = resolve_columns(fieldnames, COLUMN_ALIASES)
+            colonnes_optionnelles: dict[str, str] = {}
+            for logical, aliases in COLUMN_ALIASES_OPTIONNELS.items():
+                try:
+                    colonnes_optionnelles.update(resolve_columns(fieldnames, {logical: aliases}))
+                except ValueError:
+                    pass  # champ optionnel absent — pas bloquant, mais compte pour colonnes_vues plus bas
+            # numero/nom/statut/adresse_bureau_enregistre dépendent tous de
+            # colonnes OBLIGATOIRES (resolve_columns aurait déjà levé une
+            # exception sinon) — toujours "vues" une fois qu'on atteint ce
+            # point. "loi_constitutive" est la seule dérivée d'une colonne
+            # optionnelle — sa disparition SILENCIEUSE (aujourd'hui : devient
+            # simplement None pour tout le monde, personne ne le remarque)
+            # est exactement ce que le moteur doit détecter.
+            colonnes_vues.setdefault("numero_corporation_federale", "str")
+            colonnes_vues.setdefault("nom", "str")
+            colonnes_vues.setdefault("statut", "str")
+            colonnes_vues.setdefault("adresse_bureau_enregistre", "str")
+            if "loi" in colonnes_optionnelles:
+                colonnes_vues["loi_constitutive"] = "str"
+
+            for row in reader:
+                if limit is not None and lignes_lues >= limit:
+                    break
+                lignes_lues += 1
+                r = _resoudre_corporation(row, columns, colonnes_optionnelles)
+                if r is None:
+                    continue
+                resolues.append(r)
+                lignes.append(_ligne_corporation(r))
+
+        if limit is not None and lignes_lues >= limit:
+            break
+
+    return _traiter_instantane(db_session, lignes, resolues, colonnes_vues, lignes_lues)
+
+
+def _traiter_instantane(
+    db_session: Session,
+    lignes: list[LigneSnapshot],
+    resolues: list[_CorporationResolue],
+    colonnes_vues: dict[str, str],
+    lignes_lues: int,
+) -> IngestStats:
+    """Soumet l'instantané (déjà construit — voir `ingest_snapshot`) au moteur
+    de diff générique, puis applique/dérive les signaux si non quarantiné.
+    Extrait pour être testable SANS dépendance réseau (CKANClient) — les
+    tests construisent `lignes`/`resolues`/`colonnes_vues` directement."""
+    registry = get_registry()
+    source_def = registry.sources.get("corporations_canada")
+    seuils = seuils_depuis_registre(source_def.seuils_quarantaine) if source_def else None
+    rapport = executer_diff(db_session, "corporations_canada", lignes, colonnes_vues, CHAMPS_PERTINENTS_CORP, seuils=seuils)
+
+    stats = IngestStats(lignes_lues=lignes_lues)
+    if rapport.quarantaine:
+        stats.quarantaine = True
+        stats.quarantaine_motif = rapport.motif_quarantaine.value if rapport.motif_quarantaine else None
+        logger.warning(
+            "Corporations Canada: import mis en quarantaine (%s) — CorporationFederaleEntry non touché, "
+            "aucun signal produit. Voir `falkye quarantaine lister`.",
+            stats.quarantaine_motif,
+        )
+        db_session.commit()
+        return stats
+
+    # --- Phase 2 : upsert du miroir (jamais de diff ici) ---
+    for r in resolues:
+        _upsert_corporation(db_session, r)
+
+    # --- Dérivation des signaux à partir du diff déjà calculé par le moteur ---
+    if rapport.run_reference:
+        # Run de référence : amorce l'état, jamais de signal (une corporation
+        # nouvellement DÉCOUVERTE par ce mécanisme n'est pas nouvellement
+        # incorporée — voir la correction de calibration en tête du module).
+        stats.nouvelles_corporations_actives = [
+            {"numero": l.cle, "nom": l.champs["nom"], "adresse": l.champs["adresse_bureau_enregistre"]}
+            for l in lignes
+            if l.champs["statut"].lower() in STATUTS_ACTIFS
+        ]
+    else:
+        stats.nouvelles_corporations_actives = [
+            {"numero": l.cle, "nom": l.champs["nom"], "adresse": l.champs["adresse_bureau_enregistre"]}
+            for l in rapport.resultat.apparitions
+            if l.champs["statut"].lower() in STATUTS_ACTIFS
+        ]
+        for m in rapport.resultat.modifications:
+            if (
+                "adresse_bureau_enregistre" in m.champs_changes
+                and m.champs_avant.get("adresse_bureau_enregistre") is not None
+                and (m.champs_apres.get("statut") or "").lower() in STATUTS_ACTIFS
+            ):
+                stats.changements_adresse.append(
+                    {
+                        "numero": m.cle,
+                        "nom": m.champs_apres.get("nom") or "",
+                        "ancienne_adresse": m.champs_avant.get("adresse_bureau_enregistre"),
+                        "nouvelle_adresse": m.champs_apres.get("adresse_bureau_enregistre"),
+                    }
+                )
+
+    db_session.commit()
+    return stats
 
 
 @dataclass

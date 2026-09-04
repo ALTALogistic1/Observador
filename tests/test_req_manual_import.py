@@ -24,10 +24,11 @@ import csv
 import zipfile
 
 import pytest
+from sqlalchemy import select
 
 from falkye.manual_import import ImportManuelError, importer_fichier_source
+from falkye.models.etat_diff_source import EtatLigneSource
 from falkye.models.req_entry import REQEntry
-from falkye.models.req_etablissement_entry import REQEtablissementEntry
 from falkye.sources.req import REQConnector, ingest_snapshot, inspect_zip
 
 # ---------------------------------------------------------------------------
@@ -416,9 +417,17 @@ def test_ingest_zip_reel_signale_nouvel_etablissement_secondaire_pour_entreprise
     assert stats2.nouveaux_etablissements_secondaires[0]["secteur_code"] == "541330"
     assert stats2.nouveaux_etablissements_secondaires[0]["secteur_libelle"] == "Fabrication de matériel énergétique"
 
-    etab = db_session.get(REQEtablissementEntry, ("9990000004", "2"))
-    assert etab is not None
-    assert etab.principal is False
+    # REQEtablissementEntry n'est plus alimenté depuis le rebranchement sur le
+    # moteur de diff générique (Chantier 1, suivi 2026-09-04) — l'état de ce
+    # grain vit maintenant dans EtatLigneSource ("req_etablissements").
+    etat = db_session.execute(
+        select(EtatLigneSource).where(
+            EtatLigneSource.source_id == "req_etablissements",
+            EtatLigneSource.cle_naturelle == "9990000004|2",
+        )
+    ).scalar_one_or_none()
+    assert etat is not None
+    assert etat.donnees_normalisees["principal"] is False
 
 
 def test_ingest_zip_reel_ne_signale_pas_le_secondaire_du_tout_premier_import(db_session, tmp_path):
@@ -467,3 +476,84 @@ def test_importer_fichier_source_avec_vrai_zip_declenche_le_pipeline(db_session,
 
     # Dédoublonnage : réimporter le même fichier ne recrée pas le signal.
     assert importer_fichier_source(db_session, "req", chemin2, registry=registry) == []
+
+
+# ---------------------------------------------------------------------------
+# Rebranchement sur le moteur de diff générique (Chantier 1, suivi 2026-09-04)
+# — quarantaine AVANT toute mutation de REQEntry, pas seulement avant tout
+# signal.
+# ---------------------------------------------------------------------------
+
+
+def test_ingest_zip_reel_colonne_pertinente_retiree_met_en_quarantaine_reqentry_intact(db_session, tmp_path):
+    chemin1 = _ecrire_zip_req_reel(
+        tmp_path,
+        entreprises=[["9990000007", "IM", "2026-01-01", "", "", "N", "", "", "", ""]],
+        noms=[["9990000007", "Entreprise Fictive Epsilon inc.", "V", "N", "1994-01-01", ""]],
+        etablissements=[["9990000007", "1", "O", "1 rue Siège", "Québec (Québec)", "", "G1G1G1", "", "", ""]],
+        nom_zip="req_schema_1.zip",
+    )
+    ingest_snapshot(db_session, fichier_local=chemin1)
+    entry_avant = db_session.get(REQEntry, "9990000007")
+    assert entry_avant is not None
+
+    # Entreprise.csv perd COD_STAT_IMMAT (colonne dont dépend le champ
+    # pertinent "statut") — schéma cassé, quarantaine immédiate.
+    entete_sans_statut = [c for c in _ENTETE_ENTREPRISE if c != "COD_STAT_IMMAT"]
+
+    def _buf(entete, lignes):
+        w = [",".join(entete)]
+        w += [",".join(str(v) for v in ligne) for ligne in lignes]
+        return "\n".join(w)
+
+    chemin2 = tmp_path / "req_schema_2.zip"
+    with zipfile.ZipFile(chemin2, "w") as zf:
+        zf.writestr(
+            "Entreprise.csv", _buf(entete_sans_statut, [["9990000008", "2026-01-01", "", "", "N", "", "", "", ""]])
+        )
+        zf.writestr(
+            "Nom.csv", _buf(_ENTETE_NOM, [["9990000008", "Entreprise Fictive Zeta inc.", "V", "N", "1994-01-01", ""]])
+        )
+        zf.writestr("Etablissements.csv", _buf(_ENTETE_ETABLISSEMENTS, []))
+
+    stats2 = ingest_snapshot(db_session, fichier_local=str(chemin2))
+    assert stats2.quarantaine is True
+    assert stats2.quarantaine_motif == "schema_colonne_retiree"
+
+    # REQEntry INTACT : ni la nouvelle entreprise (jamais vue) ni l'ancienne
+    # (déjà connue) ne sont touchées — l'import corrompu n'écrit rien nulle
+    # part, pas seulement "aucun signal".
+    assert db_session.get(REQEntry, "9990000008") is None
+    entry_apres = db_session.get(REQEntry, "9990000007")
+    assert entry_apres.nom == entry_avant.nom
+    assert entry_apres.statut == entry_avant.statut
+
+
+def test_ingest_zip_reel_disparitions_massives_met_en_quarantaine_reqentry_intact(db_session, tmp_path):
+    n = 300
+    entreprises_ref = [[f"99900{i:05d}", "IM", "2026-01-01", "", "", "N", "", "", "", ""] for i in range(n)]
+    noms_ref = [[f"99900{i:05d}", f"Entreprise Fictive {i} inc.", "V", "N", "1994-01-01", ""] for i in range(n)]
+    chemin1 = _ecrire_zip_req_reel(
+        tmp_path, entreprises=entreprises_ref, noms=noms_ref, etablissements=[], nom_zip="req_vol_1.zip"
+    )
+    stats1 = ingest_snapshot(db_session, fichier_local=chemin1)
+    assert stats1.quarantaine is False
+    assert db_session.get(REQEntry, "9990000000") is not None
+
+    # Deuxième import : plus AUCUNE des 300 entreprises précédentes (disparitions
+    # massives), une seule entreprise nouvelle sans rapport.
+    chemin2 = _ecrire_zip_req_reel(
+        tmp_path,
+        entreprises=[["8880000000", "IM", "2026-02-01", "", "", "N", "", "", "", ""]],
+        noms=[["8880000000", "Entreprise Fictive Nouvelle inc.", "V", "N", "1994-01-01", ""]],
+        etablissements=[],
+        nom_zip="req_vol_2.zip",
+    )
+    stats2 = ingest_snapshot(db_session, fichier_local=chemin2)
+    assert stats2.quarantaine is True
+    assert stats2.quarantaine_motif == "volume_disparitions"
+
+    # REQEntry INTACT : ni la nouvelle entreprise ajoutée, ni les 300
+    # précédentes retirées.
+    assert db_session.get(REQEntry, "8880000000") is None
+    assert db_session.get(REQEntry, "9990000000") is not None

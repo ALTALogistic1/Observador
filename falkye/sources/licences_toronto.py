@@ -42,6 +42,22 @@ JSON `null`) — voir `_nettoyer`.
 Même règle de calibration NON NÉGOCIABLE que Vancouver (deux filtres en
 cascade) — voir sources.yaml:licences_vancouver pour le détail complet,
 applicable ici sans changement.
+
+REBRANCHÉ sur le moteur de diff générique (Chantier 1, suivi 2026-09-04).
+Changement de comportement DÉLIBÉRÉ et ACCEPTÉ : `detect()` récupère
+désormais un INSTANTANÉ COMPLET à chaque exécution (`since` ignoré pour la
+collecte elle-même) plutôt que la fenêtre incrémentale — nécessaire pour que
+le moteur générique calcule de VRAIES disparitions et un VRAI volume
+(comparer une fenêtre glissante contre l'état cumulatif aurait fait
+apparaître, à tort, la quasi-totalité de l'historique comme "disparu" à
+chaque exécution). Coût réel accepté : ~160 000 lignes récupérées à chaque
+exécution plutôt que quelques milliers — c'est justement Toronto qui a servi
+de cible de validation réelle du moteur (~14s de collecte, voir docs/
+STATUT_RESEAU.md). Le filtre bespoke "pas un simple renouvellement"
+(detecter_nouvelles_licences, ci-dessous) reste inchangé — une préoccupation
+distincte (identité d'établissement) de celle du moteur générique (intégrité
+de la source), toujours appelé APRÈS que le moteur ait confirmé que ce run
+n'est pas en quarantaine.
 """
 from __future__ import annotations
 
@@ -52,11 +68,18 @@ from datetime import datetime, timezone
 import requests
 from dateutil import parser as dateutil_parser
 
+from falkye.diff_engine import LigneSnapshot, executer_diff, seuils_depuis_registre
+from falkye.registry.loader import get_registry
 from falkye.resolution import SEUIL_AMBIGUITE_ECART_MIN, SEUIL_RESOLUTION_CONFIANTE
 from falkye.sources.base import RawSignal, SourceConnector
 from falkye.sources.ckan_client import DEFAULT_USER_AGENT
 from falkye.sources.corporations_canada import resolve_corp_federale_by_name
-from falkye.sources.licences_municipales_communes import LicenceBrute, detecter_nouvelles_licences
+from falkye.sources.licences_municipales_communes import (
+    CHAMPS_PERTINENTS_MUNIC,
+    LicenceBrute,
+    colonnes_vues_depuis_lignes,
+    detecter_nouvelles_licences,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +87,16 @@ MUNICIPALITE = "Toronto"
 CKAN_BASE = "https://ckan0.cf.opendata.inter.prod-toronto.ca"
 RESOURCE_ID = "169e90ba-3ae0-43dd-8b2f-919e87002f50"
 TAILLE_PAGE = 1000
+
+# "adresse" est représentée par UNE colonne brute représentative (Licence
+# Address Line 1) pour la détection de changement de schéma — même principe
+# que req.py::_colonnes_entreprise_vues.
+_MAPPING_COLONNES_TORONTO = {
+    "nom_entreprise": "Client Name",
+    "adresse": "Licence Address Line 1",
+    "type_entreprise": "Category",
+    "date_emission": "Issued",
+}
 
 
 def _nettoyer(val) -> str | None:
@@ -141,30 +174,67 @@ def iter_licences(session: requests.Session, since: datetime | None) -> Iterator
 
 class LicencesTorontoConnector(SourceConnector):
     def detect(self, since: datetime | None, db_session) -> Iterator[RawSignal]:
+        # `since` REÇU MAIS IGNORÉ pour la collecte (voir docstring du module,
+        # Chantier 1) — conservé dans la signature pour respecter l'interface
+        # SourceConnector, jamais utilisé pour borner iter_licences ici.
         session = requests.Session()
         session.headers.setdefault("User-Agent", DEFAULT_USER_AGENT)
 
         try:
-            lignes = list(iter_licences(session, since))
+            lignes_brutes = list(iter_licences(session, None))
         except (requests.RequestException, RuntimeError) as exc:
             logger.warning("Licences Toronto: échec de la récupération: %s", exc)
             return
 
         candidats: dict[str, dict] = {}
-        for row in lignes:
+        for row in lignes_brutes:
             nom = _nettoyer(row.get("Client Name"))
             numero = _nettoyer(row.get("Licence No."))
             if not nom or not numero:
                 continue
-            adresse = _composer_adresse(row)
             brute = LicenceBrute(
                 nom=nom,
-                adresse=adresse,
+                adresse=_composer_adresse(row),
                 type_entreprise=_nettoyer(row.get("Category")),
                 identifiant_source=numero,
             )
-            candidats[f"{nom}|{adresse or ''}"] = {"brute": brute, "row": row}
+            # Clé du moteur générique = identifiant_licence (Licence No.),
+            # PERSISTANT à Toronto — registry/sources.yaml:licences_toronto.
+            # cle_naturelle. Distinct de la clé du filtre bespoke ci-dessous
+            # (nom+adresse, dans LicenceBrute/detecter_nouvelles_licences).
+            candidats[numero] = {"brute": brute, "row": row}
 
+        lignes_snapshot = [
+            LigneSnapshot(
+                cle=numero,
+                champs={
+                    "nom_entreprise": c["brute"].nom,
+                    "adresse": c["brute"].adresse,
+                    "type_entreprise": c["brute"].type_entreprise,
+                    "date_emission": _nettoyer(c["row"].get("Issued")),
+                },
+            )
+            for numero, c in candidats.items()
+        ]
+        colonnes_vues = colonnes_vues_depuis_lignes(lignes_brutes, _MAPPING_COLONNES_TORONTO)
+
+        registry = get_registry()
+        source_def = registry.sources.get("licences_toronto")
+        seuils = seuils_depuis_registre(source_def.seuils_quarantaine) if source_def else None
+        rapport = executer_diff(
+            db_session, "licences_toronto", lignes_snapshot, colonnes_vues, CHAMPS_PERTINENTS_MUNIC, seuils=seuils
+        )
+        if rapport.quarantaine:
+            logger.warning(
+                "Licences Toronto: import mis en quarantaine (%s) — aucun signal produit. "
+                "Voir `falkye quarantaine lister`.",
+                rapport.motif_quarantaine.value if rapport.motif_quarantaine else None,
+            )
+            return
+
+        # --- Filtre bespoke "pas un simple renouvellement / pas un nouveau
+        # démarrage" (inchangé) — APPLIQUÉ SEULEMENT si le moteur générique
+        # confirme que ce run n'est pas en quarantaine. ---
         entries = list(candidats.values())
         nouvelles = detecter_nouvelles_licences(db_session, MUNICIPALITE, [c["brute"] for c in entries])
         nouvelles_ids = {id(n) for n in nouvelles}
