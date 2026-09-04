@@ -1955,3 +1955,102 @@ détaillé eut déjà été confirmé par Alexandre : un plan confirmé ne dispe
 pas de la vérification empirique de son exécution.
 
 **Construit et testé (417/417, dont 25 nouveaux).**
+
+## Chantier 1 — quarantaine de diff, état/schéma/volume (2026-09-04)
+
+Mandat d'exécution autonome reçu séparément de l'audit transversal
+("Chantier 1 : à exécuter seul, sans entamer aucun autre chantier" — voir
+`docs/spec/falkye-chantier-1-quarantaine.md`), corrige la faille E : une
+source de type `instantane` (REQ, Corporations Canada, licences
+Toronto/Vancouver) n'avait aucun état conservé de façon générique, aucune
+détection de disparition, aucun garde-fou contre un fichier tronqué ou
+déformé — un risque explicitement qualifié "à coût croissant". Voir
+`docs/ARCHITECTURE.md`, section "Quarantaine de diff — état/schéma/volume",
+pour l'analyse complète.
+
+**Construit** :
+- `falkye/models/etat_diff_source.py` (`EtatLigneSource`,
+  `EtatSchemaSource`) + `falkye/models/diff_quarantaine.py`
+  (`DiffQuarantaine`, `MotifQuarantaine`, `StatutQuarantaine`).
+- `falkye/diff_engine.py` — moteur générique (`executer_diff`, trois
+  ensembles apparitions/disparitions/modifications jamais fusionnés,
+  détection de changement de schéma, quarantaine à deux seuils distincts
+  par type d'écart, archivage avec rotation, `lever_quarantaine`
+  journalisée, `suspicion_incident_local` pour deux quarantaines
+  simultanées — voir ARCHITECTURE.md pour le détail des deux réponses de
+  la section 11 du mandat, implémentées telles quelles).
+- `registry/loader.py::SourceDef` — 3 nouveaux champs
+  (`type_ingestion`, `cle_naturelle`, `seuils_quarantaine`) ; renseignés
+  pour les 4 sources réelles de type `instantane` dans
+  `registry/sources.yaml`, avec la clé naturelle de chacune justifiée par
+  une propriété réelle du jeu de données (voir ARCHITECTURE.md — notamment
+  Vancouver, composite `nom_entreprise`+`adresse` plutôt que le numéro de
+  licence, réattribué chaque année).
+- CLI : `falkye quarantaine lister/inspecter/lever` (réservé au mode
+  opérateur).
+- Décision explicitement respectée : les 4 connecteurs réels restent
+  INCHANGÉS en production — ce moteur généralise leur mécanisme bespoke
+  sans les remplacer (chantier 3/comportement de fetch incrémental hors de
+  portée), validé de façon EXTERNE contre de vraies données.
+
+**Macro-vérification contre les 4 sources actives réelles** (script
+externe jetable, base SQLite jetable — jamais la base réelle ni les
+connecteurs de production touchés) :
+
+| Source | Lignes réelles amorcées | Run 2 (vrai diff réel) |
+|---|---|---|
+| REQ | 2 726 312 (miroir réel) | idempotent, 0/0/0 |
+| Corporations Canada | 694 844 (miroir réel) | idempotent, 0/0/0 |
+| Licences Toronto | 37 501 lignes brutes tirées EN DIRECT (licences actives, sur ~159 700 lignes historiques totales) | idempotent, 0/0/0 |
+| Licences Vancouver | 10 000 lignes brutes tirées EN DIRECT (plafond de pagination Opendatasoft réel) | idempotent, 0/0/0 |
+
+**Deux bogues réels trouvés et corrigés en macro-vérifiant** (aucun des
+deux n'aurait été trouvé par les 22 tests synthétiques seuls) :
+1. **Mémoire** : la première implémentation insérait un objet ORM par
+   ligne (`db_session.add()`) — a fait exploser la mémoire (~9,6 Go, tué
+   avant complétion) en amorçant l'état contre le vrai volume REQ (2,7M
+   lignes). Corrigé par une insertion en LOT (SQLAlchemy Core, dicts bruts,
+   par lots de 5000) pour le run de référence et les apparitions — seuls
+   chemins touchant potentiellement la population complète d'une source ;
+   la lecture de l'état précédent suit le même principe (colonnes Core,
+   jamais des instances ORM complètes). Mémoire réelle observée après
+   correction : ~3 Go pic pour REQ (2,7M lignes), stable.
+2. **Clés naturelles dupliquées** : ~0,5% des lignes brutes réelles de
+   Toronto portent une clé naturelle strictement dupliquée (lignes
+   identiques — un défaut de qualité réel du jeu de données CKAN). Le
+   premier run réel contre Toronto a planté (contrainte UNIQUE violée par
+   l'INSERT en lot, qui — contrairement à un `add()` ORM — rejette le lot
+   entier). Corrigé : dédoublonnage AVANT l'insertion (garde la dernière
+   occurrence), avertissement journalisé. Régression ajoutée.
+
+**Migration de la base de développement réelle** : les 3 nouvelles tables
+(`etat_ligne_source`, `etat_schema_source`, `diff_quarantaines`) créées
+dans la base réelle (`init_db()`, additif) — restent VIDES en production
+tant que les 4 connecteurs ne sont pas effectivement rebranchés sur ce
+moteur (hors de ce chantier, comme décidé).
+
+**Seuils de quarantaine** : `SEUILS_DEFAUT` conservés pour les 4 sources
+(aucune surcharge dans `sources.yaml`) — les runs réels disponibles étant
+tous rapprochés dans le temps (aucun deuxième import REQ réel, ~15-20s
+entre les deux tirages Toronto/Vancouver), aucun vrai volume d'écart n'a
+pu être observé pour calibrer un seuil propre à chaque source. **Décision
+à valider avec Alexandre, pas une constante enfouie** — voir
+ARCHITECTURE.md pour l'observation sur le seuil absolu (300) qui ne
+devient jamais le facteur limitant aux volumes réels observés (37 498 à
+2 726 312 lignes), et ne protège en pratique que les petites sources
+futures pas encore construites (RACJ, établissements alimentaires
+Montréal).
+
+**Limite honnête qui reste, documentée plutôt que glissée sous silence** :
+`etats_precedents` (l'état précédent complet, comparé à chaque run non-
+référence) est chargé intégralement en mémoire comme dict Python — tient
+jusqu'à plusieurs millions de lignes par source (validé contre REQ, la
+plus grosse source réelle du projet), redeviendrait un problème avec un
+ordre de grandeur supplémentaire ; hors de portée de ce chantier.
+
+**Ce chantier n'a rien révélé qui appartienne à un autre chantier** — les
+deux bogues trouvés étaient internes au moteur en construction lui-même,
+corrigés sur place, pas consignés au `DiagnosticJournal` (rien à signaler
+plutôt qu'attaquer).
+
+**Construit et testé (439/439, dont 22 nouveaux).**

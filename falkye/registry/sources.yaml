@@ -131,6 +131,9 @@ sources:
     region: "Québec"
     province_code: qc  # détection d'expansion inter-provinciale, spec Radar+ point 7 (voir falkye/expansion_interprovinciale.py)
     connecteur: falkye.sources.req  # conservé pour detect_from_file — pas appelé par la boucle automatisée (methode_acces=import_manuel)
+    type_ingestion: instantane  # Chantier 1 (audit 2026-09-03, faille E) : pas de date par ligne, signal né d'une comparaison de deux instantanés — voir falkye/diff_engine.py
+    cle_naturelle: [neq]  # identifiant stable et unique par entreprise, jamais réattribué
+    seuils_quarantaine:  # SEUILS_DEFAUT (repli global) — macro-vérification chantier 1 du 2026-09-04 : 2 726 312 lignes réelles amorcées, un seul fichier réel disponible à ce jour donc pas de vrai run espacé pour calibrer un seuil propre à REQ ; à recalibrer une fois un deuxième import manuel réel comparé — voir docs/ARCHITECTURE.md, "Quarantaine de diff"
     regle_calibration: >
       Seuls deux types de changement génèrent un signal : nouvel établissement
       SECONDAIRE d'une entreprise déjà connue (fort), ou changement d'adresse du
@@ -616,6 +619,9 @@ sources:
     cout: gratuit
     region: "Canada"
     connecteur: falkye.sources.corporations_canada
+    type_ingestion: instantane  # Chantier 1 (audit 2026-09-03, faille E) — voir falkye/diff_engine.py
+    cle_naturelle: [numero_corporation_federale]  # identifiant stable et unique par corporation, jamais réattribué
+    seuils_quarantaine:  # SEUILS_DEFAUT (repli global) — macro-vérification chantier 1 du 2026-09-04 : 694 844 lignes réelles amorcées, idem REQ (un seul rafraîchissement réel disponible) — voir docs/ARCHITECTURE.md, "Quarantaine de diff"
     regle_calibration: >
       Seul un changement d'ADRESSE pour une corporation active DÉJÀ connue
       (détecté par diff entre deux rafraîchissements du miroir local) génère
@@ -747,6 +753,9 @@ sources:
     region: "Vancouver"
     province_code: bc  # détection d'expansion inter-provinciale, spec Radar+ point 7 (voir falkye/expansion_interprovinciale.py)
     connecteur: falkye.sources.licences_vancouver
+    type_ingestion: instantane  # Chantier 1 (audit 2026-09-03, faille E) — voir falkye/diff_engine.py
+    cle_naturelle: [nom_entreprise, adresse]  # PAS le numéro de licence : réattribué CHAQUE ANNÉE (folderyear encodé dedans, voir notes) — l'utiliser ferait apparaître 100% de disparitions + 100% d'apparitions à chaque réémission annuelle normale, déclenchant la quarantaine à tort. nom+adresse est l'identifiant stable de l'établissement à travers les réémissions, même clé que licences_municipales_communes.py::LicenceBrute
+    seuils_quarantaine:  # SEUILS_DEFAUT (repli global) — macro-vérification chantier 1 du 2026-09-04 : 10 000 lignes brutes réelles (plafond de pagination Opendatasoft, voir notes), idempotent sur deux tirages réels rapprochés (0 écart) — voir docs/ARCHITECTURE.md, "Quarantaine de diff"
     regle_calibration: >
       NON NÉGOCIABLE avant activation (spec section 7, "Principe de calibration"),
       DEUX filtres en cascade, aucun optionnel : (1) pas un simple renouvellement —
@@ -806,6 +815,9 @@ sources:
     region: "Toronto"
     province_code: "on"  # détection d'expansion inter-provinciale, spec Radar+ point 7 (voir falkye/expansion_interprovinciale.py) — quoté : "on" nu serait lu comme booléen par PyYAML (YAML 1.1)
     connecteur: falkye.sources.licences_toronto
+    type_ingestion: instantane  # Chantier 1 (audit 2026-09-03, faille E) — voir falkye/diff_engine.py
+    cle_naturelle: [identifiant_licence]  # "Licence No." — confirmé PERSISTANT (contrairement à Vancouver, pas réattribué chaque année) ; une même entreprise peut obtenir plusieurs numéros successifs au fil des décennies, chacun un nouvel identifiant DE PLEIN DROIT pour ce moteur générique (le filtrage "pas un simple renouvellement" reste la responsabilité du miroir LicenceMunicipaleEntry bespoke, pas de ce moteur)
+    seuils_quarantaine:  # SEUILS_DEFAUT (repli global) — macro-vérification chantier 1 du 2026-09-04 : 37 501 lignes brutes réelles (licences actives, Cancel Date vide), 3 clés dupliquées trouvées et corrigées (voir docs/ARCHITECTURE.md, "bogue réel trouvé"), idempotent sur deux tirages réels rapprochés (0 écart)
     regle_calibration: >
       Même règle "NON NÉGOCIABLE" que licences_vancouver (voir sa
       regle_calibration pour le détail complet) : (1) pas un simple

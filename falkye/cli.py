@@ -1300,6 +1300,107 @@ def diagnostic_rejeter_fusion(diagnostic_id):
 
 
 @cli.group()
+def quarantaine():
+    """Quarantaine de diff (Chantier 1, spec section 8bis, 2026-09-03) —
+    exécutions suspectes des sources de type `instantane` (falkye/
+    diff_engine.py), jamais publiées automatiquement. RÉSERVÉ AU MODE
+    OPÉRATEUR : ce journal traverse tout le dossier cumulatif."""
+
+
+@quarantaine.command("lister")
+@click.option(
+    "--statut",
+    type=click.Choice(["en_attente", "acceptee", "rejetee", "toutes"]),
+    default="en_attente",
+    help="Filtrer par statut (en_attente par défaut) — 'toutes' pour tout afficher.",
+)
+def quarantaine_lister(statut):
+    if not _mode_operateur():
+        raise click.ClickException("Réservé au mode opérateur (FALKYE_OPERATOR=1).")
+    from falkye.diff_engine import lister_quarantaines
+    from falkye.models.diff_quarantaine import StatutQuarantaine
+
+    session = get_session()
+    try:
+        filtre = None if statut == "toutes" else StatutQuarantaine(statut)
+        entrees = lister_quarantaines(session, filtre)
+        if not entrees:
+            click.echo("Aucune quarantaine.")
+            return
+        for q in entrees:
+            click.echo(
+                f"#{q.id} [{q.created_at:%Y-%m-%d %H:%M}] source={q.source_id} "
+                f"motif={q.motif.value} statut={q.statut.value}"
+            )
+    finally:
+        session.close()
+
+
+@quarantaine.command("inspecter")
+@click.option("--id", "quarantaine_id", required=True, type=int)
+def quarantaine_inspecter(quarantaine_id):
+    if not _mode_operateur():
+        raise click.ClickException("Réservé au mode opérateur (FALKYE_OPERATOR=1).")
+    from falkye.models.diff_quarantaine import DiffQuarantaine
+
+    session = get_session()
+    try:
+        q = session.get(DiffQuarantaine, quarantaine_id)
+        if q is None:
+            raise click.ClickException(f"Quarantaine #{quarantaine_id} introuvable.")
+        click.echo(f"#{q.id} source={q.source_id} motif={q.motif.value} statut={q.statut.value}")
+        click.echo(f"créée : {q.created_at:%Y-%m-%d %H:%M}")
+        click.echo(f"archive brute : {q.chemin_archive or '(aucune)'}")
+        click.echo("détail :")
+        for cle, valeur in q.detail.items():
+            if isinstance(valeur, list) and len(valeur) > 10:
+                click.echo(f"  {cle} : {len(valeur)} entrée(s) (tronqué, voir l'archive brute)")
+            else:
+                click.echo(f"  {cle} : {valeur}")
+        if q.levee_par:
+            click.echo(f"levée par {q.levee_par} le {q.levee_le:%Y-%m-%d %H:%M} — motif : {q.levee_motif}")
+    finally:
+        session.close()
+
+
+@quarantaine.command("lever")
+@click.option("--id", "quarantaine_id", required=True, type=int)
+@click.option("--decision", type=click.Choice(["acceptee", "rejetee"]), required=True)
+@click.option("--motif", required=True, help="Justification de la décision — journalisée.")
+@click.option("--qui", required=True, help="Identité de la personne qui lève la quarantaine — journalisée.")
+def quarantaine_lever(quarantaine_id, decision, motif, qui):
+    """Lève une quarantaine — action explicite et journalisée (qui, quand,
+    motif), RÉSERVÉE AU MODE OPÉRATEUR. 'acceptee' applique le diff calculé
+    au moment de la quarantaine tel quel (jamais une nouvelle collecte
+    contre la source) ; 'rejetee' conserve l'état précédent intact."""
+    if not _mode_operateur():
+        raise click.ClickException("Réservé au mode opérateur (FALKYE_OPERATOR=1).")
+    from falkye.diff_engine import lever_quarantaine as lever_quarantaine_moteur
+
+    identite = qui
+    session = get_session()
+    try:
+        try:
+            resultat = lever_quarantaine_moteur(session, quarantaine_id, decision=decision, qui=identite, motif=motif)
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+        session.commit()
+        if decision == "rejetee":
+            click.echo(f"Quarantaine #{quarantaine_id} rejetée — état précédent conservé.")
+        else:
+            click.echo(
+                f"Quarantaine #{quarantaine_id} acceptée — "
+                f"{len(resultat.resultat.apparitions)} apparition(s), "
+                f"{len(resultat.resultat.disparitions)} disparition(s), "
+                f"{len(resultat.resultat.modifications)} modification(s) appliquée(s)."
+                if resultat.resultat
+                else f"Quarantaine #{quarantaine_id} acceptée — nouveau schéma amorcé."
+            )
+    finally:
+        session.close()
+
+
+@cli.group()
 def scan():
     """Lancer un scan (spec section 5)."""
 

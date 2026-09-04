@@ -73,6 +73,29 @@ class SourceDef:
     # simplement exclue du mécanisme (falkye/expansion_interprovinciale.py).
     province_code: str | None = None
 
+    # Chantier 1 (audit du 2026-09-03, faille E — voir docs/ARCHITECTURE.md) :
+    # "evenement" (défaut) = chaque enregistrement porte sa propre date fiable,
+    # aucune conservation d'état nécessaire pour savoir si c'est nouveau.
+    # "instantane" = aucune date d'événement fiable par ligne (RACJ, licences
+    # municipales, Nouvelle-Écosse...) — le signal naît de la comparaison entre
+    # deux instantanés successifs, voir falkye/diff_engine.py. Détermine si
+    # cette source passe par le moteur de diff/quarantaine générique.
+    type_ingestion: str = "evenement"
+    # Clé naturelle DÉCLARÉE, jamais devinée par le moteur (mandat du chantier :
+    # "elle varie franchement"). Liste de noms LOGIQUES de champs (même
+    # convention que champs_pertinents) composés en une seule chaîne par
+    # l'appelant (falkye/diff_engine.py) — obligatoire quand type_ingestion ==
+    # "instantane", ignoré sinon.
+    cle_naturelle: list[str] | None = None
+    # Seuils de quarantaine par type d'écart (apparitions/disparitions/
+    # modifications), chacun {"pct": float, "abs": int} — LES DEUX doivent être
+    # franchis pour déclencher la quarantaine sur ce type (voir falkye/
+    # diff_engine.py:SEUILS_DEFAUT pour le repli si absent ici). Valeurs
+    # spécifiques à CETTE source, à calibrer contre son vrai volume observé —
+    # jamais une seule constante globale (une source à 200 lignes et une à
+    # 160 000 n'ont pas le même bruit normal).
+    seuils_quarantaine: dict | None = None
+
     @property
     def est_actif(self) -> bool:
         return self.statut == "actif"

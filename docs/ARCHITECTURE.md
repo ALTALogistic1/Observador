@@ -1694,3 +1694,256 @@ Sweep ciblé (grep sur les ids/noms de sources connus à travers `cli.py`,
 trouvé. `signal.champs.get("donneur_ordre")` dans `premier_contact.py`
 n'est PAS une fuite : c'est une DONNÉE du signal (le nom du donneur d'ordre
 réel, partie du contenu détecté), pas un nom de source.
+
+## Quarantaine de diff — état/schéma/volume (Chantier 1, audit et mandat du 2026-09-03/04, faille E)
+
+**Le problème que ce chantier corrige.** Une source de type `instantane`
+(aucune date d'événement fiable par ligne — le signal naît de la
+comparaison de deux instantanés successifs) n'avait, avant ce chantier,
+AUCUN état conservé de façon générique : chacun des 4 connecteurs actifs de
+ce type (REQ, Corporations Canada, licences Toronto/Vancouver) réinvente
+son propre miroir BESPOKE et PARTIEL (`REQEntry`/`CorporationFederaleEntry`/
+`LicenceMunicipaleEntry`) qui ne fait qu'une chose : décider si une clé
+"a déjà été vue" — jamais de détection de disparition, jamais de suivi de
+modification, et surtout aucune protection si le fichier source arrive
+tronqué ou déformé un jour (perte réseau, changement de schéma du
+diffuseur) : une déformation silencieuse se traduirait directement par une
+tempête de fausses notifications, avec un risque de crédibilité que le
+mandat qualifie explicitement de "à coût croissant" — plus on attend, plus
+la probabilité cumulée d'un tel incident augmente sans qu'aucun garde-fou
+n'existe pour l'intercepter.
+
+**Ce que ce chantier construit, et ce qu'il ne touche PAS.** Un moteur de
+diff générique (`falkye/diff_engine.py`) qui GÉNÉRALISE le mécanisme
+bespoke des 4 connecteurs existants sans les remplacer — remplacer
+effectivement REQ/Corporations Canada dans ce chantier toucherait à la
+résolution NEQ/identité (territoire du chantier 3, signalé plutôt que
+franchi) ; remplacer licences_toronto/vancouver perdrait leur fetch
+incrémental (`since`-filtrable, efficace) au profit d'un instantané complet
+à chaque exécution, un changement de comportement de production hors de la
+portée "construire et valider le moteur" de ce chantier. Les 4 connecteurs
+restent donc inchangés en production ; le moteur est validé de façon
+EXTERNE, contre de vraies données réelles (voir "Macro-vérification"
+ci-dessous), et `registry/sources.yaml` porte déjà les 3 nouveaux champs
+(`type_ingestion`, `cle_naturelle`, `seuils_quarantaine`) pour ces 4
+sources, prêt pour le branchement futur.
+
+### Modèle de données
+
+- **`EtatLigneSource`** (`falkye/models/etat_diff_source.py`) : l'état
+  COURANT d'une source de type `instantane`, une ligne par clé naturelle —
+  PAS un historique de copies complètes (l'état courant suffit pour un
+  diff au prochain run). Empreinte (`empreinte`, sha256) calculée
+  UNIQUEMENT sur les champs pertinents (`SourceDef.champs_pertinents`),
+  jamais la ligne brute entière — un changement cosmétique hors de cette
+  liste (espace, colonne inutilisée, réordonnancement) ne doit jamais
+  produire un faux "modification". Une disparition SUPPRIME la ligne
+  (pas un statut "disparu") — une réapparition plus tard est légitimement
+  une NOUVELLE apparition, jamais un cas spécial.
+- **`EtatSchemaSource`** : les colonnes vues au dernier run réussi (nom →
+  type déclaré, best-effort) — seule source de vérité pour "cette source
+  a-t-elle déjà tourné" (`run_reference = (EtatSchemaSource absent)`) ET
+  pour la détection de changement de schéma.
+- **`DiffQuarantaine`** (`falkye/models/diff_quarantaine.py`) : un
+  incident. `detail` (JSON) conserve le DIFF CALCULÉ EN ENTIER au moment
+  de la mise en quarantaine (pas seulement des statistiques) — décision
+  délibérée : "lever" une quarantaine applique ce diff TEL QUEL, jamais une
+  nouvelle collecte contre la source (qui pourrait avoir changé entre
+  temps). Une archive JSON brute du run (`chemin_archive`, rotation sur
+  `GENERATIONS_CONSERVEES = 5`) permet l'inspection post-mortem même au-delà
+  de ce qui est gardé en base.
+
+### `falkye/diff_engine.py` — le moteur
+
+Point d'entrée unique : `executer_diff(db_session, source_id, lignes,
+colonnes_vues, champs_pertinents, seuils=None, taux_erreur_lecture=0.0,
+seuil_erreur_lecture=0.05) -> RapportExecution`. Ordre des vérifications,
+chacune un garde-fou non négociable du mandat :
+
+1. **Échec de lecture** (`taux_erreur_lecture` — calculé par l'APPELANT,
+   ce module ne lit aucun fichier) au-delà du seuil → quarantaine
+   immédiate (`LECTURE_ECHOUEE`), avant même la comparaison de schéma ou de
+   contenu.
+2. **Run de référence** (`EtatSchemaSource` absent pour cette source) →
+   amorce l'état intégralement, **n'émet aucun candidat, ne peut jamais
+   déclencher la quarantaine** (100% d'apparitions y est normal, pas une
+   aberration).
+3. **Changement de schéma** — colonne PERTINENTE retirée ou dont le type
+   déclaré change (comparé contre `EtatSchemaSource.colonnes` du run
+   précédent) → quarantaine **immédiate, quel que soit le volume du diff**.
+   Colonne AJOUTÉE → avertissement seul, jamais de quarantaine (les
+   diffuseurs ajoutent des colonnes couramment). Une colonne RENOMMÉE est,
+   par construction, indistinguable d'un retrait + ajout — le retrait
+   l'emporte, décision assumée du mandat plutôt qu'une heuristique de
+   renommage fragile.
+4. **Diff de contenu** — trois ensembles TOUJOURS séparés (`apparitions`,
+   `disparitions`, `modifications` — cette dernière portant la liste des
+   champs qui ont changé), jamais fusionnés. Ce sont des CANDIDATS, pas des
+   notifications : le reste du pipeline (résolution d'identité, score,
+   pertinence, routage) reste entièrement hors de ce chantier.
+5. **Règle de quarantaine sur le volume** — DEUX seuils (pourcentage ET
+   absolu) doivent être franchis ENSEMBLE pour CHAQUE type d'écart,
+   jamais un seuil unique global : le pourcentage seul mettrait en
+   quarantaine les petites sources sur du bruit normal, l'absolu seul ne
+   verrait rien venir sur les grosses. Seuils par défaut
+   (`SEUILS_DEFAUT`), surchageables par source dans `registry/sources.yaml`
+   (`SourceDef.seuils_quarantaine`) : apparitions 50%/500, **disparitions
+   30%/300 (volontairement plus bas)** — une disparition massive est plus
+   suspecte qu'une explosion d'apparitions (signale généralement un
+   extrait tronqué, la panne la plus probable), modifications 50%/500.
+6. **Diff accepté** → archive le snapshot, applique l'état
+   (`_appliquer_diff`), retourne le `ResultatDiff`.
+
+**Insertion en LOT, pas un `db_session.add()` ORM par ligne.** Découverte
+réelle en macro-vérifiant ce moteur contre le vrai volume REQ (2,7M
+lignes, voir plus bas) : la première implémentation (un objet ORM par
+ligne, ajouté au unit-of-work de la session) faisait exploser la mémoire
+bien avant la fin de l'insertion à cette échelle (~9,6 Go observés, tué
+avant complétion). Corrigé par `_inserer_lignes_en_lot` (SQLAlchemy Core,
+`insert()` par lots de `TAILLE_LOT_INSERTION = 5000` dicts bruts, jamais
+d'objet ORM par ligne) pour le run de référence ET les apparitions — seuls
+chemins qui touchent potentiellement la POPULATION COMPLÈTE d'une source.
+La lecture de l'état précédent (`etats_precedents`, comparé pour calculer
+le diff) suit le même principe : colonnes Core plutôt que des instances
+ORM complètes, cette lecture aussi portant sur la population complète à
+CHAQUE run non-référence. Les mutations ciblées (modifications,
+disparitions) restent en ORM ligne par ligne — leur volume est celui du
+DIFF, pas de la population, sans commune mesure. Limite honnête qui reste,
+documentée ici plutôt que glissée sous silence : `etats_precedents` est
+tout de même chargé intégralement en mémoire (comme dict Python) à chaque
+run non-référence — un choix qui tient jusqu'à plusieurs millions de
+lignes par source (validé contre REQ, la plus grosse source réelle du
+projet) mais qui redeviendrait un problème avec un ordre de grandeur
+supplémentaire ; une diffusion côté base de données serait le prochain
+palier si jamais nécessaire, hors de la portée de ce chantier.
+
+### Section 11 du mandat — les deux réponses implémentées telles quelles
+
+1. **Deux sources en quarantaine dans la même exécution.** La quarantaine
+   reste STRICTEMENT par source (deux incidents indépendants — aucun des
+   deux ne bloque le pipeline de l'autre, testé explicitement :
+   `test_source_en_quarantaine_n_empeche_pas_une_autre_source_de_publier`).
+   Mais le CUMUL est lui-même un signal :
+   `suspicion_incident_local(rapports) -> bool` (seuil
+   `SEUIL_QUARANTAINES_SIMULTANEES_SUSPECT = 2`) — deux diffuseurs
+   indépendants qui changent leur format le même jour est improbable, deux
+   quarantaines simultanées pointent bien plus vraisemblablement vers un
+   problème DE NOTRE CÔTÉ (réseau, disque, déploiement récent, dépendance
+   mise à jour). Fonction pure, prête à être branchée par un futur
+   orchestrateur de veille multi-sources (hors de ce chantier — les 4
+   connecteurs réels ne sont pas encore rebranchés sur ce moteur).
+2. **Source en quarantaine touchant une entité déjà corroborée par une
+   source saine.** Résolu STRUCTURELLEMENT, pas par une règle
+   supplémentaire à respecter : un run en quarantaine a toujours
+   `RapportExecution.resultat = None`, et `EtatLigneSource`/
+   `EtatSchemaSource` ne sont JAMAIS touchés — les données de ce run ne
+   peuvent donc, par construction, atteindre AUCUNE étape de candidat, de
+   score ou de corroboration en aval, puisqu'aucun candidat n'est jamais
+   produit (testé :
+   `test_run_en_quarantaine_ne_produit_aucun_candidat_ni_etat`, état
+   byte-identique avant/après). Rétracter un signal déjà publié par une
+   source ensuite jugée mauvaise est le territoire du chantier 2, jamais
+   attaqué ici.
+
+### Clé naturelle par source — jamais devinée, déclarée dans le registre
+
+Décision structurante par source, chacune justifiée par une propriété
+RÉELLE du jeu de données (`registry/sources.yaml`,
+`SourceDef.cle_naturelle`) :
+
+- **REQ** : `neq` — identifiant stable et unique par entreprise.
+- **Corporations Canada** : `numero_corporation_federale` — idem.
+- **Licences Toronto** : `identifiant_licence` (le "Licence No.") —
+  confirmé PERSISTANT (0 doublon sur échantillon réel). Une même
+  entreprise peut obtenir plusieurs numéros successifs au fil des
+  décennies ; chacun est, pour CE moteur générique, un nouvel identifiant
+  de plein droit — le filtrage "pas un simple renouvellement" reste la
+  responsabilité du miroir bespoke `LicenceMunicipaleEntry`
+  (`falkye/sources/licences_municipales_communes.py`), une préoccupation
+  distincte (identité d'établissement) de celle de ce moteur (intégrité de
+  la source).
+- **Licences Vancouver** : **composite (`nom_entreprise`, `adresse`)**,
+  **PAS le numéro de licence** — découverte réelle documentée dans
+  `sources.yaml` : Vancouver RÉATTRIBUE un nouveau numéro de licence CHAQUE
+  ANNÉE (`folderyear` encodé dedans, ex. "26-258507"). Utiliser ce numéro
+  comme clé naturelle ferait apparaître 100% de disparitions + 100%
+  d'apparitions à CHAQUE réémission annuelle normale — un comportement
+  attendu et bénin de la source, mais qui déclencherait la quarantaine à
+  tort à chaque cycle. `nom_entreprise` + `adresse` est l'identifiant
+  stable de l'ÉTABLISSEMENT à travers les réémissions — même clé que
+  celle déjà utilisée par le mécanisme bespoke
+  (`LicenceBrute`/`detecter_nouvelles_licences`, clé `"nom|adresse"`).
+
+### CLI — `falkye quarantaine` (RÉSERVÉ AU MODE OPÉRATEUR)
+
+`quarantaine lister [--statut en_attente|acceptee|rejetee|toutes]`,
+`quarantaine inspecter --id N` (détail complet, listes de plus de 10
+entrées tronquées à l'écran — l'archive brute reste consultable en
+entier), `quarantaine lever --id N --decision acceptee|rejetee --motif
+"..." --qui "..."` — action explicite et JOURNALISÉE (qui, quand, motif),
+jamais anonyme. `acceptee` applique le diff calculé au moment de la
+quarantaine tel quel (jamais une nouvelle collecte) ; `rejetee` conserve
+l'état précédent intact. Une quarantaine SCHEMA acceptée amorce le nouveau
+schéma comme une référence PARTIELLE — le PROCHAIN run recalcule le vrai
+diff de contenu contre ce nouveau schéma, jamais une fusion aveugle avec
+l'ancien état.
+
+### Macro-vérification (2026-09-04) — contre les 4 sources actives réelles, pas seulement l'exemple
+
+Exécutée par un script externe jetable (jamais committé), contre une base
+SQLite JETABLE (jamais la base réelle) — les 4 connecteurs de production
+restent inchangés, comme décidé plus haut. Pour REQ et Corporations
+Canada, les données proviennent des miroirs déjà réels dans
+`data/falkye.sqlite3` (issus d'imports réels antérieurs) ; pour les
+licences Toronto/Vancouver, tirées EN DIRECT des vrais portails via les
+mêmes fonctions `iter_licences()` que les connecteurs réels de production
+(aucune modification de ces connecteurs).
+
+| Source | Clé naturelle | Lignes réelles amorcées | Run 1 (référence) | Run 2 (vrai diff réel) |
+|---|---|---|---|---|
+| REQ | `neq` | 2 726 312 (miroir réel, import manuel) | amorce l'état, 0 candidat, 59,8s | 2e run sur les MÊMES données (aucun 2e fichier disponible) : 0/0/0, idempotent, 90,8s |
+| Corporations Canada | `numero_corporation_federale` | 694 844 (miroir réel) | amorce l'état, 0 candidat, 18,1s | idem : 0/0/0, idempotent, 21,4s |
+| Licences Toronto | `identifiant_licence` | 37 501 lignes brutes tirées EN DIRECT (licences actives seulement, `Cancel Date` vide — sur ~159 700 lignes historiques totales depuis 1946), 3 clés dupliquées dédoublonnées (37 498 amorcées) — voir "bogue réel trouvé" ci-dessous | amorce l'état, 0 candidat, 13,9s de collecte | 2e tirage EN DIRECT ~15s plus tard (37 501 lignes) : 0/0/0, idempotent — cohérent, aucune nouvelle licence émise dans cette fenêtre |
+| Licences Vancouver | `(nom_entreprise, adresse)` | 10 000 lignes brutes (plafond de pagination Opendatasoft réel, voir sources.yaml) | amorce l'état, 0 candidat | 2e tirage EN DIRECT : 0/0/0, idempotent |
+
+**Bogue réel trouvé et corrigé en macro-vérifiant contre Toronto** : ~0,5%
+des lignes brutes du jeu de données portent une clé naturelle
+(`Licence No.`) STRICTEMENT dupliquée (lignes identiques en tout point —
+un défaut de qualité réel du jeu de données CKAN, pas une erreur du
+connecteur ni un signe que `identifiant_licence` est un mauvais choix de
+clé). Le run de référence insérait alors la liste `lignes` BRUTE (non
+dédoublonnée) dans l'INSERT en lot, qui — contrairement à un ORM `add()`
+par ligne — rejette le lot ENTIER dès la première violation de la
+contrainte UNIQUE (`source_id`, `cle_naturelle`) : **premier run réel
+contre Toronto, plantage immédiat.** Corrigé (`executer_diff` insère
+désormais `lignes_par_cle.values()`, jamais `lignes` brut — dédoublonné
+AVANT l'INSERT, avec un avertissement journalisé sur le nombre de doublons
+rencontrés) ; régression ajoutée
+(`test_run_reference_avec_cles_dupliquees_dedoublonne_sans_lever_d_erreur`).
+Exactement le type de découverte que la macro-vérification contre de
+vraies données existe pour attraper avant "considérer le mécanisme
+terminé" — un jeu de test synthétique n'aurait jamais pensé à ce cas.
+
+**Seuils de quarantaine — proposition, à valider avec Alexandre, pas une
+constante enfouie.** Les 4 sources gardent `SEUILS_DEFAUT` (aucune
+surcharge dans `sources.yaml` à ce jour) : les deux runs réels de chaque
+source étant rapprochés dans le temps (REQ/Corporations Canada : même
+fichier comparé à lui-même — aucun deuxième import réel disponible ;
+Toronto/Vancouver : ~15-20 secondes d'écart entre deux tirages), le diff
+observé est 0/0/0 partout — un run réel ESPACÉ dans le temps (jours ou
+semaines) serait nécessaire pour observer un vrai volume d'écart et
+calibrer un seuil PROPRE à chaque source. Observation utile en attendant :
+à l'échelle réelle des 4 sources (37 498 à 2 726 312 lignes), le seuil
+ABSOLU (300) ne devient jamais le facteur limitant — il faudrait un écart
+de 30% ou plus pour l'atteindre, largement au-dessus de 300 lignes à ces
+volumes ; l'absolu protège surtout les PETITES sources hypothétiques
+futures (RACJ, établissements alimentaires Montréal — pas encore
+construites), pas les 4 sources actuelles. Recommandation : garder
+`SEUILS_DEFAUT` tel quel pour l'instant, recalibrer par source une fois un
+vrai historique de runs espacés accumulé (chantier futur, pas celui-ci).
+
+Les 3 nouvelles tables (`etat_ligne_source`, `etat_schema_source`,
+`diff_quarantaines`) ont été créées dans la base réelle
+(`falkye/db.py::init_db()`, additif — aucune autre table touchée) ; elles
+restent VIDES en production tant que les 4 connecteurs ne sont pas
+effectivement rebranchés sur ce moteur (hors de ce chantier).
