@@ -714,6 +714,212 @@ des signaux déjà captés mais mal attribués — ce qui est probablement le ca
 sphères orphelines, et probablement pas pour la quatrième. Ne jamais le présenter comme une méthode qui
 garantit de couvrir toute nouvelle sphère.
 
+---
+
+## Chantier 13 — Précision perçue : instrumenter le faux positif *(charte, section 16)*
+
+**Constat.** La charte pose maintenant que le faux positif coûte structurellement plus cher que le faux
+négatif pour ce produit et ce prix. Aucun instrument ne mesure ce ratio aujourd'hui.
+
+**Le mécanisme existe déjà à moitié.** Le statut de suivi « Pas pertinent » est décrit dans les specs
+comme ayant une double fonction : suivi de pipeline **et** rétroaction au moteur de pertinence. Ce qui
+manque, c'est de l'agréger.
+
+**À construire.**
+- Un **taux de rejet par profil, par sphère et par source**, calculé sur les statuts « Pas pertinent »
+  déjà collectés.
+- Un **seuil d'alerte interne** : au-delà d'un certain taux de rejet, la combinaison est signalée comme
+  suspecte — sphère mal câblée, source bruitée, ou seuil de sensibilité trop bas.
+- Une **distinction entre rejet et non-conversion.** « Pas pertinent » signifie que le prospect
+  n'aurait pas dû être montré; « Joint, sans suite » signifie qu'il était bon et que la vente n'a pas
+  eu lieu. Le second ne doit jamais compter comme une erreur du moteur.
+- Un usage direct dans le chantier 12 : un lien champ → sphère dont le taux de rejet est élevé est
+  réfuté par les données, ce qui rend le garde-fou de réfutation opérationnel plutôt que théorique.
+
+**Question de la section 11.** Que se passe-t-il quand un même prospect est rejeté par un utilisateur
+et retenu par un autre, sur la même sphère? Le rejet est-il un signal sur le prospect, sur le profil,
+ou sur la sphère? La réponse par défaut doit être « sur le profil » — le moteur n'apprend jamais d'un
+utilisateur pour les autres sans confirmation.
+
+---
+
+## Chantier 14 — Comportement en l'absence de signal *(charte, section 17)*
+
+**Constat.** Le mode de défaillance principal du produit est le silence, et rien ne le traite. Un
+abonné qui ne reçoit rien pendant trois semaines ne peut pas distinguer un territoire calme, un profil
+mal configuré et un produit brisé.
+
+**À construire.**
+- Un **rythme normal par profil**, appris sur son propre historique — pas une moyenne globale : un
+  profil de niche a un rythme lent qui est normal pour lui.
+- Une distinction explicite entre **silence attendu** et **silence anormal**, avec des causes
+  distinguables : combinaison sphère × territoire structurellement mince (chantier 9), profil trop
+  restrictif, source en quarantaine ou défaillante (chantiers 1 et 2), aucune des trois.
+- Une **annonce à la configuration** quand la combinaison choisie est mince, en termes de résultats
+  attendus et **sans jamais nommer de source**.
+- Une **intervention au-delà d'un seuil de silence** : proposer un ajustement de profil, un
+  élargissement de territoire, ou dire que la sphère est mince en ce moment. Un message honnête vaut
+  mieux que rien, et infiniment mieux qu'un faux prospect.
+- **Interdiction implémentée, pas seulement documentée :** aucun mécanisme ne doit pouvoir abaisser un
+  seuil de sensibilité automatiquement pour rompre un silence. Si un tel comportement existe quelque
+  part, le retirer.
+
+**Question de la section 11.** Que se passe-t-il pour un compte à **profils multiples** dont un seul
+est silencieux — l'alerte porte-t-elle sur le profil ou sur le compte? Et un silence causé par une
+source en quarantaine doit-il être présenté comme un silence anormal, sachant qu'on ne peut pas nommer
+la source en cause?
+
+---
+
+## Chantier 15 — Retenue : séparer le registre interne de l'offre commerciale *(charte, section 18)*
+
+**Constat.** Rien ne distingue aujourd'hui ce que le registre contient de ce que le produit offre. Une
+sphère sans couverture est sélectionnable comme les autres.
+
+**À construire.**
+- Un attribut **offert / non offert** sur les sphères, territoires et combinaisons, distinct du fait
+  d'exister au registre. Le registre garde la trace, l'offre ne présente que ce qui est servi.
+- Une **opération de retrait** propre et journalisée : retirer une sphère du catalogue offert sans la
+  supprimer du registre, avec motif et date. Les précédents existent — la sphère « Gestion
+  d'inventaire », plusieurs personas — mais ont été traités à la main.
+- Le traitement des **utilisateurs déjà abonnés** à une combinaison retirée de l'offre : ils ne perdent
+  pas leur configuration, ils sont informés. Décision à trancher explicitement, pas à découvrir.
+
+**Question de la section 11.** Que se passe-t-il quand un profil combine une sphère offerte et une
+sphère retirée de l'offre? Le profil reste-t-il valide en mode partiel, ou demande-t-il une
+reconfiguration?
+
+---
+
+## Chantier 16 — Réévaluation datée du fossé *(charte, section 19)*
+
+Chantier léger, sans code lourd, mais qui doit exister quelque part pour ne pas se reperdre.
+
+**À construire.**
+- Une **échéance de revalidation** sur les trois fossés de la section 3, au même mécanisme que les
+  échéances de décision et de vérification légale (chantiers 6 et 10) — un seul mécanisme d'échéance,
+  pas trois.
+- Les **trois déclencheurs de revue immédiate** de la charte, consignés comme critères de veille :
+  veille continue ou notification annoncée par un concurrent identifié, mise en correspondance
+  service-besoin adoptée par un concurrent, produit dérivé lancé par un fournisseur de données vers
+  les fournisseurs de services.
+- Un lien avec le chantier 10 : si un fossé tombe, l'élément correspondant du matériel de vente passe
+  au même état que les fonctionnalités non validées — retiré de la promesse, pas du produit.
+
+---
+
+# Partie 2bis — Chantiers offensifs
+
+Les seize chantiers précédents réparent. Les quatre suivants exploitent des forces déjà présentes dans
+le produit mais laissées à l'état de note. Tous sont additifs et à coût constant — mais **leur valeur
+dépend de l'historique accumulé**, donc les commencer tôt fait mûrir l'actif plus vite, même si le
+résultat n'est lisible que plus tard.
+
+---
+
+## Chantier 17 — Signal par absence et trajectoire, en première classe *(charte, section 21, force 1)*
+
+**Constat.** Les deux capacités que personne ne peut reproduire sans mémoire sont mentionnées une fois
+chacune dans les specs, avec la note qu'elles sont généralisables, et n'ont aucun mécanisme. Le signal
+par absence est décrit comme un cas découvert avec un persona; la trajectoire, comme « un contributeur
+additionnel au score ».
+
+**À construire.**
+- **Le signal par absence comme règle exprimable**, pas comme cas particulier codé pour les
+  investisseurs. Il faut pouvoir déclarer, par sphère : « présence de A et B, **absence** de C et D
+  sur une fenêtre donnée ». La généralisation est déjà demandée dans les specs — c'est le mécanisme
+  qui manque.
+- **La trajectoire comme dimension calculée du dossier cumulatif** : nombre de signaux sur une
+  fenêtre glissante, force croissante ou décroissante, écart depuis le signal précédent. Trois signaux
+  en deux mois et trois signaux en deux ans doivent produire deux résultats différents.
+- **La conservation nécessaire à l'expression d'une absence.** Une absence ne se déduit que d'un
+  ensemble connu de ce qui aurait dû apparaître : ce chantier dépend directement de la conservation
+  d'état du chantier 1, et échouera silencieusement sans elle.
+
+**Question de la section 11.** Que se passe-t-il quand une absence est due à une **source en
+quarantaine ou défaillante** plutôt qu'à un fait réel? Une absence causée par une panne ne doit jamais
+produire un signal positif — c'est le risque propre à cette capacité, et il n'existe pas pour les
+signaux de présence.
+
+**Réserve honnête.** Ce chantier a besoin de plusieurs mois d'historique pour dire quelque chose. Le
+construire tôt sert à commencer à accumuler, pas à obtenir un résultat immédiat.
+
+---
+
+## Chantier 18 — Normalisation par la base et mesures de taille réelles *(charte, section 21, force 3)*
+
+**Constat.** Sans base de comparaison, tout signal de volume favorise mécaniquement les grandes
+entreprises — c'est-à-dire exactement celles qui ne sont pas la clientèle visée. Les specs appliquent
+déjà ce principe ponctuellement (« valeur relative à la taille estimée » pour le RDPRM et le SEAO)
+mais jamais systématiquement.
+
+**À construire.**
+- Une **taille d'entreprise à trois niveaux de fiabilité, jamais fusionnés en un seul chiffre** :
+  mesurée (capacité RACJ, seuil 25+ de l'OQLF, à leur date), déclarée (bande d'effectifs du registre),
+  estimée (signaux d'embauche cumulés). Chaque niveau porte sa provenance et sa date.
+- Une **normalisation systématique des signaux de volume** par la taille et par le secteur, plutôt
+  qu'au cas par cas. Cinq embauches chez une entreprise de dix personnes est un événement; chez une
+  entreprise de cinq cents, c'est du bruit.
+- L'usage du **miroir REQ complet** comme dénominateur : il permet de calculer ce qu'est un rythme
+  normal pour un secteur et une taille donnés, au lieu de le supposer.
+
+**Question de la section 11.** Que se passe-t-il quand la taille mesurée et la taille estimée se
+contredisent — l'OQLF confirme 25+ employés il y a deux ans, les signaux d'embauche suggèrent une
+entreprise plus petite aujourd'hui? La plus récente l'emporte-t-elle, ou la mieux mesurée?
+
+---
+
+## Chantier 19 — Le journal de diagnostic lu comme signal de demande *(charte, section 21, force 2)*
+
+**Constat.** Le registre de diagnostic collecte déjà les descriptions mal classées, les « qui » non
+résolus et les sources manquantes. Il est traité comme une file de correctifs. C'est aussi la
+meilleure feuille de route produit disponible — ce que de vrais utilisateurs ont demandé et que le
+produit n'a pas su servir.
+
+**À construire.**
+- Une **agrégation par motif** plutôt qu'une liste chronologique : quels types de service reviennent,
+  quelles sphères manquent, quels territoires sont demandés.
+- Un **croisement avec la densité** (chantier 9) : forte demande et faible densité est la définition
+  exacte du prochain mandat de recherche de sources. C'est ce qui remplace la découverte par
+  annulation d'abonnement.
+- Une **lecture à intervalle régulier**, avec échéance (charte, section 15), plutôt qu'une consultation
+  quand on y pense.
+
+---
+
+## Chantier 20 — Servir le public institutionnel qui est déjà à moitié construit *(charte, section 1 et section 21)*
+
+**Constat.** La charte nomme depuis le début les chambres de commerce, le développement économique
+régional et les institutions financières. Un persona existe. Les tableaux de bord agrégés par
+territoire sont **déjà construits**. Mais le produit entier est conçu autour du vendeur B2B, et ce
+public reste traité comme un débouché secondaire.
+
+**Ce qui le rend structurellement intéressant, à documenter pour que la décision soit consciente :** un
+organisme de développement économique n'a rien à vendre au prospect détecté — il veut savoir quelles
+entreprises de son territoire grandissent, pour intervenir et pour justifier son impact. La fragilité
+assumée du modèle, à savoir que rien n'empêche un utilisateur de contourner la plateforme une fois le
+prospect connu, **ne s'applique pas à lui**. Son budget est institutionnel. Et un organisme de ce type
+est aussi un canal vers ses propres membres.
+
+**À construire — surtout du déblocage, peu de neuf.**
+- Lever la limite documentée des tableaux de bord agrégés : l'agrégation par secteur est cassée par la
+  granularité du champ en texte libre (211 valeurs distinctes sur 311 notifications). Le chantier 12
+  règle ce problème de normalisation; ce chantier en récolte le bénéfice.
+- Corriger le trou déjà documenté : les entreprises détectées hors Québec tombent systématiquement en
+  « non classé », quel que soit leur domaine réel.
+- Vérifier que le mode d'usage institutionnel — suivre un territoire entier plutôt qu'un profil de
+  vente — est réellement exprimable dans l'architecture de profil actuelle, ou ce qui manque pour
+  l'exprimer.
+
+**Question de la section 11.** Que se passe-t-il quand un même compte porte à la fois un profil de
+vente et un profil de veille territoriale? Les seuils de sensibilité, la cadence et le canal hors
+profil ont-ils le même sens pour les deux? La réponse est probablement non, et il vaut mieux le
+constater maintenant qu'après avoir vendu le premier abonnement institutionnel.
+
+---
+
+# Partie 3 — Ordre d'exécution
+
 1. **Chantiers 1 et 2** — protègent la crédibilité, seule chose qui ne se rachète pas. Peu de code,
    effet immédiat, à faire avant de brancher le RACJ.
 2. **Chantiers 3 et 4** — sans eux, tout ce qui est bâti ensuite s'appuie sur des liens d'identité dont
@@ -731,6 +937,17 @@ garantit de couvrir toute nouvelle sphère.
    `champs_pertinents.yaml`, déjà approuvée et jamais livrée. Sa validation finale dépend du
    chantier 9 : les liens proposés restent en attente de réfutation jusqu'à ce que la densité existe
    pour les juger.
+8. **Chantiers 13, 14, 15 et 16 — additifs, à coût constant.** Ils ne touchent à aucune clé de données
+   et se réparent au même prix dans six mois. Deux nuances : le chantier 14 (silence) est celui qui
+   pèse le plus sur la rétention et mériterait de passer **avant** le chantier 8, puisqu'un abonné qui
+   ne reçoit rien part bien avant de se plaindre d'une cadence; et le chantier 13 rend opérationnel le
+   garde-fou de réfutation du chantier 12, donc les deux avancent naturellement ensemble.
+9. **Chantiers 17 à 20 — offensifs, à démarrer plus tôt qu'il n'y paraît.** Leur résultat n'est
+   lisible qu'après des mois d'historique, mais c'est exactement pour ça qu'il ne faut pas les
+   repousser : ce qu'ils accumulent ne se rattrape pas en accélérant plus tard. Le chantier 17 dépend
+   de la conservation d'état du chantier 1 et échouera silencieusement sans elle. Le chantier 18 est
+   le plus indépendant des quatre et peut avancer n'importe quand. Le chantier 20 est surtout du
+   déblocage : il récolte le bénéfice du chantier 12 plutôt que de construire du neuf.
 
 **Une remarque sur le séquencement global.** Les chantiers 1 à 7 ne sont pas des ajouts : ce sont des
 réparations d'écarts entre ce que les documents promettent et ce que le code fait. Les livrer avant les
