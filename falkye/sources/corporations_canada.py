@@ -4,11 +4,15 @@ loi fédérale partout au Canada (répond au besoin de couverture Canada anglais
 
 Jeu de données CKAN "Federal Corporations" (0032ce54-c5dd-4b66-99a0-320a7b5e99f2)
 sur open.canada.ca, dont les ressources (CSV, 4 sous-ensembles : sociétés par
-actions actives/inactives, autres corporations actives/inactives) sont en
-réalité hébergées sur `d4bf66bykfyaf.cloudfront.net` (CloudFront/AWS) — domaine
-autorisé et validé avec le vrai fichier le 2026-08-31 (694 844 corporations
-actives réelles ingérées — voir docs/STATUT_RESEAU.md). `COLUMN_ALIASES`
-reflète les vraies en-têtes confirmées, pas une estimation.
+actions actives/inactives, autres corporations actives/inactives — CHACUN
+publié en français ET en anglais, mêmes corporations sous en-têtes traduites,
+même nom de ressource dans les deux langues — voir `_filtrer_langue_francaise`,
+découverte le 2026-09-04) sont en réalité hébergées sur
+`d4bf66bykfyaf.cloudfront.net` (CloudFront/AWS) — domaine autorisé et validé
+avec le vrai fichier le 2026-08-31 (694 844 corporations actives réelles
+ingérées — voir docs/STATUT_RESEAU.md). `COLUMN_ALIASES` reflète les vraies
+en-têtes françaises confirmées, pas une estimation — les ressources anglaises
+sont délibérément exclues plutôt que doublées ou mal mappées.
 
 Rôle : SOURCE DE SIGNAL en soi, par diff entre deux rafraîchissements du
 miroir local (CorporationFederaleEntry). Ce n'est PAS un pivot de résolution
@@ -121,6 +125,22 @@ def _filtrer_ressources_actives(resources: list[dict]) -> list[dict]:
     return [r for r in resources if "inactive" not in (r.get("name") or "").lower()]
 
 
+def _filtrer_langue_francaise(resources: list[dict]) -> list[dict]:
+    """DÉCOUVERTE (2026-09-04, en rebranchant sur le moteur générique — voir
+    docs/ARCHITECTURE.md) : le jeu de données publie chaque catégorie
+    "active" en DEUX exemplaires — français ET anglais, mêmes corporations,
+    en-têtes traduites — avec le MÊME nom de ressource dans les deux langues
+    (le filtre par nom ci-dessus ne peut donc pas les distinguer). Sans ce
+    filtre, la boucle d'ingestion planterait sur les en-têtes anglaises
+    (COLUMN_ALIASES ne connaît que le français, délibérément — voir plus
+    haut) ou, si l'alias était étendu aux deux langues, doublerait chaque
+    corporation. Le champ `language` de CKAN distingue les deux versions de
+    façon fiable (vérifié en direct : ['fr'] vs ['en']). Une ressource sans
+    champ `language` (fixtures de test, ou futur jeu de données unilingue)
+    est conservée par prudence plutôt que silencieusement exclue."""
+    return [r for r in resources if not r.get("language") or "fr" in r["language"]]
+
+
 @dataclass(frozen=True)
 class _CorporationResolue:
     numero: str
@@ -204,8 +224,10 @@ def ingest_snapshot(db_session: Session, limit: int | None = None) -> IngestStat
     pas en quarantaine — un import corrompu ne doit rien écrire nulle part,
     pas seulement s'abstenir de signal."""
     client = CKANClient(OPEN_CANADA_BASE)
-    resources = _filtrer_ressources_actives(
-        client.resources(CORPORATIONS_PACKAGE_ID, format_filter="CSV", name_contains="active")
+    resources = _filtrer_langue_francaise(
+        _filtrer_ressources_actives(
+            client.resources(CORPORATIONS_PACKAGE_ID, format_filter="CSV", name_contains="active")
+        )
     )
     if not resources:
         raise RuntimeError(

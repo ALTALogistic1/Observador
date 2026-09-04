@@ -15,6 +15,7 @@ réseau, `ingest_snapshot` lui-même appelle CKANClient)."""
 from falkye.models.corp_federale_entry import CorporationFederaleEntry
 from falkye.sources.corporations_canada import (
     CHAMPS_PERTINENTS_CORP,
+    _filtrer_langue_francaise,
     _filtrer_ressources_actives,
     _ligne_corporation,
     _resoudre_corporation,
@@ -51,6 +52,26 @@ def test_filtre_insensible_a_la_casse():
     filtres = _filtrer_ressources_actives(resources)
     assert len(filtres) == 1
     assert filtres[0]["name"] == "Active Corporations"
+
+
+def test_filtre_langue_francaise_exclut_le_doublon_anglais():
+    """Régression (2026-09-04) : le jeu de données réel publie chaque
+    ressource "active" en français ET en anglais sous le MÊME nom — sans ce
+    filtre, l'anglais planterait la résolution de colonnes (COLUMN_ALIASES
+    ne connaît que le français) ou, sinon, doublerait chaque corporation."""
+    resources = [
+        {"id": "fr-1", "name": "Active business corporations", "language": ["fr"]},
+        {"id": "en-1", "name": "Active business corporations", "language": ["en"]},
+    ]
+    filtres = _filtrer_langue_francaise(resources)
+    assert [r["id"] for r in filtres] == ["fr-1"]
+
+
+def test_filtre_langue_francaise_conserve_les_ressources_sans_champ_langue():
+    """Une ressource sans champ `language` (fixtures de test ci-dessus, ou un
+    futur jeu de données unilingue) n'est pas silencieusement exclue."""
+    resources = [{"id": "sans-langue", "name": "Active corporations"}]
+    assert _filtrer_langue_francaise(resources) == resources
 
 
 def _row(numero, nom="Entreprise Fictive Inc.", statut="Active", rue="1 rue Test", ville="Montréal"):
