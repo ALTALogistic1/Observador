@@ -2185,31 +2185,75 @@ fois — un diff authentique et non trivial (le moteur compare réellement
 construction plutôt que reflétant un changement réel du registre depuis la
 migration. À corriger dès qu'un fichier REQ neuf redevient disponible.
 
-### Exigence de conception pour les futures sources instantané (constatée le 2026-09-04, suite du chantier 1)
+### Le moteur refuse l'émission en run de référence — correction portée dans `executer_diff` (2026-09-04, suite du chantier 1)
 
 En clarifiant avec Alexandre le comportement du "run de référence" observé
 sur Toronto/Vancouver (voir `docs/STATUT_RESEAU.md`, "Suite du chantier 1"),
 un principe de conception s'est révélé absent du contrat du moteur
-générique : **`executer_diff` garantit que SON PROPRE calcul (apparitions/
-disparitions/modifications) est vide au premier run d'une source — il ne
-garantit RIEN sur ce qu'un connecteur fait AVEC ce résultat.** REQ et
-Corporations Canada respectent quand même le critère "aucun signal au run
-de référence" (mandat chantier 1, premier critère d'acceptation), mais
-seulement parce que leurs statistiques sont explicitement dérivées de
-`rapport.run_reference`/`rapport.resultat`. Toronto/Vancouver ne le font
-pas : leur filtre bespoke (`detecter_nouvelles_licences`) s'exécute
-inconditionnellement dès que le moteur confirme l'absence de quarantaine,
-avec sa PROPRE notion indépendante de "premier scan" (state d'un mirror
-bespoke, pas de `EtatSchemaSource`) — ce qui a produit de vrais signaux lors
-du premier appel du moteur générique, parce que ce mirror bespoke portait
-déjà un historique réel antérieur à ce chantier (voir le suivi pour le
-détail complet).
+générique : **`executer_diff` garantissait que SON PROPRE calcul
+(apparitions/disparitions/modifications) était vide au premier run d'une
+source — mais ne garantissait RIEN sur ce qu'un connecteur faisait AVEC ce
+résultat.** REQ et Corporations Canada respectaient quand même le critère
+"aucun signal au run de référence" (mandat chantier 1, premier critère
+d'acceptation), mais seulement parce que leurs statistiques étaient
+explicitement dérivées de `rapport.run_reference`/`rapport.resultat`.
+Toronto/Vancouver ne le faisaient pas : leur filtre bespoke
+(`detecter_nouvelles_licences`) s'exécutait inconditionnellement dès que le
+moteur confirmait l'absence de quarantaine, avec sa PROPRE notion
+indépendante de "premier scan" (état d'un mirror bespoke, pas de
+`EtatSchemaSource`) — ce qui a produit de vrais signaux lors du premier
+appel du moteur générique, parce que ce mirror bespoke portait déjà un
+historique réel antérieur à ce chantier.
+
+**Un premier correctif documentaire (exiger que chaque connecteur vérifie
+`rapport.run_reference` lui-même) a été jugé insuffisant par Alexandre :**
+« Aucun connecteur ne devrait avoir à vérifier `rapport.run_reference`
+lui-même. » Corrigé pour de vrai dans le moteur plutôt que dans la
+discipline des connecteurs :
+
+- `executer_diff(..., apres_diff_accepte=callback)` : `callback` EST la
+  logique de publication du connecteur (filtre bespoke inclus), et le
+  moteur ne l'invoque QUE sur le chemin de diff réellement accepté — jamais
+  sur un run de référence, jamais sur une quarantaine, quel qu'en soit le
+  motif. Un connecteur qui passe sa logique de publication par ce paramètre
+  ne peut structurellement plus émettre de signal en dehors de ce chemin,
+  peu importe ce que son propre code vérifie ou ne vérifie pas.
+- `executer_diff_groupe(db_session, specs: list[SpecificationDiff],
+  apres_diff_accepte=callback)` : pour un connecteur multi-grain (REQ :
+  "req" + "req_etablissements"), soumet plusieurs grains liés sous UNE SEULE
+  décision conjointe — le callback n'est invoqué que si TOUS les grains
+  sont simultanément acceptés. Sans ça, un connecteur qui recomposerait
+  lui-même "quarantaine_a OU quarantaine_b" pourrait s'y tromper — REQ le
+  faisait déjà correctement à la main, mais rien ne le garantissait pour un
+  futur troisième grain.
+- **Verrouillé par test** (`tests/test_diff_engine.py`) : le callback n'est
+  jamais invoqué sur les quatre chemins de sortie sans publication
+  (référence, quarantaine lecture/schéma/volume), et invoqué exactement une
+  fois sur le chemin accepté — au niveau du moteur lui-même, indépendamment
+  de tout connecteur particulier.
+
+**REQ migré vers cette API** (`falkye/sources/req.py::_ingest_zip_req_reel`,
+via `executer_diff_groupe` — la dérivation de signaux vit maintenant dans
+`_deriver_signaux_req`, appelée uniquement par le callback). Corrige au
+passage un bogue latent jamais manifesté en pratique : avant cette
+migration, le grain établissement dérivait ses signaux dès que LUI-MÊME
+n'était pas un run de référence, indépendamment du grain entreprise — si le
+grain entreprise avait été en référence (ou en quarantaine) pendant que le
+grain établissement ne l'était pas, `neq_nouvelles_entreprises` serait
+retombé sur un ensemble vide (faute de `rapport_entreprise.resultat`), et
+TOUS les établissements auraient été pris à tort pour "secondaires d'une
+entreprise déjà connue". La décision conjointe de `executer_diff_groupe`
+empêche structurellement ce cas.
+
+**Toronto/Vancouver/Corporations Canada NON migrés** — cohérent avec leur
+mise en veilleuse (`docs/STATUT_RESEAU.md`) : "aucun correctif prévu" tant
+que la portée reste québécoise. Leur ancien code (vérification manuelle de
+`rapport.quarantaine` uniquement, jamais `run_reference`) reste en place tel
+quel — non exécuté puisque ces sources ne sont plus ordonnancées, mais non
+retouché non plus.
 
 **Règle à appliquer dès la construction de tout futur connecteur instantané
 (RACJ, établissements alimentaires Montréal — les deux prochaines sources
-de ce type) :** vérifier explicitement `rapport.run_reference` avant tout
-`yield` de signal dans `detect()`, jamais seulement compter sur l'état vide
-d'un mirror bespoke annexe. Si le connecteur n'a pas de mirror bespoke
-propre (le cas attendu pour RACJ/Montréal, connecteurs neufs), ce risque
-précis ne se manifeste pas — mais la vérification explicite reste la seule
-garantie qui ne dépend pas de cette absence.
+de ce type) :** passer la logique de publication (bespoke ou non) par
+`apres_diff_accepte`/`executer_diff_groupe`, jamais par une vérification
+manuelle de `rapport.run_reference` dans le connecteur.

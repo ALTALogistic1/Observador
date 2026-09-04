@@ -56,7 +56,13 @@ from rapidfuzz import fuzz, process
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from falkye.diff_engine import LigneSnapshot, executer_diff, seuils_depuis_registre
+from falkye.diff_engine import (
+    LigneSnapshot,
+    RapportExecution,
+    SpecificationDiff,
+    executer_diff_groupe,
+    seuils_depuis_registre,
+)
 from falkye.models.req_entry import REQEntry
 from falkye.registry.loader import get_registry
 from falkye.sources.base import RawSignal, SourceConnector
@@ -541,6 +547,75 @@ def _colonnes_etablissements_vues(entete_etablissements: list[str]) -> dict[str,
 _INTERVALLE_COMMIT = 5000  # lignes entre deux commits intermédiaires (phase d'upsert uniquement)
 
 
+def _deriver_signaux_req(
+    stats: IngestStats, rapports: list[RapportExecution], etablissements: dict[str, list[_EtabLeger]]
+) -> None:
+    """Dérivation des signaux REQ à partir des DEUX `RapportExecution` DÉJÀ
+    calculés par le moteur — appelée UNIQUEMENT par `executer_diff_groupe`
+    (voir `_ingest_zip_req_reel`), et donc UNIQUEMENT quand les deux grains
+    sont simultanément acceptés (ni référence, ni quarantaine, sur AUCUN des
+    deux) : cette fonction n'a plus besoin de vérifier `run_reference`
+    elle-même, et ne PEUT structurellement pas être invoquée sur un run de
+    référence — chantier 1, suivi 2026-09-04 (correction demandée par
+    Alexandre après le constat réel sur licences_toronto/licences_vancouver,
+    voir falkye/diff_engine.py, docstring de module).
+
+    Corrige au passage un bogue latent jamais manifesté en pratique : avant
+    cette correction, le grain établissement dérivait ses signaux dès que
+    LUI-MÊME n'était pas un run de référence, indépendamment du grain
+    entreprise — si le grain entreprise avait été en référence (ou en
+    quarantaine) pendant que le grain établissement ne l'était pas,
+    `neq_nouvelles_entreprises` (ci-dessous) serait retombé sur un ensemble
+    vide (faute de `rapport_entreprise.resultat`), et TOUS les
+    établissements seraient passés à tort pour "secondaires d'une entreprise
+    déjà connue". La décision conjointe portée par `executer_diff_groupe`
+    empêche structurellement ce cas."""
+    rapport_entreprise, rapport_etab = rapports
+    stats.entrees_nouvelles = len(rapport_entreprise.resultat.apparitions)
+    stats.entrees_mises_a_jour = len(rapport_entreprise.resultat.modifications)
+    for m in rapport_entreprise.resultat.modifications:
+        # Même règle de calibration qu'avant : un changement d'adresse ne
+        # compte que si une adresse était DÉJÀ connue (une entreprise qui
+        # en obtient une pour la première fois n'a pas "changé" d'adresse).
+        if "adresses" in m.champs_changes and m.champs_avant.get("adresses") is not None:
+            stats.changements_adresse.append(
+                {
+                    "neq": m.cle,
+                    "nom": m.champs_apres.get("nom_entreprise") or "",
+                    "ancienne_adresse": m.champs_avant.get("adresses"),
+                    "nouvelle_adresse": m.champs_apres.get("adresses"),
+                }
+            )
+
+    # Signal fort UNIQUEMENT pour un établissement SECONDAIRE apparu chez une
+    # entreprise DÉJÀ connue — "déjà connue" est ici exprimé par le moteur
+    # lui-même : un NEQ qui apparaît CE run au grain entreprise (jamais vu
+    # avant) exclut ses établissements de ce signal, même règle de
+    # calibration que l'ancien `entreprise_deja_connue`.
+    neq_nouvelles_entreprises = {l.cle for l in rapport_entreprise.resultat.apparitions}
+    # secteur_code n'est pas dans l'empreinte diffée (voir CHAMPS_PERTINENTS_
+    # REQ_ETABLISSEMENTS) mais reste voulu dans le signal — récupéré ici
+    # directement depuis l'index déjà en mémoire (source de vérité pour CE
+    # run), pas depuis l.champs.
+    secteur_code_par_cle = {
+        _cle_etablissement(neq, e.no_suf_etab): e.secteur_code for neq, etabs in etablissements.items() for e in etabs
+    }
+    for l in rapport_etab.resultat.apparitions:
+        neq, no_suf_etab = l.cle.split("|", 1)
+        if neq in neq_nouvelles_entreprises or l.champs.get("principal"):
+            continue
+        stats.nouveaux_etablissements_secondaires.append(
+            {
+                "neq": neq,
+                "no_suf_etab": no_suf_etab,
+                "adresse": l.champs.get("adresse"),
+                "nom_etablissement": l.champs.get("nom_etablissement"),
+                "secteur_code": secteur_code_par_cle.get(l.cle),
+                "secteur_libelle": l.champs.get("secteur_libelle"),
+            }
+        )
+
+
 def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | None) -> IngestStats:
     """Ingestion du VRAI fichier REQ (Entreprise.csv + Nom.csv + Etablissements.csv
     joints par NEQ — voir docstring du module pour la structure confirmée le
@@ -548,20 +623,25 @@ def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | 
     2026-09-04) — DEUX PHASES, jamais mélangées :
 
     Phase 1 — construit les DEUX instantanés (grain entreprise, grain
-    établissement) SANS ÉCRIRE UNE SEULE LIGNE en base, puis les soumet au
-    moteur générique (falkye/diff_engine.py::executer_diff). Si L'UN OU
-    L'AUTRE grain est mis en quarantaine, la phase 2 n'a jamais lieu : le
-    miroir de résolution REQEntry (falkye/resolution.py, falkye/
-    verification.py — utilisé par TOUTES les autres sources) reste
-    INTACT, exactement comme l'état de diff lui-même — un import REQ corrompu
-    ne doit pas seulement s'abstenir de produire un signal, il ne doit RIEN
-    écrire nulle part (extension du garde-fou du mandat à la totalité du
-    pipeline REQ, pas seulement à ses signaux).
+    établissement) SANS ÉCRIRE UNE SEULE LIGNE en base, puis les soumet
+    ENSEMBLE au moteur générique (falkye/diff_engine.py::executer_diff_groupe)
+    comme UN SEUL groupe lié. Si L'UN OU L'AUTRE grain est mis en quarantaine,
+    la phase 2 n'a jamais lieu : le miroir de résolution REQEntry (falkye/
+    resolution.py, falkye/verification.py — utilisé par TOUTES les autres
+    sources) reste INTACT, exactement comme l'état de diff lui-même — un
+    import REQ corrompu ne doit pas seulement s'abstenir de produire un
+    signal, il ne doit RIEN écrire nulle part (extension du garde-fou du
+    mandat à la totalité du pipeline REQ, pas seulement à ses signaux).
 
     Phase 2 — seulement si aucun grain n'est en quarantaine : upsert PUR de
     REQEntry (`_upsert_entreprise_reelle`, plus aucune décision de diff, déjà
-    prise par le moteur) puis dérivation des RawSignal à partir des
-    `ResultatDiff` retournés par les deux appels au moteur (voir plus bas).
+    prise par le moteur — a lieu aussi bien au run de référence qu'à un run
+    normal, puisqu'il s'agit du miroir de résolution, pas d'un signal). La
+    dérivation des RawSignal, elle, est portée par `_deriver_signaux_req`,
+    passée à `executer_diff_groupe` comme callback `apres_diff_accepte` —
+    le moteur ne l'invoque QUE si les DEUX grains sont simultanément acceptés
+    (chantier 1, suivi 2026-09-04 : cette fonction n'a donc plus jamais à
+    vérifier `rapport.run_reference` elle-même, voir sa docstring).
 
     REQEtablissementEntry n'est plus alimenté : sa seule raison d'être était
     ce diff établissement-grain, désormais porté par `EtatLigneSource
@@ -605,14 +685,16 @@ def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | 
     source_def = registry.sources.get("req")
     seuils_entreprise = seuils_depuis_registre(source_def.seuils_quarantaine) if source_def else None
 
-    rapport_entreprise = executer_diff(
-        db_session, "req", lignes_entreprise, colonnes_entreprise, CHAMPS_PERTINENTS_REQ, seuils=seuils_entreprise
-    )
-    rapport_etab = executer_diff(
-        db_session, "req_etablissements", lignes_etab, colonnes_etab, CHAMPS_PERTINENTS_REQ_ETABLISSEMENTS
+    stats = IngestStats(lignes_lues=lignes_lues)
+    rapport_entreprise, rapport_etab = executer_diff_groupe(
+        db_session,
+        [
+            SpecificationDiff("req", lignes_entreprise, colonnes_entreprise, CHAMPS_PERTINENTS_REQ, seuils=seuils_entreprise),
+            SpecificationDiff("req_etablissements", lignes_etab, colonnes_etab, CHAMPS_PERTINENTS_REQ_ETABLISSEMENTS),
+        ],
+        apres_diff_accepte=lambda rapports: _deriver_signaux_req(stats, rapports, etablissements),
     )
 
-    stats = IngestStats(lignes_lues=lignes_lues)
     if rapport_entreprise.quarantaine or rapport_etab.quarantaine:
         motif = rapport_entreprise.motif_quarantaine or rapport_etab.motif_quarantaine
         stats.quarantaine = True
@@ -626,67 +708,25 @@ def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | 
         db_session.commit()  # persiste l'incident de quarantaine déjà journalisé par le moteur
         return stats
 
-    # --- Phase 2 : upsert du miroir de résolution (jamais de diff ici) ---
+    # --- Phase 2 : upsert du miroir de résolution (jamais de diff ici) — a
+    # lieu aussi bien au run de référence qu'à un run normal, voir docstring
+    # de fonction. Les signaux, eux, ont déjà été dérivés (ou non) par
+    # `_deriver_signaux_req` ci-dessus, au moment même de l'appel au moteur. ---
     for i, r in enumerate(resolues, start=1):
         _upsert_entreprise_reelle(db_session, r)
         if i % _INTERVALLE_COMMIT == 0:
             db_session.commit()
             logger.info("REQ (fichier réel): %s lignes de résolution appliquées jusqu'ici", i)
 
-    # --- Dérivation des signaux à partir du diff DÉJÀ calculé par le moteur ---
     if rapport_entreprise.run_reference:
         # Run de référence (jamais de candidat, mandat chantier 1) : amorce
         # l'état, REQEntry peuplé, mais aucun changements_adresse/nouvel_
-        # etablissement_secondaire — même comportement qu'avant (une toute
-        # première immatriculation n'est jamais un signal).
+        # etablissement_secondaire (le callback ci-dessus n'a pas été
+        # invoqué) — même comportement qu'avant (une toute première
+        # immatriculation n'est jamais un signal). Comptage informationnel
+        # seulement, jamais un signal — sans risque à dériver ici même sans
+        # passer par le callback moteur.
         stats.entrees_nouvelles = len(lignes_entreprise)
-    else:
-        stats.entrees_nouvelles = len(rapport_entreprise.resultat.apparitions)
-        stats.entrees_mises_a_jour = len(rapport_entreprise.resultat.modifications)
-        for m in rapport_entreprise.resultat.modifications:
-            # Même règle de calibration qu'avant : un changement d'adresse ne
-            # compte que si une adresse était DÉJÀ connue (une entreprise qui
-            # en obtient une pour la première fois n'a pas "changé" d'adresse).
-            if "adresses" in m.champs_changes and m.champs_avant.get("adresses") is not None:
-                stats.changements_adresse.append(
-                    {
-                        "neq": m.cle,
-                        "nom": m.champs_apres.get("nom_entreprise") or "",
-                        "ancienne_adresse": m.champs_avant.get("adresses"),
-                        "nouvelle_adresse": m.champs_apres.get("adresses"),
-                    }
-                )
-
-    if not rapport_etab.run_reference:
-        # Signal fort UNIQUEMENT pour un établissement SECONDAIRE apparu chez
-        # une entreprise DÉJÀ connue — "déjà connue" est ici exprimé par le
-        # moteur lui-même : un NEQ qui apparaît CE run au grain entreprise
-        # (jamais vu avant) exclut ses établissements de ce signal, même
-        # règle de calibration que l'ancien `entreprise_deja_connue`.
-        neq_nouvelles_entreprises = (
-            {l.cle for l in rapport_entreprise.resultat.apparitions} if rapport_entreprise.resultat else set()
-        )
-        # secteur_code n'est pas dans l'empreinte diffée (voir CHAMPS_PERTINENTS_
-        # REQ_ETABLISSEMENTS) mais reste voulu dans le signal — récupéré ici
-        # directement depuis l'index déjà en mémoire (source de vérité pour CE
-        # run), pas depuis l.champs.
-        secteur_code_par_cle = {
-            _cle_etablissement(neq, e.no_suf_etab): e.secteur_code for neq, etabs in etablissements.items() for e in etabs
-        }
-        for l in rapport_etab.resultat.apparitions:
-            neq, no_suf_etab = l.cle.split("|", 1)
-            if neq in neq_nouvelles_entreprises or l.champs.get("principal"):
-                continue
-            stats.nouveaux_etablissements_secondaires.append(
-                {
-                    "neq": neq,
-                    "no_suf_etab": no_suf_etab,
-                    "adresse": l.champs.get("adresse"),
-                    "nom_etablissement": l.champs.get("nom_etablissement"),
-                    "secteur_code": secteur_code_par_cle.get(l.cle),
-                    "secteur_libelle": l.champs.get("secteur_libelle"),
-                }
-            )
 
     db_session.commit()
     return stats

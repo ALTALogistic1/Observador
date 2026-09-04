@@ -29,6 +29,25 @@ GARDE-FOUS NON NÉGOCIABLES DU MANDAT :
   - Un run mis en quarantaine ne touche à AUCUN état : `EtatLigneSource`/
     `EtatSchemaSource` restent inchangés, `lignes` de ce run ne rejoignent
     JAMAIS le dossier cumulatif, même partiellement.
+
+CORRECTION (chantier 1, suivi 2026-09-04, réponse d'Alexandre au rapport de
+rebranchement) : la garantie "aucun signal au run de référence" (et à la
+quarantaine) doit être portée PAR LE MOTEUR, jamais par la discipline d'un
+connecteur. Constat réel qui a motivé cette correction : le filtre bespoke
+de licences_toronto/licences_vancouver (`detecter_nouvelles_licences`) a
+émis de vrais signaux lors d'un "run de référence" du moteur générique,
+parce que ce filtre consulte SA PROPRE notion de "premier scan" (un mirror
+bespoke, `LicenceMunicipaleEntry`) sans jamais consulter
+`rapport.run_reference` — aucune modification de `RapportExecution` seule
+n'aurait empêché ça, puisque le connecteur n'y regardait pas. Solution
+retenue : `executer_diff`/`executer_diff_groupe` acceptent un callback
+`apres_diff_accepte`, qui EST la logique de publication du connecteur
+(filtre bespoke inclus) — le moteur ne l'invoque QUE sur le chemin de diff
+réellement accepté (ni référence, ni quarantaine, sur AUCUN grain). Un
+connecteur qui utilise ce paramètre n'a plus JAMAIS à vérifier
+`rapport.run_reference` lui-même : il ne peut structurellement pas être
+invoqué autrement — verrouillé par
+test_executer_diff_verrouille_lappel_du_callback_* (tests/test_diff_engine.py).
 """
 from __future__ import annotations
 
@@ -36,6 +55,7 @@ import hashlib
 import json
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -383,6 +403,7 @@ def executer_diff(
     seuils: SeuilsQuarantaine | None = None,
     taux_erreur_lecture: float = 0.0,
     seuil_erreur_lecture: float = SEUIL_ERREUR_LECTURE_DEFAUT,
+    apres_diff_accepte: Callable[[RapportExecution], None] | None = None,
 ) -> RapportExecution:
     """Point d'entrée unique du moteur — voir les docstrings de module et de
     dataclasses ci-dessus pour les garde-fous. `colonnes_vues` : TOUTES les
@@ -398,7 +419,18 @@ def executer_diff(
     connecteur, jamais ici (ce module ne lit aucun fichier). Au-delà de
     `seuil_erreur_lecture`, quarantaine immédiate (LECTURE_ECHOUEE), avant
     même la comparaison de schéma ou de contenu — l'échec de lecture rend
-    `lignes` non fiable pour juger quoi que ce soit d'autre."""
+    `lignes` non fiable pour juger quoi que ce soit d'autre.
+
+    `apres_diff_accepte` : LA logique de publication du connecteur (filtre
+    bespoke inclus, s'il y en a un), invoquée avec le `RapportExecution`
+    UNIQUEMENT sur le chemin de diff réellement accepté — jamais sur un run
+    de référence, jamais sur une quarantaine (peu importe le motif). Voir la
+    docstring de module, "CORRECTION (chantier 1, suivi 2026-09-04)" : un
+    connecteur qui passe sa logique de publication ici n'a plus jamais à
+    vérifier `rapport.run_reference` lui-même — il ne peut structurellement
+    pas être invoqué autrement. Optionnel pour rester compatible avec un
+    appelant qui préfère encore inspecter `rapport` lui-même (ex. un script
+    de migration ponctuel, hors périmètre de cette garantie)."""
     seuils_declares = seuils or SEUILS_DEFAUT
     rapport = RapportExecution(source_id=source_id, nb_lignes_actuelles=len(lignes))
 
@@ -642,7 +674,64 @@ def executer_diff(
         dedup=dedup, seuils_effectifs=seuils_effectifs, seuils_prudence_debut=seuils_prudence_debut,
         avertissements=rapport.avertissements,
     )
+    # Seul point d'appel de `apres_diff_accepte` dans tout le module — voir
+    # la docstring du paramètre : ce chemin est le SEUL que ce module
+    # emprunte quand ni le run de référence ni aucune des trois quarantaines
+    # ci-dessus n'ont déjà `return`é.
+    if apres_diff_accepte is not None:
+        apres_diff_accepte(rapport)
     return rapport
+
+
+@dataclass(frozen=True)
+class SpecificationDiff:
+    """Un grain de diff à soumettre à `executer_diff_groupe` — mêmes champs
+    que les paramètres correspondants de `executer_diff`, regroupés pour
+    permettre à plusieurs grains LIÉS (ex. REQ : "req" + "req_etablissements",
+    falkye/sources/req.py) d'être soumis sous UNE SEULE décision conjointe
+    de publication, jamais décidée par le connecteur lui-même."""
+
+    source_id: str
+    lignes: list[LigneSnapshot]
+    colonnes_vues: dict[str, str]
+    champs_pertinents: set[str]
+    seuils: SeuilsQuarantaine | None = None
+    taux_erreur_lecture: float = 0.0
+    seuil_erreur_lecture: float = SEUIL_ERREUR_LECTURE_DEFAUT
+
+
+def executer_diff_groupe(
+    db_session: Session,
+    specs: list[SpecificationDiff],
+    apres_diff_accepte: Callable[[list[RapportExecution]], None] | None = None,
+) -> list[RapportExecution]:
+    """Soumet PLUSIEURS grains de diff liés (voir `SpecificationDiff`) et
+    n'invoque `apres_diff_accepte` QUE si TOUS les grains sont simultanément
+    acceptés — ni run de référence, ni quarantaine, sur AUCUN grain. Chaque
+    grain est soumis à `executer_diff` individuellement (chacun journalise
+    sa propre ligne `DiffRunHistorique`, chacun peut mettre en quarantaine
+    indépendamment — inchangé), mais la décision de publication elle-même
+    est PORTÉE ICI, jamais recomposée par l'appelant à partir des rapports
+    individuels (c'est exactement le point : un connecteur qui recomposerait
+    lui-même "quarantaine_a OU quarantaine_b" pourrait s'y tromper, comme
+    Toronto/Vancouver se sont trompés en ne vérifiant `run_reference` nulle
+    part — voir la docstring de module)."""
+    rapports = [
+        executer_diff(
+            db_session,
+            spec.source_id,
+            spec.lignes,
+            spec.colonnes_vues,
+            spec.champs_pertinents,
+            seuils=spec.seuils,
+            taux_erreur_lecture=spec.taux_erreur_lecture,
+            seuil_erreur_lecture=spec.seuil_erreur_lecture,
+        )
+        for spec in specs
+    ]
+    if apres_diff_accepte is not None and all(not r.run_reference and not r.quarantaine for r in rapports):
+        apres_diff_accepte(rapports)
+    return rapports
 
 
 def _appliquer_diff(

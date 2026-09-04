@@ -12,8 +12,10 @@ from falkye.diff_engine import (
     SeuilsQuarantaine,
     SeuilType,
     LigneSnapshot,
+    SpecificationDiff,
     calculer_empreinte,
     executer_diff,
+    executer_diff_groupe,
     lever_quarantaine,
     lister_quarantaines,
     seuils_depuis_registre,
@@ -554,3 +556,128 @@ def test_proposer_seuils_exclut_les_runs_en_quarantaine(db_session):
     proposition_apres = proposer_seuils(db_session, "racj")
     assert proposition_apres.seuils_proposes.apparitions.pct == proposition_avant.seuils_proposes.apparitions.pct
     assert proposition_apres.nb_runs_observes == proposition_avant.nb_runs_observes  # le run aberrant n'est PAS compté
+
+
+# --- `apres_diff_accepte` : le moteur refuse l'émission en run de référence
+# ou en quarantaine, sans dépendre de la discipline du connecteur (chantier
+# 1, suivi 2026-09-04 — correction demandée par Alexandre après le constat
+# réel sur licences_toronto/licences_vancouver, voir la docstring de module) ---
+
+
+def test_executer_diff_verrouille_le_callback_absent_au_run_de_reference(db_session):
+    appels = []
+    lignes = [_ligne(f"c{i}", f"E{i}", 10) for i in range(20)]
+    rapport = executer_diff(
+        db_session, "racj", lignes, COLONNES, CHAMPS_PERTINENTS, apres_diff_accepte=appels.append
+    )
+    assert rapport.run_reference is True
+    assert appels == []  # jamais invoqué — même si le connecteur ne vérifie rien lui-même
+
+
+def test_executer_diff_verrouille_le_callback_absent_en_quarantaine_volume(db_session):
+    appels = []
+    lignes_ref = [_ligne(f"c{i}", f"E{i}", 10) for i in range(100)]
+    executer_diff(db_session, "racj", lignes_ref, COLONNES, CHAMPS_PERTINENTS)
+    _epuiser_periode_prudence(db_session, "racj", lignes_ref)
+
+    lignes_aberrantes = [_ligne(f"n{i}", f"N{i}", 10) for i in range(600)]  # 100% de disparitions
+    rapport = executer_diff(
+        db_session, "racj", lignes_aberrantes, COLONNES, CHAMPS_PERTINENTS, apres_diff_accepte=appels.append
+    )
+    assert rapport.quarantaine is True
+    assert appels == []
+
+
+def test_executer_diff_verrouille_le_callback_absent_en_quarantaine_schema(db_session):
+    appels = []
+    executer_diff(db_session, "racj", [_ligne("c1", "A", 10)], COLONNES, CHAMPS_PERTINENTS)
+
+    colonnes_sans_capacite = {"nom": "str", "adresse": "str"}
+    rapport = executer_diff(
+        db_session,
+        "racj",
+        [LigneSnapshot(cle="c1", champs={"nom": "A"})],
+        colonnes_sans_capacite,
+        CHAMPS_PERTINENTS,
+        apres_diff_accepte=appels.append,
+    )
+    assert rapport.quarantaine is True
+    assert appels == []
+
+
+def test_executer_diff_verrouille_le_callback_absent_en_quarantaine_lecture(db_session):
+    appels = []
+    rapport = executer_diff(
+        db_session,
+        "racj",
+        [_ligne("c1", "A", 10)],
+        COLONNES,
+        CHAMPS_PERTINENTS,
+        taux_erreur_lecture=0.5,
+        apres_diff_accepte=appels.append,
+    )
+    assert rapport.quarantaine is True
+    assert appels == []
+
+
+def test_executer_diff_invoque_le_callback_seulement_sur_diff_accepte(db_session):
+    appels = []
+    executer_diff(db_session, "racj", [_ligne("c1", "A", 10)], COLONNES, CHAMPS_PERTINENTS)  # référence
+
+    lignes = [_ligne("c1", "A", 10), _ligne("c2", "B", 20)]
+    rapport = executer_diff(
+        db_session, "racj", lignes, COLONNES, CHAMPS_PERTINENTS, apres_diff_accepte=appels.append
+    )
+    assert rapport.quarantaine is False
+    assert rapport.run_reference is False
+    assert appels == [rapport]  # invoqué exactement une fois, avec CE rapport
+    assert {a.cle for a in rapport.resultat.apparitions} == {"c2"}
+
+
+def test_executer_diff_groupe_n_invoque_le_callback_que_si_tous_les_grains_sont_acceptes(db_session):
+    """Régression directe du constat réel Toronto/Vancouver : un connecteur
+    multi-grain (comme REQ : entreprise + établissements) ne doit jamais
+    pouvoir publier sur la seule foi d'UN grain accepté si l'AUTRE est en
+    quarantaine ou en référence — la décision conjointe est portée par
+    `executer_diff_groupe`, jamais recomposée par l'appelant."""
+    appels = []
+    lignes_a = [_ligne("a1", "A", 10)]
+    lignes_b = [_ligne("b1", "B", 10)]
+
+    # Les deux grains à leur run de référence -> aucun appel.
+    rapports = executer_diff_groupe(
+        db_session,
+        [
+            SpecificationDiff("grain_a", lignes_a, COLONNES, CHAMPS_PERTINENTS),
+            SpecificationDiff("grain_b", lignes_b, COLONNES, CHAMPS_PERTINENTS),
+        ],
+        apres_diff_accepte=appels.append,
+    )
+    assert all(r.run_reference for r in rapports)
+    assert appels == []
+
+    # Grain A accepté (une apparition), grain B en quarantaine (lecture) -> aucun appel,
+    # même si le grain A pris isolément aurait publié.
+    rapports = executer_diff_groupe(
+        db_session,
+        [
+            SpecificationDiff("grain_a", lignes_a + [_ligne("a2", "A2", 10)], COLONNES, CHAMPS_PERTINENTS),
+            SpecificationDiff("grain_b", lignes_b, COLONNES, CHAMPS_PERTINENTS, taux_erreur_lecture=1.0),
+        ],
+        apres_diff_accepte=appels.append,
+    )
+    assert rapports[0].quarantaine is False
+    assert rapports[1].quarantaine is True
+    assert appels == []
+
+    # Les deux grains acceptés -> UN appel, avec la liste complète des deux rapports.
+    rapports = executer_diff_groupe(
+        db_session,
+        [
+            SpecificationDiff("grain_a", lignes_a + [_ligne("a3", "A3", 10)], COLONNES, CHAMPS_PERTINENTS),
+            SpecificationDiff("grain_b", lignes_b + [_ligne("b2", "B2", 10)], COLONNES, CHAMPS_PERTINENTS),
+        ],
+        apres_diff_accepte=appels.append,
+    )
+    assert all(not r.quarantaine and not r.run_reference for r in rapports)
+    assert appels == [rapports]

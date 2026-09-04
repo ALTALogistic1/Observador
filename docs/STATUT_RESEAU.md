@@ -2296,3 +2296,28 @@ détail complet dans la note du registre. Aucune action de développement.
 **3 nouveaux tests** (`tests/test_registry.py` : exclusion `en_pause`,
 conservation au registre des 4 sources en veilleuse, `licence_ouverte` du
 REQ).
+
+## Correction du point 1 — le moteur refuse l'émission en run de référence (2026-09-04)
+
+Alexandre a jugé la première correction (documenter une exigence pour
+RACJ/Montréal) insuffisante : « Aucun connecteur ne devrait avoir à vérifier
+`rapport.run_reference` lui-même... c'est le moteur qui doit refuser
+l'émission. » Corrigé dans `falkye/diff_engine.py` : `executer_diff` et le
+nouveau `executer_diff_groupe` (pour les sources multi-grain comme REQ)
+acceptent un callback `apres_diff_accepte` — LA logique de publication du
+connecteur, invoquée par le moteur UNIQUEMENT sur le chemin de diff
+réellement accepté (ni référence, ni quarantaine). Un connecteur qui passe
+sa logique par ce paramètre ne peut structurellement plus émettre de signal
+ailleurs, peu importe ce que son propre code vérifie. Verrouillé par 6
+nouveaux tests moteur (`tests/test_diff_engine.py`) qui prouvent l'absence
+d'appel sur les 4 chemins sans publication et l'appel exact sur le chemin
+accepté — au niveau du moteur, pas d'un connecteur particulier.
+
+REQ migré vers cette API (`_deriver_signaux_req`, appelée uniquement par le
+callback) — corrige au passage un bogue latent jamais manifesté (le grain
+établissement pouvait dériver ses signaux même si le grain entreprise était
+en référence/quarantaine, faute de décision conjointe). Toronto/Vancouver/
+Corporations Canada non migrés, cohérent avec leur mise en veilleuse
+(aucun correctif prévu) — détail complet dans `docs/ARCHITECTURE.md`.
+
+**465/465 tests** (6 nouveaux moteur, cf. ci-dessus).
