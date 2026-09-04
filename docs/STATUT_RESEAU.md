@@ -2101,9 +2101,55 @@ attaquée (hors du périmètre de ce chantier).
 `diff_run_historique` créée (`init_db()`, additif). Entrée #23 du journal
 de diagnostic écrite dans la base réelle.
 
-**Rebranchement des 4 connecteurs — pas encore commencé**, en attente de
-la validation de cette réponse par Alexandre avant d'agir (consigne
-explicite du suivi : « rapporter la réponse avant de rebrancher quoi que
-ce soit »).
-
 **Construit et testé (447/447, dont 8 nouveaux).**
+
+## Rebranchement des 4 connecteurs — fin réelle du chantier 1 (2026-09-04)
+
+Ordre demandé par Alexandre (portée prioritairement québécoise) : REQ
+d'abord, puis Toronto/Vancouver/Corporations Canada dans l'ordre choisi.
+Voir `docs/ARCHITECTURE.md`, section "Rebranchement des 4 connecteurs",
+pour le détail complet des deux phases (instantané puis application,
+jamais mélangées) et des décisions par connecteur.
+
+**REQ** : deux grains de diff (`req`/`req_etablissements`), REQEtablissement
+Entry gelé (remplacé par `EtatLigneSource`), migration réelle depuis
+REQEntry (2 726 312 lignes) et l'ancien miroir établissement (236 311
+lignes). Validation : re-soumission de l'état réel déjà migré (aucun
+nouveau fichier REQ disponible dans cet environnement, import manuel) —
+`run_reference=False`, `quarantaine=False`, 0/0/0 (idempotent), la
+comparaison RÉELLE s'est bien exécutée, pas une exécution triviale.
+
+**Corporations Canada** : un seul grain, migration réelle depuis
+CorporationFederaleEntry (694 844 lignes). Deux bugs réels trouvés en
+validant en direct (aucun des deux dans le moteur générique lui-même) :
+(1) le jeu de données CKAN publie chaque ressource "active" en français ET
+en anglais sous le MÊME nom — corrigé par `_filtrer_langue_francaise`,
+basé sur le champ `language` de CKAN ; (2) le script de migration ponctuel
+avait construit `colonnes_vues` en incluant à tort `date_incorporation`
+(jamais réellement extrait par le connecteur), causant une quarantaine
+erronée au premier appel réel — corrigé en réalignant l'`EtatSchemaSource`
+stocké sur les 5 colonnes réellement produites (pas de nouveau run de
+référence requis, seul le schéma enregistré était faux).
+
+**Validation macro réelle (`ingest_source`, le vrai point d'entrée de
+production) :**
+
+| Source | Résultat |
+|---|---|
+| REQ | `run_reference=False quarantaine=False` 0/0/0 (re-soumission de l'état réel migré — aucun fichier neuf disponible dans cet environnement) |
+| Toronto | run de référence : 4117 signaux (~160k lignes, 2395s) → 2e appel réel : **17 signaux**, `run_reference=False`, 87s |
+| Vancouver | run de référence : 253 signaux (plafond 10 000 lignes atteint, 208s) → 2e appel réel : **0 signal**, `run_reference=False`, 37s |
+| Corporations Canada | 2e appel réel (après correctifs) : **0 signal**, `run_reference=False`, 292s (~695k corporations comparées), aucune erreur |
+
+Aucune erreur (`erreur=None`) sur aucun appel final. Détail complet des
+deux bugs et de leur correction : `docs/ARCHITECTURE.md`, section
+"Rebranchement des 4 connecteurs".
+
+**9 nouveaux tests** (2 quarantaine REQ, 3 corporations_canada — dont le
+filtre de langue CKAN, 2 quarantaine Toronto, 2 quarantaine Vancouver, ces
+4 derniers avec `responses`) — tous vérifient explicitement que le miroir
+de résolution reste INTACT sous quarantaine, pas seulement l'absence de
+signal.
+
+**Construit et testé (456/456, dont 9 nouveaux depuis le suivi précédent
+447/447).**

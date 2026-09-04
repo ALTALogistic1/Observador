@@ -2046,3 +2046,141 @@ différente de celle de ce chantier (fenêtre de fetch jamais élargie pour
 rattraper un retard, pas un problème de conservation d'état une fois la
 donnée reçue) — territoire d'un futur chantier sur l'ordonnancement des
 exécutions, pas celui-ci.
+
+### Rebranchement des 4 connecteurs — la fin réelle du chantier 1 (2026-09-04)
+
+Tant que REQ, Corporations Canada, licences Toronto et licences Vancouver
+tournaient encore sur leur ancien chemin bespoke, la quarantaine ne
+protégeait rien de réel — le moteur existait, validé, mais hors du chemin
+de production. Ce rebranchement ferme cet écart. Priorité posée par
+Alexandre : la portée du produit devient prioritairement québécoise —
+REQ rebranché en premier (la seule des 4 sources servant directement cette
+priorité), puis Toronto/Vancouver/Corporations Canada dans un ordre libre.
+
+**Principe commun aux 4 : deux phases, jamais mélangées.** Phase 1 construit
+l'instantané complet (aucune écriture) et le soumet au moteur générique.
+Si le run est mis en quarantaine, la phase 2 n'a JAMAIS lieu — le miroir de
+résolution (REQEntry/CorporationFederaleEntry, utilisé par TOUTES les
+autres sources) reste intact, pas seulement l'absence de signal. Phase 2
+(upsert du miroir + dérivation des signaux à partir du `ResultatDiff` déjà
+calculé par le moteur) ne s'exécute que si la phase 1 est passée sans
+incident.
+
+**REQ — deux grains de diff, jamais fusionnés.** Le REQ produit deux
+signaux distincts (changement d'adresse du siège / nouvel établissement
+secondaire) à partir de DEUX fichiers CSV joints (Entreprise.csv,
+Etablissements.csv) — un schéma cassé dans l'un des deux ne doit jamais
+passer inaperçu simplement parce que l'autre est intact. Deux partitions
+indépendantes du moteur : `"req"` (grain entreprise, cle_naturelle=neq) et
+`"req_etablissements"` (grain établissement, cle_naturelle=neq+no_suf_etab).
+`REQEtablissementEntry` — l'ancien miroir bespoke de ce second grain — est
+GELÉ (table conservée, plus aucune écriture) : entièrement remplacé par
+`EtatLigneSource("req_etablissements")`, qui protège en plus contre un
+schéma cassé et un volume aberrant, ce que l'ancien miroir n'a jamais su
+faire (voir falkye/models/req_etablissement_entry.py pour le détail).
+"secteur_code" est délibérément EXCLU de l'empreinte diffée à ce grain :
+l'ancien miroir ne l'a jamais capté, l'inclure aurait fait apparaître une
+"modification" sur la quasi-totalité des établissements dès le premier
+diff suivant la migration — un faux positif de masse causé par un trou de
+données historique, pas un vrai changement (reste capté dans le SIGNAL,
+juste hors de l'empreinte comparée).
+
+**Toronto et Vancouver — changement de comportement DÉLIBÉRÉ et ACCEPTÉ.**
+`detect()` récupère désormais un INSTANTANÉ COMPLET à chaque exécution
+(`since` reçu mais ignoré pour la collecte) plutôt que la fenêtre
+incrémentale d'avant — une fenêtre glissante comparée à l'état cumulatif
+aurait fait apparaître, à tort, l'essentiel de l'historique comme "disparu"
+à chaque exécution (le moteur générique a besoin d'un vrai instantané pour
+que ses disparitions/son volume veuillent dire quelque chose). Coût réel
+accepté : Toronto passe de quelques milliers de lignes à ~160 000 par
+exécution (~14s de collecte, c'est d'ailleurs la source contre laquelle le
+moteur a été validé) ; Vancouver reste plafonné à 10 000 lignes (limite
+réelle de la plateforme Opendatasoft, inchangée) — mais désormais les 10 000
+les PLUS RÉCENTES (`order_by` inversé en descendant pour ce cas précis),
+pas les plus anciennes comme l'aurait donné un tri ascendant sans fenêtre.
+**Limite honnête qui reste, propre à Vancouver** : le plafond de pagination
+(10 000) est bien en deçà de la population réelle (~168 000 licences
+actives) — l'instantané soumis au moteur n'est donc jamais complet, la
+détection de disparition y reste structurellement affaiblie (une vraie
+disparition au-delà des 10 000 plus récentes ne sera jamais vue). Documenté,
+pas corrigé ici — lever le plafond appartient au fournisseur de données.
+
+Le filtre bespoke existant (`detecter_nouvelles_licences` — "pas un simple
+renouvellement" / "pas un nouveau démarrage" via Corporations Canada) reste
+INCHANGÉ, une préoccupation distincte (identité d'établissement) de celle
+du moteur générique (intégrité de la source) — appelé désormais APRÈS que
+le moteur ait confirmé que le run n'est pas en quarantaine, jamais avant.
+Clé du moteur générique, PAR VILLE (voir "clé naturelle par source"
+ci-dessus) : Toronto = identifiant_licence (persistant) ; Vancouver =
+composite nom+adresse (le numéro y est réattribué chaque année) — les deux
+restent distinctes de la clé du filtre bespoke, qui est TOUJOURS nom+adresse
+pour les deux villes (une préoccupation d'identité d'établissement, pas
+d'intégrité de source).
+
+**Migration de l'état existant, jamais un run de référence gaspillé** — les
+mandats explicites : REQEntry (2 726 312 lignes réelles), REQ
+Etablissements (236 311), CorporationFederaleEntry (694 844) migrés vers
+`EtatLigneSource` via le mécanisme de run de référence du moteur, mais
+nourri de données RÉELLES déjà accumulées plutôt que de repartir de zéro.
+Toronto/Vancouver n'avaient rien à migrer (aucun miroir générique
+antérieur) — leur premier appel réel EST le run de référence.
+
+**Validation macro réelle (2026-09-04, `falkye.engine.ingest_source` — le
+vrai point d'entrée de production, pas un appel isolé au connecteur) :**
+
+| Source | 1er appel réel | 2e appel réel (diff observé) |
+|---|---|---|
+| REQ (`req` + `req_etablissements`) | *(déjà migré — voir ci-dessus)* | `run_reference=False quarantaine=False` apparitions=0 disparitions=0 modifications=0 (re-soumission des mêmes données réelles migrées — aucun fichier neuf disponible dans cet environnement, voir plus bas) |
+| Toronto | run de référence : erreur=None, 4117 signaux (filtre bespoke, ~160k lignes), 2395s | `run_reference=False` : erreur=None, **17 signaux**, 87s |
+| Vancouver | run de référence : erreur=None, 253 signaux (10 000 lignes, plafond atteint), 208s | `run_reference=False` : erreur=None, **0 signal**, 37s |
+| Corporations Canada | *(déjà migré — voir ci-dessus)* | `run_reference=False` : erreur=None, **0 signal**, 292s (~695k corporations comparées) |
+
+Toronto et Vancouver n'avaient aucun état préalable : leur 1er appel réel EST
+nécessairement leur run de référence (comportement du moteur, pas un choix)
+— le 2e appel, quelques minutes plus tard sur les mêmes populations réelles,
+est le premier vrai diff. REQ et Corporations Canada étaient déjà migrés
+(voir plus haut) : leur unique appel réel de cette validation est donc
+directement un diff réel, pas un amorçage.
+
+**Deux bugs réels trouvés — et corrigés — PENDANT cette validation (pas
+avant) :**
+
+1. **Corporations Canada — doublon linguistique CKAN.** Le jeu de données
+   publie chaque ressource "active" en français ET en anglais, mêmes
+   corporations, MÊME nom de ressource dans les deux langues (le filtre par
+   nom ne peut pas les distinguer). Le premier appel réel a planté
+   (`ValueError: Colonnes introuvables`) sur les en-têtes anglaises, que
+   `COLUMN_ALIASES` (délibérément français-only) ne reconnaît pas. Corrigé
+   par `_filtrer_langue_francaise` (`falkye/sources/corporations_canada.py`),
+   basé sur le champ `language` fourni par CKAN (`['fr']`/`['en']`, vérifié
+   en direct) — sans ce correctif, une extension naïve de `COLUMN_ALIASES`
+   à l'anglais aurait plutôt doublé chaque corporation. 2 nouveaux tests.
+2. **Corporations Canada — colonnes_vues erronées dans le script de
+   migration.** Le script de migration ponctuel (`migrer_corp.py`, non
+   committé) a construit `colonnes_vues` à partir de `CHAMPS_PERTINENTS_CORP`
+   au complet, incluant à tort `date_incorporation` — un champ que le
+   connecteur réel n'a JAMAIS extrait du vrai fichier (aucune colonne
+   fiable de date de constitution n'existe dans les en-têtes réelles,
+   documenté depuis le 2026-08-31). Le premier appel réel post-migration a
+   donc vu `date_incorporation` comme une colonne "retirée" et mis la
+   source en quarantaine à tort (`schema_colonne_retiree`). Corrigé en
+   alignant directement l'`EtatSchemaSource` stocké sur les 5 colonnes que
+   le connecteur réel produit effectivement (pas de nouveau run de
+   référence nécessaire — seul le schéma enregistré était faux, pas les
+   2 726 312+ lignes migrées).
+
+Aucun des deux bugs ne vient d'un changement de comportement du moteur de
+diff générique lui-même — les deux sont des erreurs d'intégration propres
+à Corporations Canada, trouvées précisément PARCE QUE cette validation
+exigeait un vrai appel réseau réel plutôt qu'une exécution simulée.
+
+**Limite d'environnement, pas de conception :** aucun fichier REQ neuf
+n'est disponible dans ce conteneur pour un deuxième import réellement
+distinct (le fichier original a été téléchargé et consommé dans une
+session antérieure, absent de l'environnement actuel — confirmé par
+recherche exhaustive sur le système de fichiers). La validation REQ
+ci-dessus re-soumet donc les données réelles déjà migrées une seconde
+fois — un diff authentique et non trivial (le moteur compare réellement
+2 726 312 + 236 311 lignes à leur état stocké), mais idempotent par
+construction plutôt que reflétant un changement réel du registre depuis la
+migration. À corriger dès qu'un fichier REQ neuf redevient disponible.
