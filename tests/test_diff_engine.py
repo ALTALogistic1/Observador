@@ -19,7 +19,9 @@ from falkye.diff_engine import (
     seuils_depuis_registre,
     suspicion_incident_local,
 )
+from falkye.diff_engine import proposer_seuils
 from falkye.models.diff_quarantaine import DiffQuarantaine, MotifQuarantaine, StatutQuarantaine
+from falkye.models.diff_run_historique import DiffRunHistorique
 from falkye.models.etat_diff_source import EtatLigneSource
 
 CHAMPS_PERTINENTS = {"nom", "capacite"}
@@ -36,6 +38,15 @@ def _archive_dans_tmp(tmp_path, monkeypatch):
 
 def _ligne(cle, nom, capacite, adresse="123 rue Test"):
     return LigneSnapshot(cle=cle, champs={"nom": nom, "capacite": capacite})
+
+
+def _epuiser_periode_prudence(db_session, source_id, lignes):
+    """Accumule NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX runs non-référence sans
+    écart (mêmes lignes à chaque fois) pour sortir la source de la période de
+    prudence (seuils resserrés — voir diff_engine.py) avant le run réellement
+    testé, quand un test veut isoler le comportement des seuils "normaux"."""
+    for _ in range(diff_engine_module.NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX):
+        executer_diff(db_session, source_id, lignes, COLONNES, CHAMPS_PERTINENTS)
 
 
 # --- 1. Run de référence ---
@@ -188,6 +199,10 @@ def test_meme_pourcentage_asymetrique_selon_seuils_distincts(db_session):
     lignes_ref = [_ligne(f"c{i}", f"E{i}", 10) for i in range(100)]
     executer_diff(db_session, "racj_a", lignes_ref, COLONNES, CHAMPS_PERTINENTS)
     executer_diff(db_session, "racj_b", lignes_ref, COLONNES, CHAMPS_PERTINENTS)
+    # Seuils "normaux" (non resserrés) isolés du mécanisme de prudence de
+    # début de vie — voir _epuiser_periode_prudence.
+    _epuiser_periode_prudence(db_session, "racj_a", lignes_ref)
+    _epuiser_periode_prudence(db_session, "racj_b", lignes_ref)
 
     seuils = SeuilsQuarantaine(
         apparitions=SeuilType(pct=80.0, abs=50),   # apparitions : seuil ÉLEVÉ, ne se déclenche pas à 40%
@@ -393,3 +408,149 @@ def test_lever_quarantaine_deja_traitee_leve_une_erreur(db_session):
 
     with pytest.raises(ValueError):
         lever_quarantaine(db_session, r.quarantaine_id, decision="acceptee", qui="op", motif="deuxième essai")
+
+
+# --- Suivi d'Alexandre au premier livrable (2026-09-04) : dédoublonnage
+# déterministe, journalisation systématique, prudence de début de vie,
+# proposition de seuils jamais auto-appliquée ---
+
+
+def test_dedoublonnage_deterministe_independant_de_l_ordre():
+    a = _ligne("c1", "A", 10)
+    b = _ligne("c1", "B", 20)  # même clé naturelle, contenu DIVERGENT
+    resultat_ordre_1 = diff_engine_module._dedoublonner_lignes([a, b])
+    resultat_ordre_2 = diff_engine_module._dedoublonner_lignes([b, a])  # ordre inversé
+
+    assert resultat_ordre_1.lignes_par_cle["c1"] == resultat_ordre_2.lignes_par_cle["c1"]
+    assert resultat_ordre_1.nb_doublons_divergents == 1
+    assert resultat_ordre_1.nb_doublons_identiques == 0
+
+
+def test_dedoublonnage_distingue_doublons_identiques_et_divergents(db_session):
+    lignes = [
+        _ligne("c1", "A", 10),
+        _ligne("c1", "A", 10),  # doublon identique — inoffensif
+        _ligne("c2", "B", 20),
+        _ligne("c2", "C", 30),  # doublon DIVERGENT — ambiguïté réelle de clé
+    ]
+    rapport = executer_diff(db_session, "racj", lignes, COLONNES, CHAMPS_PERTINENTS)
+
+    assert any("identique" in a for a in rapport.avertissements)
+    assert any("DIVERGENT" in a for a in rapport.avertissements)
+
+    historique = db_session.query(DiffRunHistorique).filter_by(source_id="racj").one()
+    assert historique.nb_doublons_identiques == 1
+    assert historique.nb_doublons_divergents == 1
+    assert historique.taux_doublons == pytest.approx(2 / 4)
+
+
+def test_historique_journalise_chaque_type_de_run(db_session):
+    # Run de référence.
+    executer_diff(db_session, "racj", [_ligne("c1", "A", 10)], COLONNES, CHAMPS_PERTINENTS)
+    # Diff normal, accepté.
+    executer_diff(db_session, "racj", [_ligne("c1", "A", 10), _ligne("c2", "B", 20)], COLONNES, CHAMPS_PERTINENTS)
+    # Quarantaine de schéma.
+    executer_diff(db_session, "racj", [_ligne("c1", "A", 10)], {"nom": "str"}, CHAMPS_PERTINENTS)
+    # Quarantaine de lecture.
+    executer_diff(db_session, "autre_source", [], COLONNES, CHAMPS_PERTINENTS, taux_erreur_lecture=1.0)
+
+    lignes_hist = db_session.query(DiffRunHistorique).filter_by(source_id="racj").order_by(DiffRunHistorique.id).all()
+    assert [h.run_reference for h in lignes_hist] == [True, False, False]
+    assert [h.quarantaine for h in lignes_hist] == [False, False, True]
+    assert lignes_hist[2].motif_quarantaine == MotifQuarantaine.SCHEMA_COLONNE_RETIREE.value
+
+    hist_lecture = db_session.query(DiffRunHistorique).filter_by(source_id="autre_source").one()
+    assert hist_lecture.quarantaine is True
+    assert hist_lecture.motif_quarantaine == MotifQuarantaine.LECTURE_ECHOUEE.value
+    assert hist_lecture.nb_apparitions is None  # jamais calculé — quarantaine avant tout diff
+
+
+def test_seuils_resserres_tant_que_historique_insuffisant(db_session):
+    """Le tout premier diff non-référence d'une source est jugé sous des
+    seuils PLUS SERRÉS que SEUILS_DEFAUT — une amplitude qui ne
+    déclencherait PAS la quarantaine une fois l'historique suffisant la
+    déclenche ici, par prudence."""
+    lignes_ref = [_ligne(f"c{i}", f"E{i}", 10) for i in range(100)]
+    executer_diff(db_session, "racj", lignes_ref, COLONNES, CHAMPS_PERTINENTS)
+
+    # 300 apparitions (300% des 100 lignes précédentes) : sous le seuil ABSOLU
+    # de SEUILS_DEFAUT (500 — donc pas de quarantaine sous seuils normaux, où
+    # les DEUX doivent être franchis), mais au-dessus du seuil absolu resserré
+    # (250, x0.5) — le pourcentage (300%) franchit les deux seuils dans les
+    # deux cas, c'est l'ABSOLU resserré qui fait toute la différence ici.
+    rapport = executer_diff(
+        db_session, "racj", lignes_ref + [_ligne(f"n{i}", f"N{i}", 10) for i in range(300)],
+        COLONNES, CHAMPS_PERTINENTS,
+    )
+    assert rapport.quarantaine is True
+    assert rapport.motif_quarantaine == MotifQuarantaine.VOLUME_APPARITIONS
+    assert any("resserr" in a.lower() for a in rapport.avertissements)
+
+    historique = (
+        db_session.query(DiffRunHistorique)
+        .filter_by(source_id="racj", run_reference=False)
+        .order_by(DiffRunHistorique.id.desc())
+        .first()
+    )
+    assert historique.seuils_prudence_debut is True
+    assert historique.seuils_apparitions_pct == pytest.approx(diff_engine_module.SEUILS_DEFAUT.apparitions.pct * 0.5)
+
+
+def test_seuils_normaux_une_fois_historique_suffisant(db_session):
+    """La MÊME amplitude (300 apparitions) que le test précédent ne déclenche
+    PLUS rien une fois l'historique suffisant accumulé — seuls les seuils
+    resserrés du DÉBUT étaient en cause, jamais un seuil devenu plus
+    permissif que SEUILS_DEFAUT."""
+    lignes_ref = [_ligne(f"c{i}", f"E{i}", 10) for i in range(100)]
+    executer_diff(db_session, "racj", lignes_ref, COLONNES, CHAMPS_PERTINENTS)
+    _epuiser_periode_prudence(db_session, "racj", lignes_ref)
+
+    rapport = executer_diff(
+        db_session, "racj", lignes_ref + [_ligne(f"n{i}", f"N{i}", 10) for i in range(300)],
+        COLONNES, CHAMPS_PERTINENTS,
+    )
+    assert rapport.quarantaine is False
+
+
+def test_proposer_seuils_none_si_historique_insuffisant(db_session):
+    lignes_ref = [_ligne(f"c{i}", f"E{i}", 10) for i in range(100)]
+    executer_diff(db_session, "racj", lignes_ref, COLONNES, CHAMPS_PERTINENTS)
+    executer_diff(db_session, "racj", lignes_ref, COLONNES, CHAMPS_PERTINENTS)  # 1 seul run non-référence
+
+    assert proposer_seuils(db_session, "racj") is None
+
+
+def test_proposer_seuils_propose_une_fois_assez_de_runs(db_session):
+    lignes_ref = [_ligne(f"c{i}", f"E{i}", 10) for i in range(100)]
+    executer_diff(db_session, "racj", lignes_ref, COLONNES, CHAMPS_PERTINENTS)
+    _epuiser_periode_prudence(db_session, "racj", lignes_ref)  # 5 runs non-référence, amplitude 0%
+
+    proposition = proposer_seuils(db_session, "racj")
+    assert proposition is not None
+    assert proposition.nb_runs_observes == diff_engine_module.NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX
+    # Amplitude normale observée = 0% partout -> seuil proposé au plancher (abs=1), jamais 0
+    # (un seuil à 0 se déclencherait sur le moindre écart, y compris du bruit inoffensif).
+    assert proposition.seuils_proposes.apparitions.abs >= 1
+    assert proposition.seuils_proposes.apparitions.pct == pytest.approx(0.0)
+
+
+def test_proposer_seuils_exclut_les_runs_en_quarantaine(db_session):
+    """Un run mis en quarantaine ne doit JAMAIS élargir la proposition
+    future — suivi d'Alexandre : « un seuil qui s'ajuste seul finit par
+    s'élargir jusqu'à ne plus rien attraper »."""
+    lignes_ref = [_ligne(f"c{i}", f"E{i}", 10) for i in range(100)]
+    executer_diff(db_session, "racj", lignes_ref, COLONNES, CHAMPS_PERTINENTS)
+    _epuiser_periode_prudence(db_session, "racj", lignes_ref)
+
+    proposition_avant = proposer_seuils(db_session, "racj")
+
+    # Un run massivement aberrant, mis en quarantaine — 600 apparitions
+    # franchit même le seuil ABSOLU normal (500, la période de prudence est
+    # déjà épuisée à ce stade par _epuiser_periode_prudence ci-dessus).
+    lignes_aberrantes = lignes_ref + [_ligne(f"n{i}", f"N{i}", 10) for i in range(600)]
+    rapport_aberrant = executer_diff(db_session, "racj", lignes_aberrantes, COLONNES, CHAMPS_PERTINENTS)
+    assert rapport_aberrant.quarantaine is True
+
+    proposition_apres = proposer_seuils(db_session, "racj")
+    assert proposition_apres.seuils_proposes.apparitions.pct == proposition_avant.seuils_proposes.apparitions.pct
+    assert proposition_apres.nb_runs_observes == proposition_avant.nb_runs_observes  # le run aberrant n'est PAS compté

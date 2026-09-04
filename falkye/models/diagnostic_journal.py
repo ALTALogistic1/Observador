@@ -20,6 +20,17 @@ Un seul mécanisme plutôt que trois séparés, avec un discriminant
                               jamais par un appel Niveau 2 (ce n'est pas une
                               classification de texte, c'est une observation
                               produit).
+  - `probleme_autre_chantier`   : un problème réel trouvé en travaillant un
+                              chantier, mais dont la correction appartient à
+                              un AUTRE chantier — consigné ici et rapporté,
+                              JAMAIS attaqué sur place (mandat du chantier 1,
+                              spec section 8bis, section 4 "Frontières" :
+                              « si le rebranchement révèle un problème
+                              appartenant ailleurs, le consigner... sans
+                              l'attaquer »). `texte_description` porte
+                              l'explication complète ; `resume_niveau2` reste
+                              None (aucun appel modèle, une observation
+                              humaine/du système, pas une classification).
   - `candidat_fusion_entreprise` : deux `Company` sans NEQ (`falkye/
                               resolution.py`) dont le nom normalisé se
                               ressemble assez pour être PROBABLEMENT la même
@@ -69,6 +80,7 @@ class TypeDiagnostic(str, enum.Enum):
     CANDIDAT_CLIENT_CIBLE = "candidat_client_cible"
     SOURCE_MANQUANTE = "source_manquante"
     CANDIDAT_FUSION_ENTREPRISE = "candidat_fusion_entreprise"
+    PROBLEME_AUTRE_CHANTIER = "probleme_autre_chantier"
 
 
 class DiagnosticJournal(Base):

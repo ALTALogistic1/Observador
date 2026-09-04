@@ -40,10 +40,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import insert, select
+from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session
 
 from falkye.models.diff_quarantaine import DiffQuarantaine, MotifQuarantaine, StatutQuarantaine
+from falkye.models.diff_run_historique import DiffRunHistorique
 from falkye.models.etat_diff_source import EtatLigneSource, EtatSchemaSource
 
 logger = logging.getLogger(__name__)
@@ -213,7 +214,164 @@ def _seuil_franchi(count: int, total_precedent: int, seuil: SeuilType) -> bool:
     return count >= seuil.abs and _pct(count, total_precedent) >= seuil.pct
 
 
+@dataclass(frozen=True)
+class ResultatDedoublonnage:
+    lignes_par_cle: dict[str, LigneSnapshot]
+    nb_doublons_identiques: int
+    nb_doublons_divergents: int
+
+
+def _dedoublonner_lignes(lignes: list[LigneSnapshot]) -> ResultatDedoublonnage:
+    """Regroupe les lignes brutes par clé naturelle et choisit UN
+    représentant par groupe, de façon DÉTERMINISTE ET INDÉPENDANTE DE L'ORDRE
+    D'ARRIVÉE — jamais "première ou dernière ligne rencontrée" (suivi
+    d'Alexandre au premier livrable du chantier 1 : ce choix dépendrait de
+    l'ordre du fichier/de la pagination côté source, qui peut changer d'une
+    semaine à l'autre — ex. un diffuseur qui change l'ordre de tri interne —
+    et produirait alors une fausse "modification" au diff SUIVANT sans
+    qu'aucune donnée n'ait réellement bougé chez le diffuseur, uniquement
+    parce qu'un représentant différent a été retenu cette fois-ci).
+
+    Règle retenue : parmi les lignes d'une même clé, celle dont l'empreinte
+    (sha256 des champs pertinents, `calculer_empreinte`) est
+    lexicographiquement la PLUS GRANDE — une fonction PURE DU CONTENU,
+    jamais de la position dans `lignes`. Si le contenu est identique entre
+    doublons (cas réel observé chez licences_toronto — ~0,5% des lignes),
+    le choix est sans conséquence : toute ligne du groupe produit la même
+    empreinte. Si le contenu DIVERGE réellement entre deux lignes de même
+    clé (jamais observé à ce jour, mais possible en principe), c'est un
+    signe d'ambiguïté réelle sur la clé naturelle déclarée pour cette
+    source — distingué explicitement du cas inoffensif (compté séparément),
+    jamais confondu avec un simple doublon de qualité de données."""
+    groupes: dict[str, list[LigneSnapshot]] = {}
+    for l in lignes:
+        groupes.setdefault(l.cle, []).append(l)
+
+    lignes_par_cle: dict[str, LigneSnapshot] = {}
+    nb_doublons_identiques = 0
+    nb_doublons_divergents = 0
+    for cle, groupe in groupes.items():
+        if len(groupe) == 1:
+            lignes_par_cle[cle] = groupe[0]
+            continue
+        empreintes = {calculer_empreinte(l.champs) for l in groupe}
+        if len(empreintes) == 1:
+            nb_doublons_identiques += len(groupe) - 1
+        else:
+            nb_doublons_divergents += len(groupe) - 1
+        lignes_par_cle[cle] = max(groupe, key=lambda l: calculer_empreinte(l.champs))
+
+    return ResultatDedoublonnage(
+        lignes_par_cle=lignes_par_cle,
+        nb_doublons_identiques=nb_doublons_identiques,
+        nb_doublons_divergents=nb_doublons_divergents,
+    )
+
+
 SEUIL_ERREUR_LECTURE_DEFAUT = 0.05  # 5% de lignes illisibles — au-delà, quarantaine
+
+# Prudence en début de vie d'une source (suivi d'Alexandre au premier livrable
+# du chantier 1) : « tant qu'aucune norme n'existe, la prudence est de
+# bloquer plus facilement — l'instinct inverse est le mauvais ici ». Tant
+# qu'une source a moins de NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX runs NON-
+# référence dans `DiffRunHistorique`, les seuils autrement applicables
+# (registre ou SEUILS_DEFAUT) sont RESSERRÉS par FACTEUR_PRUDENCE_DEBUT —
+# jamais relâchés, uniquement resserrés. Raisonnement de fond à garder pour
+# tout arbitrage sur ces valeurs (Alexandre, 2026-09-04) : « une quarantaine
+# injustifiée coûte une levée manuelle, une quarantaine manquée coûte la
+# confiance de tous les clients le même matin » — l'asymétrie des coûts
+# justifie de pécher par excès de prudence tant que le comportement normal
+# d'une source n'a pas encore été observé.
+NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX = 5
+FACTEUR_PRUDENCE_DEBUT = 0.5
+
+
+def _resserrer_seuils(seuils: SeuilsQuarantaine, facteur: float) -> SeuilsQuarantaine:
+    def _type(s: SeuilType) -> SeuilType:
+        return SeuilType(pct=round(s.pct * facteur, 2), abs=max(1, round(s.abs * facteur)))
+
+    return SeuilsQuarantaine(
+        apparitions=_type(seuils.apparitions),
+        disparitions=_type(seuils.disparitions),
+        modifications=_type(seuils.modifications),
+    )
+
+
+def _nb_runs_anterieurs(db_session: Session, source_id: str) -> int:
+    """Nombre de runs NON-référence déjà journalisés pour cette source (le
+    run de référence lui-même ne compte pas — il n'a par construction aucune
+    variance à observer). Compte TOUS les runs non-référence, y compris ceux
+    mis en quarantaine — c'est de l'historique accumulé, pas seulement des
+    diffs acceptés ; seul `proposer_seuils` exclut les runs en quarantaine de
+    son propre calcul, pour une raison différente (voir sa docstring)."""
+    return (
+        db_session.execute(
+            select(func.count(DiffRunHistorique.id)).where(
+                DiffRunHistorique.source_id == source_id, DiffRunHistorique.run_reference.is_(False)
+            )
+        ).scalar_one()
+        or 0
+    )
+
+
+def _journaliser_run(
+    db_session: Session,
+    *,
+    source_id: str,
+    run_reference: bool,
+    quarantaine: bool,
+    motif_quarantaine: MotifQuarantaine | None,
+    nb_lignes_actuelles: int,
+    nb_lignes_precedentes: int,
+    nb_apparitions: int | None,
+    nb_disparitions: int | None,
+    nb_modifications: int | None,
+    dedup: ResultatDedoublonnage,
+    seuils_effectifs: SeuilsQuarantaine | None,
+    seuils_prudence_debut: bool,
+    avertissements: list[str],
+) -> None:
+    """Écrit UNE ligne `DiffRunHistorique` par appel à `executer_diff`, quel
+    que soit le chemin de sortie — voir la docstring du modèle. Jamais de
+    `commit()` ici (comme le reste du module — la transaction reste la
+    responsabilité de l'appelant).
+
+    `nb_lignes_actuelles` est déjà le compte BRUT (avant dédoublonnage —
+    tous les appelants de ce module passent `len(lignes)`, jamais
+    `len(lignes_par_cle)`) : ne pas y rajouter les doublons une deuxième
+    fois sous peine de surestimer le taux."""
+    taux_doublons = (
+        (dedup.nb_doublons_identiques + dedup.nb_doublons_divergents) / nb_lignes_actuelles
+        if nb_lignes_actuelles
+        else 0.0
+    )
+    db_session.add(
+        DiffRunHistorique(
+            source_id=source_id,
+            run_reference=run_reference,
+            quarantaine=quarantaine,
+            motif_quarantaine=motif_quarantaine.value if motif_quarantaine else None,
+            nb_lignes_actuelles=nb_lignes_actuelles,
+            nb_lignes_precedentes=nb_lignes_precedentes,
+            nb_apparitions=nb_apparitions,
+            nb_disparitions=nb_disparitions,
+            nb_modifications=nb_modifications,
+            pct_apparitions=_pct(nb_apparitions, nb_lignes_precedentes) if nb_apparitions is not None else None,
+            pct_disparitions=_pct(nb_disparitions, nb_lignes_precedentes) if nb_disparitions is not None else None,
+            pct_modifications=_pct(nb_modifications, nb_lignes_precedentes) if nb_modifications is not None else None,
+            nb_doublons_identiques=dedup.nb_doublons_identiques,
+            nb_doublons_divergents=dedup.nb_doublons_divergents,
+            taux_doublons=taux_doublons,
+            seuils_apparitions_pct=seuils_effectifs.apparitions.pct if seuils_effectifs else None,
+            seuils_apparitions_abs=seuils_effectifs.apparitions.abs if seuils_effectifs else None,
+            seuils_disparitions_pct=seuils_effectifs.disparitions.pct if seuils_effectifs else None,
+            seuils_disparitions_abs=seuils_effectifs.disparitions.abs if seuils_effectifs else None,
+            seuils_modifications_pct=seuils_effectifs.modifications.pct if seuils_effectifs else None,
+            seuils_modifications_abs=seuils_effectifs.modifications.abs if seuils_effectifs else None,
+            seuils_prudence_debut=seuils_prudence_debut,
+            avertissements=list(avertissements),
+        )
+    )
 
 
 def executer_diff(
@@ -241,8 +399,35 @@ def executer_diff(
     `seuil_erreur_lecture`, quarantaine immédiate (LECTURE_ECHOUEE), avant
     même la comparaison de schéma ou de contenu — l'échec de lecture rend
     `lignes` non fiable pour juger quoi que ce soit d'autre."""
-    seuils = seuils or SEUILS_DEFAUT
+    seuils_declares = seuils or SEUILS_DEFAUT
     rapport = RapportExecution(source_id=source_id, nb_lignes_actuelles=len(lignes))
+
+    etat_schema = db_session.get(EtatSchemaSource, source_id)
+    run_reference = etat_schema is None
+    rapport.run_reference = run_reference
+
+    dedup = _dedoublonner_lignes(lignes)
+    if dedup.nb_doublons_identiques or dedup.nb_doublons_divergents:
+        # Découverte réelle en macro-vérifiant contre les vraies données Toronto
+        # (chantier 1) : ~0,5% de lignes brutes avec une clé naturelle en
+        # double, un défaut de qualité RÉEL du jeu de données source, pas une
+        # erreur du connecteur — voir _dedoublonner_lignes pour la règle de
+        # sélection déterministe (jamais "premier/dernier rencontré"). Un
+        # doublon DIVERGENT (contenu différent pour la même clé) est distingué
+        # explicitement : signe d'une ambiguïté réelle sur la clé naturelle
+        # déclarée pour cette source, jamais confondu avec un doublon
+        # inoffensif.
+        morceaux = []
+        if dedup.nb_doublons_identiques:
+            morceaux.append(f"{dedup.nb_doublons_identiques} identique(s)")
+        if dedup.nb_doublons_divergents:
+            morceaux.append(f"{dedup.nb_doublons_divergents} DIVERGENT(S) — ambiguïté réelle sur la clé naturelle")
+        rapport.avertissements.append(
+            f"{dedup.nb_doublons_identiques + dedup.nb_doublons_divergents} ligne(s) brute(s) avec une clé "
+            f"naturelle en double (sur {len(lignes)} lignes) — {', '.join(morceaux)} ; dédoublonnées "
+            "(règle déterministe, voir _dedoublonner_lignes)."
+        )
+    lignes_par_cle = dedup.lignes_par_cle
 
     if taux_erreur_lecture > seuil_erreur_lecture:
         chemin_archive = _archiver_snapshot(source_id, lignes)
@@ -261,27 +446,14 @@ def executer_diff(
             "Source %s en quarantaine (lecture_echouee) : taux d'erreur %.1f%% > seuil %.1f%%",
             source_id, taux_erreur_lecture * 100, seuil_erreur_lecture * 100,
         )
+        _journaliser_run(
+            db_session, source_id=source_id, run_reference=run_reference, quarantaine=True,
+            motif_quarantaine=MotifQuarantaine.LECTURE_ECHOUEE, nb_lignes_actuelles=len(lignes),
+            nb_lignes_precedentes=0, nb_apparitions=None, nb_disparitions=None, nb_modifications=None,
+            dedup=dedup, seuils_effectifs=None, seuils_prudence_debut=False, avertissements=rapport.avertissements,
+        )
         return rapport
 
-    etat_schema = db_session.get(EtatSchemaSource, source_id)
-    run_reference = etat_schema is None
-    rapport.run_reference = run_reference
-
-    lignes_par_cle = {l.cle: l for l in lignes}
-    if len(lignes_par_cle) != len(lignes):
-        # Découverte réelle en macro-vérifiant contre les vraies données Toronto
-        # (chantier 1) : ~0,5% de lignes brutes STRICTEMENT identiques (même
-        # clé ET mêmes champs) pour la même clé naturelle, un défaut de qualité
-        # RÉEL du jeu de données source, pas une erreur du connecteur. Jamais
-        # une erreur bloquante ici — `lignes_par_cle` dédoublonne déjà (dernière
-        # occurrence gagne, contenu identique en pratique) — mais consigné
-        # explicitement : une DIVERGENCE de contenu entre deux lignes de même
-        # clé serait, elle, un signe d'ambiguïté réelle sur la clé naturelle
-        # déclarée, pas seulement un doublon inoffensif.
-        rapport.avertissements.append(
-            f"{len(lignes) - len(lignes_par_cle)} ligne(s) brute(s) avec une clé naturelle en double "
-            f"(sur {len(lignes)} lignes) — dédoublonnées (dernière occurrence conservée)."
-        )
     # Lecture en colonnes (Core), jamais des instances ORM complètes — même
     # motivation que TAILLE_LOT_INSERTION ci-dessus : cette lecture porte sur
     # la POPULATION COMPLÈTE de l'état précédent (ex. REQ réel : 2,7M lignes),
@@ -336,6 +508,12 @@ def executer_diff(
                 "Source %s en quarantaine (%s) : colonnes retirées=%s, type modifié=%s",
                 source_id, motif.value, sorted(retirees_pertinentes), sorted(types_modifies),
             )
+            _journaliser_run(
+                db_session, source_id=source_id, run_reference=run_reference, quarantaine=True,
+                motif_quarantaine=motif, nb_lignes_actuelles=len(lignes), nb_lignes_precedentes=len(etats_precedents),
+                nb_apparitions=None, nb_disparitions=None, nb_modifications=None, dedup=dedup,
+                seuils_effectifs=None, seuils_prudence_debut=False, avertissements=rapport.avertissements,
+            )
             return rapport
 
     # --- Diff de contenu ---
@@ -369,19 +547,40 @@ def executer_diff(
         db_session.add(EtatSchemaSource(source_id=source_id, colonnes=colonnes_vues))
         db_session.flush()
         rapport.resultat = None
+        _journaliser_run(
+            db_session, source_id=source_id, run_reference=True, quarantaine=False, motif_quarantaine=None,
+            nb_lignes_actuelles=len(lignes), nb_lignes_precedentes=len(etats_precedents),
+            nb_apparitions=len(apparitions), nb_disparitions=len(disparitions), nb_modifications=len(modifications),
+            dedup=dedup, seuils_effectifs=None, seuils_prudence_debut=False, avertissements=rapport.avertissements,
+        )
         return rapport
+
+    # --- Seuils EFFECTIFS pour ce run : resserrés tant que l'historique de
+    # cette source est insuffisant (suivi d'Alexandre, 2026-09-04) — jamais
+    # relâchés, uniquement resserrés. Voir NB_RUNS_MINIMUM_AVANT_SEUILS_
+    # NORMAUX/FACTEUR_PRUDENCE_DEBUT ci-dessus pour le raisonnement complet.
+    nb_runs_anterieurs = _nb_runs_anterieurs(db_session, source_id)
+    seuils_prudence_debut = nb_runs_anterieurs < NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX
+    seuils_effectifs = (
+        _resserrer_seuils(seuils_declares, FACTEUR_PRUDENCE_DEBUT) if seuils_prudence_debut else seuils_declares
+    )
+    if seuils_prudence_debut:
+        rapport.avertissements.append(
+            f"Seuils resserrés (x{FACTEUR_PRUDENCE_DEBUT}) — historique insuffisant "
+            f"({nb_runs_anterieurs}/{NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX} runs non-référence)."
+        )
 
     # --- Règle de quarantaine sur le volume ---
     if (
-        _seuil_franchi(len(apparitions), len(etats_precedents), seuils.apparitions)
-        or _seuil_franchi(len(disparitions), len(etats_precedents), seuils.disparitions)
-        or _seuil_franchi(len(modifications), len(etats_precedents), seuils.modifications)
+        _seuil_franchi(len(apparitions), len(etats_precedents), seuils_effectifs.apparitions)
+        or _seuil_franchi(len(disparitions), len(etats_precedents), seuils_effectifs.disparitions)
+        or _seuil_franchi(len(modifications), len(etats_precedents), seuils_effectifs.modifications)
     ):
         motif = (
             MotifQuarantaine.VOLUME_DISPARITIONS
-            if _seuil_franchi(len(disparitions), len(etats_precedents), seuils.disparitions)
+            if _seuil_franchi(len(disparitions), len(etats_precedents), seuils_effectifs.disparitions)
             else MotifQuarantaine.VOLUME_APPARITIONS
-            if _seuil_franchi(len(apparitions), len(etats_precedents), seuils.apparitions)
+            if _seuil_franchi(len(apparitions), len(etats_precedents), seuils_effectifs.apparitions)
             else MotifQuarantaine.VOLUME_MODIFICATIONS
         )
         chemin_archive = _archiver_snapshot(source_id, lignes)
@@ -394,10 +593,15 @@ def executer_diff(
                 "nb_modifications": len(modifications),
                 "nb_lignes_precedentes": len(etats_precedents),
                 "seuils": {
-                    "apparitions": {"pct": seuils.apparitions.pct, "abs": seuils.apparitions.abs},
-                    "disparitions": {"pct": seuils.disparitions.pct, "abs": seuils.disparitions.abs},
-                    "modifications": {"pct": seuils.modifications.pct, "abs": seuils.modifications.abs},
+                    "apparitions": {"pct": seuils_effectifs.apparitions.pct, "abs": seuils_effectifs.apparitions.abs},
+                    "disparitions": {
+                        "pct": seuils_effectifs.disparitions.pct, "abs": seuils_effectifs.disparitions.abs
+                    },
+                    "modifications": {
+                        "pct": seuils_effectifs.modifications.pct, "abs": seuils_effectifs.modifications.abs
+                    },
                 },
+                "seuils_prudence_debut": seuils_prudence_debut,
                 "apparitions": [{"cle": l.cle, "champs": l.champs} for l in apparitions],
                 "disparitions": disparitions,
                 "modifications": [
@@ -418,12 +622,26 @@ def executer_diff(
             "Source %s en quarantaine (%s) : %d apparitions, %d disparitions, %d modifications sur %d lignes précédentes",
             source_id, motif.value, len(apparitions), len(disparitions), len(modifications), len(etats_precedents),
         )
+        _journaliser_run(
+            db_session, source_id=source_id, run_reference=False, quarantaine=True, motif_quarantaine=motif,
+            nb_lignes_actuelles=len(lignes), nb_lignes_precedentes=len(etats_precedents),
+            nb_apparitions=len(apparitions), nb_disparitions=len(disparitions), nb_modifications=len(modifications),
+            dedup=dedup, seuils_effectifs=seuils_effectifs, seuils_prudence_debut=seuils_prudence_debut,
+            avertissements=rapport.avertissements,
+        )
         return rapport
 
     # --- Diff accepté normalement : applique l'état ---
     _archiver_snapshot(source_id, lignes)
     _appliquer_diff(db_session, source_id, apparitions, disparitions, modifications, colonnes_vues)
     rapport.resultat = ResultatDiff(apparitions=apparitions, disparitions=disparitions, modifications=modifications)
+    _journaliser_run(
+        db_session, source_id=source_id, run_reference=False, quarantaine=False, motif_quarantaine=None,
+        nb_lignes_actuelles=len(lignes), nb_lignes_precedentes=len(etats_precedents),
+        nb_apparitions=len(apparitions), nb_disparitions=len(disparitions), nb_modifications=len(modifications),
+        dedup=dedup, seuils_effectifs=seuils_effectifs, seuils_prudence_debut=seuils_prudence_debut,
+        avertissements=rapport.avertissements,
+    )
     return rapport
 
 
@@ -479,6 +697,81 @@ def suspicion_incident_local(rapports: list[RapportExecution]) -> bool:
     émet alors une alerte d'exploitation DISTINCTE, formulée comme une
     suspicion d'incident local et non comme un problème de source."""
     return sum(1 for r in rapports if r.quarantaine) >= SEUIL_QUARANTAINES_SIMULTANEES_SUSPECT
+
+
+MARGE_SECURITE_PROPOSITION = 1.5  # au-dessus du maximum NORMAL observé — jamais pile dessus
+
+
+@dataclass(frozen=True)
+class PropositionSeuils:
+    source_id: str
+    nb_runs_observes: int
+    seuils_proposes: SeuilsQuarantaine
+    justification: str
+
+
+def proposer_seuils(db_session: Session, source_id: str) -> PropositionSeuils | None:
+    """UNE PROPOSITION de seuil par source, à examiner et valider par
+    Alexandre (`falkye quarantaine proposer-seuils`) — **jamais appliquée
+    automatiquement** par ce module ni par aucun autre : l'écriture dans
+    `registry/sources.yaml` reste un geste humain, délibéré, séparé. Suivi
+    d'Alexandre au premier livrable du chantier 1 : « un seuil qui s'ajuste
+    seul finit par s'élargir jusqu'à ne plus rien attraper ».
+
+    Retourne `None` tant que l'historique non-référence de cette source est
+    sous `NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX` (pas assez de recul).
+
+    Calcul : pour chaque type d'écart (apparitions/disparitions/
+    modifications), le maximum PCT et le maximum ABS observés parmi les
+    runs NON-référence et NON mis en quarantaine, multipliés par
+    `MARGE_SECURITE_PROPOSITION` — jamais pile sur le pire cas déjà vu
+    comme "normal", une marge de sécurité au-dessus. Les runs mis en
+    quarantaine sont EXCLUS de ce calcul délibérément, même ceux ensuite
+    "acceptés" par un opérateur : inclure une amplitude déjà flaguée comme
+    suspecte élargirait mécaniquement le seuil futur jusqu'à ne plus rien
+    attraper — exactement le risque qu'Alexandre a nommé. Une amplitude
+    normale mais jamais encore observée reste, par construction, un
+    territoire que la proposition ne peut pas anticiper — raison de plus
+    pour qu'elle reste une PROPOSITION, jamais une auto-application."""
+    runs = (
+        db_session.execute(
+            select(DiffRunHistorique)
+            .where(
+                DiffRunHistorique.source_id == source_id,
+                DiffRunHistorique.run_reference.is_(False),
+                DiffRunHistorique.quarantaine.is_(False),
+            )
+            .order_by(DiffRunHistorique.executed_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    if len(runs) < NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX:
+        return None
+
+    def _proposer_type(pct_attr: str, abs_attr: str) -> SeuilType:
+        max_pct = max((getattr(r, pct_attr) or 0.0) for r in runs)
+        max_abs = max((getattr(r, abs_attr) or 0) for r in runs)
+        return SeuilType(
+            pct=round(max_pct * MARGE_SECURITE_PROPOSITION, 1),
+            abs=max(1, round(max_abs * MARGE_SECURITE_PROPOSITION)),
+        )
+
+    seuils_proposes = SeuilsQuarantaine(
+        apparitions=_proposer_type("pct_apparitions", "nb_apparitions"),
+        disparitions=_proposer_type("pct_disparitions", "nb_disparitions"),
+        modifications=_proposer_type("pct_modifications", "nb_modifications"),
+    )
+    return PropositionSeuils(
+        source_id=source_id,
+        nb_runs_observes=len(runs),
+        seuils_proposes=seuils_proposes,
+        justification=(
+            f"Basé sur {len(runs)} run(s) non-référence et non mis en quarantaine, "
+            f"marge de sécurité x{MARGE_SECURITE_PROPOSITION} au-dessus du maximum normal observé "
+            "pour chaque type d'écart. À valider — jamais appliqué automatiquement."
+        ),
+    )
 
 
 def lister_quarantaines(db_session: Session, statut: StatutQuarantaine | None = StatutQuarantaine.EN_ATTENTE):

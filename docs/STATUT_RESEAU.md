@@ -2054,3 +2054,56 @@ corrigés sur place, pas consignés au `DiagnosticJournal` (rien à signaler
 plutôt qu'attaquer).
 
 **Construit et testé (439/439, dont 22 nouveaux).**
+
+## Chantier 1 — suivi d'Alexandre au premier livrable (2026-09-04)
+
+Quatre demandes après revue du premier livrable — voir `docs/ARCHITECTURE.md`,
+section "Suivi d'Alexandre au premier livrable", pour le détail complet.
+
+**Construit** :
+- Dédoublonnage DÉTERMINISTE (`falkye/diff_engine.py::_dedoublonner_lignes`)
+  — plus "premier/dernier rencontré" (dépendait de l'ordre du fichier
+  source), la ligne retenue par clé dupliquée est désormais une fonction
+  pure du contenu (empreinte la plus grande), identique quel que soit
+  l'ordre d'arrivée. Distingue doublons identiques (inoffensifs) et
+  divergents (ambiguïté réelle de clé), comptés séparément.
+- `falkye/models/diff_run_historique.py::DiffRunHistorique` — une ligne
+  par appel à `executer_diff`, amplitude et taux de doublons journalisés
+  à CHAQUE run, même très en dessous du seuil (répond directement à
+  « sans ça, la calibration reste impossible indéfiniment »).
+- Prudence de début de vie (`NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX=5`,
+  `FACTEUR_PRUDENCE_DEBUT=0.5`) — seuils resserrés (jamais relâchés) tant
+  qu'une source a moins de 5 runs non-référence d'historique.
+- `falkye/diff_engine.py::proposer_seuils` + CLI `falkye quarantaine
+  proposer-seuils --source-id X` — une PROPOSITION par source une fois
+  assez d'historique (jamais appliquée automatiquement), calculée
+  UNIQUEMENT à partir des runs normaux (jamais mis en quarantaine, même
+  ensuite "acceptés" — pour ne jamais élargir mécaniquement le seuil
+  futur sur une amplitude déjà flaguée comme suspecte).
+- `falkye/models/diagnostic_journal.py::TypeDiagnostic.PROBLEME_AUTRE_CHANTIER`
+  — nouveau discriminant générique pour consigner un problème réel trouvé
+  en travaillant un chantier mais dont la correction appartient ailleurs,
+  conformément à la consigne du mandat ("le consigner... sans l'attaquer").
+
+**Réponse à la question posée avant tout rebranchement** : les 4 sources
+instantané (REQ, Corporations Canada, licences Toronto/Vancouver)
+conservent TOUTES un état persistant aujourd'hui (miroirs bespoke,
+commit/rollback tout-ou-rien par run) — la condition d'urgence posée par
+Alexandre ("si l'une tourne sans conservation d'état, la rebrancher en
+priorité") ne s'applique à aucune des 4. Une fuite RÉELLE mais DIFFÉRENTE
+trouvée en vérifiant ce point — `since` recalculé de façon naïve
+(`now - lookback_days`) à chaque `run_veille_continue`, sans consulter le
+dernier run réussi, pour TOUTE source filtrable par `since` — consignée
+(`DiagnosticJournal` #23, `probleme_autre_chantier`) et rapportée, pas
+attaquée (hors du périmètre de ce chantier).
+
+**Migration de la base de développement réelle** : nouvelle table
+`diff_run_historique` créée (`init_db()`, additif). Entrée #23 du journal
+de diagnostic écrite dans la base réelle.
+
+**Rebranchement des 4 connecteurs — pas encore commencé**, en attente de
+la validation de cette réponse par Alexandre avant d'agir (consigne
+explicite du suivi : « rapporter la réponse avant de rebrancher quoi que
+ce soit »).
+
+**Construit et testé (447/447, dont 8 nouveaux).**

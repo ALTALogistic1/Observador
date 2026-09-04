@@ -1400,6 +1400,39 @@ def quarantaine_lever(quarantaine_id, decision, motif, qui):
         session.close()
 
 
+@quarantaine.command("proposer-seuils")
+@click.option("--source-id", required=True)
+def quarantaine_proposer_seuils(source_id):
+    """Propose un seuil de quarantaine calibré pour cette source, à partir de
+    son historique réel (falkye/diff_engine.py::proposer_seuils) — JAMAIS
+    appliqué automatiquement, une simple proposition à examiner et,
+    éventuellement, écrire soi-même dans registry/sources.yaml. RÉSERVÉ AU
+    MODE OPÉRATEUR."""
+    if not _mode_operateur():
+        raise click.ClickException("Réservé au mode opérateur (FALKYE_OPERATOR=1).")
+    from falkye.diff_engine import NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX
+    from falkye.diff_engine import proposer_seuils as proposer_seuils_moteur
+
+    session = get_session()
+    try:
+        proposition = proposer_seuils_moteur(session, source_id)
+        if proposition is None:
+            click.echo(
+                f"Historique insuffisant pour {source_id} — "
+                f"attendu au moins {NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX} run(s) non-référence."
+            )
+            return
+        s = proposition.seuils_proposes
+        click.echo(f"Proposition pour {source_id} (basée sur {proposition.nb_runs_observes} run(s)) :")
+        click.echo(f"  apparitions   : pct={s.apparitions.pct}  abs={s.apparitions.abs}")
+        click.echo(f"  disparitions  : pct={s.disparitions.pct}  abs={s.disparitions.abs}")
+        click.echo(f"  modifications : pct={s.modifications.pct}  abs={s.modifications.abs}")
+        click.echo(f"  {proposition.justification}")
+        click.echo("  À valider et, si retenue, à écrire soi-même dans registry/sources.yaml — jamais automatique.")
+    finally:
+        session.close()
+
+
 @cli.group()
 def scan():
     """Lancer un scan (spec section 5)."""

@@ -1947,3 +1947,102 @@ Les 3 nouvelles tables (`etat_ligne_source`, `etat_schema_source`,
 (`falkye/db.py::init_db()`, additif — aucune autre table touchée) ; elles
 restent VIDES en production tant que les 4 connecteurs ne sont pas
 effectivement rebranchés sur ce moteur (hors de ce chantier).
+
+### Suivi d'Alexandre au premier livrable (2026-09-04) — dédoublonnage déterministe, historique de diff, prudence de début de vie, propositions de seuils
+
+Quatre demandes, toutes tranchées et implémentées avant tout rebranchement
+de connecteur (voir plus bas pour la réponse à la question de conservation
+d'état, posée en préalable explicite).
+
+**1. Dédoublonnage déterministe.** L'implémentation d'origine
+(`{l.cle: l for l in lignes}`) retenait la DERNIÈRE ligne rencontrée en cas
+de clé naturelle dupliquée — un choix qui dépend de l'ORDRE du fichier
+source, susceptible de changer d'une semaine à l'autre (pagination, tri
+interne du diffuseur) et de produire une fausse "modification" au diff
+suivant sans qu'aucune donnée n'ait réellement bougé. Corrigé
+(`falkye/diff_engine.py::_dedoublonner_lignes`) : la ligne retenue par
+groupe de clé est celle dont l'EMPREINTE (sha256 des champs pertinents) est
+lexicographiquement la plus grande — une fonction PURE DU CONTENU, jamais
+de la position dans `lignes`, donc strictement le même résultat quel que
+soit l'ordre d'arrivée. Distingue au passage deux cas, comptés séparément
+et journalisés : doublons IDENTIQUES (contenu strictement identique — cas
+réel observé chez Toronto, sans conséquence) et doublons DIVERGENTS
+(contenu différent pour la même clé — jamais observé à ce jour, mais
+signe d'une ambiguïté réelle sur la clé naturelle déclarée pour cette
+source si ça arrivait).
+
+**2. `DiffRunHistorique`** (`falkye/models/diff_run_historique.py`) — une
+ligne PAR APPEL à `executer_diff`, quel que soit le chemin de sortie, pas
+seulement les incidents (`DiffQuarantaine` continue d'exister pour ça,
+inchangée). Objectif direct : « journaliser l'amplitude de chaque diff à
+chaque run, même très en dessous du seuil... sans ça, la calibration reste
+impossible indéfiniment. » Porte, par run : le nombre et le pourcentage
+d'apparitions/disparitions/modifications (même quand aucun seuil n'est
+franchi), le taux de doublons de clé naturelle (identiques et divergents
+distingués), et les seuils EFFECTIVEMENT appliqués (voir point 3). Nuls
+uniquement pour les deux quarantaines qui se déclenchent AVANT tout calcul
+de diff (lecture_echouee, schéma) — partout ailleurs, y compris sur un run
+de référence (où apparitions = 100% par construction, non signifiant pour
+la calibration mais journalisé quand même, pour que l'historique reste
+lisible) et sur une quarantaine de VOLUME (le diff est calculé avant
+d'être refusé — l'amplitude est connue et journalisée même là).
+
+**3. Prudence de début de vie.** « Tant qu'aucune norme n'existe, la
+prudence est de bloquer plus facilement. » Tant qu'une source a moins de
+`NB_RUNS_MINIMUM_AVANT_SEUILS_NORMAUX` (5) runs NON-référence journalisés,
+les seuils autrement applicables (registre ou `SEUILS_DEFAUT`) sont
+RESSERRÉS par `FACTEUR_PRUDENCE_DEBUT` (0.5, soit deux fois plus stricts)
+— jamais relâchés, uniquement resserrés, et jamais sur le run de référence
+lui-même (qui ne vérifie de toute façon aucun seuil). Le raisonnement de
+fond, à conserver pour tout arbitrage futur sur ces valeurs (Alexandre,
+2026-09-04) : « une quarantaine injustifiée coûte une levée manuelle, une
+quarantaine manquée coûte la confiance de tous les clients le même matin »
+— l'asymétrie des coûts justifie de pécher par excès de prudence tant que
+le comportement normal d'une source n'a pas encore été observé. Les 5/0.5
+sont des valeurs de départ raisonnables, pas calibrées empiriquement (rien
+à calibrer contre — même limite que `SEUILS_DEFAUT` lui-même) : à ajuster
+si l'usage réel le justifie.
+
+**4. `proposer_seuils`** (`falkye/diff_engine.py`, CLI `falkye quarantaine
+proposer-seuils --source-id X`) — une PROPOSITION, jamais une
+auto-application : « un seuil qui s'ajuste seul finit par s'élargir
+jusqu'à ne plus rien attraper. » Retourne `None` tant que l'historique
+non-référence et NON mis en quarantaine d'une source est sous le minimum ;
+au-delà, propose pour chaque type d'écart le maximum PCT et ABS observé
+parmi les runs NORMAUX (jamais en quarantaine — même ceux ensuite
+"acceptés" par un opérateur : une amplitude déjà flaguée comme suspecte ne
+doit jamais élargir mécaniquement le seuil futur), multiplié par
+`MARGE_SECURITE_PROPOSITION` (1.5) — jamais pile sur le pire cas déjà vu
+comme "normal". Écrire la proposition retenue dans `registry/sources.yaml`
+reste un geste humain, délibéré, séparé — ce module n'écrit jamais le
+registre lui-même.
+
+**Réponse à la question posée en préalable — conservation d'état des 4
+sources instantané, avant tout rebranchement.** Les 4 (REQ, Corporations
+Canada, licences Toronto, licences Vancouver) conservent bien un état
+PERSISTANT aujourd'hui, chacune via son propre miroir bespoke
+(`REQEntry`/`CorporationFederaleEntry`/`LicenceMunicipaleEntry`),
+`commit()`/`rollback()` TOUT-OU-RIEN par exécution (`falkye/sources/
+req.py:_ingest_zip_req_reel`, `falkye/sources/corporations_canada.py:
+ingest_snapshot`, `falkye/sources/licences_municipales_communes.py:
+detecter_nouvelles_licences` + le `db_session.commit()` final de `falkye/
+engine.py::ingest_source`) — un run interrompu perd SA propre progression,
+jamais l'état déjà acquis par un run antérieur réussi. Aucune des 4 ne
+tourne aujourd'hui sans conservation d'état ; la condition d'urgence
+qu'Alexandre avait posée ("si l'une tourne sans conservation d'état,
+rebrancher celle-là en priorité") ne s'applique donc à aucune des 4.
+
+En vérifiant ce point, une AUTRE fuite réelle est apparue — orthogonale à
+la conservation d'état par source, hors du périmètre de ce chantier,
+consignée (`DiagnosticJournal`, `type_diagnostic=probleme_autre_chantier`,
+entrée #23) et rapportée plutôt qu'attaquée : `falkye/engine.py::
+run_veille_continue` calcule `since = now - lookback_days` (30 jours par
+défaut) à CHAQUE exécution, sans jamais consulter le dernier run RÉUSSI —
+si l'intervalle réel entre deux exécutions dépasse `lookback_days`, les
+événements plus anciens que la fenêtre glissante ne sont jamais rattrapés,
+pour TOUTE source filtrable par `since` (pas seulement les 4 instantané).
+Une perte irrécupérable au sens de la charte section 14, mais par une voie
+différente de celle de ce chantier (fenêtre de fetch jamais élargie pour
+rattraper un retard, pas un problème de conservation d'état une fois la
+donnée reçue) — territoire d'un futur chantier sur l'ordonnancement des
+exécutions, pas celui-ci.
