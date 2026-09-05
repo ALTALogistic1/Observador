@@ -23,20 +23,39 @@
 #   notes
 
 channels:
-  - id: email
+  - id: postmark
     nom: "Courriel"
     statut: actif
     priorite: 1
+    fournisseur_technique: postmark_api
+    champs_config_requis: [FALKYE_POSTMARK_SERVER_TOKEN, FALKYE_POSTMARK_FROM_ADDR]
+    formes_livraison: [resume]
+    module: falkye.notifications.postmark_channel
+    notes: >
+      Canal d'envoi RÉEL depuis le 2026-09-05. API HTTPS sur api.postmarkapp.com, parce que
+      SMTP est intransportable ici (port 587 en délai d'attente, mesuré le 2026-09-04).
+      Flux de DIFFUSION par défaut (`broadcast`), jamais transactionnel : un résumé
+      hebdomadaire est une diffusion, Postmark sépare les deux sur des IP distinctes et une
+      suspension au lancement coûterait bien plus que l'écart entre les deux flux.
+      `nom` reste "Courriel" — c'est ce que l'utilisateur reçoit; le fournisseur est un
+      détail d'exploitation qui n'a pas à transparaître dans un libellé (charte section 6).
+
+  - id: email
+    nom: "Courriel (SMTP)"
+    statut: a_developper
+    priorite: 5
     fournisseur_technique: smtp
     champs_config_requis: [SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_ADDR]
-    formes_livraison: [resume]
+    formes_livraison: []
     module: falkye.notifications.email_channel
     notes: >
-      SMTP est INUTILISABLE dans l'environnement de développement comme sur l'hôte de
-      production : l'égress est limité au port 443, le port 587 est en délai d'attente et
-      aucune liste blanche ne l'ouvre (mesuré le 2026-09-04). Le canal reste ici, correct et
-      testé, pour un hôte qui l'autoriserait un jour — l'envoi réel passe par le canal
-      `postmark` (API HTTPS). Ne pas activer les deux : le résumé partirait en double.
+      ⚠️ Statut inexact faute de vocabulaire : ce canal n'est pas "à développer", il est
+      ÉCRIT, CORRECT ET TESTÉ — son transport est simplement inatteignable. L'égress est
+      limité au port 443, le port 587 est en délai d'attente et aucune liste blanche ne
+      l'ouvre (mesuré le 2026-09-04). Le registre ne connaît que `actif` et `a_developper`;
+      un troisième état (`indisponible`) dirait la chose exactement. Gardé ici, prêt, pour
+      un hôte qui autoriserait SMTP un jour. Ne jamais l'activer en même temps que
+      `postmark` : le résumé partirait en double.
 
   - id: sms
     nom: "SMS"

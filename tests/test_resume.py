@@ -183,10 +183,13 @@ def test_la_date_denvoi_ne_depend_daucun_identifiant_de_canal_code_en_dur(db_ses
     summary = generer_et_envoyer_resume(db_session, profile)
 
     identifiants = {c.id for c in registry.canaux_actifs() if c.sert_forme("resume")}
-    assert "email" in identifiants  # état actuel du registre
+    sollicites = {ligne[0] for ligne in espion.journal}
+
     assert summary.envoye_le is not None
-    # Et la garantie qui compte : la date vient du SUCCÈS, pas de l'identifiant.
-    assert {ligne[0] for ligne in espion.journal} <= identifiants
+    assert sollicites, "un canal de forme `resume` doit exister au registre"
+    # La garantie qui compte : la date vient du SUCCÈS, pas d'un identifiant.
+    # Aucun nom de canal n'est nommé ici — c'était justement le défaut.
+    assert sollicites <= identifiants
 
 
 # --- Défaut 3 (troisième divergence trouvée en réunifiant) -----------------
