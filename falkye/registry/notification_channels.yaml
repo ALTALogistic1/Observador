@@ -16,6 +16,9 @@
 #   priorite                  ordre de préférence choisi par Alexandre (1 = premier)
 #   fournisseur_technique      ex. smtp, twilio_sms, whatsapp_cloud_api
 #   champs_config_requis       noms des variables d'environnement attendues (voir .env.example)
+#   formes_livraison           resume | unitaire (liste) — ce que ce canal livre. Obligatoire
+#                              sur un canal actif. Charte section 16 : le groupement est la forme
+#                              par défaut, l'envoi unitaire est l'exception justifiée.
 #   module                     chemin du module (falkye/notifications/<module>.py)
 #   notes
 
@@ -26,8 +29,14 @@ channels:
     priorite: 1
     fournisseur_technique: smtp
     champs_config_requis: [SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_ADDR]
+    formes_livraison: [resume]
     module: falkye.notifications.email_channel
-    notes: "Canal actif en Phase 1 — le plus simple à mettre en place. Identifiants SMTP à configurer par Alexandre."
+    notes: >
+      SMTP est INUTILISABLE dans l'environnement de développement comme sur l'hôte de
+      production : l'égress est limité au port 443, le port 587 est en délai d'attente et
+      aucune liste blanche ne l'ouvre (mesuré le 2026-09-04). Le canal reste ici, correct et
+      testé, pour un hôte qui l'autoriserait un jour — l'envoi réel passe par le canal
+      `postmark` (API HTTPS). Ne pas activer les deux : le résumé partirait en double.
 
   - id: sms
     nom: "SMS"
@@ -35,6 +44,7 @@ channels:
     priorite: 2
     fournisseur_technique: twilio_sms
     champs_config_requis: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SMS_FROM_NUMBER]
+    formes_livraison: [resume]
     module: falkye.notifications.sms_channel
     notes: "Nécessite un compte Twilio (ou équivalent) — identifiants/compte à régler par Alexandre quand ce sera le temps."
 
@@ -44,6 +54,7 @@ channels:
     priorite: 3
     fournisseur_technique: whatsapp_cloud_api
     champs_config_requis: [WHATSAPP_PROVIDER_TOKEN, WHATSAPP_PHONE_ID]
+    formes_livraison: [resume]
     module: falkye.notifications.whatsapp_channel
     notes: "Nécessite un compte WhatsApp Business API (ex. Meta Cloud API ou Twilio) — à régler par Alexandre quand ce sera le temps."
 
@@ -55,6 +66,7 @@ channels:
     # Pas de variable d'environnement globale — l'URL est PROPRE à chaque
     # profil (Profile.webhook_url), voir falkye/notifications/webhook_channel.py.
     champs_config_requis: []
+    formes_livraison: [unitaire]
     module: falkye.notifications.webhook_channel
     notes: >
       Construit le 2026-09-02 pour la fonctionnalité Radar+ "accès API/webhook

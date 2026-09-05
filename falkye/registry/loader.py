@@ -238,10 +238,19 @@ class NotificationChannelDef:
     champs_config_requis: list[str]
     module: str | None
     notes: str | None = None
+    # Formes de livraison servies par ce canal — voir
+    # falkye/notifications/base.py::FORMES_LIVRAISON pour la règle de charte qui
+    # l'impose. Obligatoire et non vide pour tout canal ACTIF (validé au
+    # chargement) ; laissé vide sur un canal `a_developper` tant que la question
+    # ne se pose pas.
+    formes_livraison: list[str] = field(default_factory=list)
 
     @property
     def est_actif(self) -> bool:
         return self.statut == "actif"
+
+    def sert_forme(self, forme: str) -> bool:
+        return forme in self.formes_livraison
 
     def charger_canal(self):
         if not self.module:
@@ -464,6 +473,28 @@ def load_registry() -> Registry:
     }
     crm_providers = {p["id"]: CrmProviderDef(**p) for p in crm_providers_raw}
     secteurs_grossiers = [SecteurGrossierDef(**s) for s in secteurs_grossiers_raw]
+
+    # Un canal actif doit dire ce qu'il livre — sans quoi il serait chargé puis
+    # ignoré en silence par les deux chemins de livraison, ce qui est exactement
+    # le mode de panne que la réunification de ces chemins vient de corriger.
+    from falkye.notifications.base import FORMES_LIVRAISON
+
+    for canal in notification_channels.values():
+        if not canal.est_actif:
+            continue
+        if not canal.formes_livraison:
+            raise ValueError(
+                f"registry/notification_channels.yaml : le canal actif '{canal.id}' "
+                f"doit déclarer `formes_livraison` (valeurs possibles : "
+                f"{', '.join(FORMES_LIVRAISON)})."
+            )
+        inconnues = set(canal.formes_livraison) - set(FORMES_LIVRAISON)
+        if inconnues:
+            raise ValueError(
+                f"registry/notification_channels.yaml : forme(s) de livraison inconnue(s) "
+                f"{sorted(inconnues)} sur le canal '{canal.id}' (valeurs possibles : "
+                f"{', '.join(FORMES_LIVRAISON)})."
+            )
 
     nb_defauts = sum(1 for s in statuts_suivi.values() if s.est_defaut)
     if nb_defauts != 1:

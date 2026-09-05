@@ -34,7 +34,9 @@ from falkye.models.notification import (
 from falkye.models.profile import PlanTarifaire, Profile
 from falkye.models.run_log import SourceRunLog
 from falkye.models.signal import Signal
+from falkye.notifications.base import FORME_UNITAIRE
 from falkye.notifications.formatter import formatter_notification
+from falkye.notifications.livraison import livrer
 from falkye.registry.loader import Registry, get_registry
 from falkye.resolution import resolve_company
 from falkye.scoring import calculer_score, franchit_seuil_sensibilite
@@ -415,30 +417,20 @@ def deliver_notification(db_session: Session, notification: Notification, regist
     if notification.hors_profil:
         return
 
+    # Livraison UNITAIRE seulement — c'est-à-dire, depuis la décision du
+    # 2026-09-05, les canaux qui poussent vers un SYSTÈME (webhook ici, CRM plus
+    # bas), jamais un message lu par un humain. Le courriel part désormais GROUPÉ,
+    # par le résumé (falkye/summary.py) : charte section 16, "le groupement est la
+    # forme par défaut; l'envoi unitaire est l'exception justifiée, jamais
+    # l'inverse". Quinze notifications séparées transforment une bonne nouvelle en
+    # irritant et poussent vers le désabonnement.
+    #
+    # Quels canaux servent quelle forme est déclaré au REGISTRE
+    # (registry/notification_channels.yaml::formes_livraison), et la résolution de
+    # destination reste propre à chaque canal — le moteur ne nomme aucun canal.
+    # Chemin commun avec le résumé : falkye/notifications/livraison.py.
     contenu = formatter_notification(notification, registry)
-    for channel_def in registry.canaux_actifs():
-        channel = channel_def.charger_canal()
-        if channel is None:
-            continue
-        # Chaque canal résout SA propre destination à partir du profil (spec
-        # section 4bis, "accès API/webhook complet" réservé à Radar+, avec une URL
-        # PROPRE à chaque profil) — le moteur ne doit jamais savoir qu'un canal
-        # précis existe ni comment il calcule sa destination (principe déjà
-        # établi, voir falkye/notifications/base.py). None = ce canal n'a pas de
-        # destination valide pour ce profil (ex. webhook non configuré, ou plan
-        # insuffisant) — silencieux, pas une erreur de livraison.
-        destinataire = channel.resoudre_destinataire(notification.profile)
-        if destinataire is None:
-            continue
-        result = channel.envoyer(destinataire, contenu)
-        db_session.add(
-            NotificationDelivery(
-                notification_id=notification.id,
-                channel_id=channel_def.id,
-                statut="envoyee" if result.succes else "echec",
-                erreur=result.erreur,
-            )
-        )
+    livrer(db_session, notification.profile, contenu, registry, FORME_UNITAIRE, notification=notification)
     # Intégration CRM (Radar et Radar+, ajoutée le 2026-09-02) — même point de
     # déclenchement qu'un canal de notification classique (une notification
     # nouvellement créée), mais PAS un NotificationChannel : un push CRM est un

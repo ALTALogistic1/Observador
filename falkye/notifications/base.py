@@ -12,6 +12,20 @@ if TYPE_CHECKING:
     from falkye.registry.loader import NotificationChannelDef
 
 
+# Formes de livraison (charte, section 16 : "le groupement est la forme par défaut;
+# l'envoi unitaire est l'exception justifiée, jamais l'inverse — l'exception a besoin
+# d'un seuil explicite, sinon elle redevient la norme par glissement").
+#
+# Déclarées PAR CANAL au registre (registry/notification_channels.yaml,
+# `formes_livraison`) plutôt que décidées dans le moteur : un canal qui pousse vers un
+# système (webhook, CRM) livre à l'unité parce qu'une machine consomme des événements;
+# un canal lu par un humain livre groupé. Le moteur ne connaît ni l'un ni l'autre — il
+# demande au registre quels canaux servent la forme qu'il est en train de livrer.
+FORME_RESUME = "resume"
+FORME_UNITAIRE = "unitaire"
+FORMES_LIVRAISON = (FORME_RESUME, FORME_UNITAIRE)
+
+
 @dataclass
 class NotificationContent:
     sujet: str
@@ -24,6 +38,12 @@ class NotificationContent:
     # (pas un formatter séparé pour webhook) ; les canaux texte (email, sms) l'
     # ignorent simplement, WebhookChannel s'en sert comme corps JSON.
     donnees_structurees: dict | None = None
+    # En-têtes de message supplémentaires — point d'accroche pour
+    # `List-Unsubscribe` / `List-Unsubscribe-Post` (RFC 8058), exigés par Gmail et
+    # Yahoo. Volontairement générique plutôt qu'un champ `list_unsubscribe` dédié :
+    # un canal qui n'a pas de notion d'en-tête (SMS, webhook) l'ignore simplement,
+    # au lieu d'avoir à connaître une exigence propre au courriel.
+    entetes: dict[str, str] | None = None
 
 
 @dataclass
