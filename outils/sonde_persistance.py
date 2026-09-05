@@ -1,27 +1,28 @@
 """Sonde de persistance — chantier 29.
 
-Éprouve `sqlalchemy-libsql` sur les QUATRE usages réels du projet, contre le
-schéma réel complet (33 tables), avant tout engagement de migration.
+Deux rôles, choisis SEULS selon l'état de la cible :
 
-  Sans FALKYE_DB_URL  : fichier libSQL LOCAL — valide la couche dialecte.
-  Avec FALKYE_DB_URL
-   + FALKYE_DB_AUTH_TOKEN : base Turso DISTANTE — valide en plus le transport
-                            HTTPS, l'authentification et le débit d'écriture.
+  **Batterie complète** (cible vide) — éprouve `sqlalchemy-libsql` sur les
+  usages réels du projet, contre le schéma réel complet (33 tables). Détruit et
+  recrée le schéma : c'est le prix d'un test de DDL honnête.
 
-Résultat du 2026-09-04, mode LOCAL : 6/6.
-Résultat du 2026-09-04, mode DISTANT (Turso, us-east-1) : 6/6 sur la correction.
+  **Vérification en lecture seule** (cible peuplée) — joint la base, compte
+  l'état durable, ne touche à rien. C'est le test d'acceptation du chantier 29 :
+  conteneur recyclé, puis reprise qui retrouve l'état sans intervention.
 
-  Trois mesures qui comptent plus que le 6/6 :
-  - latence d'un aller-retour HTTPS : 86 ms;
-  - `executemany` (ce que fait le test 1) = UN aller-retour PAR LIGNE
-    -> 12 lignes/s, soit 60 h pour les 2,7 M lignes de REQ;
-  - un seul INSERT multi-VALUES par lot de 5 000 -> 5 174 lignes/s,
-    soit 8,7 min pour 2,7 M. Lots de 500/1000/2000/5000 mesurés :
-    1 051 / 2 377 / 3 877 / 5 174 lignes/s — le débit monte encore à 5 000.
+⚠️ **La batterie complète ne peut PAS tourner sur une base distante peuplée.**
+Elle commence par un `drop_all`. Le verrou est absolu et sans échappatoire :
+l'état de diff perdu perd des signaux DÉFINITIVEMENT (voir
+falkye/models/etat_diff_source.py), et un « je sais ce que je fais » tapé à
+23 h n'est pas un mécanisme de sécurité. Pour repartir de zéro au distant, il
+faut vider la base délibérément, ailleurs qu'ici.
 
-  Donc le transport n'est pas le goulot : le regroupement l'est. Toute
-  écriture en masse vers le distant doit passer par `.values(liste)` et non
-  par `execute(insert(T), liste)`.
+Cible choisie par `FALKYE_DB_URL`, résolue par `falkye.db` — la sonde ne
+duplique PAS la logique de connexion, elle éprouve celle du produit :
+
+  Sans FALKYE_DB_URL  : fichier libSQL LOCAL — valide la couche dialecte seule.
+  `libsql://…` + FALKYE_DB_AUTH_TOKEN : base DISTANTE — valide en plus le
+                        transport HTTPS, l'authentification et le débit.
 
 Usage (dépendances hors du projet, volontairement — la sonde précède la
 décision d'ajouter sqlalchemy-libsql aux dépendances) :
@@ -30,43 +31,100 @@ décision d'ajouter sqlalchemy-libsql aux dépendances) :
     PYTHONPATH=. /tmp/sonde/bin/python outils/sonde_persistance.py
 
 `SONDE_N` règle le nombre de lignes du test d'insertion en lot (défaut 5000).
-Se réutilise tel quel pour vérifier la connexion après un recyclage de
-conteneur — le test d'acceptation du chantier 29.
+
+Résultat du 2026-09-04, mode LOCAL : 6/6.
+Résultat du 2026-09-04, mode DISTANT (us-east-1) : 6/6 sur la correction.
+
+  Trois mesures qui comptent plus que le 6/6 :
+  - latence d'un aller-retour HTTPS : 86 ms;
+  - `executemany` = UN aller-retour PAR LIGNE -> 12 lignes/s, soit 60 h pour
+    les 2,7 M lignes du REQ;
+  - un seul INSERT multi-VALUES par lot de 5 000 -> 5 174 lignes/s, soit
+    8,7 min. Lots de 500/1000/2000/5000 : 1 051/2 377/3 877/5 174 lignes/s.
+  Le transport n'est pas le goulot, le regroupement l'est. Corrigé dans
+  falkye/diff_engine.py::_inserer_lignes_en_lot, verrouillé par ses tests.
+
+  Et un mur : SQLITE_MAX_VARIABLE_NUMBER = 32 766 côté distant. 5 000 lignes ×
+  6 colonnes = 30 000, à 9 % du mur. D'où un budget de VARIABLES et non de
+  lignes dans diff_engine.
 """
-import os, sys, time, json
+import os, time, json
 from datetime import datetime, timezone
-from sqlalchemy import create_engine, select, insert, func
+
+from sqlalchemy import create_engine, select, insert, func, inspect, text
 from sqlalchemy.orm import Session
 
+from falkye.db import est_base_distante, get_db_url, resoudre_cible
 from falkye.models.base import Base
 import falkye.models  # noqa
 from falkye.models.req_entry import REQEntry
 from falkye.models.etat_diff_source import EtatLigneSource
 from falkye.models.company import Company, StatutLegal, StatutResolution, StatutVerification
 
-def url_sqlalchemy():
-    """Retourne (url, connect_args, mode).
 
-    Le jeton NE PASSE PAS par l'URL. Mesuré le 2026-09-04 : le dialecte range
-    `authToken` dans la chaîne de requête de l'URL qu'il donne à
-    `libsql_experimental.connect()`, mais ce pilote ne la lit pas — sa
-    signature porte `auth_token=''` en argument nommé, et le serveur répond
-    401 « empty JWT token ». Le jeton doit donc voyager par `connect_args`.
-    """
-    brut, jeton = os.environ.get("FALKYE_DB_URL"), os.environ.get("FALKYE_DB_AUTH_TOKEN")
-    if brut and brut.startswith("libsql://"):
-        hote = brut.removeprefix("libsql://")
-        return f"sqlite+libsql://{hote}?secure=true", {"auth_token": jeton or ""}, "DISTANT"
+def cible():
+    """(url, connect_args, mode) — la résolution distante vient de falkye.db,
+    pour que la sonde éprouve le chemin du produit et pas une copie."""
+    if est_base_distante():
+        url, connect_args = resoudre_cible(get_db_url())
+        return url, connect_args, "DISTANT"
     return "sqlite+libsql:///" + os.path.abspath("sonde_locale.db"), {}, "LOCAL"
 
+
+def compter_etat_durable(moteur):
+    """{table: nb_lignes} pour les tables du schéma réellement présentes.
+
+    UN SEUL aller-retour (UNION ALL) plutôt qu'un par table : à 86 ms l'unité,
+    33 tables coûteraient trois secondes pour une question qui en vaut une."""
+    presentes = sorted(set(inspect(moteur).get_table_names()) & set(Base.metadata.tables))
+    if not presentes:
+        return {}
+    requete = " UNION ALL ".join(f"SELECT '{t}' AS t, COUNT(*) AS n FROM {t}" for t in presentes)
+    with moteur.connect() as cx:
+        return {t: n for t, n in cx.execute(text(requete)).all()}
+
+
 resultats = []
+
+
 def verdict(nom, ok, detail=""):
     resultats.append((nom, ok, detail))
     print(f"  [{'OK ' if ok else 'ÉCHEC'}] {nom}" + (f" — {detail}" if detail else ""))
 
-url, connect_args, mode = url_sqlalchemy()
+
+def conclure(mode):
+    print("\n=== VERDICT ===")
+    echecs = [n for n, ok, _ in resultats if not ok]
+    print(("ROUGE — " + ", ".join(echecs)) if echecs
+          else f"VERT — {len(resultats)}/{len(resultats)} usages passent en mode {mode}")
+    raise SystemExit(1 if echecs else 0)
+
+
+url, connect_args, mode = cible()
 print(f"=== SONDE — mode {mode} ===\n")
 moteur = create_engine(url, connect_args=connect_args)
+
+# --- Verrou : jamais de drop_all sur une base distante qui porte de l'état ---
+if mode == "DISTANT":
+    try:
+        etat = compter_etat_durable(moteur)
+    except Exception as e:
+        print(f"  [ÉCHEC] Connexion à la base distante — {type(e).__name__}: {e}")
+        raise SystemExit(1)
+
+    peuplees = {t: n for t, n in etat.items() if n}
+    if peuplees:
+        print("VÉRIFICATION EN LECTURE SEULE — la base distante porte de l'état.")
+        print("La batterie complète est verrouillée : elle commencerait par un drop_all.\n")
+        verdict("Connexion à la base distante", True, f"{len(etat)} tables du schéma présentes")
+        verdict("État durable retrouvé", True,
+                ", ".join(f"{t}={n:,}" for t, n in sorted(peuplees.items(), key=lambda x: -x[1])[:8]))
+        total = sum(peuplees.values())
+        verdict("Reprise sans intervention", True, f"{total:,} lignes durables au total")
+        conclure(mode)
+    print("Base distante VIDE — la batterie complète est autorisée.\n")
+
+# --- Batterie complète (cible vide, ou fichier local) ---
 
 # 0. DDL : les 33 tables réelles
 try:
@@ -78,22 +136,28 @@ except Exception as e:
 N = int(os.environ.get("SONDE_N", "5000"))
 maintenant = datetime.now(timezone.utc)
 
-# 1. Insertion Core en LOT — le chemin de diff_engine.py (REQ : 2,7 M lignes)
+# 1. Insertion Core en LOT — le chemin de diff_engine.py (REQ : 2,7 M lignes).
+#    Forme multi-VALUES, celle que diff_engine emploie désormais : c'est elle
+#    qu'il faut mesurer, pas l'executemany qu'on vient d'abandonner.
 try:
     lignes = [{"source_id": "sonde", "cle_naturelle": f"cle-{i}", "empreinte": f"{i:064d}",
                "donnees_normalisees": {"nom": f"entreprise {i}", "ville": "Montréal"},
                "premiere_apparition": maintenant, "derniere_observation": maintenant} for i in range(N)]
+    from falkye.diff_engine import BUDGET_VARIABLES_INSERTION
+    par_lot = max(1, BUDGET_VARIABLES_INSERTION // 6)
     t0 = time.time()
     with moteur.begin() as cx:
-        cx.execute(insert(EtatLigneSource), lignes)
+        for d in range(0, N, par_lot):
+            cx.execute(insert(EtatLigneSource).values(lignes[d:d + par_lot]))
     dt = time.time() - t0
     with Session(moteur) as s:
         n = s.execute(select(func.count(EtatLigneSource.id))).scalar_one()
     debit = N / dt if dt else 0
-    verdict("Insertion Core en lot", n == N,
-            f"{n:,} lignes en {dt:.2f}s — {debit:,.0f} lignes/s — extrapolé 2,7 M : {2_700_000/debit/60:.1f} min")
+    verdict("Insertion Core en lot (multi-VALUES)", n == N,
+            f"{n:,} lignes en {dt:.2f}s — {debit:,.0f} lignes/s — "
+            f"extrapolé 2,7 M : {2_700_000/debit/60:.1f} min")
 except Exception as e:
-    verdict("Insertion Core en lot", False, f"{type(e).__name__}: {e}")
+    verdict("Insertion Core en lot (multi-VALUES)", False, f"{type(e).__name__}: {e}")
 
 # 2. GLOB — falkye/sources/req.py:928, le chemin critique de résolution NEQ
 try:
@@ -153,7 +217,4 @@ try:
 except Exception as e:
     verdict("func.lower() + .ilike()", False, f"{type(e).__name__}: {e}")
 
-print("\n=== VERDICT ===")
-echecs = [n for n, ok, _ in resultats if not ok]
-print(("ROUGE — " + ", ".join(echecs)) if echecs else f"VERT — {len(resultats)}/{len(resultats)} usages passent en mode {mode}")
-raise SystemExit(1 if echecs else 0)
+conclure(mode)

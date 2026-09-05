@@ -681,3 +681,227 @@ def test_executer_diff_groupe_n_invoque_le_callback_que_si_tous_les_grains_sont_
     )
     assert all(not r.quarantaine and not r.run_reference for r in rapports)
     assert appels == [rapports]
+
+
+# --- 10. Forme de l'insertion en lot (chantier 29) ---
+#
+# Ces tests ne portent pas sur le RÉSULTAT de l'insertion — il est déjà couvert
+# plus haut — mais sur la FORME des énoncés émis. Au distant, cette forme décide
+# entre 8,7 minutes et 60 heures pour le même run de référence, et l'écart est
+# rigoureusement invisible aux tests en mémoire : les deux formes passent, et
+# aussi vite. D'où une vérification directe de ce qui part vers la base.
+
+
+def _enonces_emis(db_session):
+    """Enregistre chaque énoncé exécuté sur la connexion, avec son drapeau
+    `executemany` — c'est CE drapeau qui distingue un aller-retour par ligne
+    d'un énoncé multi-VALUES."""
+    from sqlalchemy import event
+
+    journal = []
+    moteur = db_session.get_bind()
+
+    def _ecouter(conn, cursor, enonce, parametres, contexte, executemany):
+        journal.append((enonce, executemany, parametres))
+
+    event.listen(moteur, "before_cursor_execute", _ecouter)
+    return journal, lambda: event.remove(moteur, "before_cursor_execute", _ecouter)
+
+
+def test_insertion_en_lot_emet_un_enonce_multi_values_jamais_un_par_ligne(db_session):
+    """Régression du chantier 29, mesurée le 2026-09-04 contre la base distante
+    réelle : `execute(insert(T), liste)` est un `executemany`, que le pilote
+    libSQL exécute en UN ALLER-RETOUR HTTPS PAR LIGNE — 12 lignes/s, soit 60 h
+    pour les 2,7 M lignes du REQ. `execute(insert(T).values(liste))` est un seul
+    énoncé multi-VALUES : 5 174 lignes/s, 8,7 min. Même donnée, ×430.
+
+    Le test interdit donc la première forme sur ce chemin."""
+    journal, arreter = _enonces_emis(db_session)
+    try:
+        executer_diff(db_session, "racj", [_ligne(f"c{i}", f"E{i}", 1) for i in range(50)], COLONNES, CHAMPS_PERTINENTS)
+    finally:
+        arreter()
+
+    insertions = [(e, many) for e, many, _ in journal if "INSERT INTO etat_ligne_source" in e]
+    assert insertions, "aucune insertion observée — le test ne mesure plus rien"
+    assert not any(many for _, many in insertions), (
+        "l'insertion d'état passe par executemany : un aller-retour par ligne au distant"
+    )
+    assert len(insertions) == 1, f"50 lignes devraient tenir en UN énoncé, {len(insertions)} émis"
+    # Un seul énoncé, mais bien 50 lignes dedans : autant de groupes de valeurs.
+    assert insertions[0][0].count("(?") >= 50 or insertions[0][0].count("VALUES") == 1
+
+
+def test_insertion_en_lot_decoupe_selon_le_budget_de_variables(db_session, monkeypatch):
+    """Le lot se mesure en VARIABLES LIÉES, pas en lignes : SQLite refuse un
+    énoncé au-delà de SQLITE_MAX_VARIABLE_NUMBER (32 766 mesuré côté distant).
+    Avec un budget réduit à 12 variables et 6 variables par ligne, chaque
+    énoncé doit porter exactement 2 lignes."""
+    monkeypatch.setattr(diff_engine_module, "BUDGET_VARIABLES_INSERTION", 12)
+    monkeypatch.setattr(diff_engine_module, "_variables_par_ligne", None)
+
+    journal, arreter = _enonces_emis(db_session)
+    try:
+        executer_diff(db_session, "racj", [_ligne(f"c{i}", f"E{i}", 1) for i in range(7)], COLONNES, CHAMPS_PERTINENTS)
+    finally:
+        arreter()
+
+    insertions = [p for e, _, p in journal if "INSERT INTO etat_ligne_source" in e]
+    assert [len(p) // 6 for p in insertions] == [2, 2, 2, 1], "découpage attendu 2+2+2+1 pour 7 lignes"
+    assert db_session.query(EtatLigneSource).filter_by(source_id="racj").count() == 7
+
+
+def test_taille_de_lot_retrecit_si_le_modele_gagne_une_colonne(db_session):
+    """Le garde-fou qui compte vraiment. Les 6 colonnes actuelles donnent
+    30 000 variables pour 5 000 lignes — 9 % sous le mur du distant. Une
+    colonne de plus ferait 35 000, donc « too many SQL variables », AU DISTANT
+    SEULEMENT et jamais aux tests. La taille de lot doit donc se déduire du
+    modèle plutôt que d'être un nombre de lignes figé."""
+    par_ligne = diff_engine_module._variables_par_ligne_etat_ligne(db_session)
+    assert par_ligne == 6, "le modèle a changé : vérifier que le lot rétrécit bien en conséquence"
+
+    taille = diff_engine_module._taille_lot_insertion(db_session)
+    assert taille * par_ligne <= 32_766, "le lot dépasserait SQLITE_MAX_VARIABLE_NUMBER au distant"
+
+    # Une colonne de plus -> lot plus petit, produit toujours sous le mur.
+    diff_engine_module._variables_par_ligne = par_ligne + 1
+    try:
+        taille_apres = diff_engine_module._taille_lot_insertion(db_session)
+    finally:
+        diff_engine_module._variables_par_ligne = None
+    assert taille_apres < taille
+    assert taille_apres * (par_ligne + 1) <= 32_766
+
+
+def test_insertion_en_lot_ignore_une_liste_vide(db_session):
+    """Une liste vide ne doit émettre aucun énoncé — `insert().values([])` est
+    invalide, là où l'ancien `execute(insert(T), [])` ne faisait rien."""
+    journal, arreter = _enonces_emis(db_session)
+    try:
+        diff_engine_module._inserer_lignes_en_lot(db_session, "racj", [])
+    finally:
+        arreter()
+    assert not [e for e, _, _ in journal if "INSERT INTO etat_ligne_source" in e]
+
+
+# --- 11. Modifications et disparitions : bornées elles aussi (chantier 29) ---
+#
+# La quarantaine n'arrête un run que si le seuil relatif ET le seuil absolu sont
+# franchis ensemble (_depasse). Sur une source de 2,7 M lignes, jusqu'à 50 % de
+# modifications et 30 % de disparitions passent donc SANS quarantaine. « Volume
+# du diff, pas de la population » ne borne rien à cette échelle.
+
+
+def test_modifications_un_enonce_par_lot_jamais_un_select_par_ligne(db_session):
+    """Mesuré le 2026-09-04 au distant : un SELECT par ligne tient 11 lignes/s.
+    Le code d'origine en émettait un par modification — 100 000 modifications
+    auraient demandé 2 h 30."""
+    executer_diff(db_session, "racj", [_ligne(f"c{i}", f"E{i}", 1) for i in range(60)], COLONNES, CHAMPS_PERTINENTS)
+
+    journal, arreter = _enonces_emis(db_session)
+    try:
+        executer_diff(db_session, "racj", [_ligne(f"c{i}", f"E{i}", 2) for i in range(60)], COLONNES, CHAMPS_PERTINENTS)
+    finally:
+        arreter()
+
+    selects = [e for e, _, _ in journal if e.lstrip().upper().startswith("SELECT") and "etat_ligne_source" in e]
+    updates = [e for e, _, _ in journal if e.lstrip().upper().startswith("UPDATE") and "etat_ligne_source" in e]
+    # 60 modifications, plafond de 50 termes d'union au distant -> 2 énoncés.
+    assert len(updates) == 2, f"attendu 2 énoncés (plafond {diff_engine_module.TERMES_UNION_MAX}), {len(updates)} émis"
+    assert len(selects) <= 2, f"un SELECT par modification est revenu ({len(selects)} émis)"
+    assert db_session.query(EtatLigneSource).filter_by(source_id="racj").count() == 60
+
+
+def test_modifications_ecrivent_le_meme_encodage_que_l_insertion(db_session):
+    """Une modification passe par `UPDATE ... FROM (SELECT ...)`, une apparition
+    par `INSERT ... VALUES`. Les deux doivent écrire le MÊME encodage pour un
+    même dict — d'où des valeurs qui traversent les types SQLAlchemy plutôt
+    qu'un `json.dumps` posé à la main dans le chemin de modification."""
+    accents = {"nom": "Aciérie Côté & Frères — Montréal", "capacite": 1}
+    executer_diff(db_session, "racj", [LigneSnapshot(cle="c1", champs=dict(accents))], COLONNES, CHAMPS_PERTINENTS)
+
+    modifie = dict(accents, nom="Aciérie Côté & Frères — Québec")
+    executer_diff(db_session, "racj", [LigneSnapshot(cle="c1", champs=modifie)], COLONNES, CHAMPS_PERTINENTS)
+
+    etat = db_session.query(EtatLigneSource).filter_by(source_id="racj", cle_naturelle="c1").one()
+    assert etat.donnees_normalisees == modifie
+    assert etat.empreinte == calculer_empreinte(modifie)
+
+
+def test_modification_sans_ligne_d_etat_reste_une_erreur(db_session):
+    """Le code d'origine levait NoResultFound (scalar_one). L'invariant survit
+    au passage en lot : une modification sans état correspondant est un défaut
+    en amont, jamais quelque chose à absorber en silence."""
+    from falkye.diff_engine import Modification
+
+    with pytest.raises(RuntimeError, match="sans ligne d'état correspondante"):
+        diff_engine_module._appliquer_modifications_en_lot(
+            db_session, "racj", [Modification(cle="fantome", champs_avant={}, champs_apres={"nom": "X"}, champs_changes=["nom"])]
+        )
+
+
+def test_disparitions_decoupees_sous_le_plafond_de_variables(db_session, monkeypatch):
+    """`IN (...)` lie UNE VARIABLE PAR CLÉ. Non découpé, il ne ralentit pas au
+    distant : il plante (« too many SQL variables ») au-delà de 32 766 clés —
+    et les seuils laissent passer jusqu'à 30 % de disparitions, soit 818 000
+    clés pour une source de la taille du REQ."""
+    monkeypatch.setattr(diff_engine_module, "BUDGET_VARIABLES_INSERTION", 6)
+
+    executer_diff(db_session, "racj", [_ligne(f"c{i}", f"E{i}", 1) for i in range(12)], COLONNES, CHAMPS_PERTINENTS)
+
+    journal, arreter = _enonces_emis(db_session)
+    try:
+        diff_engine_module._supprimer_lignes_en_lot(db_session, "racj", [f"c{i}" for i in range(12)])
+        db_session.commit()
+    finally:
+        arreter()
+
+    suppressions = [p for e, _, p in journal if e.lstrip().upper().startswith("DELETE")]
+    assert [len(p) - 1 for p in suppressions] == [5, 5, 2], "découpage attendu 5+5+2 pour 12 clés"
+    assert db_session.query(EtatLigneSource).filter_by(source_id="racj").count() == 0
+
+
+def test_disparitions_un_enonce_par_lot_jamais_un_delete_par_ligne(db_session):
+    executer_diff(db_session, "racj", [_ligne(f"c{i}", f"E{i}", 1) for i in range(40)], COLONNES, CHAMPS_PERTINENTS)
+
+    journal, arreter = _enonces_emis(db_session)
+    try:
+        executer_diff(db_session, "racj", [_ligne(f"c{i}", f"E{i}", 1) for i in range(30)], COLONNES, CHAMPS_PERTINENTS)
+    finally:
+        arreter()
+
+    suppressions = [e for e, _, _ in journal if e.lstrip().upper().startswith("DELETE") and "etat_ligne_source" in e]
+    assert len(suppressions) == 1, f"10 disparitions devraient tenir en UN énoncé, {len(suppressions)} émis"
+    assert db_session.query(EtatLigneSource).filter_by(source_id="racj").count() == 30
+
+
+def test_modifications_et_disparitions_vides_n_emettent_rien(db_session):
+    journal, arreter = _enonces_emis(db_session)
+    try:
+        diff_engine_module._appliquer_modifications_en_lot(db_session, "racj", [])
+        diff_engine_module._supprimer_lignes_en_lot(db_session, "racj", [])
+    finally:
+        arreter()
+    assert not [e for e, _, _ in journal if "etat_ligne_source" in e]
+
+
+def test_modifications_respectent_le_plafond_de_termes_d_union(db_session):
+    """Second plafond, indépendant de celui des variables et bien plus bas :
+    le serveur distant refuse un SELECT composé de plus de 50 termes, là où le
+    SQLite local en accepte 500. Un lot calibré sur le local passerait les
+    tests et planterait au distant — la valeur du distant s'applique donc
+    partout."""
+    assert diff_engine_module.TERMES_UNION_MAX == 50
+    assert diff_engine_module._taille_lot_insertion(db_session) > diff_engine_module.TERMES_UNION_MAX
+
+    executer_diff(db_session, "racj", [_ligne(f"c{i}", f"E{i}", 1) for i in range(120)], COLONNES, CHAMPS_PERTINENTS)
+    journal, arreter = _enonces_emis(db_session)
+    try:
+        executer_diff(db_session, "racj", [_ligne(f"c{i}", f"E{i}", 2) for i in range(120)], COLONNES, CHAMPS_PERTINENTS)
+    finally:
+        arreter()
+
+    updates = [p for e, _, p in journal if e.lstrip().upper().startswith("UPDATE") and "etat_ligne_source" in e]
+    assert len(updates) == 3, "120 modifications = 50+50+20 énoncés"
+    # 4 variables par ligne + le source_id de la clause WHERE.
+    assert [(len(p) - 1) // 4 for p in updates] == [50, 50, 20]

@@ -1,10 +1,23 @@
 """Connexion base de données.
 
-SQLite par défaut (fichier local, largement suffisant pour un usage solo en Phase 1) —
-voir FALKYE_DB_URL dans .env.example. Le choix technique de la base de données
-appartient à l'implémentation (README : "ces choix technique t'appartiennent"). Passer
-à PostgreSQL plus tard ne demande qu'un changement d'URL, le code ORM ne présume pas
-du moteur.
+Deux cibles, choisies par `FALKYE_DB_URL` :
+
+  - **fichier SQLite local** (défaut) — `sqlite:///./data/falkye.sqlite3`. Suffit
+    pour un usage solo, mais ne survit PAS au recyclage du conteneur : tout état
+    de diff écrit là est perdu, et un état de diff perdu perd des signaux
+    définitivement (voir falkye/models/etat_diff_source.py).
+  - **base gérée compatible SQLite, en HTTPS** — `libsql://<hôte>`, avec le jeton
+    dans `FALKYE_DB_AUTH_TOKEN`. C'est la cible durable du chantier 29. Le choix
+    du dialecte n'est pas une préférence : l'égress du conteneur est limité au
+    port 443, donc aucun PostgreSQL n'est joignable — c'est le PORT qui
+    disqualifie PostgreSQL, pas le dialecte.
+
+**Le jeton ne passe PAS par l'URL.** Mesuré le 2026-09-04 contre un point d'entrée
+vivant : le dialecte `sqlalchemy-libsql` range `authToken` dans la chaîne de requête
+de l'URL qu'il donne à `libsql_experimental.connect()`, mais ce pilote ne lit pas la
+chaîne de requête — sa signature porte `auth_token=''` en argument nommé. Résultat
+sans ce détour : `401 Unauthorized — empty JWT token`, à la première requête et pas
+à la connexion. Le jeton voyage donc par `connect_args`.
 """
 from __future__ import annotations
 
@@ -18,9 +31,47 @@ from falkye.models.base import Base
 
 DEFAULT_DB_URL = "sqlite:///./data/falkye.sqlite3"
 
+PREFIXE_LIBSQL = "libsql://"
+
 
 def get_db_url() -> str:
     return os.environ.get("FALKYE_DB_URL", DEFAULT_DB_URL)
+
+
+def est_base_distante(db_url: str | None = None) -> bool:
+    """Vrai si l'URL désigne la base durable distante plutôt qu'un fichier local.
+
+    Sert aux garde-fous qui doivent se comporter différemment selon la cible —
+    typiquement : refuser une opération destructive quand elle porterait sur la
+    base durable (voir outils/sonde_persistance.py)."""
+    return (db_url if db_url is not None else get_db_url()).startswith(PREFIXE_LIBSQL)
+
+
+def resoudre_cible(db_url: str) -> tuple[str, dict]:
+    """Traduit `FALKYE_DB_URL` en (URL SQLAlchemy, connect_args).
+
+    Échoue TÔT et explicitement quand le jeton manque : sans ce garde-fou, une
+    URL distante sans jeton produit un `401 empty JWT token` opaque au premier
+    accès à la base, donc loin du vrai défaut."""
+    if db_url.startswith(PREFIXE_LIBSQL):
+        hote = db_url.removeprefix(PREFIXE_LIBSQL)
+        jeton = os.environ.get("FALKYE_DB_AUTH_TOKEN", "").strip()
+        if not jeton:
+            raise RuntimeError(
+                "FALKYE_DB_URL désigne la base distante "
+                f"({PREFIXE_LIBSQL}{hote}) mais FALKYE_DB_AUTH_TOKEN est absente ou vide. "
+                "Sans jeton, le serveur répond « 401 Unauthorized — empty JWT token » "
+                "au premier accès à la base, pas à la connexion."
+            )
+        # `secure=true` fait bâtir une URL https:// par le dialecte ; le jeton,
+        # lui, doit être un argument NOMMÉ du pilote (voir l'en-tête du module).
+        return f"sqlite+libsql://{hote}?secure=true", {
+            "auth_token": jeton,
+            "check_same_thread": False,
+        }
+    if db_url.startswith("sqlite"):
+        return db_url, {"check_same_thread": False}
+    return db_url, {}
 
 
 def _ensure_sqlite_dir(db_url: str) -> None:
@@ -38,9 +89,21 @@ def get_engine():
     if _engine is None:
         db_url = get_db_url()
         _ensure_sqlite_dir(db_url)
-        connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
-        _engine = create_engine(db_url, connect_args=connect_args)
+        url_sqlalchemy, connect_args = resoudre_cible(db_url)
+        _engine = create_engine(url_sqlalchemy, connect_args=connect_args)
     return _engine
+
+
+def reinitialiser_moteur() -> None:
+    """Oublie le moteur et la fabrique de sessions mémorisés.
+
+    Le moteur est mémorisé au niveau du module : sans ce point d'entrée, un test
+    qui change `FALKYE_DB_URL` continue de parler à la cible précédente."""
+    global _engine, _SessionLocal
+    if _engine is not None:
+        _engine.dispose()
+    _engine = None
+    _SessionLocal = None
 
 
 def get_sessionmaker() -> sessionmaker:

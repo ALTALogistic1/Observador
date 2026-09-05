@@ -17,3 +17,6 @@ dist/
 
 # Cache de connecteurs (snapshots téléchargés des sources ouvertes)
 /cache/
+
+# Sonde de persistance (chantier 29) — fichier local de travail
+sonde_locale.db

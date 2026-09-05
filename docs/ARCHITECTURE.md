@@ -1800,15 +1800,12 @@ lignes, voir plus bas) : la première implémentation (un objet ORM par
 ligne, ajouté au unit-of-work de la session) faisait exploser la mémoire
 bien avant la fin de l'insertion à cette échelle (~9,6 Go observés, tué
 avant complétion). Corrigé par `_inserer_lignes_en_lot` (SQLAlchemy Core,
-`insert()` par lots de `TAILLE_LOT_INSERTION = 5000` dicts bruts, jamais
-d'objet ORM par ligne) pour le run de référence ET les apparitions — seuls
-chemins qui touchent potentiellement la POPULATION COMPLÈTE d'une source.
-La lecture de l'état précédent (`etats_precedents`, comparé pour calculer
-le diff) suit le même principe : colonnes Core plutôt que des instances
-ORM complètes, cette lecture aussi portant sur la population complète à
-CHAQUE run non-référence. Les mutations ciblées (modifications,
-disparitions) restent en ORM ligne par ligne — leur volume est celui du
-DIFF, pas de la population, sans commune mesure. Limite honnête qui reste,
+dicts bruts, jamais d'objet ORM par ligne) pour le run de référence ET les
+apparitions — seuls chemins qui touchent potentiellement la POPULATION
+COMPLÈTE d'une source. La lecture de l'état précédent (`etats_precedents`,
+comparé pour calculer le diff) suit le même principe : colonnes Core plutôt
+que des instances ORM complètes, cette lecture aussi portant sur la
+population complète à CHAQUE run non-référence. Limite honnête qui reste,
 documentée ici plutôt que glissée sous silence : `etats_precedents` est
 tout de même chargé intégralement en mémoire (comme dict Python) à chaque
 run non-référence — un choix qui tient jusqu'à plusieurs millions de
@@ -1816,6 +1813,50 @@ lignes par source (validé contre REQ, la plus grosse source réelle du
 projet) mais qui redeviendrait un problème avec un ordre de grandeur
 supplémentaire ; une diffusion côté base de données serait le prochain
 palier si jamais nécessaire, hors de la portée de ce chantier.
+
+**Aucun aller-retour par ligne, nulle part — la règle du chantier 29.**
+`etat_ligne_source` vit désormais dans la base distante, joignable seulement
+en HTTPS. Un aller-retour y coûte **86 ms** (mesuré le 2026-09-04 contre le
+point d'entrée réel), ce qui transforme toute boucle « un énoncé par ligne »
+en panne d'exploitation. Le local ne le voit pas : les deux formes y passent,
+et vite. Trois chemins étaient concernés, tous corrigés et couverts par des
+tests qui vérifient la FORME des énoncés émis, pas seulement leur résultat :
+
+| Chemin | Avant | Après | Mesure distante |
+|---|---|---|---|
+| Apparitions / run de référence | `execute(insert(T), liste)` — un `executemany`, donc un aller-retour par ligne | `execute(insert(T).values(lot))` — un énoncé multi-VALUES | 12 → **5 049 lignes/s**. Le REQ passe de 60 h à **8,7 min** |
+| Modifications | un `SELECT` puis un `UPDATE` par ligne | `UPDATE ... FROM (SELECT ... UNION ALL ...)` par lot | 11 → **411 lignes/s**. 20 000 modifications : 30 min → **49 s** |
+| Disparitions | `IN (...)` non découpé, puis un `delete()` ORM par ligne | `DELETE ... WHERE cle_naturelle IN (lot)` découpé | **8 358 clés/s**, et surtout : ne plante plus |
+
+**Deux plafonds du serveur, mesurés et respectés séparément.** Ils ne sont pas
+interchangeables, et le second est le plus traître :
+
+- `SQLITE_MAX_VARIABLE_NUMBER` = **32 766** au distant. Un énoncé multi-VALUES
+  lie `lignes × colonnes` variables, d'où `BUDGET_VARIABLES_INSERTION` (30 000)
+  et une taille de lot DÉDUITE du modèle, jamais un nombre de lignes figé : les
+  6 colonnes actuelles donnent 30 000 variables, à 9 % du mur. Une seule
+  colonne ajoutée à `EtatLigneSource` casserait le run de référence — au
+  distant seulement, jamais aux tests. `test_taille_de_lot_retrecit_si_le_modele_gagne_une_colonne`
+  garde cette porte.
+- `SQLITE_MAX_COMPOUND_SELECT` = **50 termes** au distant, contre **500** en
+  local. Dix fois plus strict, et invisible à tout test en mémoire — d'où
+  `TERMES_UNION_MAX = 50` appliqué PARTOUT, pour que le chemin éprouvé aux
+  tests soit celui de la production.
+
+Deux formes ont par ailleurs été essayées et écartées sur mesure, pas sur
+principe : `UPDATE ... FROM (VALUES ...)` est refusée par l'analyseur libSQL
+(`SQL_PARSE_ERROR`), et le jeton d'authentification placé dans la chaîne de
+requête de l'URL est ignoré par le pilote — voir `falkye/db.py`.
+
+**Le coût en écritures, sous l'angle qui décide.** La base distante facture les
+lignes écrites. Un run non-référence sans écart en écrit **zéro** (vérifié) ;
+un run avec ~100 écarts en écrit ~100. Le coût réel est donc celui du run de
+RÉFÉRENCE, ponctuel par source : REQ 2 726 312 + Corporations Canada 694 844 +
+Toronto 37 501 + Vancouver 10 000 = **3 468 657 lignes**, soit ~1,6 Go d'état
+stocké. La question d'exploitation n'est pas « combien par mois » mais
+« combien de runs de référence » — un état perdu est le seul événement qui
+refait payer la facture entière, et c'est précisément ce que la persistance
+distante empêche.
 
 ### Section 11 du mandat — les deux réponses implémentées telles quelles
 

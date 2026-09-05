@@ -60,9 +60,21 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import func, insert, select
+from sqlalchemy import (
+    DateTime,
+    JSON,
+    String,
+    delete,
+    func,
+    insert,
+    literal,
+    select,
+    union_all,
+    update,
+)
 from sqlalchemy.orm import Session
 
+from falkye.models.base import utcnow
 from falkye.models.diff_quarantaine import DiffQuarantaine, MotifQuarantaine, StatutQuarantaine
 from falkye.models.diff_run_historique import DiffRunHistorique
 from falkye.models.etat_diff_source import EtatLigneSource, EtatSchemaSource
@@ -81,13 +93,64 @@ GENERATIONS_CONSERVEES = 5  # "un petit nombre de générations suffit" (mandat)
 # par ligne (ORM, unit-of-work) fait exploser la mémoire bien avant la fin de
 # l'insertion à cette échelle (~9,6 Go observés, tué avant complétion) — un
 # INSERT en lot (dicts bruts, jamais d'objet ORM par ligne, jamais tenu en
-# mémoire par le identity map) reste stable quel que soit le volume. Les
-# disparitions/modifications restent en ORM (update/delete par ligne) : leur
-# volume est celui du DIFF, pas de la population, donc sans commune mesure.
-TAILLE_LOT_INSERTION = 5000
+# mémoire par le identity map) reste stable quel que soit le volume.
+#
+# DEUXIÈME découverte, celle du chantier 29 (mesurée le 2026-09-04 contre la
+# base distante réelle) : la forme de l'appel compte autant que le lot.
+#
+#   `execute(insert(T), liste)` est un `executemany` — le pilote libSQL en fait
+#   UN ALLER-RETOUR HTTPS PAR LIGNE. À 86 ms d'aller-retour : 12 lignes/s, soit
+#   60 HEURES pour les 2,7 M lignes du REQ.
+#   `execute(insert(T).values(liste))` est UN SEUL énoncé multi-VALUES : 3
+#   allers-retours pour 200 lignes, 5 174 lignes/s, soit 8,7 min pour 2,7 M.
+#
+# Même donnée, même lot, ×430. En local le choix est indifférent (aucun
+# aller-retour) ; au distant il décide si le run de référence est faisable.
+#
+# Le LOT SE MESURE EN VARIABLES LIÉES, PAS EN LIGNES. Un énoncé multi-VALUES
+# lie `nb_lignes × nb_colonnes` variables, et SQLite en refuse au-delà de
+# SQLITE_MAX_VARIABLE_NUMBER (32 766 côté serveur distant — mesuré : 5 000
+# lignes passent, 10 000 sont refusées « too many SQL variables »). Fixer un
+# nombre de LIGNES ferait dépendre la survie du run de référence du nombre de
+# colonnes du modèle : les 6 colonnes actuelles donnent 30 000 variables, à 9 %
+# du mur — AJOUTER UNE SEULE COLONNE À `EtatLigneSource` casserait le run de
+# référence distant, et il casserait au distant seulement, jamais aux tests.
+# D'où un budget de variables, et une taille de lot qui en découle.
+BUDGET_VARIABLES_INSERTION = 30_000
+
+# Deuxième plafond, indépendant du premier et beaucoup plus bas : le nombre de
+# termes d'un SELECT composé (`UNION ALL`). Mesuré le 2026-09-04 — le serveur
+# distant en accepte 50, le SQLite local 500. Encore un écart que les tests en
+# mémoire ne peuvent PAS voir : la valeur du distant s'applique donc partout,
+# pour que le chemin éprouvé aux tests soit celui de la production.
+TERMES_UNION_MAX = 50
+
+_variables_par_ligne: int | None = None
+
+
+def _variables_par_ligne_etat_ligne(db_session: Session) -> int:
+    """Nombre de variables qu'un énoncé multi-VALUES lie POUR UNE LIGNE.
+
+    Compté sur l'énoncé réellement compilé plutôt que codé en dur : les valeurs
+    par défaut Python du modèle (`premiere_apparition`, `derniere_observation`)
+    sont des variables liées elles aussi, et une colonne ajoutée demain doit
+    rétrécir le lot toute seule."""
+    global _variables_par_ligne
+    if _variables_par_ligne is None:
+        exemple = {"source_id": "", "cle_naturelle": "", "empreinte": "", "donnees_normalisees": {}}
+        compile_ = insert(EtatLigneSource).values([exemple]).compile(bind=db_session.get_bind())
+        _variables_par_ligne = max(1, len(compile_.positiontup or ()))
+    return _variables_par_ligne
+
+
+def _taille_lot_insertion(db_session: Session) -> int:
+    return max(1, BUDGET_VARIABLES_INSERTION // _variables_par_ligne_etat_ligne(db_session))
 
 
 def _inserer_lignes_en_lot(db_session: Session, source_id: str, lignes: list[LigneSnapshot]) -> None:
+    if not lignes:
+        return
+    taille_lot = _taille_lot_insertion(db_session)
     lot: list[dict] = []
     for l in lignes:
         lot.append(
@@ -98,11 +161,109 @@ def _inserer_lignes_en_lot(db_session: Session, source_id: str, lignes: list[Lig
                 "donnees_normalisees": l.champs,
             }
         )
-        if len(lot) >= TAILLE_LOT_INSERTION:
-            db_session.execute(insert(EtatLigneSource), lot)
+        if len(lot) >= taille_lot:
+            db_session.execute(insert(EtatLigneSource).values(lot))
             lot = []
     if lot:
-        db_session.execute(insert(EtatLigneSource), lot)
+        db_session.execute(insert(EtatLigneSource).values(lot))
+
+
+def _par_lots(sequence, taille: int):
+    for debut in range(0, len(sequence), taille):
+        yield sequence[debut:debut + taille]
+
+
+# Les modifications et les disparitions suivent la MÊME règle que les
+# apparitions, pour la même raison. Leur volume est celui du diff et non de la
+# population — mais « celui du diff » n'est pas petit : la quarantaine n'arrête
+# un run que si le seuil relatif ET le seuil absolu sont franchis ENSEMBLE
+# (voir _depasse), donc jusqu'à 50 % de modifications et 30 % de disparitions
+# d'une source de 2,7 M lignes passent SANS quarantaine, par construction.
+#
+# Mesuré le 2026-09-04 contre la base distante : un SELECT par ligne tient
+# 11 lignes/s. Le code d'origine en faisait un par modification — 100 000
+# modifications auraient pris 2 h 30, et l'`IN (...)` non découpé des
+# disparitions aurait franchement PLANTÉ au-delà de 32 766 clés
+# (« too many SQL variables »), pas ralenti.
+
+
+def _appliquer_modifications_en_lot(
+    db_session: Session, source_id: str, modifications: list["Modification"]
+) -> None:
+    """Un seul énoncé par lot, au lieu d'un SELECT puis un UPDATE par ligne.
+
+    `UPDATE ... FROM (SELECT ... UNION ALL ...)` — vérifié le 2026-09-04 contre
+    la base distante réelle. La forme `FROM (VALUES ...)`, plus courte, est
+    REFUSÉE par l'analyseur libSQL ; celle-ci passe. Les valeurs voyagent par
+    les types SQLAlchemy (`JSON`, `DateTime`), jamais sérialisées à la main :
+    l'insertion et la modification écrivent ainsi rigoureusement le même
+    encodage pour un même dict."""
+    if not modifications:
+        return
+    # Deux plafonds à respecter ensemble : 4 variables par ligne (clé,
+    # empreinte, données, horodatage) plus le source_id du WHERE, ET un terme
+    # d'union par ligne. C'est le second qui mord, de très loin.
+    par_lot = max(1, min((BUDGET_VARIABLES_INSERTION - 1) // 4, TERMES_UNION_MAX))
+    observe_le = utcnow()
+    touchees = 0
+    for lot in _par_lots(modifications, par_lot):
+        source = union_all(
+            *[
+                select(
+                    literal(m.cle, String).label("cle"),
+                    literal(calculer_empreinte(m.champs_apres), String).label("empreinte"),
+                    literal(m.champs_apres, JSON).label("donnees"),
+                    literal(observe_le, DateTime).label("observe_le"),
+                )
+                for m in lot
+            ]
+        ).subquery()
+        resultat = db_session.execute(
+            update(EtatLigneSource)
+            .where(
+                EtatLigneSource.source_id == source_id,
+                EtatLigneSource.cle_naturelle == source.c.cle,
+            )
+            .values(
+                empreinte=source.c.empreinte,
+                donnees_normalisees=source.c.donnees,
+                derniere_observation=source.c.observe_le,
+            ),
+            # Aucune instance ORM d'EtatLigneSource ne vit dans la session (la
+            # lecture de l'état se fait en colonnes Core) — rien à
+            # resynchroniser, et ça évite un RETURNING inutile sur chaque lot.
+            execution_options={"synchronize_session": False},
+        )
+        touchees += resultat.rowcount or 0
+    if touchees != len(modifications):
+        # Le code d'origine levait `NoResultFound` (scalar_one) sur une clé
+        # modifiée absente de l'état. L'invariant est conservé : une
+        # modification sans ligne d'état correspondante est un défaut en amont,
+        # jamais quelque chose à absorber en silence.
+        raise RuntimeError(
+            f"{len(modifications) - touchees} modification(s) sans ligne d'état correspondante "
+            f"pour la source {source_id!r} — état incohérent, run interrompu."
+        )
+
+
+def _supprimer_lignes_en_lot(db_session: Session, source_id: str, cles: list[str]) -> None:
+    """Un DELETE par lot, au lieu d'un chargement ORM puis un DELETE par ligne.
+
+    Le découpage n'est pas une optimisation ici : `IN (...)` lie une variable
+    par clé, et SQLite refuse l'énoncé au-delà de SQLITE_MAX_VARIABLE_NUMBER.
+    `EtatLigneSource` ne porte aucune relation ORM, donc rien à répercuter en
+    cascade — d'où `synchronize_session=False`."""
+    if not cles:
+        return
+    par_lot = max(1, BUDGET_VARIABLES_INSERTION - 1)
+    for lot in _par_lots(cles, par_lot):
+        db_session.execute(
+            delete(EtatLigneSource).where(
+                EtatLigneSource.source_id == source_id,
+                EtatLigneSource.cle_naturelle.in_(lot),
+            ),
+            execution_options={"synchronize_session": False},
+        )
 
 
 @dataclass(frozen=True)
@@ -487,11 +648,17 @@ def executer_diff(
         return rapport
 
     # Lecture en colonnes (Core), jamais des instances ORM complètes — même
-    # motivation que TAILLE_LOT_INSERTION ci-dessus : cette lecture porte sur
-    # la POPULATION COMPLÈTE de l'état précédent (ex. REQ réel : 2,7M lignes),
-    # et n'est utilisée qu'en LECTURE seule ici (jamais mutée directement —
-    # les mutations passent par _appliquer_diff, qui recharge ses propres
-    # objets ORM ciblés uniquement sur les clés du diff, pas la population).
+    # motivation que le lot d'insertion ci-dessus : cette lecture porte sur la
+    # POPULATION COMPLÈTE de l'état précédent (ex. REQ réel : 2,7M lignes), et
+    # n'est utilisée qu'en LECTURE seule ici (jamais mutée directement — les
+    # mutations passent par _appliquer_diff, qui écrit en lot sans jamais
+    # relire ligne par ligne).
+    #
+    # Au distant, cette requête unique tient : mesuré le 2026-09-04, 300 000
+    # lignes reviennent en 60 s (5 000 lignes/s), soit ~9 min extrapolées pour
+    # les 2,7 M du REQ. C'est un aller-retour, pas 2,7 M — mais la réponse
+    # entière transite et se matérialise en mémoire, ce qui reste la limite
+    # honnête déjà documentée (voir docs/ARCHITECTURE.md).
     etats_precedents = {
         row.cle_naturelle: row
         for row in db_session.execute(
@@ -743,25 +910,8 @@ def _appliquer_diff(
     colonnes_vues: dict[str, str],
 ) -> None:
     _inserer_lignes_en_lot(db_session, source_id, apparitions)
-    for m in modifications:
-        etat = db_session.execute(
-            select(EtatLigneSource).where(
-                EtatLigneSource.source_id == source_id, EtatLigneSource.cle_naturelle == m.cle
-            )
-        ).scalar_one()
-        etat.empreinte = calculer_empreinte(m.champs_apres)
-        etat.donnees_normalisees = m.champs_apres
-    if disparitions:
-        for etat in (
-            db_session.execute(
-                select(EtatLigneSource).where(
-                    EtatLigneSource.source_id == source_id, EtatLigneSource.cle_naturelle.in_(disparitions)
-                )
-            )
-            .scalars()
-            .all()
-        ):
-            db_session.delete(etat)
+    _appliquer_modifications_en_lot(db_session, source_id, modifications)
+    _supprimer_lignes_en_lot(db_session, source_id, list(disparitions))
 
     etat_schema = db_session.get(EtatSchemaSource, source_id)
     if etat_schema is None:
