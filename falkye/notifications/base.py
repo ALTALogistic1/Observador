@@ -68,7 +68,17 @@ class NotificationChannel(ABC):
         cette méthode plutôt que de dépendre d'un champ codé en dur dans
         falkye/engine.py — retourner None signifie "aucune destination valide
         pour ce profil", auquel cas la livraison sur ce canal est simplement
-        ignorée pour cette notification (pas une erreur)."""
+        ignorée pour cette notification (pas une erreur).
+
+        **Un profil désabonné n'a plus de destination humaine.** Le contrôle est
+        ici, et non chez chaque canal, parce que c'est le seul endroit où la
+        destination « la personne » se calcule — un canal humain ajouté demain
+        hérite du respect du désabonnement sans avoir à y penser, et ne peut pas
+        l'oublier. WebhookChannel redéfinit cette méthode et n'est donc pas
+        concerné, ce qui est voulu : se désabonner d'un courriel n'est pas
+        résilier une intégration (voir Profile.desabonne_le)."""
+        if profile.desabonne_le is not None:
+            return None
         return profile.courriel
 
 

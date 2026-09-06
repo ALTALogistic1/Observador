@@ -7,11 +7,13 @@ une forme inventée ne prouverait rien — c'est la section 8 de la charte, ne
 jamais présumer une capacité non testée.
 """
 import json
+from datetime import datetime, timezone
 
 import pytest
 import responses
 from requests.exceptions import ConnectionError as ErreurConnexion
 
+from falkye.models.profile import Profile
 from falkye.notifications.base import NotificationContent
 from falkye.notifications.postmark_channel import URL_ENVOI, PostmarkChannel
 from falkye.registry.loader import get_registry
@@ -226,9 +228,17 @@ def test_smtp_nest_plus_actif_pour_ne_pas_envoyer_le_resume_en_double():
 
 def test_la_destination_reste_le_courriel_du_profil(canal):
     """Le canal n'a pas de résolution propre — il hérite du courriel du profil,
-    seule donnée de contact universelle."""
+    seule donnée de contact universelle.
 
-    class _Profil:
-        courriel = "alexandre@exemple.com"
+    Un vrai Profile plutôt qu'un objet factice : un double qui n'a que les
+    champs dont on se souvient casse dès qu'une règle en consulte un autre, et
+    il a cassé exactement comme ça à l'arrivée du désabonnement.
+    """
+    assert canal.resoudre_destinataire(Profile(courriel="alexandre@exemple.com")) == "alexandre@exemple.com"
 
-    assert canal.resoudre_destinataire(_Profil()) == "alexandre@exemple.com"
+
+def test_un_profil_desabonne_na_plus_de_destination(canal):
+    """Le désabonnement se respecte à la résolution de destination, donc pour
+    tout canal humain — celui-ci n'a rien eu à implémenter pour ça."""
+    profile = Profile(courriel="alexandre@exemple.com", desabonne_le=datetime.now(timezone.utc))
+    assert canal.resoudre_destinataire(profile) is None

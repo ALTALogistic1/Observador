@@ -35,6 +35,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from falkye.liens import url_desabonnement, url_pas_pertinent
 from falkye.models.notification import Notification, PeriodicSummary
 from falkye.models.profile import Profile
 from falkye.notifications.base import FORME_RESUME, NotificationContent
@@ -93,7 +94,10 @@ def generer_resume(
 
 
 def _bloc_opportunite(
-    notification: Notification, registry: Registry, ligne_interpretation: str | None = None
+    notification: Notification,
+    registry: Registry,
+    lien_pas_pertinent: str | None = None,
+    ligne_interpretation: str | None = None,
 ) -> str:
     """Une opportunité : ce qu'elle est, pourquoi elle a été repérée.
 
@@ -132,13 +136,24 @@ def _bloc_opportunite(
     if ville:
         lignes.append(f"    {ville}")
 
+    if lien_pas_pertinent:
+        # La rétroaction minimale — la seule boucle de correction du produit.
+        # Formulée par l'action qu'elle appelle, jamais comme un jugement sur
+        # l'opportunité (charte section 16).
+        lignes.append(f"    Pas pertinent pour vous? {lien_pas_pertinent}")
+
     return "\n".join(lignes)
 
 
 def formatter_resume(
-    summary: PeriodicSummary, notifications: list[Notification], registry: Registry | None = None
+    summary: PeriodicSummary,
+    notifications: list[Notification],
+    registry: Registry | None = None,
+    liens_pas_pertinent: dict[int, str] | None = None,
+    lien_desabonnement: str | None = None,
 ) -> NotificationContent:
     registry = registry or get_registry()
+    liens_pas_pertinent = liens_pas_pertinent or {}
 
     if not notifications:
         # Formulation à revoir au chantier 14 : la charte (section 16) demande de
@@ -148,7 +163,10 @@ def formatter_resume(
         # serait pire que la phrase neutre. Laissé tel quel, sciemment.
         corps = "Aucune nouvelle entreprise repérée durant cette période."
     else:
-        blocs = [_bloc_opportunite(n, registry) for n in notifications]
+        blocs = [
+            _bloc_opportunite(n, registry, lien_pas_pertinent=liens_pas_pertinent.get(n.id))
+            for n in notifications
+        ]
         pluriel = "s" if len(notifications) > 1 else ""
         corps = (
             f"{len(notifications)} entreprise{pluriel} repérée{pluriel} :\n\n"
@@ -156,19 +174,58 @@ def formatter_resume(
             + "\n"
         )
 
+    entetes = None
+    if lien_desabonnement:
+        # Le lien visible dans le corps ET l'en-tête : l'un pour la personne qui
+        # lit, l'autre pour le bouton natif de sa messagerie (RFC 8058). Les deux
+        # mènent à la même URL, donc au même geste.
+        corps += f"\n---\nNe plus recevoir ces résumés : {lien_desabonnement}\n"
+        entetes = {
+            "List-Unsubscribe": f"<{lien_desabonnement}>",
+            # Sans cet en-tête, Gmail et Yahoo n'affichent pas le bouton natif :
+            # c'est lui qui déclare que l'URL accepte le POST en un clic.
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        }
+
     debut = summary.periode_debut.strftime("%Y-%m-%d")
     fin = summary.periode_fin.strftime("%Y-%m-%d")
     sujet = f"[FALKYE] Résumé du {debut} au {fin}"
-    return NotificationContent(sujet=sujet, corps_texte=corps)
+    return NotificationContent(sujet=sujet, corps_texte=corps, entetes=entetes)
 
 
-def generer_et_envoyer_resume(db_session: Session, profile: Profile, jours: int = 7) -> PeriodicSummary:
+def generer_et_envoyer_resume(
+    db_session: Session, profile: Profile, jours: int = 7
+) -> PeriodicSummary | None:
+    """None si le profil est désabonné — rien n'est généré ni marqué.
+
+    La garde est ICI et pas seulement à la résolution de destinataire : sans
+    elle, un résumé serait bien construit, n'aurait aucun canal où aller, ne
+    serait donc jamais marqué envoyé, et les opportunités s'accumuleraient
+    indéfiniment en attente. Le désabonné coûterait un résumé mort par cycle,
+    pour toujours.
+    """
+    if profile.desabonne_le is not None:
+        return None
+
     registry = get_registry()
     periode_fin = datetime.now(timezone.utc)
     periode_debut = periode_fin - timedelta(days=jours)
 
     summary, notifications = generer_resume(db_session, profile, periode_debut, periode_fin)
-    contenu = formatter_resume(summary, notifications, registry)
+
+    # Les jetons sont créés AVANT le formatage : ce sont eux qui portent les
+    # URL. `url_desabonnement` lève si le point d'entrée n'est pas configuré —
+    # aucun résumé ne part alors, ce qui est voulu (voir falkye/liens.py).
+    lien_desabo = url_desabonnement(db_session, profile)
+    liens_retro = {n.id: url_pas_pertinent(db_session, n) for n in notifications}
+
+    contenu = formatter_resume(
+        summary,
+        notifications,
+        registry,
+        liens_pas_pertinent=liens_retro,
+        lien_desabonnement=lien_desabo,
+    )
 
     resultats = livrer(db_session, profile, contenu, registry, FORME_RESUME)
 

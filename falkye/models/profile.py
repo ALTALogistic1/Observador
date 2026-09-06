@@ -106,6 +106,17 @@ class Profile(Base):
     # definir-mot-de-passe` (mode opérateur), jamais fabriqué.
     mot_de_passe_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
+    # Désabonnement du courriel — RFC 8058, posé par falkye/liens.py depuis un
+    # lien cliqué, sans session authentifiée. NULL = abonné.
+    #
+    # Coupe la LIVRAISON PAR COURRIEL seulement : un profil Radar+ qui reçoit
+    # aussi ses signaux par webhook les reçoit toujours. Se désabonner d'un
+    # envoi n'est pas résilier un service, et confondre les deux ferait perdre
+    # au client une intégration qu'il n'a pas demandé de couper. Appliqué dans
+    # falkye/notifications/base.py::resoudre_destinataire, la seule place où la
+    # destination « humaine » se calcule.
+    desabonne_le: Mapped[datetime | None] = mapped_column(nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     besoins: Mapped[list["ProfileNeed"]] = relationship(
