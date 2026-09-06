@@ -639,7 +639,6 @@ def _proposer_liens_spheres(session, profile_obj, texte, niveau2_autorise):
     from falkye.assistance_sphere import suggerer_spheres_niveau1
     from falkye.assistance_sphere_ia import (
         AssistanceIANonConfiguree,
-        PlanInsuffisantPourAssistanceIA,
         departager_spheres_niveau2,
         suggerer_spheres_niveau2,
     )
@@ -656,13 +655,13 @@ def _proposer_liens_spheres(session, profile_obj, texte, niveau2_autorise):
                 )
                 rapport += f"\n  Niveau 2 (départage d'égalité) — raisonnement : {resultat.raisonnement}"
                 return liens, rapport
-            except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree):
+            except AssistanceIANonConfiguree:
                 pass  # repli silencieux : poids égaux ci-dessous, pas d'erreur bloquante
         candidats_egalite = [s for s in suggestions if s.score == suggestions[0].score]
         liens = [(s.sphere_id, 100.0) for s in candidats_egalite]
         rapport = "\n".join(
             f"  - {s.sphere_id} ({s.sphere_nom}) — poids 100 (égalité exacte au Niveau 1, "
-            f"départage Niveau 2 indisponible pour ce plan)"
+            f"départage Niveau 2 indisponible)"
             for s in candidats_egalite
         )
         return liens, rapport
@@ -682,7 +681,7 @@ def _proposer_liens_spheres(session, profile_obj, texte, niveau2_autorise):
         return [], "  Aucune correspondance locale (Niveau 1). Niveau 2 non demandé (--no-niveau2)."
     try:
         resultat = suggerer_spheres_niveau2(session, profile_obj, texte)
-    except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree) as exc:
+    except AssistanceIANonConfiguree as exc:
         return [], f"  Aucune correspondance locale (Niveau 1). Niveau 2 indisponible : {exc}"
     if not resultat.liens:
         return [], (
@@ -701,7 +700,6 @@ def _proposer_liens_client_cible(session, profile_obj, texte, niveau2_autorise):
     from falkye.assistance_client_cible import suggerer_clients_cibles_niveau1
     from falkye.assistance_client_cible_ia import (
         AssistanceIANonConfiguree,
-        PlanInsuffisantPourAssistanceIA,
         departager_clients_cibles_niveau2,
         suggerer_clients_cibles_niveau2,
     )
@@ -719,13 +717,13 @@ def _proposer_liens_client_cible(session, profile_obj, texte, niveau2_autorise):
                 )
                 rapport += f"\n  Niveau 2 (départage d'égalité) — raisonnement : {resultat.raisonnement}"
                 return liens, rapport
-            except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree):
+            except AssistanceIANonConfiguree:
                 pass
         candidats_egalite = [s for s in suggestions if s.score == suggestions[0].score]
         liens = [(s.client_cible_id, 100.0) for s in candidats_egalite]
         rapport = "\n".join(
             f"  - {s.client_cible_id} ({s.client_cible_nom}) — poids 100 (égalité exacte au Niveau 1, "
-            f"départage Niveau 2 indisponible pour ce plan)"
+            f"départage Niveau 2 indisponible)"
             for s in candidats_egalite
         )
         return liens, rapport
@@ -745,7 +743,7 @@ def _proposer_liens_client_cible(session, profile_obj, texte, niveau2_autorise):
         return [], "  Aucune correspondance locale (Niveau 1). Niveau 2 non demandé (--no-niveau2)."
     try:
         resultat = suggerer_clients_cibles_niveau2(session, profile_obj, texte)
-    except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree) as exc:
+    except AssistanceIANonConfiguree as exc:
         return [], f"  Aucune correspondance locale (Niveau 1). Niveau 2 indisponible : {exc}"
     if not resultat.liens:
         return [], (

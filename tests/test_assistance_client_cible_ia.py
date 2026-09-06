@@ -11,7 +11,6 @@ import pytest
 
 from falkye.assistance_client_cible_ia import (
     AssistanceIANonConfiguree,
-    PlanInsuffisantPourAssistanceIA,
     suggerer_clients_cibles_niveau2,
 )
 from falkye.models.client_cible import ClientCible
@@ -43,10 +42,26 @@ def _mock_reponse_anthropic(mocker, payload: dict):
     mocker.patch("anthropic.Anthropic", return_value=mock_client)
 
 
-def test_leve_si_plan_echo(db_session):
+def test_le_niveau2_est_disponible_au_plan_echo(db_session, monkeypatch, mocker):
+    """Même décision que côté sphère : aucune porte de palier sur le Niveau 2.
+    Voir tests/test_assistance_sphere_ia.py pour le raisonnement complet."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-x")
     profile = _profile(db_session, plan=PlanTarifaire.ECHO)
-    with pytest.raises(PlanInsuffisantPourAssistanceIA):
-        suggerer_clients_cibles_niveau2(db_session, profile, "une description")
+    _semer_categories(db_session)
+    _mock_reponse_anthropic(
+        mocker,
+        {
+            "liens": [{"id": "organismes_publics_institutionnels", "poids": 100}],
+            "sentinelle": None,
+            "confiance": "elevee",
+            "raisonnement": "correspondance directe",
+            "synonyme_a_retenir": None,
+        },
+    )
+
+    suggestion = suggerer_clients_cibles_niveau2(db_session, profile, "des organismes publics")
+
+    assert [l.client_cible_id for l in suggestion.liens] == ["organismes_publics_institutionnels"]
 
 
 def test_leve_si_cle_manquante(db_session, monkeypatch):
