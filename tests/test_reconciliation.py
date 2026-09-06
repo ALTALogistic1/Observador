@@ -477,3 +477,173 @@ def test_le_cycle_reconcilie_avant_de_generer(db_session, monkeypatch, tmp_path)
         for e in db_session.execute(select(JournalExploitation)).scalars()
     ]
     assert EvenementExploitation.LIVRAISON_REBONDIE in evenements
+
+
+# --- La suspension après trois rebonds -------------------------------------
+#
+# Décision d'Alexandre du 2026-09-06. Trois plutôt que deux : un rebond isolé
+# peut venir d'une indisponibilité passagère chez le destinataire.
+
+
+def _rebondir(db_session, canal, registry, reference):
+    """Un cycle complet de rebond sur un profil déjà en base."""
+    canal.verdicts = {reference: VerdictLivraison(etat=EtatLivraison.REBONDIE, detail="refusé")}
+    return reconcilier_livraisons(db_session, registry)
+
+
+def _resume_de_plus(db_session, profile, reference, channel_id):
+    maintenant = datetime.now(timezone.utc)
+    summary = PeriodicSummary(
+        profile_id=profile.id,
+        periode_debut=maintenant - timedelta(days=7),
+        periode_fin=maintenant,
+        notification_ids=[],
+        envoye_le=maintenant,
+    )
+    db_session.add(summary)
+    db_session.flush()
+    db_session.add(
+        LivraisonResume(
+            summary_id=summary.id,
+            channel_id=channel_id,
+            statut=StatutLivraison.ACCEPTEE,
+            reference=reference,
+        )
+    )
+    db_session.flush()
+    return summary
+
+
+def test_deux_rebonds_ne_suspendent_pas(db_session, canal, registry):
+    """Un rebond isolé peut venir d'une indisponibilité passagère : suspendre au
+    deuxième couperait un abonné pour une panne qui n'est pas la sienne."""
+    canal_id = _canal_actif(registry)
+    summary, _, _ = _resume_accepte(db_session, channel_id=canal_id)
+    profile = db_session.get(Profile, summary.profile_id)
+    _rebondir(db_session, canal, registry, "ref-1")
+
+    _resume_de_plus(db_session, profile, "ref-2", canal_id)
+    rapport = _rebondir(db_session, canal, registry, "ref-2")
+
+    assert profile.rebonds_consecutifs == 2
+    assert profile.envoi_suspendu_le is None
+    assert rapport.profils_suspendus == []
+
+
+def test_trois_rebonds_suspendent_lenvoi_sans_desabonner(db_session, canal, registry):
+    """La distinction est le sujet : `desabonne_le` est le geste de l'abonné, la
+    suspension est une décision du produit. Les confondre effacerait qui a
+    décidé quoi."""
+    canal_id = _canal_actif(registry)
+    summary, _, _ = _resume_accepte(db_session, channel_id=canal_id)
+    profile = db_session.get(Profile, summary.profile_id)
+
+    _rebondir(db_session, canal, registry, "ref-1")
+    _resume_de_plus(db_session, profile, "ref-2", canal_id)
+    _rebondir(db_session, canal, registry, "ref-2")
+    _resume_de_plus(db_session, profile, "ref-3", canal_id)
+    rapport = _rebondir(db_session, canal, registry, "ref-3")
+
+    assert profile.rebonds_consecutifs == 3
+    assert profile.envoi_suspendu_le is not None
+    assert profile.desabonne_le is None
+    assert "profil #" in rapport.profils_suspendus[0]
+    assert "3 rebond(s)" in rapport.profils_suspendus[0]
+
+
+def test_une_remise_confirmee_remet_le_compteur_a_zero(db_session, canal, registry):
+    """« Consécutifs » : sans cette remise à zéro, trois rebonds étalés sur un an
+    finiraient par suspendre un profil qui reçoit normalement."""
+    canal_id = _canal_actif(registry)
+    summary, _, _ = _resume_accepte(db_session, channel_id=canal_id)
+    profile = db_session.get(Profile, summary.profile_id)
+
+    _rebondir(db_session, canal, registry, "ref-1")
+    _resume_de_plus(db_session, profile, "ref-2", canal_id)
+    _rebondir(db_session, canal, registry, "ref-2")
+    assert profile.rebonds_consecutifs == 2
+
+    _resume_de_plus(db_session, profile, "ref-3", canal_id)
+    canal.verdicts = {"ref-3": VerdictLivraison(etat=EtatLivraison.CONFIRMEE)}
+    reconcilier_livraisons(db_session, registry)
+
+    assert profile.rebonds_consecutifs == 0
+    assert profile.envoi_suspendu_le is None
+
+
+def test_un_profil_deja_suspendu_nest_pas_re_signale(db_session, canal, registry):
+    """Une alerte répétée chaque semaine cesse d'être une alerte."""
+    canal_id = _canal_actif(registry)
+    summary, _, _ = _resume_accepte(db_session, channel_id=canal_id)
+    profile = db_session.get(Profile, summary.profile_id)
+    for i, ref in enumerate(["ref-1", "ref-2", "ref-3"], start=1):
+        if i > 1:
+            _resume_de_plus(db_session, profile, ref, canal_id)
+        _rebondir(db_session, canal, registry, ref)
+    suspendu_le = profile.envoi_suspendu_le
+
+    _resume_de_plus(db_session, profile, "ref-4", canal_id)
+    rapport = _rebondir(db_session, canal, registry, "ref-4")
+
+    assert rapport.profils_suspendus == []
+    assert profile.envoi_suspendu_le == suspendu_le
+
+
+def test_un_profil_suspendu_ne_recoit_plus_de_resume(db_session, canal, registry):
+    from falkye.cycle import profils_abonnes
+    from falkye.summary import generer_et_envoyer_resume
+
+    profile = _profile(db_session)
+    profile.envoi_suspendu_le = datetime.now(timezone.utc)
+    db_session.flush()
+
+    assert profils_abonnes(db_session) == []
+    # La garde tient AUSSI sur l'appel direct : `falkye resume envoyer` ne passe
+    # pas par le filtre du cycle.
+    assert generer_et_envoyer_resume(db_session, profile) is None
+
+
+def test_la_suspension_ne_perd_aucune_opportunite(db_session, canal, registry):
+    """Ce qui la distingue d'un désabonnement : les opportunités attendent la
+    levée au lieu d'être marquées livrées."""
+    from falkye.summary import notifications_en_attente
+
+    canal_id = _canal_actif(registry)
+    summary, notification, _ = _resume_accepte(db_session, channel_id=canal_id)
+    profile = db_session.get(Profile, summary.profile_id)
+    profile.envoi_suspendu_le = datetime.now(timezone.utc)
+    _rebondir(db_session, canal, registry, "ref-1")
+
+    en_attente = notifications_en_attente(
+        db_session, profile, avant=datetime.now(timezone.utc)
+    )
+    assert [n.id for n in en_attente] == [notification.id]
+
+
+def test_la_reprise_leve_la_suspension_sans_reabonner(db_session):
+    """Une suspension qu'on ne peut pas lever serait un cul-de-sac — le défaut
+    exact déjà rencontré au point d'entrée conversationnel."""
+    from click.testing import CliRunner
+
+    import falkye.cli
+
+    profile = _profile(db_session)
+    profile.envoi_suspendu_le = datetime.now(timezone.utc)
+    profile.rebonds_consecutifs = 3
+    profile.desabonne_le = datetime.now(timezone.utc)
+    db_session.flush()
+
+    import unittest.mock as mock
+
+    with mock.patch.object(falkye.cli, "get_session", lambda: db_session), mock.patch.object(
+        db_session, "close", lambda: None
+    ):
+        resultat = CliRunner().invoke(
+            falkye.cli.cli, ["profile", "reprendre-envoi", "--profile-id", str(profile.id)]
+        )
+
+    assert resultat.exit_code == 0, resultat.output
+    assert profile.envoi_suspendu_le is None
+    assert profile.rebonds_consecutifs == 0
+    # Un abonné qui s'est désabonné le reste : la reprise ne le réabonne pas.
+    assert profile.desabonne_le is not None

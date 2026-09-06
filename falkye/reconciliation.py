@@ -25,13 +25,18 @@ elle tourne.
 (`NotificationChannel.etat_des_livraisons`), et un canal qui ne sait rien dire
 retourne un dictionnaire vide. Même discipline que le registre des sources.
 
-**Ce que ce module NE tranche pas, et qui reste ouvert.** Un rebond dû au filtre
-antipourriel du destinataire se reproduira à l'identique la semaine suivante :
-les opportunités repartent, le résumé rebondit, indéfiniment. Le remède n'est pas
-ici — c'est de ne plus produire un message que les filtres refusent (motif du
-repérage, plafond du résumé) — mais un plafond de rebonds consécutifs par profil
-reste à décider. Il n'est pas posé par défaut : couper l'envoi à un abonné est
-une décision de produit, pas un effet de bord d'un module d'observation.
+**Le garde-fou, tranché par Alexandre le 2026-09-06.** Un rebond dû au filtre
+antipourriel du destinataire se reproduirait à l'identique chaque semaine : les
+opportunités repartent, le résumé rebondit, sans fin. Trois rebonds consécutifs
+sur le même profil suspendent donc l'envoi et déclenchent une alerte — une
+SUSPENSION, jamais un désabonnement, la distinction restant visible au journal
+parce qu'un profil suspendu par le produit n'est pas un abonné qui a demandé à
+partir. La suspension ne perd rien : les opportunités restent en attente et
+repartiront à sa levée (`falkye profile reprendre-envoi`).
+
+**Et ce n'est pas la solution.** Le vrai remède est de ne plus produire un
+message que les filtres refusent. La suspension empêche seulement d'abîmer la
+réputation du domaine en insistant.
 
 **Ne rien savoir n'est pas savoir que c'est perdu.** Une remise sans verdict
 reste `acceptee` et repasse au cycle suivant. La déclarer rebondie sur une
@@ -51,6 +56,7 @@ from sqlalchemy.orm import Session
 from falkye.models.base import en_utc
 from falkye.models.livraison_resume import LivraisonResume, StatutLivraison
 from falkye.models.notification import Notification, PeriodicSummary
+from falkye.models.profile import Profile
 from falkye.notifications.base import EtatLivraison
 from falkye.registry.loader import Registry, get_registry
 
@@ -62,6 +68,12 @@ logger = logging.getLogger(__name__)
 # `indeterminee` — un aveu daté, pas un succès par défaut.
 DELAI_ABANDON_JOURS = 45
 
+# Trois rebonds consécutifs sur le même profil suspendent l'envoi (décision
+# d'Alexandre du 2026-09-06). Trois plutôt que deux : un rebond isolé peut venir
+# d'une indisponibilité passagère chez le destinataire; au troisième, c'est le
+# message ou l'adresse.
+SEUIL_SUSPENSION = 3
+
 
 @dataclass
 class RapportReconciliation:
@@ -71,6 +83,7 @@ class RapportReconciliation:
     indeterminees: int = 0
     opportunites_remises_en_attente: int = 0
     resumes_rebondis: list[str] = field(default_factory=list)
+    profils_suspendus: list[str] = field(default_factory=list)
 
     def resume_lisible(self) -> str:
         texte = (
@@ -84,6 +97,8 @@ class RapportReconciliation:
                 f", {self.opportunites_remises_en_attente} opportunité(s) "
                 "remise(s) en attente"
             )
+        if self.profils_suspendus:
+            texte += f", {len(self.profils_suspendus)} profil(s) suspendu(s)"
         return texte
 
 
@@ -144,6 +159,21 @@ def _autre_canal_a_livre(db_session: Session, livraison: LivraisonResume) -> boo
     )
 
 
+def _suspendre_si_necessaire(profile: Profile, maintenant: datetime) -> bool:
+    """Compte le rebond et suspend au seuil. Vrai si CE rebond a suspendu.
+
+    Suspendre, pas désabonner : `desabonne_le` reste intact, parce que c'est le
+    champ de l'abonné et qu'un profil suspendu par le produit n'est pas quelqu'un
+    qui a demandé à partir. Un profil déjà suspendu n'est pas re-signalé — une
+    alerte répétée chaque semaine cesse d'être une alerte.
+    """
+    profile.rebonds_consecutifs = (profile.rebonds_consecutifs or 0) + 1
+    if profile.rebonds_consecutifs < SEUIL_SUSPENSION or profile.envoi_suspendu_le is not None:
+        return False
+    profile.envoi_suspendu_le = maintenant
+    return True
+
+
 def reconcilier_livraisons(
     db_session: Session, registry: Registry | None = None
 ) -> RapportReconciliation:
@@ -190,14 +220,21 @@ def reconcilier_livraisons(
             livraison.verifiee_le = maintenant
             livraison.detail = verdict.detail
 
+            summary = db_session.get(PeriodicSummary, livraison.summary_id)
+            profile = (
+                db_session.get(Profile, summary.profile_id) if summary is not None else None
+            )
+
             if verdict.etat == EtatLivraison.CONFIRMEE:
                 livraison.statut = StatutLivraison.CONFIRMEE
                 rapport.confirmees += 1
+                if profile is not None:
+                    # « Consécutifs » : une remise qui aboutit efface l'ardoise.
+                    profile.rebonds_consecutifs = 0
                 continue
 
             livraison.statut = StatutLivraison.REBONDIE
             rapport.rebondies += 1
-            summary = db_session.get(PeriodicSummary, livraison.summary_id)
             if summary is None or _autre_canal_a_livre(db_session, livraison):
                 continue
             rapport.opportunites_remises_en_attente += _remettre_en_attente(db_session, summary)
@@ -205,6 +242,11 @@ def reconcilier_livraisons(
                 f"résumé #{summary.id} (profil #{summary.profile_id}) : "
                 f"{verdict.detail or 'rebond sans détail'}"
             )
+            if profile is not None and _suspendre_si_necessaire(profile, maintenant):
+                rapport.profils_suspendus.append(
+                    f"profil #{profile.id} suspendu après {profile.rebonds_consecutifs} "
+                    f"rebond(s) consécutif(s) : {verdict.detail or 'rebond sans détail'}"
+                )
 
     db_session.flush()
     return rapport

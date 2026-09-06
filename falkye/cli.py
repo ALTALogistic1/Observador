@@ -586,6 +586,35 @@ def profile_add_need(profile_id, usage_precis, mots_cles, type_besoin, territoir
         session.close()
 
 
+@profile.command("reprendre-envoi")
+@click.option("--profile-id", type=int, required=True)
+def profile_reprendre_envoi(profile_id):
+    """Lève une suspension d'envoi posée après trois rebonds consécutifs.
+
+    Sans cette commande, la suspension serait un cul-de-sac : le produit
+    cesserait d'écrire à quelqu'un sans qu'aucun geste ne puisse le reprendre.
+    Elle ne touche PAS `desabonne_le` — un abonné qui s'est désabonné le reste,
+    et le confondre avec une suspension le réabonnerait sans qu'il l'ait demandé.
+    """
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        if p.envoi_suspendu_le is None:
+            click.echo(f"Le profil {profile_id} n'est pas suspendu — rien à faire.")
+            return
+        p.envoi_suspendu_le = None
+        p.rebonds_consecutifs = 0
+        session.commit()
+        click.echo(
+            f"Envoi repris pour le profil {profile_id}. Ses opportunités en attente "
+            "repartiront au prochain résumé."
+        )
+    finally:
+        session.close()
+
+
 @profile.command("list")
 def profile_list():
     session = get_session()
@@ -595,6 +624,14 @@ def profile_list():
                 f"#{p.id} {p.nom} <{p.courriel}> type={p.type_profil.value} plan={p.plan.value} "
                 f"sensibilite_confiance={p.sensibilite_confiance.value} "
                 f"sensibilite_pertinence={p.sensibilite_pertinence.value}"
+                + (" [DÉSABONNÉ]" if p.desabonne_le else "")
+                + (
+                    f" [ENVOI SUSPENDU depuis {p.envoi_suspendu_le:%Y-%m-%d} — "
+                    f"{p.rebonds_consecutifs} rebond(s) consécutif(s); "
+                    "reprendre avec `falkye profile reprendre-envoi`]"
+                    if p.envoi_suspendu_le
+                    else ""
+                )
             )
             for n in p.besoins:
                 spheres_txt = ", ".join(

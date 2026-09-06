@@ -41,6 +41,7 @@ class RapportCycle:
     profils_traites: int = 0
     remises_rebondies: int = 0
     opportunites_remises_en_attente: int = 0
+    profils_suspendus: int = 0
     resumes_envoyes: int = 0
     resumes_en_echec: int = 0
     opportunites_livrees: int = 0
@@ -57,6 +58,8 @@ class RapportCycle:
         )
         if self.resumes_en_echec:
             texte += f", {self.resumes_en_echec} en échec"
+        if self.profils_suspendus:
+            texte += f", {self.profils_suspendus} profil(s) suspendu(s) après rebonds répétés"
         if self.remises_rebondies:
             texte += (
                 f", {self.remises_rebondies} remise(s) rebondie(s) du cycle précédent "
@@ -66,8 +69,23 @@ class RapportCycle:
 
 
 def profils_abonnes(db_session) -> list[Profile]:
+    """Les profils à qui un résumé peut partir.
+
+    Deux exclusions, de natures différentes. `desabonne_le` est le geste de
+    l'abonné : définitif jusqu'à ce qu'il revienne. `envoi_suspendu_le` est une
+    décision du produit après trois rebonds : réparable, et levée par
+    `falkye profile reprendre-envoi`. Les opportunités d'un profil suspendu
+    restent en attente et repartiront — la suspension ne perd rien, c'est ce qui
+    la distingue d'un désabonnement.
+    """
     return list(
-        db_session.execute(select(Profile).where(Profile.desabonne_le.is_(None))).scalars().all()
+        db_session.execute(
+            select(Profile).where(
+                Profile.desabonne_le.is_(None), Profile.envoi_suspendu_le.is_(None)
+            )
+        )
+        .scalars()
+        .all()
     )
 
 
@@ -102,9 +120,14 @@ def executer_cycle(lookback_days: int = 30) -> RapportCycle:
             rapport.opportunites_remises_en_attente = (
                 reconciliation.opportunites_remises_en_attente
             )
+            rapport.profils_suspendus = len(reconciliation.profils_suspendus)
             for ligne in reconciliation.resumes_rebondis:
                 journaliser(
                     EvenementExploitation.LIVRAISON_REBONDIE, ligne, db_session=db_session
+                )
+            for ligne in reconciliation.profils_suspendus:
+                journaliser(
+                    EvenementExploitation.ENVOI_SUSPENDU, ligne, db_session=db_session
                 )
 
             for profile in profils_abonnes(db_session):

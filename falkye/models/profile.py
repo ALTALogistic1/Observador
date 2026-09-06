@@ -13,7 +13,7 @@ from __future__ import annotations
 import enum
 from datetime import datetime
 
-from sqlalchemy import Enum, Float, ForeignKey, Integer, String
+from sqlalchemy import Enum, Float, ForeignKey, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from falkye.models.base import Base, utcnow
@@ -116,6 +116,29 @@ class Profile(Base):
     # falkye/notifications/base.py::resoudre_destinataire, la seule place où la
     # destination « humaine » se calcule.
     desabonne_le: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    # --- Suspension d'envoi (décision d'Alexandre du 2026-09-06) -------------
+    #
+    # **Une suspension n'est PAS un désabonnement, et la distinction est le
+    # sujet.** Un désabonnement est un geste de l'abonné; une suspension est une
+    # décision du produit face à des rebonds répétés. Les confondre effacerait
+    # qui a décidé quoi — et rendrait invisible le fait que c'est NOTRE message
+    # qui est refusé, pas la personne qui est partie.
+    #
+    # Trois rebonds consécutifs, pas deux : un rebond isolé peut venir d'une
+    # indisponibilité passagère chez le destinataire; au troisième, c'est le
+    # message ou l'adresse. Le compteur est remis à zéro par une remise
+    # confirmée (falkye/reconciliation.py).
+    #
+    # Ce que la suspension NE fait pas, à la différence du désabonnement : elle
+    # ne perd rien. Les opportunités restent en attente et repartiront à la
+    # levée de la suspension, parce que le problème est réparable — c'est
+    # justement pourquoi elle déclenche une alerte au journal plutôt que de
+    # s'installer en silence.
+    rebonds_consecutifs: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    envoi_suspendu_le: Mapped[datetime | None] = mapped_column(nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 

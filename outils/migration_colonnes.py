@@ -50,9 +50,23 @@ def colonnes_manquantes(engine) -> dict[str, list]:
     return manquantes
 
 
+def _defaut_sql(colonne) -> str | None:
+    """Le défaut SERVEUR de la colonne, tel qu'il doit apparaître dans l'ALTER.
+
+    Un défaut Python (`default=`) ne suffit pas : il ne s'applique qu'aux
+    insertions faites par SQLAlchemy, jamais aux lignes DÉJÀ en base au moment
+    de l'ajout. Seul `server_default` remplit l'existant.
+    """
+    if colonne.server_default is None:
+        return None
+    arg = getattr(colonne.server_default, "arg", None)
+    return str(getattr(arg, "text", arg))
+
+
 def _clause_ajout(table: str, colonne) -> str:
     type_sql = colonne.type.compile(dialect=None)
-    if not colonne.nullable and colonne.server_default is None:
+    defaut = _defaut_sql(colonne)
+    if not colonne.nullable and defaut is None:
         # SQLite refuse une colonne NOT NULL sans défaut sur une table peuplée,
         # et inventer une valeur ici fabriquerait de la donnée que personne n'a
         # voulue. À trancher à la main.
@@ -60,7 +74,13 @@ def _clause_ajout(table: str, colonne) -> str:
             f"{table}.{colonne.name} est NOT NULL sans défaut serveur : "
             "cet outil ne devine pas de valeur de remplissage."
         )
-    return f"ALTER TABLE {table} ADD COLUMN {colonne.name} {type_sql}"
+    clause = f"ALTER TABLE {table} ADD COLUMN {colonne.name} {type_sql}"
+    if defaut is not None:
+        # Sans ce DEFAULT, l'ALTER passerait mais les lignes existantes
+        # porteraient NULL dans une colonne déclarée NOT NULL — une base qui se
+        # relit mal, ce qui est pire qu'un refus franc.
+        clause += f" NOT NULL DEFAULT {defaut}" if not colonne.nullable else f" DEFAULT {defaut}"
+    return clause
 
 
 def main() -> int:

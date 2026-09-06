@@ -196,15 +196,21 @@ def formatter_resume(
 def generer_et_envoyer_resume(
     db_session: Session, profile: Profile, jours: int = 7
 ) -> PeriodicSummary | None:
-    """None si le profil est désabonné — rien n'est généré ni marqué.
+    """None si le profil est désabonné OU suspendu — rien n'est généré ni marqué.
 
     La garde est ICI et pas seulement à la résolution de destinataire : sans
     elle, un résumé serait bien construit, n'aurait aucun canal où aller, ne
     serait donc jamais marqué envoyé, et les opportunités s'accumuleraient
     indéfiniment en attente. Le désabonné coûterait un résumé mort par cycle,
     pour toujours.
+
+    La suspension pour rebonds répétés passe par la même garde, pour la même
+    raison — mais elle est réparable : les opportunités restent en attente et
+    repartent à sa levée. Le filtre du cycle (falkye/cycle.py::profils_abonnes)
+    n'y suffirait pas : `falkye resume envoyer` appelle directement ici, et une
+    garde qui ne tient que sur un chemin ne tient pas.
     """
-    if profile.desabonne_le is not None:
+    if profile.desabonne_le is not None or profile.envoi_suspendu_le is not None:
         return None
 
     registry = get_registry()

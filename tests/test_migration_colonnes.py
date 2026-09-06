@@ -80,3 +80,58 @@ def test_une_colonne_obligatoire_sans_defaut_arrete_loutil(moteur_en_derive):
     obligatoire = Column("obligatoire", String(10), nullable=False)
     with pytest.raises(SystemExit, match="NOT NULL"):
         _clause_ajout("profiles", obligatoire)
+
+
+# --- Le défaut serveur, sans quoi l'ALTER passe mais la base se relit mal ---
+
+
+@pytest.fixture()
+def moteur_sans_compteur(tmp_path):
+    """Base réelle à laquelle il manque `profiles.rebonds_consecutifs` — une
+    colonne NOT NULL avec défaut serveur, le cas que l'outil refusait avant."""
+    import falkye.models  # noqa: F401
+    from falkye.models.base import Base
+
+    from sqlalchemy.orm import Session
+
+    from falkye.models.profile import Profile
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'sans_compteur.db'}")
+    Base.metadata.create_all(engine)
+    # La ligne existante est insérée par le MODÈLE, pas par un INSERT écrit à la
+    # main : un INSERT recopié se fige dès qu'une colonne obligatoire apparaît.
+    with Session(engine) as session:
+        session.add(Profile(courriel="a@b.c", nom="A"))
+        session.commit()
+    with engine.begin() as c:
+        c.execute(text("ALTER TABLE profiles DROP COLUMN rebonds_consecutifs"))
+    return engine
+
+
+def test_une_colonne_not_null_avec_defaut_serveur_est_ajoutee(moteur_sans_compteur):
+    """Sans le DEFAULT dans l'ALTER, la ligne existante porterait NULL dans une
+    colonne déclarée NOT NULL — une base qui se relit mal, pire qu'un refus."""
+    from outils.migration_colonnes import _clause_ajout
+
+    colonne = colonnes_manquantes(moteur_sans_compteur)["profiles"][0]
+    clause = _clause_ajout("profiles", colonne)
+    assert "NOT NULL DEFAULT 0" in clause
+
+    with moteur_sans_compteur.begin() as c:
+        c.execute(text(clause))
+        valeur = c.execute(text("SELECT rebonds_consecutifs FROM profiles")).scalar()
+
+    assert valeur == 0, "la ligne DÉJÀ en base doit porter le défaut, pas NULL"
+    assert colonnes_manquantes(moteur_sans_compteur) == {}
+
+
+def test_un_defaut_python_seul_ne_compte_pas_comme_defaut_serveur():
+    """`default=` ne s'applique qu'aux insertions faites par SQLAlchemy : il ne
+    remplit jamais les lignes déjà en base."""
+    from sqlalchemy import Column, Integer
+
+    from outils.migration_colonnes import _clause_ajout
+
+    python_seulement = Column("compteur", Integer, nullable=False, default=0)
+    with pytest.raises(SystemExit, match="NOT NULL"):
+        _clause_ajout("profiles", python_seulement)
