@@ -1581,6 +1581,32 @@ def _afficher_rapport(report):
         click.echo(f"Liens inter-provinciaux détectés : {report.nb_liens_interprovinciaux_detectes}")
 
 
+@cli.command("cycle")
+@click.option(
+    "--lookback-days",
+    default=30,
+    help="Fenêtre de détection. Le mandat impose une fréquence FIXE — ce réglage borne "
+    "la détection, il ne règle pas la cadence d'envoi (chantier 8).",
+)
+def cycle_cmd(lookback_days):
+    """Le cycle complet, tel que le minuteur l'exécute — détection puis livraison.
+
+    C'est le point d'entrée de l'ordonnanceur (voir deploiement/). Utilisable à
+    la main pour reproduire exactement ce que fait l'exécution automatique :
+    même chemin, mêmes battements de cœur, aucune variante réservée aux tests.
+    """
+    from falkye.cycle import executer_cycle
+
+    rapport = executer_cycle(lookback_days=lookback_days)
+    click.echo(rapport.resume_lisible())
+    for echec in rapport.echecs:
+        click.echo(f"  échec — {echec}", err=True)
+    if rapport.resumes_en_echec:
+        # Sortie non nulle : le gestionnaire de services doit voir qu'une partie
+        # du cycle n'a pas livré, même si le reste a fonctionné.
+        raise SystemExit(1)
+
+
 @cli.group()
 def notifications():
     """Consulter les notifications générées."""

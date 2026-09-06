@@ -1,0 +1,18 @@
+# Le déclencheur du cycle. Fréquence FIXE, non configurable (mandat du chantier 28).
+[Unit]
+Description=FALKYE — déclenche le cycle hebdomadaire
+
+[Timer]
+# Mardi 8 h, heure de Montréal. Le jour et l'heure viennent de la spec (livrer au
+# moment où la personne peut agir, charte section 16) ; ils sont ici et non dans
+# le code, parce que changer un créneau ne doit pas demander un déploiement.
+OnCalendar=Tue *-*-* 08:00:00
+# Rattrape un créneau manqué pendant que l'hôte était éteint, au lieu d'attendre
+# une semaine de plus. C'est la même règle que le lot conservé : ne pas perdre
+# une livraison parce que le moment est passé.
+Persistent=true
+# Évite que plusieurs hôtes (ou un redémarrage) tapent à la même seconde.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

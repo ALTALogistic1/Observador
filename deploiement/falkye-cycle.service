@@ -1,0 +1,35 @@
+# Le cycle hebdomadaire — détection puis livraison.
+#
+# Une unité DÉCLENCHÉE PAR MINUTEUR plutôt qu'un processus qui dort en boucle :
+# un processus dormant peut mourir en silence, et rien ne le relève. Une unité
+# oneshot, elle, est relancée par le minuteur au prochain créneau quoi qu'il soit
+# arrivé au précédent, et son échec est visible dans `systemctl list-units --failed`.
+[Unit]
+Description=FALKYE — cycle hebdomadaire de veille et de livraison
+# La base est distante et le point d'entrée est public : sans réseau, le cycle
+# écrirait son échec dans le fichier de repli pour rien.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=falkye
+Group=falkye
+WorkingDirectory=/opt/falkye
+# Les secrets vivent sur l'hôte, jamais dans le dépôt — voir docs/DEPLOIEMENT.md.
+EnvironmentFile=/etc/falkye/falkye.env
+ExecStart=/opt/falkye/venv/bin/falkye cycle
+# Un cycle qui dépasse largement sa durée normale est bloqué, pas lent : le tuer
+# libère le créneau suivant au lieu d'empiler deux exécutions.
+TimeoutStartSec=3600
+
+# Durcissement — le cycle n'a besoin ni d'écrire ailleurs que dans son état, ni
+# de privilèges.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/falkye
+
+[Install]
+WantedBy=multi-user.target
