@@ -45,8 +45,6 @@ from falkye.notifications.base import FORME_RESUME, NotificationContent
 from falkye.notifications.livraison import au_moins_un_succes, livrer
 from falkye.registry.loader import Registry, get_registry
 
-_NIVEAU_AFFICHAGE = {"faible": "Faible", "moyen": "Moyen", "eleve": "Élevé"}
-
 # Nombre maximal d'opportunités dans UN résumé (décision d'Alexandre du
 # 2026-09-06 : « un résumé de trois cents entrées n'est pas un résumé, quelle que
 # soit la qualité du reste »).
@@ -186,6 +184,21 @@ def _bloc_opportunite(
     La CATÉGORIE de signal est affichée, jamais le nom de la source — neutralité
     des libellés (charte section 6), même règle que le formateur individuel.
 
+    **Ni le score ni les niveaux n'apparaissent, décision d'Alexandre du
+    2026-09-06.** Sur les 306 opportunités du premier envoi, le score prenait
+    trois valeurs, dont 182 au même palier : les dix lignes livrées affichaient
+    toutes « confiance Élevé (84,9/100), pertinence AA ». **Un score qui ne
+    discrimine pas est une réserve non méritée** — il annonce une évaluation qui
+    n'a pas eu lieu, ce que la charte (section 16) interdit. Et répété à
+    l'identique sur chaque ligne, il ressemble à un champ de gabarit rempli
+    automatiquement, ce que les filtres antipourriel notent.
+
+    Les niveaux tombent avec le chiffre parce qu'ils en dérivent : garder
+    « confiance Élevé, pertinence AA » dix fois de suite conserverait exactement
+    le défaut, sous une forme moins visible. Le score continue de vivre au
+    tableau de bord et de décider l'ORDRE du résumé — il est retiré de ce que la
+    personne lit, pas du produit. À remettre le jour où il départage vraiment.
+
     `ligne_interpretation` est la place RÉSERVÉE, et volontairement vide, pour la
     ligne d'interprétation du chantier 21 (gabarits liés au couple signal ×
     sphère). Elle ne se remplit pas ici : ce chantier livre la version brute. Le
@@ -194,8 +207,6 @@ def _bloc_opportunite(
     serait précisément l'encouragement non mérité que la section 16 interdit.
     """
     nom = notification.company.nom_officiel_req or notification.company.nom_detecte
-    niveau = _NIVEAU_AFFICHAGE[notification.niveau_confiance.value]
-    pertinence = notification.niveau_pertinence.value if notification.niveau_pertinence else "non disponible"
 
     details: list[str] = []
     if ligne_interpretation:
@@ -214,12 +225,7 @@ def _bloc_opportunite(
         details.append(notification.company.ville)
 
     return BlocOpportunite(
-        titre=(
-            f"{nom} — confiance {niveau} ({notification.score_confiance}/100), "
-            f"pertinence {pertinence}"
-        ),
-        details=details,
-        lien_pas_pertinent=lien_pas_pertinent,
+        titre=nom, details=details, lien_pas_pertinent=lien_pas_pertinent
     )
 
 

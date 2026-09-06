@@ -368,3 +368,58 @@ def test_le_html_echappe_les_noms_dentreprise(db_session):
 
     assert "Bonneville &amp; Fils &lt;inc.&gt;" in contenu.corps_html
     assert "<inc.>" not in contenu.corps_html
+
+
+# --- Le score hors de la ligne visible — décision du 2026-09-06 ------------
+
+
+def test_le_resume_naffiche_ni_score_ni_niveaux(db_session):
+    """Un score qui ne discrimine pas est une réserve non méritée : il annonce
+    une évaluation qui n'a pas eu lieu. Sur les 306 opportunités du premier
+    envoi il prenait trois valeurs, dont 182 au même palier.
+
+    Les niveaux tombent avec le chiffre parce qu'ils en dérivent — garder
+    « confiance Élevé, pertinence AA » dix fois de suite conserverait le défaut
+    sous une forme moins visible.
+    """
+    contenu = _resume_rendu(db_session, nb=2)
+
+    for forme in (contenu.corps_texte, contenu.corps_html):
+        assert "confiance" not in forme
+        assert "pertinence" not in forme
+        assert "/100" not in forme
+        assert "72.0" not in forme  # le score des notifications de test
+        assert "AA" not in forme
+
+
+def test_le_score_decide_toujours_lordre(db_session):
+    """Retiré de ce que la personne lit, pas du produit : il départage encore.
+    Sans cette vérification, le retrait pourrait glisser vers un abandon."""
+    profile = _profile(db_session)
+    faible = _notification(db_session, profile, _company(db_session, nom="Faible"))
+    faible.score_confiance = 40.0
+    fort = _notification(db_session, profile, _company(db_session, nom="Fort"))
+    fort.score_confiance = 90.0
+    db_session.flush()
+
+    maintenant = datetime.now(timezone.utc)
+    _, notifications, _ = generer_resume(
+        db_session, profile, maintenant - timedelta(days=7), maintenant
+    )
+
+    assert [n.id for n in notifications] == [fort.id, faible.id]
+
+
+def test_le_nom_de_lentreprise_reste_le_titre(db_session):
+    """Ce qui reste après le retrait doit rester identifiable — sinon on aurait
+    vidé la ligne au lieu de la nettoyer."""
+    profile = _profile(db_session)
+    _notification(db_session, profile, _company(db_session, nom="Transport Bourassa"))
+    maintenant = datetime.now(timezone.utc)
+    summary, notifications, total = generer_resume(
+        db_session, profile, maintenant - timedelta(days=7), maintenant
+    )
+    contenu = formatter_resume(summary, notifications, nb_en_attente=total)
+
+    assert "• Transport Bourassa" in contenu.corps_texte
+    assert "<strong>Transport Bourassa</strong>" in contenu.corps_html
