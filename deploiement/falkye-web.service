@@ -10,8 +10,11 @@ Wants=network-online.target
 Type=notify
 User=falkye
 Group=falkye
-WorkingDirectory=/opt/falkye
+WorkingDirectory=/opt/falkye/code
 EnvironmentFile=/etc/falkye/falkye.env
+# La révision déployée, écrite par la chaîne de déploiement. Le `-` la rend
+# facultative : un hôte préparé à la main démarre sans elle.
+EnvironmentFile=-/opt/falkye/version.env
 ExecStart=/opt/falkye/venv/bin/gunicorn \
     --bind 127.0.0.1:8000 \
     --workers 2 \

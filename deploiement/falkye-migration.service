@@ -1,0 +1,31 @@
+# Création du schéma manquant, jouée à chaque déploiement.
+#
+# Une unité plutôt qu'un appel direct depuis la chaîne de déploiement, pour une
+# raison de portée : les identifiants de la base vivent dans un fichier que
+# l'utilisateur de déploiement ne peut PAS lire. Cette unité tourne en root et
+# le lit. Une chaîne compromise peut donc redémarrer le service, jamais lire la
+# base.
+[Unit]
+Description=FALKYE — crée le schéma manquant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=falkye
+Group=falkye
+WorkingDirectory=/opt/falkye/code
+EnvironmentFile=/etc/falkye/falkye.env
+EnvironmentFile=-/opt/falkye/version.env
+# `init-db` est ADDITIF : il crée ce qui manque et ne détruit jamais. Le projet
+# n'a pas d'outil de migration formel, et une table retirée du modèle reste en
+# base plutôt que d'être supprimée — perdre de l'état est irréversible, garder
+# une table morte ne l'est pas.
+ExecStart=/opt/falkye/venv/bin/falkye init-db
+TimeoutStartSec=300
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/falkye

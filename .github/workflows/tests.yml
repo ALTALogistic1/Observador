@@ -1,0 +1,45 @@
+name: Tests
+
+# Le déploiement ne part que si ceci est vert (voir deploiement.yml). Une chaîne
+# qui déploie du code non éprouvé est pire que pas de chaîne du tout : elle
+# donne la vitesse sans la confiance.
+on:
+  push:
+  pull_request:
+  workflow_call:      # appelé par le déploiement comme préalable
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          # LA MÊME version que l'hôte (Debian 13). Éprouver sur une autre
+          # reviendrait à vérifier une configuration qui n'existe nulle part —
+          # et le pilote de la base distante n'a d'ailleurs pas de roue au-delà
+          # de 3.13.
+          python-version: '3.13'
+          cache: pip
+
+      - name: Dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt sqlalchemy-libsql anthropic stripe
+
+      - name: Aucune compilation ne doit être nécessaire
+        # Le contrôle qui a décidé du choix de l'hôte : si une roue précompilée
+        # disparaissait pour cp313, on l'apprend ICI et non au déploiement.
+        run: |
+          pip download --only-binary=:all: --python-version 313 --implementation cp --abi cp313 \
+            --platform manylinux_2_17_x86_64 --platform manylinux_2_28_x86_64 \
+            -d /tmp/roues -r requirements.txt sqlalchemy-libsql anthropic stripe
+
+      - name: Suite
+        env:
+          # La suite est hermétique — aucun secret, aucune variable d'ambiance
+          # (tests/conftest.py::environnement_isole). Une base en mémoire suffit.
+          FALKYE_DB_URL: 'sqlite://'
+        run: python -m pytest -q

@@ -1,0 +1,102 @@
+name: Déploiement
+
+# Pourquoi cette chaîne est OBLIGATOIRE et non un confort : le port 22 est
+# bloqué depuis l'environnement de développement et les API des hébergeurs y
+# sont refusées au CONNECT. L'hôte ne peut donc être administré QUE d'ici.
+#
+# Le coureur, lui, atteint le port 22 sans difficulté.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/phase-1-docs-setup-b8em5g]
+
+concurrency:
+  # Deux déploiements simultanés laisseraient l'hôte dans un état qu'aucun des
+  # deux n'a voulu. Le second attend; il n'annule pas le premier en cours.
+  group: deploiement-production
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
+  deployer:
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Préparer l'accès SSH
+        env:
+          CLE: ${{ secrets.FALKYE_DEPLOY_SSH_KEY }}
+          HOTES_CONNUS: ${{ secrets.FALKYE_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/id_deploiement
+          chmod 600 ~/.ssh/id_deploiement
+          # L'empreinte du serveur vient d'un secret, jamais d'un ssh-keyscan :
+          # récupérer l'empreinte depuis le réseau qu'on cherche à ne pas croire
+          # ne vérifie rien.
+          printf '%s\n' "$HOTES_CONNUS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Envoyer le code
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+        run: |
+          rsync -az --delete \
+            --exclude '.git' --exclude '.github' --exclude '__pycache__' \
+            --exclude '*.pyc' --exclude 'venv' --exclude 'data' \
+            -e "ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes" \
+            ./ "$UTILISATEUR@$HOTE:/opt/falkye/code/"
+
+      - name: Installer et redémarrer
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+          REVISION: ${{ github.sha }}
+        run: |
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            "REVISION=${REVISION:0:7} bash -s" <<'DISTANT'
+          set -euo pipefail
+          cd /opt/falkye/code
+
+          # Le venv est reconstruit si absent, jamais recréé pour rien : une
+          # réinstallation complète à chaque déploiement multiplierait la durée
+          # sans rien garantir de plus.
+          test -d /opt/falkye/venv || python3 -m venv /opt/falkye/venv
+          /opt/falkye/venv/bin/pip install --quiet --upgrade pip
+          /opt/falkye/venv/bin/pip install --quiet -r requirements.txt sqlalchemy-libsql
+          /opt/falkye/venv/bin/pip install --quiet -e .
+
+          # La révision déployée, lue par le journal d'exploitation. Sans elle,
+          # on ne peut pas savoir si une panne vient du dernier déploiement.
+          # Fichier SÉPARÉ des secrets : l'utilisateur de déploiement l'écrit,
+          # il ne lit jamais /etc/falkye/falkye.env.
+          printf 'FALKYE_VERSION=%s\n' "$REVISION" > /opt/falkye/version.env
+
+          # Le schéma : créer ce qui manque, ne jamais détruire (`init_db` est
+          # additif, voir falkye/db.py). Passe par une unité du système plutôt
+          # que par un appel direct, POUR UNE RAISON : les identifiants de la
+          # base vivent dans /etc/falkye/falkye.env, que l'utilisateur de
+          # déploiement ne peut pas lire. L'unité, elle, tourne en root et le
+          # lit. Une chaîne compromise peut donc redémarrer le service, jamais
+          # lire la base.
+          sudo /usr/bin/systemctl start falkye-migration.service
+
+          sudo /usr/bin/systemctl restart falkye-web.service
+          sudo /usr/bin/systemctl restart falkye-cycle.timer
+
+          # Vérifier plutôt que supposer : un redémarrage accepté n'est pas un
+          # service qui répond.
+          for i in $(seq 1 30); do
+            if curl -sf --max-time 3 http://127.0.0.1:8000/sante > /dev/null; then
+              echo "point d'entrée en service"; exit 0
+            fi
+            sleep 1
+          done
+          echo "ÉCHEC : le point d'entrée ne répond pas après le déploiement" >&2
+          sudo /usr/bin/systemctl status falkye-web.service --no-pager || true
+          exit 1
+          DISTANT

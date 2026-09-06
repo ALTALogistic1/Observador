@@ -1,0 +1,68 @@
+name: Récupérer le journal de repli
+
+# LE correctif du filet qui capture sans pouvoir livrer.
+#
+# Le fichier de repli ne s'écrit que dans deux cas — base injoignable, démarrage
+# impossible — et il vit sur un hôte inaccessible depuis l'environnement de
+# développement, port 22 bloqué. Dans ces deux cas exacts, la base est muette ET
+# le fichier est hors de portée : le filet a capturé et ne peut pas livrer.
+#
+# Ce flux est le chemin de sortie. Déclenché à la demande, il récupère le
+# fichier depuis le coureur — qui, lui, atteint le port 22 — et le publie comme
+# artefact téléchargeable. Aucune dépendance neuve.
+on:
+  workflow_dispatch:
+    inputs:
+      vider_apres:
+        description: "Vider le fichier après récupération (le contenu reste dans l'artefact)"
+        type: boolean
+        default: false
+
+jobs:
+  recuperer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Préparer l'accès SSH
+        env:
+          CLE: ${{ secrets.FALKYE_DEPLOY_SSH_KEY }}
+          HOTES_CONNUS: ${{ secrets.FALKYE_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/id_deploiement
+          chmod 600 ~/.ssh/id_deploiement
+          printf '%s\n' "$HOTES_CONNUS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Récupérer
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+          VIDER: ${{ inputs.vider_apres }}
+        run: |
+          mkdir -p recolte
+          # Un fichier absent est le cas NORMAL — la base a répondu à chaque
+          # fois. Ce n'est pas un échec du flux, et le dire évite de chercher
+          # une panne là où il n'y en a pas.
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            'cat /var/lib/falkye/journal-repli.jsonl 2>/dev/null || true' > recolte/journal-repli.jsonl
+          if [ -s recolte/journal-repli.jsonl ]; then
+            echo "$(wc -l < recolte/journal-repli.jsonl) ligne(s) récupérée(s)."
+          else
+            echo "Fichier vide ou absent — la base a répondu à chaque écriture. C'est le cas normal."
+          fi
+          # Vider seulement sur demande explicite, et seulement APRÈS que le
+          # contenu soit sorti de l'hôte. L'inverse perdrait ce qu'on venait
+          # chercher.
+          if [ "$VIDER" = "true" ] && [ -s recolte/journal-repli.jsonl ]; then
+            ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+              ': > /var/lib/falkye/journal-repli.jsonl'
+            echo "Fichier vidé sur l'hôte."
+          fi
+
+      - name: Publier
+        uses: actions/upload-artifact@v4
+        with:
+          name: journal-repli
+          path: recolte/journal-repli.jsonl
+          if-no-files-found: warn
+          retention-days: 30
