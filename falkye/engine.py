@@ -24,6 +24,7 @@ from falkye.crm_sync import pousser_notification_vers_crm, sonder_statuts_crm
 from falkye.db import get_session
 from falkye.enrichment import enrichir_entreprise
 from falkye.matching import MatchResult, match_profile, spheres_probables
+from falkye.models.base import en_utc
 from falkye.models.company import Company, StatutVerification
 from falkye.models.notification import (
     ModeUsage,
@@ -163,9 +164,13 @@ def _signaux_deja_couverts(db_session: Session, company_id: int, profile_id: int
 
 
 def _besoin_enrichissement(company: Company) -> bool:
-    if company.site_web_vérifié_le is None:
+    # `en_utc` : la date relue depuis SQLite revient naïve (le fuseau n'est pas
+    # stocké), et la soustraction lèverait au deuxième cycle — le premier ayant
+    # posé la valeur. Voir falkye/models/base.py.
+    verifie_le = en_utc(company.site_web_vérifié_le)
+    if verifie_le is None:
         return True
-    age = datetime.now(timezone.utc) - company.site_web_vérifié_le
+    age = datetime.now(timezone.utc) - verifie_le
     return age > timedelta(days=ENRICHISSEMENT_VALIDITE_JOURS)
 
 
