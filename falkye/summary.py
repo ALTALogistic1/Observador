@@ -32,17 +32,60 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, nullslast, select
 from sqlalchemy.orm import Session
 
 from falkye.liens import url_desabonnement, url_pas_pertinent
-from falkye.models.notification import Notification, PeriodicSummary
+from falkye.models.notification import Notification, NotificationSignal, PeriodicSummary
 from falkye.models.profile import Profile
+from falkye.models.signal import Signal
 from falkye.notifications.base import FORME_RESUME, NotificationContent
 from falkye.notifications.livraison import au_moins_un_succes, livrer
 from falkye.registry.loader import Registry, get_registry
 
 _NIVEAU_AFFICHAGE = {"faible": "Faible", "moyen": "Moyen", "eleve": "Élevé"}
+
+# Nombre maximal d'opportunités dans UN résumé (décision d'Alexandre du
+# 2026-09-06 : « un résumé de trois cents entrées n'est pas un résumé, quelle que
+# soit la qualité du reste »).
+#
+# Le premier envoi réel en portait 306. Ce n'était pas un rendez-vous
+# hebdomadaire, c'était un déversoir — et c'est le profil de contenu que les
+# filtres antipourriel scrutent le plus (mandat, point de vigilance du
+# chantier 21).
+#
+# Dix : une personne agit sur une poignée d'opportunités dans sa semaine, pas sur
+# trente. Le chiffre est un point de départ à corriger par l'observation
+# (principe directeur #9), pas une valeur démontrée — d'où une constante nommée
+# plutôt qu'un nombre semé dans le code.
+#
+# Ce que le plafond NE règle pas : le reste attend son tour et sortira aux cycles
+# suivants, ce qui étale un arriéré de 306 sur une trentaine de semaines. Le
+# plafond d'ANTÉRIORITÉ, qui bornerait l'arriéré lui-même, appartient au
+# chantier 25 et n'entre pas ici.
+PLAFOND_OPPORTUNITES = 10
+
+
+def _valeur_du_signal():
+    """La plus grande valeur monétaire portée par les signaux d'une notification.
+
+    Sert UNIQUEMENT à départager les ex æquo, jamais à scorer — le score reste
+    entièrement l'affaire de falkye/scoring.py.
+
+    Pourquoi c'est nécessaire dès qu'il y a un plafond : sur les 306 opportunités
+    du premier envoi, 182 partageaient exactement le même score de 85. L'ordre
+    entre elles était donc celui de leur identifiant, c'est-à-dire celui du
+    fichier source. Un plafond posé sur cet ordre-là aurait livré chaque semaine
+    les dix premières lignes du fichier — un tri arbitraire promu en sélection.
+    Départager par le montant utilise un fait que le signal porte déjà.
+    """
+    return (
+        select(func.max(Signal.valeur_associee))
+        .select_from(NotificationSignal)
+        .join(Signal, Signal.id == NotificationSignal.signal_id)
+        .where(NotificationSignal.notification_id == Notification.id)
+        .scalar_subquery()
+    )
 
 
 def notifications_en_attente(db_session: Session, profile: Profile, avant: datetime) -> list[Notification]:
@@ -65,7 +108,7 @@ def notifications_en_attente(db_session: Session, profile: Profile, avant: datet
                 Notification.hors_profil.is_(False),
                 Notification.created_at < avant,
             )
-            .order_by(Notification.score_confiance.desc())
+            .order_by(Notification.score_confiance.desc(), nullslast(_valeur_du_signal().desc()))
         )
         .scalars()
         .all()
@@ -79,8 +122,19 @@ def generer_resume(
 
     Le marquage appartient à `generer_et_envoyer_resume`, après un envoi réussi —
     c'est toute la correction du lot perdu.
+
+    Retourne aussi le NOMBRE TOTAL en attente, plafond compris. Le résumé doit
+    pouvoir dire combien il en reste : taire l'arriéré ferait croire que la
+    semaine n'a produit que dix opportunités, et l'arriéré s'écoulerait sans que
+    personne sache qu'il existe.
+
+    Seules les opportunités RETENUES entrent dans `notification_ids` : ce sont
+    elles, et elles seules, qui seront marquées livrées après un envoi réussi.
+    Les autres restent en attente et repartiront — le plafond borne le message,
+    jamais le lot.
     """
-    notifications = notifications_en_attente(db_session, profile, avant=periode_fin)
+    en_attente = notifications_en_attente(db_session, profile, avant=periode_fin)
+    notifications = en_attente[:PLAFOND_OPPORTUNITES]
 
     summary = PeriodicSummary(
         profile_id=profile.id,
@@ -90,7 +144,7 @@ def generer_resume(
     )
     db_session.add(summary)
     db_session.flush()
-    return summary, notifications
+    return summary, notifications, len(en_attente)
 
 
 def _bloc_opportunite(
@@ -130,7 +184,11 @@ def _bloc_opportunite(
     for ns in notification.signaux_contributifs:
         signal_type = registry.signal_types.get(ns.signal.signal_type_id)
         categorie = signal_type.nom if signal_type else ns.signal.signal_type_id
-        lignes.append(f"    [{categorie}] {ns.justification}")
+        # Un motif vide n'écrit rien après la catégorie. Le remplir d'une phrase
+        # creuse (« Signal détecté », la version d'avant) prétendrait dire
+        # quelque chose de plus que ce qu'on sait — voir falkye/motif.py.
+        motif = (ns.justification or "").strip()
+        lignes.append(f"    [{categorie}] {motif}".rstrip())
 
     ville = notification.company.ville
     if ville:
@@ -151,9 +209,14 @@ def formatter_resume(
     registry: Registry | None = None,
     liens_pas_pertinent: dict[int, str] | None = None,
     lien_desabonnement: str | None = None,
+    nb_en_attente: int | None = None,
 ) -> NotificationContent:
+    """`nb_en_attente` : le total en attente, plafond compris. Absent, on suppose
+    qu'il n'y a pas d'arriéré — le cas des appels qui formatent une liste déjà
+    close."""
     registry = registry or get_registry()
     liens_pas_pertinent = liens_pas_pertinent or {}
+    nb_en_attente = len(notifications) if nb_en_attente is None else nb_en_attente
 
     if not notifications:
         # Formulation à revoir au chantier 14 : la charte (section 16) demande de
@@ -173,6 +236,18 @@ def formatter_resume(
             + "\n\n".join(blocs)
             + "\n"
         )
+        reste = nb_en_attente - len(notifications)
+        if reste > 0:
+            # Taire l'arriéré ferait croire que la semaine n'a produit que ces
+            # dix-là. Le dire par le FAIT — combien, et qu'elles suivront —
+            # plutôt que par une invitation à cliquer quelque part : il n'y a
+            # rien à cliquer, et promettre une page qui n'existe pas serait pire
+            # que le silence.
+            corps += (
+                f"\n{reste} autre{'s' if reste > 1 else ''} opportunité"
+                f"{'s' if reste > 1 else ''} en attente, retenue"
+                f"{'s' if reste > 1 else ''} pour les résumés suivants.\n"
+            )
 
     entetes = None
     if lien_desabonnement:
@@ -217,7 +292,9 @@ def generer_et_envoyer_resume(
     periode_fin = datetime.now(timezone.utc)
     periode_debut = periode_fin - timedelta(days=jours)
 
-    summary, notifications = generer_resume(db_session, profile, periode_debut, periode_fin)
+    summary, notifications, nb_en_attente = generer_resume(
+        db_session, profile, periode_debut, periode_fin
+    )
 
     # Les jetons sont créés AVANT le formatage : ce sont eux qui portent les
     # URL. `url_desabonnement` lève si le point d'entrée n'est pas configuré —
@@ -231,6 +308,7 @@ def generer_et_envoyer_resume(
         registry,
         liens_pas_pertinent=liens_retro,
         lien_desabonnement=lien_desabo,
+        nb_en_attente=nb_en_attente,
     )
 
     resultats = livrer(db_session, profile, contenu, registry, FORME_RESUME, summary=summary)

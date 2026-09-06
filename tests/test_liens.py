@@ -201,7 +201,7 @@ def test_le_resume_porte_les_entetes_rfc_8058_et_le_lien_visible(db_session, mon
     profile = _profile(db_session)
     n = _notification(db_session, profile)
     maintenant = datetime.now(timezone.utc)
-    summary, notifications = generer_resume(db_session, profile, maintenant, maintenant)
+    summary, notifications, _ = generer_resume(db_session, profile, maintenant, maintenant)
 
     lien = url_desabonnement(db_session, profile)
     contenu = formatter_resume(

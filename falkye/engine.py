@@ -24,6 +24,7 @@ from falkye.crm_sync import pousser_notification_vers_crm, sonder_statuts_crm
 from falkye.db import get_session
 from falkye.enrichment import enrichir_entreprise
 from falkye.matching import MatchResult, match_profile, spheres_probables
+from falkye.motif import motif_avec_mots_cles
 from falkye.models.base import en_utc
 from falkye.models.company import Company, StatutVerification
 from falkye.models.notification import (
@@ -237,13 +238,14 @@ def _traiter_entreprise_pour_profil(
         matches_par_signal[signal.id] = matches
 
         meilleur_signal = max(matches, key=lambda m: m.correspondance_qualitative)
-        if meilleur_signal.correspondance_qualitative:
-            justifications[signal.id] = (
-                f"{signal.titre_ou_description or ''} — correspond aux mots-clés : "
-                f"{', '.join(meilleur_signal.mots_cles_trouves)}"
-            )
-        else:
-            justifications[signal.id] = signal.titre_ou_description or "Signal détecté"
+        # Le motif vient de la STRUCTURE DE FAITS, pas du seul libellé de la
+        # source — voir falkye/motif.py. L'ancienne version retombait sur
+        # « Signal détecté » dès qu'une source ne libellait pas ses événements,
+        # et ouvrait la variante à mots-clés par un tiret orphelin.
+        justifications[signal.id] = motif_avec_mots_cles(
+            signal,
+            meilleur_signal.mots_cles_trouves if meilleur_signal.correspondance_qualitative else [],
+        )
 
         # Sphère retenue pour LA notification (une seule, même simplification déjà
         # en place) : le MEILLEUR tier de pertinence toutes correspondances
