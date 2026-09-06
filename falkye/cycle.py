@@ -11,6 +11,12 @@ aurait le défaut inverse : il peut mourir en silence, et rien ne le relève.
 Sans elles, trois pannes se ressemblent — voir
 falkye/models/journal_exploitation.py, qui les distingue.
 
+**Ce que le cycle précédent a cru livrer, vérifié avant de générer.** Une
+acceptation par le fournisseur n'est pas une livraison; le refus du destinataire
+arrive après, quand plus rien n'écoute. La réconciliation
+(falkye/reconciliation.py) ouvre le cycle pour que les opportunités d'un résumé
+rebondi repartent immédiatement, et non la semaine d'après.
+
 **Un profil qui échoue n'emporte pas les autres.** Chaque résumé est isolé :
 une adresse invalide chez l'un ne doit pas priver les autres de leur envoi. Les
 opportunités du profil en échec restent en attente et repartiront au cycle
@@ -33,6 +39,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RapportCycle:
     profils_traites: int = 0
+    remises_rebondies: int = 0
+    opportunites_remises_en_attente: int = 0
     resumes_envoyes: int = 0
     resumes_en_echec: int = 0
     opportunites_livrees: int = 0
@@ -49,6 +57,11 @@ class RapportCycle:
         )
         if self.resumes_en_echec:
             texte += f", {self.resumes_en_echec} en échec"
+        if self.remises_rebondies:
+            texte += (
+                f", {self.remises_rebondies} remise(s) rebondie(s) du cycle précédent "
+                f"({self.opportunites_remises_en_attente} opportunité(s) reprise(s))"
+            )
         return texte
 
 
@@ -67,6 +80,8 @@ def executer_cycle(lookback_days: int = 30) -> RapportCycle:
     """
     from falkye.db import get_session
     from falkye.engine import run_veille_continue
+    from falkye.reconciliation import reconcilier_livraisons
+    from falkye.registry.loader import get_registry
     from falkye.summary import generer_et_envoyer_resume
 
     journaliser(EvenementExploitation.CYCLE_DEBUT)
@@ -78,6 +93,20 @@ def executer_cycle(lookback_days: int = 30) -> RapportCycle:
 
         db_session = get_session()
         try:
+            # AVANT de générer quoi que ce soit : ce que le cycle précédent a cru
+            # livrer l'a-t-il été? Un rebond remet ses opportunités en attente, et
+            # elles doivent repartir DANS CE CYCLE-CI, pas au suivant — sinon un
+            # refus coûterait deux semaines au lieu d'une.
+            reconciliation = reconcilier_livraisons(db_session, get_registry())
+            rapport.remises_rebondies = reconciliation.rebondies
+            rapport.opportunites_remises_en_attente = (
+                reconciliation.opportunites_remises_en_attente
+            )
+            for ligne in reconciliation.resumes_rebondis:
+                journaliser(
+                    EvenementExploitation.LIVRAISON_REBONDIE, ligne, db_session=db_session
+                )
+
             for profile in profils_abonnes(db_session):
                 rapport.profils_traites += 1
                 try:

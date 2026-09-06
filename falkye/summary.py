@@ -227,7 +227,7 @@ def generer_et_envoyer_resume(
         lien_desabonnement=lien_desabo,
     )
 
-    resultats = livrer(db_session, profile, contenu, registry, FORME_RESUME)
+    resultats = livrer(db_session, profile, contenu, registry, FORME_RESUME, summary=summary)
 
     if au_moins_un_succes(resultats):
         summary.envoye_le = datetime.now(timezone.utc)
@@ -237,6 +237,10 @@ def generer_et_envoyer_resume(
     # repartiront au prochain résumé. Le PeriodicSummary non envoyé subsiste comme
     # trace de la tentative — c'est ce qui distingue « rien à envoyer » de
     # « l'envoi a échoué ».
+    #
+    # `envoye_le` ne dit que « le fournisseur a accepté ». Le refus du
+    # destinataire arrive plus tard et défait ces deux marquages —
+    # falkye/reconciliation.py, appelé au début du cycle suivant.
 
     db_session.commit()
     return summary

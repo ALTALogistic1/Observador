@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -50,6 +51,28 @@ class NotificationContent:
 class DeliveryResult:
     succes: bool
     erreur: str | None = None
+    # Identifiant du message CHEZ le fournisseur, quand il en donne un.
+    # `succes=True` veut dire « accepté », jamais « livré » — c'est cette
+    # référence qui permet de lui redemander plus tard ce qui est réellement
+    # arrivé (voir falkye/reconciliation.py). Un canal qui n'en fournit pas
+    # laisse None : sa remise ne sera simplement jamais réconciliée.
+    reference: str | None = None
+
+
+class EtatLivraison(str, Enum):
+    """Ce que le fournisseur dit d'un envoi qu'il a DÉJÀ accepté."""
+
+    CONFIRMEE = "confirmee"
+    REBONDIE = "rebondie"
+    # Encore en vol, ou hors de la fenêtre de rétention du fournisseur. Ne rien
+    # savoir n'est pas savoir que c'est perdu : ce cas ne remet rien en attente.
+    INCONNUE = "inconnue"
+
+
+@dataclass
+class VerdictLivraison:
+    etat: EtatLivraison
+    detail: str | None = None
 
 
 class NotificationChannel(ABC):
@@ -80,6 +103,23 @@ class NotificationChannel(ABC):
         if profile.desabonne_le is not None:
             return None
         return profile.courriel
+
+    def etat_des_livraisons(self, references: list[str]) -> dict[str, VerdictLivraison]:
+        """Ce que le fournisseur dit d'envois qu'il a déjà acceptés.
+
+        Défaut : un dictionnaire vide — « ce canal ne sait pas dire ». C'est le
+        comportement correct pour un canal sans notion de remise différée (un
+        webhook répond dans l'appel, il n'y a rien à réconcilier plus tard), et
+        c'est aussi ce qui fait qu'ajouter un canal n'oblige pas à écrire cette
+        méthode pour que le reste fonctionne.
+
+        Ne jamais lever : une panne du fournisseur pendant la réconciliation est
+        une panne d'OBSERVATION. Si elle interrompait le cycle, on perdrait les
+        envois de la semaine en plus de l'information sur ceux de la précédente.
+        Retourner {} laisse les remises en `acceptee`, donc réexaminées au cycle
+        suivant — le comportement sûr.
+        """
+        return {}
 
 
 class StubChannel(NotificationChannel):

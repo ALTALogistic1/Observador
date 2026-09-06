@@ -43,11 +43,20 @@ import os
 
 import requests
 
-from falkye.notifications.base import DeliveryResult, NotificationChannel, NotificationContent
+from falkye.notifications.base import (
+    DeliveryResult,
+    EtatLivraison,
+    NotificationChannel,
+    NotificationContent,
+    VerdictLivraison,
+)
 
 logger = logging.getLogger(__name__)
 
 URL_ENVOI = "https://api.postmarkapp.com/email"
+# Consultation d'un envoi déjà accepté — c'est ce point d'accès qui porte le
+# verdict réel (`MessageEvents`), que la réponse d'envoi ne peut pas connaître.
+URL_DETAILS = "https://api.postmarkapp.com/messages/outbound/{reference}/details"
 
 # Flux de diffusion — voir la docstring. Surclassable par
 # FALKYE_POSTMARK_MESSAGE_STREAM si un flux au nom différent est créé au compte.
@@ -100,6 +109,69 @@ class PostmarkChannel(NotificationChannel):
 
         return _interpreter(reponse, destinataire)
 
+    def etat_des_livraisons(self, references: list[str]) -> dict[str, VerdictLivraison]:
+        """Interroge Postmark sur des envois déjà acceptés.
+
+        **Consultation, pas webhook.** Un webhook exigerait que le point d'entrée
+        public soit joignable au moment précis où le fournisseur pousse, et une
+        indisponibilité perdrait le verdict. La consultation, elle, se fait au
+        début du cycle suivant : elle ne dépend d'aucune fenêtre de temps, se
+        rejoue sans effet de bord, et n'ouvre aucune surface entrante de plus. Le
+        délai qu'elle coûte — jusqu'à une semaine — n'a pas de conséquence, parce
+        que ce que le verdict déclenche (remettre les opportunités en attente) ne
+        sert de toute façon qu'au cycle suivant.
+
+        Une réponse illisible, un 404 ou une panne réseau donnent INCONNUE :
+        laisser la remise en `acceptee` la fera réexaminer, alors que la déclarer
+        rebondie sur une ignorance renverrait un résumé déjà lu.
+        """
+        jeton = os.environ.get("FALKYE_POSTMARK_SERVER_TOKEN")
+        if not jeton:
+            return {}
+
+        verdicts: dict[str, VerdictLivraison] = {}
+        for reference in references:
+            try:
+                reponse = requests.get(
+                    URL_DETAILS.format(reference=reference),
+                    headers={"Accept": "application/json", "X-Postmark-Server-Token": jeton},
+                    timeout=DELAI_SECONDES,
+                )
+                evenements = reponse.json().get("MessageEvents") or []
+            except (requests.RequestException, ValueError, AttributeError) as exc:
+                logger.warning("Vérification Postmark impossible pour %s : %s", reference, exc)
+                continue
+
+            verdict = _verdict_depuis_evenements(evenements)
+            if verdict is not None:
+                verdicts[reference] = verdict
+        return verdicts
+
+
+
+# Types d'événements TERMINAUX chez Postmark. `Opened`, `LinkClicked` et
+# `SubscriptionChanged` en sont exclus volontairement : ils décrivent ce que le
+# destinataire a fait, pas si le message lui est parvenu — et un message peut
+# être remis sans jamais être ouvert.
+EVENEMENTS_TERMINAUX = {
+    "Delivered": EtatLivraison.CONFIRMEE,
+    "Bounced": EtatLivraison.REBONDIE,
+}
+
+
+def _verdict_depuis_evenements(evenements: list) -> VerdictLivraison | None:
+    """Le PREMIER événement terminal fait foi. None si aucun : le message est
+    encore en vol, et ne rien conclure est la bonne réponse."""
+    for evenement in evenements:
+        etat = EVENEMENTS_TERMINAUX.get((evenement or {}).get("Type"))
+        if etat is None:
+            continue
+        details = (evenement.get("Details") or {})
+        return VerdictLivraison(
+            etat=etat, detail=details.get("Summary") or details.get("DeliveryMessage")
+        )
+    return None
+
 
 def _interpreter(reponse, destinataire: str) -> DeliveryResult:
     """Traduit la réponse Postmark en DeliveryResult.
@@ -121,7 +193,10 @@ def _interpreter(reponse, destinataire: str) -> DeliveryResult:
     message = corps.get("Message", "")
 
     if reponse.status_code == 200 and code == 0:
-        return DeliveryResult(succes=True)
+        # `MessageID` est la seule clé qui permettra de redemander plus tard ce
+        # qui est réellement arrivé à CET envoi. Sans elle, l'acceptation reste
+        # la dernière chose qu'on sache.
+        return DeliveryResult(succes=True, reference=corps.get("MessageID"))
 
     logger.warning(
         "Postmark a refusé l'envoi à %s — HTTP %s, ErrorCode %s : %s",

@@ -31,7 +31,8 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from falkye.models.notification import Notification, NotificationDelivery
+from falkye.models.livraison_resume import LivraisonResume, StatutLivraison
+from falkye.models.notification import Notification, NotificationDelivery, PeriodicSummary
 from falkye.models.profile import Profile
 from falkye.notifications.base import NotificationContent
 from falkye.registry.loader import Registry
@@ -42,6 +43,10 @@ class ResultatCanal:
     channel_id: str
     succes: bool
     erreur: str | None = None
+    # Identifiant du message chez le fournisseur. `succes` dit « accepté »,
+    # jamais « livré » — cette référence est ce qui permettra de savoir lequel
+    # des deux c'était (falkye/reconciliation.py).
+    reference: str | None = None
 
 
 def livrer(
@@ -51,12 +56,18 @@ def livrer(
     registry: Registry,
     forme: str,
     notification: Notification | None = None,
+    summary: PeriodicSummary | None = None,
 ) -> list[ResultatCanal]:
     """Livre `contenu` sur tous les canaux actifs servant `forme`.
 
-    `notification` n'est fourni que pour une livraison unitaire : il sert
-    uniquement à enregistrer la trace `NotificationDelivery`. Un résumé n'a pas
-    de notification unique à rattacher — sa trace est `PeriodicSummary.envoye_le`.
+    `notification` n'est fourni que pour une livraison unitaire, `summary` que
+    pour un résumé : chacun sert uniquement à rattacher la trace de la tentative.
+
+    **La trace du résumé n'est pas `PeriodicSummary.envoye_le`**, contrairement à
+    ce que ce module affirmait avant le 2026-09-06. Cette date dit seulement que
+    le fournisseur a accepté la charge; le refus du destinataire arrive après, et
+    n'aurait rien eu où s'écrire. `LivraisonResume` porte la référence du message
+    et son statut réel — voir falkye/models/livraison_resume.py.
     """
     resultats: list[ResultatCanal] = []
     for channel_def in registry.canaux_actifs():
@@ -72,8 +83,24 @@ def livrer(
             continue
         resultat = channel.envoyer(destinataire, contenu)
         resultats.append(
-            ResultatCanal(channel_id=channel_def.id, succes=resultat.succes, erreur=resultat.erreur)
+            ResultatCanal(
+                channel_id=channel_def.id,
+                succes=resultat.succes,
+                erreur=resultat.erreur,
+                reference=resultat.reference,
+            )
         )
+        if summary is not None and resultat.succes:
+            # Seule une acceptation ouvre une réconciliation : un envoi refusé
+            # au moment de l'appel est déjà tranché, il n'y a rien à revérifier.
+            db_session.add(
+                LivraisonResume(
+                    summary_id=summary.id,
+                    channel_id=channel_def.id,
+                    statut=StatutLivraison.ACCEPTEE,
+                    reference=resultat.reference,
+                )
+            )
         if notification is not None:
             db_session.add(
                 NotificationDelivery(
