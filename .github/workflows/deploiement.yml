@@ -76,8 +76,10 @@ jobs:
           # il ne lit jamais /etc/falkye/falkye.env.
           printf 'FALKYE_VERSION=%s\n' "$REVISION" > /opt/falkye/version.env
 
-          # Le schéma : créer ce qui manque, ne jamais détruire (`init_db` est
-          # additif, voir falkye/db.py). Passe par une unité du système plutôt
+          # Le schéma : créer ce qui manque, ne jamais détruire — les tables
+          # via `init_db` (falkye/db.py), les COLONNES via
+          # outils/migration_colonnes.py, que `create_all` ne couvre pas.
+          # L'unité joue les deux. Passe par une unité du système plutôt
           # que par un appel direct, POUR UNE RAISON : les identifiants de la
           # base vivent dans /etc/falkye/falkye.env, que l'utilisateur de
           # déploiement ne peut pas lire. L'unité, elle, tourne en root et le
