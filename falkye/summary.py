@@ -30,7 +30,9 @@ chantier 25 est ce qui bornera ça — il n'entre pas ici.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from html import escape
 
 from sqlalchemy import func, nullslast, select
 from sqlalchemy.orm import Session
@@ -147,12 +149,31 @@ def generer_resume(
     return summary, notifications, len(en_attente)
 
 
+@dataclass
+class BlocOpportunite:
+    """Une opportunité, AVANT tout rendu.
+
+    Pourquoi une structure plutôt qu'une chaîne. Le résumé part en deux formes,
+    texte et HTML. Écrites séparément, elles divergeraient — et une divergence
+    entre deux formes du MÊME message est un mensonge : la personne qui lit
+    l'une n'aurait pas la même information que celle qui lit l'autre, sans que
+    rien ne le signale. C'est la même leçon que la réunification des chemins de
+    livraison, appliquée au rendu. Les deux formes se construisent donc ici, à
+    partir d'une seule source, et un test vérifie qu'elles portent exactement le
+    même texte visible.
+    """
+
+    titre: str
+    details: list[str]
+    lien_pas_pertinent: str | None = None
+
+
 def _bloc_opportunite(
     notification: Notification,
     registry: Registry,
     lien_pas_pertinent: str | None = None,
     ligne_interpretation: str | None = None,
-) -> str:
+) -> BlocOpportunite:
     """Une opportunité : ce qu'elle est, pourquoi elle a été repérée.
 
     Le MOTIF DU REPÉRAGE est ce qui manquait au résumé. Charte section 16 : « un
@@ -176,10 +197,9 @@ def _bloc_opportunite(
     niveau = _NIVEAU_AFFICHAGE[notification.niveau_confiance.value]
     pertinence = notification.niveau_pertinence.value if notification.niveau_pertinence else "non disponible"
 
-    lignes = [f"• {nom} — confiance {niveau} ({notification.score_confiance}/100), pertinence {pertinence}"]
-
+    details: list[str] = []
     if ligne_interpretation:
-        lignes.append(f"    {ligne_interpretation}")
+        details.append(ligne_interpretation)
 
     for ns in notification.signaux_contributifs:
         signal_type = registry.signal_types.get(ns.signal.signal_type_id)
@@ -188,19 +208,86 @@ def _bloc_opportunite(
         # creuse (« Signal détecté », la version d'avant) prétendrait dire
         # quelque chose de plus que ce qu'on sait — voir falkye/motif.py.
         motif = (ns.justification or "").strip()
-        lignes.append(f"    [{categorie}] {motif}".rstrip())
+        details.append(f"[{categorie}] {motif}".rstrip())
 
-    ville = notification.company.ville
-    if ville:
-        lignes.append(f"    {ville}")
+    if notification.company.ville:
+        details.append(notification.company.ville)
 
-    if lien_pas_pertinent:
-        # La rétroaction minimale — la seule boucle de correction du produit.
-        # Formulée par l'action qu'elle appelle, jamais comme un jugement sur
-        # l'opportunité (charte section 16).
-        lignes.append(f"    Pas pertinent pour vous? {lien_pas_pertinent}")
+    return BlocOpportunite(
+        titre=(
+            f"{nom} — confiance {niveau} ({notification.score_confiance}/100), "
+            f"pertinence {pertinence}"
+        ),
+        details=details,
+        lien_pas_pertinent=lien_pas_pertinent,
+    )
 
+
+# La rétroaction minimale — la seule boucle de correction du produit. Formulée
+# par l'action qu'elle appelle, jamais comme un jugement sur l'opportunité
+# (charte section 16).
+LIBELLE_PAS_PERTINENT = "Pas pertinent pour vous?"
+
+
+def _bloc_en_texte(bloc: BlocOpportunite) -> str:
+    lignes = [f"• {bloc.titre}"]
+    lignes += [f"    {d}" for d in bloc.details]
+    if bloc.lien_pas_pertinent:
+        lignes.append(f"    {LIBELLE_PAS_PERTINENT} {bloc.lien_pas_pertinent}")
     return "\n".join(lignes)
+
+
+def _bloc_en_html(bloc: BlocOpportunite) -> str:
+    """Le MÊME contenu, balisé au minimum.
+
+    Aucune feuille de style, aucune image, aucun tableau : le mandat demande du
+    texte lisible, pas un gabarit. La partie HTML existe parce qu'un envoi de
+    diffusion en texte seul est un signal négatif pour les filtres, pas pour
+    mettre en forme.
+    """
+    lignes = [f"<strong>{escape(bloc.titre)}</strong>"]
+    lignes += [escape(d) for d in bloc.details]
+    if bloc.lien_pas_pertinent:
+        cible = escape(bloc.lien_pas_pertinent)
+        # Le texte du lien est l'URL elle-même : identique à la version texte,
+        # et une URL visible se vérifie d'un coup d'œil là où un libellé
+        # cliquable masque sa destination.
+        lignes.append(f"{escape(LIBELLE_PAS_PERTINENT)} <a href=\"{cible}\">{cible}</a>")
+    return "<p>" + "<br>\n".join(lignes) + "</p>"
+
+
+_MOIS = (
+    "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+)
+
+
+def _date_en_francais(moment: datetime) -> str:
+    """Sans dépendre d'une locale système : `locale.setlocale(LC_TIME, "fr_CA")`
+    échoue sur une image qui n'a pas le paquet de langue, et l'objet du courriel
+    basculerait alors en anglais sur l'hôte de production seulement — une
+    différence que les tests ne verraient jamais."""
+    return f"{moment.day} {_MOIS[moment.month - 1]} {moment.year}"
+
+
+def sujet_du_resume(summary: PeriodicSummary, nb_opportunites: int) -> str:
+    """Ce que le message contient, et combien.
+
+    L'ancien objet — « [FALKYE] Résumé du 2026-08-30 au 2026-09-06 » — ne disait
+    rien de son contenu. Trois défauts en une ligne : un préfixe entre crochets,
+    forme associée aux envois automatisés en masse; le nom de l'expéditeur
+    répété alors que l'adresse d'envoi le porte déjà, aux caractères les plus
+    visibles d'une boîte de réception; et aucune indication de ce qu'on
+    trouvera dedans.
+
+    Le nombre vient en tête parce que c'est lui qui décide si on ouvre
+    maintenant ou plus tard.
+    """
+    semaine = _date_en_francais(summary.periode_debut)
+    if nb_opportunites == 0:
+        return f"Aucune entreprise repérée — semaine du {semaine}"
+    pluriel = "s" if nb_opportunites > 1 else ""
+    return f"{nb_opportunites} entreprise{pluriel} repérée{pluriel} — semaine du {semaine}"
 
 
 def formatter_resume(
@@ -211,12 +298,30 @@ def formatter_resume(
     lien_desabonnement: str | None = None,
     nb_en_attente: int | None = None,
 ) -> NotificationContent:
-    """`nb_en_attente` : le total en attente, plafond compris. Absent, on suppose
+    """Le résumé en DEUX formes, construites d'une seule source.
+
+    `nb_en_attente` : le total en attente, plafond compris. Absent, on suppose
     qu'il n'y a pas d'arriéré — le cas des appels qui formatent une liste déjà
-    close."""
+    close.
+
+    **Pourquoi une partie HTML alors que le mandat demande « du texte lisible ».**
+    Le mandat interdit un GABARIT élaboré, pas une partie HTML — et un envoi de
+    diffusion en texte seul est inhabituel, donc un signal négatif de plus pour
+    les filtres, sur un domaine qui vient d'encaisser un rebond pour pourriel. Le
+    balisage ici est le strict minimum : aucune feuille de style, aucune image,
+    aucun tableau, rien qui ne soit déjà dans le texte.
+
+    **Les deux formes disent exactement la même chose**, parce qu'elles sortent
+    des mêmes `BlocOpportunite`. Deux rendus écrits séparément divergeraient, et
+    une divergence entre deux formes du même message est un mensonge : celui qui
+    lit l'une n'aurait pas la même information que celui qui lit l'autre.
+    """
     registry = registry or get_registry()
     liens_pas_pertinent = liens_pas_pertinent or {}
     nb_en_attente = len(notifications) if nb_en_attente is None else nb_en_attente
+
+    paragraphes_texte: list[str] = []
+    paragraphes_html: list[str] = []
 
     if not notifications:
         # Formulation à revoir au chantier 14 : la charte (section 16) demande de
@@ -224,18 +329,22 @@ def formatter_resume(
         # suivies et qu'aucune n'a franchi le seuil — plutôt que par le vide, qui
         # se lit comme une panne. Ce compte n'existe pas encore; le fabriquer ici
         # serait pire que la phrase neutre. Laissé tel quel, sciemment.
-        corps = "Aucune nouvelle entreprise repérée durant cette période."
+        vide = "Aucune nouvelle entreprise repérée durant cette période."
+        paragraphes_texte.append(vide)
+        paragraphes_html.append(f"<p>{escape(vide)}</p>")
     else:
         blocs = [
             _bloc_opportunite(n, registry, lien_pas_pertinent=liens_pas_pertinent.get(n.id))
             for n in notifications
         ]
         pluriel = "s" if len(notifications) > 1 else ""
-        corps = (
-            f"{len(notifications)} entreprise{pluriel} repérée{pluriel} :\n\n"
-            + "\n\n".join(blocs)
-            + "\n"
-        )
+        entete = f"{len(notifications)} entreprise{pluriel} repérée{pluriel} :"
+        paragraphes_texte.append(entete)
+        paragraphes_html.append(f"<p>{escape(entete)}</p>")
+
+        paragraphes_texte += [_bloc_en_texte(b) for b in blocs]
+        paragraphes_html += [_bloc_en_html(b) for b in blocs]
+
         reste = nb_en_attente - len(notifications)
         if reste > 0:
             # Taire l'arriéré ferait croire que la semaine n'a produit que ces
@@ -243,18 +352,25 @@ def formatter_resume(
             # plutôt que par une invitation à cliquer quelque part : il n'y a
             # rien à cliquer, et promettre une page qui n'existe pas serait pire
             # que le silence.
-            corps += (
-                f"\n{reste} autre{'s' if reste > 1 else ''} opportunité"
-                f"{'s' if reste > 1 else ''} en attente, retenue"
-                f"{'s' if reste > 1 else ''} pour les résumés suivants.\n"
+            s_reste = "s" if reste > 1 else ""
+            arriere = (
+                f"{reste} autre{s_reste} opportunité{s_reste} en attente, "
+                f"retenue{s_reste} pour les résumés suivants."
             )
+            paragraphes_texte.append(arriere)
+            paragraphes_html.append(f"<p>{escape(arriere)}</p>")
 
     entetes = None
     if lien_desabonnement:
         # Le lien visible dans le corps ET l'en-tête : l'un pour la personne qui
         # lit, l'autre pour le bouton natif de sa messagerie (RFC 8058). Les deux
         # mènent à la même URL, donc au même geste.
-        corps += f"\n---\nNe plus recevoir ces résumés : {lien_desabonnement}\n"
+        libelle = "Ne plus recevoir ces résumés :"
+        paragraphes_texte.append(f"---\n{libelle} {lien_desabonnement}")
+        cible = escape(lien_desabonnement)
+        paragraphes_html.append(
+            f"<hr>\n<p>{escape(libelle)} <a href=\"{cible}\">{cible}</a></p>"
+        )
         entetes = {
             "List-Unsubscribe": f"<{lien_desabonnement}>",
             # Sans cet en-tête, Gmail et Yahoo n'affichent pas le bouton natif :
@@ -262,10 +378,20 @@ def formatter_resume(
             "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         }
 
-    debut = summary.periode_debut.strftime("%Y-%m-%d")
-    fin = summary.periode_fin.strftime("%Y-%m-%d")
-    sujet = f"[FALKYE] Résumé du {debut} au {fin}"
-    return NotificationContent(sujet=sujet, corps_texte=corps, entetes=entetes)
+    corps_texte = "\n\n".join(paragraphes_texte) + "\n"
+    corps_html = (
+        "<!doctype html>\n"
+        '<html lang="fr">\n<head><meta charset="utf-8"></head>\n<body>\n'
+        + "\n".join(paragraphes_html)
+        + "\n</body>\n</html>\n"
+    )
+
+    return NotificationContent(
+        sujet=sujet_du_resume(summary, len(notifications)),
+        corps_texte=corps_texte,
+        corps_html=corps_html,
+        entetes=entetes,
+    )
 
 
 def generer_et_envoyer_resume(

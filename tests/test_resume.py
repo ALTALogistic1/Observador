@@ -241,3 +241,130 @@ def test_generer_resume_ne_marque_rien_par_lui_meme(db_session):
     generer_resume(db_session, profile, maintenant - timedelta(days=7), maintenant)
 
     assert n.inclus_dans_resume is False
+
+
+# --- L'objet et la partie HTML — 2026-09-06 --------------------------------
+#
+# ⚠️ Ces deux aspects n'avaient AUCUN test. Changer l'objet du courriel n'a fait
+# tomber aucun des 586 tests du dépôt : la suite passait pour la même raison
+# qu'elle passait avant le premier envoi réel — parce qu'elle ne regardait pas.
+# C'est la règle de la charte (section 11) appliquée à ce qu'on vient de
+# toucher, pas seulement à ce qu'on vient d'écrire.
+
+import re
+from html import unescape
+
+from falkye.summary import formatter_resume, sujet_du_resume
+
+
+def _resume_rendu(db_session, nb=1, **kw):
+    profile = _profile(db_session)
+    for i in range(nb):
+        _notification(db_session, profile, _company(db_session, nom=f"Entreprise {i}"))
+    maintenant = datetime.now(timezone.utc)
+    summary, notifications, total = generer_resume(
+        db_session, profile, maintenant - timedelta(days=7), maintenant
+    )
+    return formatter_resume(summary, notifications, nb_en_attente=total, **kw)
+
+
+def test_lobjet_dit_le_contenu_et_le_nombre(db_session):
+    """L'ancien objet — « [FALKYE] Résumé du 2026-08-30 au 2026-09-06 » — ne
+    disait rien de ce qu'il contenait, et son préfixe entre crochets est la
+    forme des envois automatisés en masse."""
+    contenu = _resume_rendu(db_session, nb=3)
+
+    assert contenu.sujet.startswith("3 entreprises repérées — semaine du ")
+    assert "[" not in contenu.sujet
+    assert "FALKYE" not in contenu.sujet  # l'adresse d'envoi le porte déjà
+
+
+def test_lobjet_saccorde_au_singulier(db_session):
+    assert _resume_rendu(db_session, nb=1).sujet.startswith("1 entreprise repérée — ")
+
+
+def test_lobjet_dune_semaine_vide_le_dit(db_session):
+    contenu = _resume_rendu(db_session, nb=0)
+    assert contenu.sujet.startswith("Aucune entreprise repérée — ")
+
+
+def test_le_mois_est_en_francais_sans_dependre_de_la_machine(db_session):
+    """`locale.setlocale(LC_TIME, "fr_CA")` échoue sur une image sans paquet de
+    langue : l'objet basculerait en anglais sur l'hôte de production seulement,
+    une différence qu'aucun test ne verrait."""
+
+    class _S:
+        periode_debut = datetime(2026, 8, 30, tzinfo=timezone.utc)
+
+    assert sujet_du_resume(_S(), 3) == "3 entreprises repérées — semaine du 30 août 2026"
+
+
+def test_la_partie_html_existe_et_reste_minimale(db_session):
+    """Elle existe parce qu'un envoi de diffusion en texte seul est un signal
+    négatif de plus pour les filtres. Elle reste nue parce que le mandat demande
+    du texte lisible, pas un gabarit."""
+    contenu = _resume_rendu(db_session, nb=2)
+
+    assert contenu.corps_html.startswith("<!doctype html>")
+    for interdit in ("<style", "<img", "<table", "style=", "<script"):
+        assert interdit not in contenu.corps_html
+
+
+def _visible(texte: str, *, html: bool = False) -> str:
+    """Le texte qu'un lecteur VOIT, réduit à sa substance.
+
+    Comparaison sur le texte CONTINU plutôt que ligne par ligne : `<a>` et
+    `<strong>` sont des balises en ligne, et couper à chaque balise scinderait
+    une phrase que le lecteur voit d'un seul tenant. Ce serait un faux écart —
+    et un test qui échoue sans défaut est aussi nuisible qu'un test qui passe
+    sans couverture.
+
+    Deux marques sont retirées des deux côtés : la puce du texte et le tiret de
+    séparation, dont l'équivalent HTML (`<hr>`) est un trait sans texte.
+    """
+    if html:
+        # Les attributs (dont `href`) ne sont pas visibles — seul le contenu l'est.
+        texte = unescape(re.sub(r"<[^>]+>", " ", texte))
+    texte = texte.replace("•", " ").replace("---", " ")
+    return " ".join(texte.split())
+
+
+def test_les_deux_formes_portent_exactement_le_meme_texte(db_session, monkeypatch):
+    """L'invariant qui justifie la structure intermédiaire.
+
+    Deux rendus écrits séparément divergent — et une divergence entre deux formes
+    du MÊME message est un mensonge : celui qui lit l'une n'a pas la même
+    information que celui qui lit l'autre, sans que rien ne le signale.
+    """
+    monkeypatch.setenv("FALKYE_LIEN_BASE_URL", "https://lien.exemple.test")
+    profile = _profile(db_session)
+    for i in range(3):
+        _notification(db_session, profile, _company(db_session, nom=f"Ex & Co {i}"))
+    maintenant = datetime.now(timezone.utc)
+    summary, notifications, total = generer_resume(
+        db_session, profile, maintenant - timedelta(days=7), maintenant
+    )
+    contenu = formatter_resume(
+        summary,
+        notifications,
+        liens_pas_pertinent={n.id: f"https://lien.exemple.test/r/j{n.id}" for n in notifications},
+        lien_desabonnement="https://lien.exemple.test/d/jeton",
+        nb_en_attente=total,
+    )
+
+    assert _visible(contenu.corps_texte) == _visible(contenu.corps_html, html=True)
+
+
+def test_le_html_echappe_les_noms_dentreprise(db_session):
+    """« BONNEVILLE & FILS INC. » existe pour de vrai dans les données réelles :
+    un `&` non échappé casse le rendu chez certains clients."""
+    profile = _profile(db_session)
+    _notification(db_session, profile, _company(db_session, nom="Bonneville & Fils <inc.>"))
+    maintenant = datetime.now(timezone.utc)
+    summary, notifications, total = generer_resume(
+        db_session, profile, maintenant - timedelta(days=7), maintenant
+    )
+    contenu = formatter_resume(summary, notifications, nb_en_attente=total)
+
+    assert "Bonneville &amp; Fils &lt;inc.&gt;" in contenu.corps_html
+    assert "<inc.>" not in contenu.corps_html
