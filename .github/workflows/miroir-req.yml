@@ -1,0 +1,149 @@
+name: Charger le miroir REQ
+
+# Pourquoi ce flux existe : l'hôte ne peut être administré QUE d'ici — le port 22
+# est bloqué depuis l'environnement de développement. Le coureur, lui, l'atteint.
+#
+# Pourquoi À LA DEMANDE et jamais planifié : l'archive du Registraire paraît par
+# éditions successives, quelques fois par an, et son téléchargement automatisé
+# est refusé par le pare-feu de l'origine. Le déclencheur est l'arrivée d'une
+# nouvelle édition, décidée par un humain — il n'y a rien à planifier.
+#
+# Ce que ce flux NE fait pas : lire quoi que ce soit de la base. Il dépose un
+# fichier et démarre une unité. Les identifiants vivent dans
+# /etc/falkye/falkye.env, que l'utilisateur de déploiement ne peut pas ouvrir.
+on:
+  workflow_dispatch:
+    inputs:
+      etiquette:
+        description: "Étiquette de la release portant JeuDonnees.zip (ex. req-data-2026-09-02)"
+        required: true
+        type: string
+
+concurrency:
+  # Deux imports simultanés écriraient dans le même fichier de miroir. Le second
+  # attend; il n'annule pas le premier, qui aurait déjà écrit la moitié des
+  # lignes — un miroir partiel ne se distingue pas d'un miroir complet à la
+  # lecture.
+  group: miroir-req-production
+  cancel-in-progress: false
+
+jobs:
+  charger:
+    runs-on: ubuntu-latest
+    # 33 minutes mesurées en développement; la marge couvre un hôte plus lent et
+    # le transfert de l'archive.
+    timeout-minutes: 150
+    steps:
+      - name: Récupérer l'archive depuis la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ETIQUETTE: ${{ inputs.etiquette }}
+        run: |
+          set -euo pipefail
+          gh release download "$ETIQUETTE" \
+            --repo "$GITHUB_REPOSITORY" --pattern 'JeuDonnees.zip' --dir .
+          # L'empreinte est calculée ICI et transmise à l'hôte, qui la
+          # recalcule : c'est le transfert qu'on vérifie, pas l'archive.
+          # Elle ne prouve rien contre une archive hostile — la même chaîne
+          # fournit le fichier et l'empreinte — et c'est acceptable parce que
+          # ce fichier ne peuple qu'un miroir reconstituable.
+          EMPREINTE=$(sha256sum JeuDonnees.zip | cut -d' ' -f1)
+          echo "EMPREINTE=$EMPREINTE" >> "$GITHUB_ENV"
+          ls -l JeuDonnees.zip
+          echo "empreinte au départ : $EMPREINTE"
+
+      - name: Préparer l'accès SSH
+        env:
+          CLE: ${{ secrets.FALKYE_DEPLOY_SSH_KEY }}
+          HOTES_CONNUS: ${{ secrets.FALKYE_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/id_deploiement
+          chmod 600 ~/.ssh/id_deploiement
+          # L'empreinte du serveur vient d'un secret, jamais d'un ssh-keyscan :
+          # la récupérer depuis le réseau qu'on cherche à ne pas croire ne
+          # vérifie rien. Même règle que la chaîne de déploiement.
+          printf '%s\n' "$HOTES_CONNUS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Déposer l'archive sur l'hôte
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            'mkdir -p /opt/falkye/import'
+          rsync -az --progress \
+            -e "ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes" \
+            JeuDonnees.zip "$UTILISATEUR@$HOTE:/opt/falkye/import/JeuDonnees.zip"
+
+      - name: Vérifier le transfert avant d'importer
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          DISTANTE=$(ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes \
+            "$UTILISATEUR@$HOTE" 'sha256sum /opt/falkye/import/JeuDonnees.zip | cut -d" " -f1')
+          echo "empreinte à l'arrivée : $DISTANTE"
+          # Vérifier ICI plutôt que de laisser l'unité le faire seule : un
+          # transfert tronqué doit coûter une minute, pas trente-trois.
+          [ "$DISTANTE" = "$EMPREINTE" ] || {
+            echo "::error::empreinte différente après transfert — rien n'a été importé"
+            exit 1
+          }
+
+      - name: Lancer l'import
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          # `ServerAlive*` : l'import dure une trentaine de minutes sans rien
+          # écrire sur la connexion, et un pare-feu intermédiaire couperait une
+          # session muette bien avant la fin.
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes \
+              -o ServerAliveInterval=30 -o ServerAliveCountMax=200 \
+              "$UTILISATEUR@$HOTE" \
+              'sudo /usr/bin/systemctl start falkye-miroir-req.service'
+
+      - name: Rapporter durée, pic mémoire et état du miroir
+        if: always()
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          # SANS `sudo` : lire les propriétés d'une unité et son journal ne
+          # demande aucun privilège. Une entrée de sudoers pour ça aurait élargi
+          # la permission sans rien débloquer — et, portant des arguments, elle
+          # aurait de toute façon refusé la ligne dès qu'on ajoute un `-p`.
+          # `always()` : c'est en ÉCHEC qu'on a le plus besoin de ces chiffres.
+          # Un import tué par manque de mémoire ne dit rien de lui-même depuis
+          # la sortie de `systemctl start`.
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            'systemctl show falkye-miroir-req.service \
+               -p Result -p ExecMainStatus -p MemoryPeak \
+               -p ExecMainStartTimestamp -p ExecMainExitTimestamp' \
+            | tee resultat.txt
+          echo "--- rapport de l'import (journal du service) ---"
+          # Le journal porte le rapport détaillé du script : durée, pic mémoire
+          # mesuré côté processus, nombre d'entrées, et surtout la part
+          # d'entrées avec ville — le contrôle qui distingue « importé » de
+          # « importé correctement » (voir docs/MIROIRS.md).
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            'journalctl -u falkye-miroir-req.service -n 60 --no-pager' || \
+            echo "journal non lisible par l'utilisateur de déploiement — voir sur l'hôte"
+
+      - name: Retirer l'archive de l'hôte
+        if: always()
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+        run: |
+          # 267 Mo qui n'ont plus de raison d'être sur un disque de 75 Go, et
+          # qui se retéléchargent en une minute. Retiré APRÈS le rapport, jamais
+          # avant : l'inverse effacerait la pièce à conviction d'un import raté.
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            'rm -f /opt/falkye/import/JeuDonnees.zip' || true

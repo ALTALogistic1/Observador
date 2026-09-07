@@ -35,6 +35,10 @@ service; elle ne peut pas lire la base.
 adduser --system --group --home /opt/falkye falkye
 mkdir -p /opt/falkye/code /var/lib/falkye
 chown -R falkye:falkye /opt/falkye /var/lib/falkye
+# Le dépôt d'archives de la chaîne — elle y écrit, l'unité d'import y lit.
+# Séparé de /var/lib/falkye à dessein : `deploy` n'a rien à écrire là où vivent
+# les bases.
+install -d -o deploy -g falkye -m 0750 /opt/falkye/import
 
 # 2. L'utilisateur de déploiement écrit le code, sans être le service
 usermod -aG falkye deploy
@@ -56,6 +60,20 @@ systemctl enable --now falkye-cycle.timer
 install -m 0440 deploiement/falkye-deploiement.sudoers /etc/sudoers.d/falkye-deploiement
 visudo -c
 ```
+
+**La base des miroirs a sa propre variable, et elle est obligatoire sur
+l'hôte.** `/etc/falkye/falkye.env` doit porter :
+
+```
+FALKYE_MIROIR_DB_URL=sqlite:////var/lib/falkye/miroirs.sqlite3
+```
+
+Quatre barres obliques : le chemin est ABSOLU. Sans cette variable, le défaut
+est le chemin relatif `./data/miroirs.sqlite3`, qui se résout dans le répertoire
+de travail de l'unité — hors des chemins que `ProtectSystem=strict` autorise en
+écriture. `outils/import_miroir_req.py` refuse alors de démarrer en nommant la
+variable, plutôt que de laisser tomber une erreur de permissions qui enverrait
+chercher au mauvais endroit. Voir docs/MIROIRS.md.
 
 **Ajouter une unité plus tard demandera de refaire l'étape 4.** C'est assumé :
 installer une unité est un geste de root, et donner ce pouvoir à la chaîne

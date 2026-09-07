@@ -6,7 +6,23 @@
 # Ce que ça garantit concrètement : une chaîne compromise peut interrompre le
 # service, jamais lire la base ni les clés d'envoi — celles-ci vivent dans
 # /etc/falkye/falkye.env, que `deploy` ne peut pas ouvrir.
+#
+# `falkye-miroir-req.service` s'ajoute à la liste le 2026-09-06, avec la même
+# garantie : `deploy` peut la DÉMARRER, jamais lire ce qu'elle lit. L'unité
+# tourne avec les identifiants de la base; la chaîne, non.
+#
+# ⚠️ Rien ici pour LIRE le résultat de l'import, et ce n'est pas un oubli :
+# `systemctl show` et `journalctl -u` sont des lectures que tout utilisateur
+# fait sans privilège. Ajouter une entrée pour elles aurait élargi la
+# permission sans rien débloquer.
+#
+# Et une entrée avec arguments n'autorise QUE ces arguments exacts : une ligne
+# `systemctl show falkye-miroir-req.service` aurait fait refuser
+# `systemctl show falkye-miroir-req.service -p Result`, au moment précis où on
+# veut le rapport. Un caractère générique l'aurait autorisée — et aurait aussi
+# élargi la permission à tout ce que `show` accepte d'autre.
 deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart falkye-web.service, \
                             /usr/bin/systemctl restart falkye-cycle.timer, \
                             /usr/bin/systemctl start falkye-migration.service, \
+                            /usr/bin/systemctl start falkye-miroir-req.service, \
                             /usr/bin/systemctl status falkye-web.service

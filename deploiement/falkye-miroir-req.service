@@ -1,0 +1,59 @@
+# Chargement du miroir REQ — déclenché à la demande, jamais planifié.
+#
+# Une unité plutôt qu'un appel direct depuis la chaîne de déploiement, pour la
+# même raison que la migration : les identifiants de la base vivent dans un
+# fichier que l'utilisateur de déploiement ne peut PAS lire. Cette unité tourne
+# avec eux. Une chaîne compromise peut donc DÉMARRER cet import, jamais lire la
+# base ni les clés d'envoi.
+#
+# **Pourquoi à la demande et non au minuteur.** L'archive du Registraire est
+# publiée par éditions successives, quelques fois par an, et son téléchargement
+# automatisé est refusé par le pare-feu de l'origine. Il n'y a donc rien à
+# planifier : le déclencheur est l'arrivée d'une nouvelle édition, décidée par
+# un humain. Voir docs/MIROIRS.md.
+#
+# **Ce que l'import écrit, et où.** Uniquement la base des MIROIRS —
+# FALKYE_MIROIR_DB_URL, un fichier local de /var/lib/falkye. Jamais la base
+# distante : l'import y prendrait environ 168 heures au lieu de 33 minutes.
+# outils/import_miroir_req.py refuse de démarrer si la variable manque ou
+# désigne autre chose qu'un fichier local, AVANT d'avoir touché à quoi que ce
+# soit — sans ce refus, l'erreur porterait sur des permissions et on chercherait
+# au mauvais endroit.
+[Unit]
+Description=FALKYE — charge le miroir REQ dans la base locale des miroirs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=falkye
+Group=falkye
+WorkingDirectory=/opt/falkye/code
+EnvironmentFile=/etc/falkye/falkye.env
+EnvironmentFile=-/opt/falkye/version.env
+# L'archive est déposée par la chaîne de déploiement dans un répertoire qu'elle
+# possède; l'unité s'y sert en lecture seule. Le contrôle d'empreinte protège
+# d'un transfert tronqué, PAS d'une archive hostile — la chaîne fournit les
+# deux. C'est acceptable ici parce que ce fichier ne peuple qu'un miroir
+# reconstituable, et que rien de ce qu'il contient n'est exécuté.
+ExecStart=/opt/falkye/venv/bin/python outils/import_miroir_req.py \
+          --chemin /opt/falkye/import/JeuDonnees.zip \
+          --importe-par chaine-de-deploiement
+
+# 33 minutes mesurées en développement, 2 heures de marge : un import interrompu
+# à mi-parcours par un délai trop court laisserait un miroir partiel, que rien
+# ne distingue d'un miroir complet à la lecture.
+TimeoutStartSec=7200
+
+# systemd relève lui-même le pic de mémoire du groupe de contrôle. Le script en
+# rapporte un aussi (`ru_maxrss`), et les deux se recoupent : l'un mesure le
+# processus, l'autre tout ce que l'unité a lancé.
+MemoryAccounting=yes
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# /var/lib/falkye porte le fichier des miroirs — le SEUL chemin que cette unité
+# écrit. Le répertoire de dépôt, lui, reste en lecture seule.
+ReadWritePaths=/var/lib/falkye
