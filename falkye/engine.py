@@ -171,8 +171,13 @@ def ingest_source(
         # transaction portant une écriture meurt en 75 s — le fournisseur expire
         # bien plus vite un flux qui tient un verrou d'écriture. Le flux mort
         # fait ensuite échouer la première opération suivante, rollback compris.
-        db_session.commit()
+        # L'identifiant est pris APRÈS le flush et AVANT la validation. Le lire
+        # après la validation forcerait un rafraîchissement — un aller-retour
+        # distant de plus, et surtout une transaction rouverte au moment précis
+        # où le connecteur part sur le réseau.
+        db_session.flush()
         run_log_id = run_log.id
+        db_session.commit()
     except Exception as exc:  # noqa: BLE001
         # Sous protection comme le reste : si la connexion est déjà morte ici,
         # lever ferait exactement ce qu'on vient de corriger — emporter les
@@ -218,7 +223,23 @@ def ingest_source(
                 methode_acces=source_def.methode_acces,
             )
             db_session.add(signal)
-            db_session.flush()
+            # VALIDÉ à chaque signal, pas flushé — décision du 2026-09-07, prise
+            # sur la mesure : la base distante annule une transaction portant une
+            # écriture non validée après moins de dix secondes d'inactivité. Un
+            # `flush()` ici laisserait cette écriture ouverte pendant la
+            # résolution NEQ du signal SUIVANT — 0,32 s par appel de repli, et
+            # rien ne borne le nombre d'appels. La source entière serait alors
+            # perdue, proprement mais perdue.
+            #
+            # Ce que ça coûte : un aller-retour facturé par signal neuf. Mis en
+            # regard du quota — le run de référence en a consommé 3,47 M sur
+            # 10 M, un cycle normal en écrit quelques centaines — c'est un bon
+            # échange contre une classe de panne silencieuse.
+            #
+            # Ce que ça change aussi, et qui est voulu : une source qui tombe à
+            # mi-chemin garde ce qu'elle a déjà trouvé. La déduplication par
+            # `source_ref` fait que la reprise ramasse le reste sans doublon.
+            db_session.commit()
             report.nb_signaux_nouveaux += 1
 
         db_session.commit()

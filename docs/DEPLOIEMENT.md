@@ -225,11 +225,23 @@ jamais été essayées.
 travail réseau, et `ingest_source` ne lève plus jamais : une connexion morte
 coûte une source, pas le cycle (`tests/test_ingestion_resiliente.py`).
 
-**Ce qui ne l'est pas, et qu'il faut savoir.** La boucle de détection valide
-signal par signal groupé, pas après chacun : si la résolution d'une entreprise
-prend plus de dix secondes alors qu'un signal est déjà flushé, la transaction
-meurt. La source est alors perdue proprement — mais elle est perdue. Le remède
-est de valider plus souvent, au prix d'allers-retours facturés. **Non tranché.**
+**La boucle de détection valide à chaque signal**, décision du 7 septembre 2026.
+Un `flush()` y laissait une écriture ouverte pendant la résolution NEQ du signal
+suivant — 0,32 s par appel de repli, sans borne sur le nombre d'appels.
+
+*Ce que ça coûte* : un aller-retour facturé par signal neuf. Le run de référence
+en a consommé 3,47 M sur les 10 M du forfait mensuel, et un cycle ordinaire en
+écrit quelques centaines. Quelques milliers d'écritures contre une classe de
+panne silencieuse est un bon échange, et le quota est à coût constant.
+
+*Ce que ça change aussi, et qui est voulu* : une source qui tombe à mi-chemin
+garde ce qu'elle a déjà trouvé. La déduplication par `source_ref` fait que la
+reprise ramasse le reste sans doublon. Avant, l'annulation jetait tout.
+
+**Règle générale à retenir.** Sur la base distante, ne jamais tenir une écriture
+non validée pendant quoi que ce soit dont la durée n'est pas bornée. Ni un appel
+réseau, ni une résolution contre le miroir, ni une boucle sur des milliers de
+lignes.
 
 ## Le mandataire inverse
 

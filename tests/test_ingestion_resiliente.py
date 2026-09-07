@@ -23,6 +23,8 @@ qu'ils dépendent tous d'une base DISTANTE.
      d'inactivité sur la base distante, une transaction portant une écriture
      meurt en 75 s. C'est ce qui tuait le flux.
 """
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import select
 
@@ -157,16 +159,16 @@ def test_aucune_ecriture_nest_ouverte_pendant_le_reseau(db_session, monkeypatch,
 
     class _ConnecteurQuiRegarde:
         def detect(self, since, db_session):
-            etat["nouveaux"] = list(db_session.new)
-            etat["modifies"] = list(db_session.dirty)
+            # Même raison que ci-dessous : c'est la transaction OUVERTE qui tue,
+            # pas la présence d'objets dans `session.new`.
+            etat["en_transaction"] = db_session.in_transaction()
             return iter(())
 
     registry = _brancher_connecteur(monkeypatch, source_id, _ConnecteurQuiRegarde())
 
     ingest_source(db_session, source_id, None, registry, "veille_continue")
 
-    assert etat["nouveaux"] == []
-    assert etat["modifies"] == []
+    assert etat["en_transaction"] is False
 
 
 def test_une_source_pas_encore_construite_est_quand_meme_consignee(
@@ -186,3 +188,52 @@ def test_une_source_pas_encore_construite_est_quand_meme_consignee(
     )
     assert ligne.statut == "ignoree"
     assert ligne.finished_at is not None
+
+
+# --- Aucune écriture ne traverse une itération -----------------------------
+#
+# Décision du 2026-09-07 : valider à chaque signal plutôt que flusher, et
+# accepter le coût. La mesure qui la motive est dans docs/DEPLOIEMENT.md —
+# moins de dix secondes avant que la base distante annule une transaction qui
+# porte une écriture.
+
+
+def test_aucune_ecriture_ne_survit_a_une_iteration(db_session, monkeypatch, source_id):
+    """Le test central de la décision. Entre deux signaux se glisse la
+    résolution NEQ du suivant, qui peut durer des secondes : si une écriture
+    reste ouverte à ce moment-là, la source entière est perdue."""
+    from falkye.sources.base import RawSignal
+
+    etats = []
+
+    class _ConnecteurQuiObserve:
+        def detect(self, since, db_session):
+            for i in range(3):
+                # Vu par le connecteur AVANT de produire le signal suivant —
+                # c'est exactement l'instant où la résolution longue a lieu.
+                #
+                # `in_transaction()` et NON `db_session.new` : un `flush()` vide
+                # `new` lui aussi, en poussant l'écriture dans une transaction
+                # qui reste OUVERTE. Le premier jet de ce test regardait `new`,
+                # et la mutation qui remet un `flush()` passait sans rien casser
+                # — un test qui ne verrouillait rien.
+                etats.append(db_session.in_transaction())
+                yield RawSignal(
+                    signal_type_id="contrat_public",
+                    source_ref=f"ref-{i}",
+                    nom_entreprise=f"Entreprise Témoin {i}",
+                    detected_at=datetime.now(timezone.utc),
+                    titre_ou_description="Signal de test",
+                    champs={},
+                )
+
+    registry = _brancher_connecteur(monkeypatch, source_id, _ConnecteurQuiObserve())
+
+    rapport = ingest_source(db_session, source_id, None, registry, "veille_continue")
+
+    assert rapport.nb_signaux_nouveaux == 3
+    assert len(etats) == 3
+    assert etats == [False, False, False], (
+        "une transaction reste ouverte pendant que le connecteur travaille — "
+        "la base distante l'annulerait en moins de dix secondes"
+    )
