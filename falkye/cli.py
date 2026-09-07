@@ -1654,13 +1654,17 @@ def cycle_cmd(lookback_days, sans_livraison):
     if rapport.sources_en_erreur:
         # Sur la sortie d'erreur : c'est la ligne qu'un opérateur doit voir
         # ressortir du journal du service, pas une ligne de rapport parmi
-        # d'autres. Elle ne fait PAS sortir en échec — une source en panne ne
-        # doit pas passer pour un cycle qui n'a pas tourné.
+        # d'autres. Une panne PARTIELLE ne fait pas sortir en échec — une source
+        # sur neuf ne doit pas passer pour un cycle qui n'a pas tourné.
         click.echo(
             f"  ⚠ {rapport.sources_en_erreur} source(s) sur {rapport.sources_ingerees} "
             "n'ont rien pu ingérer — détail dans SourceRunLog.",
             err=True,
         )
+    if rapport.toutes_les_sources_sont_tombees:
+        # L'exception : là, c'est bien le cycle qui n'a rien fait. Sortir en
+        # échec est le seul moyen que `systemctl list-units --failed` le dise.
+        raise SystemExit(1)
     for echec in rapport.echecs:
         click.echo(f"  échec — {echec}", err=True)
     if rapport.resumes_en_echec:

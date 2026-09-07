@@ -252,6 +252,12 @@ signaler.
 
 La troisième lecture manquait jusqu'au 7 septembre 2026 : une source en panne
 écrivait bien son échec dans `SourceRunLog`, mais la ligne de fin annonçait
-« 0 notification créée » — mot pour mot ce qu'annonce une semaine calme. Une
-source en panne ne fait toujours pas sortir l'unité en échec (une source sur neuf
-ne doit pas passer pour un cycle qui n'a pas tourné), mais elle se dit.
+« 0 notification créée » — mot pour mot ce qu'annonce une semaine calme.
+
+**Une panne partielle ne fait pas sortir l'unité en échec** : une source sur neuf
+ne doit pas passer pour un cycle qui n'a pas tourné. Elle se dit, elle ne crie
+pas. **Une panne totale, si** — quand toutes les sources tentées tombent, la
+ligne porte « AUCUNE OBSERVATION » et l'unité sort en échec, parce que là c'est
+bien le cycle qui n'a rien fait et que `systemctl list-units --failed` doit le
+dire. Les sources sans connecteur (`a_developper`) ne comptent pas au
+dénominateur : elles n'ont pas échoué, elles n'ont pas été tentées.

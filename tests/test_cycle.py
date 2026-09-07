@@ -435,3 +435,93 @@ def test_la_ligne_de_journal_ne_nomme_aucune_source(branche, monkeypatch):
     ).scalar_one()
     assert "s1" not in fin.detail
     assert "verrouillée" not in fin.detail
+
+
+# --- Quand toutes les sources tombent, c'est le cycle qui n'a rien fait -----
+#
+# Exception tranchée le 2026-09-07 à la règle « une source en panne ne fait pas
+# échouer le cycle ». Une sur neuf est une panne partielle; neuf sur neuf n'est
+# plus un cycle, et `systemctl list-units --failed` doit le dire.
+
+
+def test_toutes_les_sources_tombees_fait_sortir_lunite_en_echec(branche, monkeypatch):
+    monkeypatch.setattr(
+        falkye.engine,
+        "run_veille_continue",
+        lambda **kw: _ScanAvecPannes(("tombée", False), ("tombée", False)),
+    )
+    rapport = executer_cycle(livrer_les_resumes=False)
+
+    assert rapport.toutes_les_sources_sont_tombees is True
+
+    from click.testing import CliRunner
+
+    from falkye.cli import cli
+
+    resultat = CliRunner().invoke(cli, ["cycle", "--sans-livraison"])
+    assert resultat.exit_code == 1
+
+
+def test_une_panne_partielle_ne_fait_pas_echouer_lunite(branche, monkeypatch):
+    """Huit sources saines ne doivent pas passer pour un cycle mort."""
+    monkeypatch.setattr(
+        falkye.engine,
+        "run_veille_continue",
+        lambda **kw: _ScanAvecPannes(("tombée", False), (None, False)),
+    )
+    rapport = executer_cycle(livrer_les_resumes=False)
+
+    assert rapport.toutes_les_sources_sont_tombees is False
+
+    from click.testing import CliRunner
+
+    from falkye.cli import cli
+
+    assert CliRunner().invoke(cli, ["cycle", "--sans-livraison"]).exit_code == 0
+
+
+def test_les_sources_pas_encore_construites_ne_comptent_pas_au_denominateur(
+    branche, monkeypatch
+):
+    """Le piège du dénominateur : deux sources tentées, toutes deux tombées, et
+    une troisième jamais construite. C'est un effondrement complet — le compter
+    « 2 sur 3 » le ferait passer pour une panne partielle."""
+    monkeypatch.setattr(
+        falkye.engine,
+        "run_veille_continue",
+        lambda **kw: _ScanAvecPannes(
+            ("tombée", False), ("tombée", False), ("Aucun connecteur codé", True)
+        ),
+    )
+
+    rapport = executer_cycle(livrer_les_resumes=False)
+
+    assert rapport.sources_ingerees == 2
+    assert rapport.toutes_les_sources_sont_tombees is True
+
+
+def test_un_effondrement_complet_se_lit_dun_coup_doeil_au_journal(branche, monkeypatch):
+    monkeypatch.setattr(
+        falkye.engine,
+        "run_veille_continue",
+        lambda **kw: _ScanAvecPannes(("tombée", False), ("tombée", False)),
+    )
+
+    executer_cycle(livrer_les_resumes=False)
+
+    fin = branche.execute(
+        select(JournalExploitation).where(
+            JournalExploitation.evenement == EvenementExploitation.CYCLE_FIN
+        )
+    ).scalar_one()
+    assert "AUCUNE OBSERVATION" in fin.detail
+
+
+def test_un_cycle_sans_aucune_source_ne_compte_pas_comme_un_effondrement(
+    branche, monkeypatch
+):
+    """Zéro source tentée sur zéro : `0 == 0` serait vrai. Un registre où
+    aucune source n'est active est une configuration, pas une panne."""
+    monkeypatch.setattr(falkye.engine, "run_veille_continue", lambda **kw: _ScanAvecPannes())
+
+    assert executer_cycle(livrer_les_resumes=False).toutes_les_sources_sont_tombees is False

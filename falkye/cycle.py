@@ -51,6 +51,23 @@ class RapportCycle:
     livraison_omise: bool = False
     echecs: list[str] = field(default_factory=list)
 
+    @property
+    def toutes_les_sources_sont_tombees(self) -> bool:
+        """Le seuil où « une source en panne » devient « le cycle n'a rien fait ».
+
+        Une source sur neuf qui tombe est une panne partielle : le cycle a
+        quand même observé le reste, et faire échouer l'unité pour ça ferait
+        passer huit sources saines pour un cycle mort. Mais quand elles tombent
+        TOUTES, il n'y a plus de cycle du tout — seulement une exécution qui
+        s'est terminée. L'unité doit alors sortir en échec, sans quoi
+        `systemctl list-units --failed` reste vide au moment précis où il
+        devrait crier.
+
+        Arbitrage tranché le 2026-09-07, sur exception explicite à la règle
+        « une source en panne ne fait pas échouer le cycle ».
+        """
+        return self.sources_ingerees > 0 and self.sources_en_erreur == self.sources_ingerees
+
     def resume_lisible(self) -> str:
         """Une phrase pour le journal — des faits, jamais une trace de débogage."""
         if self.livraison_omise:
@@ -69,7 +86,15 @@ class RapportCycle:
                 f"{self.resumes_envoyes} résumé(s) envoyé(s), "
                 f"{self.opportunites_livrees} opportunité(s) livrée(s)"
             )
-        if self.sources_en_erreur:
+        if self.toutes_les_sources_sont_tombees:
+            # Pas une nuance de la ligne précédente : c'est un cycle qui n'a
+            # rien observé du tout, et il doit se lire comme tel du premier
+            # coup d'œil.
+            texte += (
+                f", AUCUNE OBSERVATION — les {self.sources_ingerees} source(s) "
+                "tentée(s) ont toutes échoué"
+            )
+        elif self.sources_en_erreur:
             # Comptées, jamais nommées : la ligne part dans la base et le nom
             # d'une source est révélateur (charte, neutralité des libellés). Le
             # détail par source vit déjà dans SourceRunLog.
@@ -146,7 +171,11 @@ def executer_cycle(lookback_days: int = 30, livrer_les_resumes: bool = True) -> 
         # « 0 notification créée » et sort en succès — mot pour mot ce que
         # journalise une semaine calme. Constaté le 2026-09-07 en répétition :
         # une source tombée sur une base verrouillée, cycle vert, rien dit.
-        rapport.sources_ingerees = len(scan.ingestion)
+        # Le dénominateur est le nombre de sources TENTÉES. Une source sans
+        # connecteur n'a pas échoué, elle n'a pas été essayée — la compter
+        # gonflerait le dénominateur et ferait passer un effondrement complet
+        # pour une panne partielle.
+        rapport.sources_ingerees = sum(1 for r in scan.ingestion if not r.ignoree)
         rapport.sources_en_erreur = sum(
             1 for r in scan.ingestion if r.erreur and not r.ignoree
         )
