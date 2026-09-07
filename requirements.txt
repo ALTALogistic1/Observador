@@ -10,7 +10,12 @@ openpyxl>=3.1
 pdfplumber>=0.11
 cffi>=1.16
 Flask>=3.0
-gunicorn>=22.0
+# `>=25.1` et non `>=22.0` : le drapeau `--no-control-socket` qu'emploie
+# deploiement/falkye-web.service n'existe qu'à partir de cette version. Avec une
+# version antérieure, le service refuserait de démarrer sur un argument inconnu
+# — un échec bruyant plutôt qu'un retour silencieux de l'erreur corrigée, ce qui
+# est le bon comportement.
+gunicorn>=25.1
 
 # Dépendances de développement / tests
 pytest>=8.0
