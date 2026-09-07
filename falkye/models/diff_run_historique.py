@@ -25,10 +25,10 @@ from datetime import datetime
 from sqlalchemy import JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from falkye.models.base import Base, utcnow
+from falkye.models.base import BaseMiroir, utcnow
 
 
-class DiffRunHistorique(Base):
+class DiffRunHistorique(BaseMiroir):
     __tablename__ = "diff_run_historique"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

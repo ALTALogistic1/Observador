@@ -695,11 +695,18 @@ def test_executer_diff_groupe_n_invoque_le_callback_que_si_tous_les_grains_sont_
 def _enonces_emis(db_session):
     """Enregistre chaque énoncé exécuté sur la connexion, avec son drapeau
     `executemany` — c'est CE drapeau qui distingue un aller-retour par ligne
-    d'un énoncé multi-VALUES."""
+    d'un énoncé multi-VALUES.
+
+    `get_bind(EtatLigneSource)` nomme la table : depuis le découpage en deux
+    bases (2026-09-06), la session est liée à deux moteurs et l'état de diff vit
+    dans celui des miroirs. Écouter le moteur du produit ne verrait rien passer.
+    """
     from sqlalchemy import event
 
+    from falkye.models.etat_diff_source import EtatLigneSource
+
     journal = []
-    moteur = db_session.get_bind()
+    moteur = db_session.get_bind(EtatLigneSource)
 
     def _ecouter(conn, cursor, enonce, parametres, contexte, executemany):
         journal.append((enonce, executemany, parametres))

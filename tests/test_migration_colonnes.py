@@ -135,3 +135,39 @@ def test_un_defaut_python_seul_ne_compte_pas_comme_defaut_serveur():
     python_seulement = Column("compteur", Integer, nullable=False, default=0)
     with pytest.raises(SystemExit, match="NOT NULL"):
         _clause_ajout("profiles", python_seulement)
+
+
+# --- Les deux cibles — 2026-09-06 ------------------------------------------
+
+
+def test_la_derive_est_surveillee_du_cote_miroir_aussi(tmp_path):
+    """Une seule cible surveillée aurait laissé la moitié du schéma sans
+    surveillance : une colonne ajoutée à un modèle miroir n'aurait jamais été
+    rapportée, et la dérive y est aussi silencieuse qu'ailleurs."""
+    import falkye.models  # noqa: F401
+    from falkye.models.base import BaseMiroir
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'miroirs.db'}")
+    BaseMiroir.metadata.create_all(engine)
+    with engine.begin() as c:
+        c.execute(text("ALTER TABLE req_entries DROP COLUMN ville"))
+
+    manquantes = colonnes_manquantes(engine, BaseMiroir.metadata)
+
+    assert [c.name for c in manquantes["req_entries"]] == ["ville"]
+
+
+def test_les_tables_de_lautre_cible_ne_sont_pas_reportees_comme_manquantes(tmp_path):
+    """Sans la métadonnée en paramètre, l'outil aurait cherché les tables du
+    produit dans le fichier des miroirs et inversement — un rapport de dérive
+    entièrement faux, sur une base pourtant saine."""
+    import falkye.models  # noqa: F401
+    from falkye.models.base import Base, BaseMiroir
+
+    miroir = create_engine(f"sqlite:///{tmp_path / 'miroirs.db'}")
+    BaseMiroir.metadata.create_all(miroir)
+
+    assert colonnes_manquantes(miroir, BaseMiroir.metadata) == {}
+    # Les tables du produit sont ABSENTES de cette base : l'outil ne les
+    # examine pas plutôt que de les déclarer incomplètes.
+    assert colonnes_manquantes(miroir, Base.metadata) == {}

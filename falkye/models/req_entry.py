@@ -21,10 +21,10 @@ from datetime import datetime
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from falkye.models.base import Base, utcnow
+from falkye.models.base import BaseMiroir, utcnow
 
 
-class REQEntry(Base):
+class REQEntry(BaseMiroir):
     __tablename__ = "req_entries"
 
     neq: Mapped[str] = mapped_column(String(20), primary_key=True)

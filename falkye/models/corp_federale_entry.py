@@ -26,10 +26,10 @@ from datetime import datetime
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from falkye.models.base import Base, utcnow
+from falkye.models.base import BaseMiroir, utcnow
 
 
-class CorporationFederaleEntry(Base):
+class CorporationFederaleEntry(BaseMiroir):
     __tablename__ = "corporations_federales_entries"
 
     numero_corporation: Mapped[str] = mapped_column(String(20), primary_key=True)

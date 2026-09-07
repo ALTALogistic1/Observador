@@ -30,10 +30,10 @@ from datetime import datetime
 from sqlalchemy import JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from falkye.models.base import Base, utcnow
+from falkye.models.base import BaseMiroir, utcnow
 
 
-class EtatLigneSource(Base):
+class EtatLigneSource(BaseMiroir):
     __tablename__ = "etat_ligne_source"
     __table_args__ = (UniqueConstraint("source_id", "cle_naturelle", name="uq_etat_ligne_source"),)
 
@@ -64,7 +64,7 @@ class EtatLigneSource(Base):
     derniere_observation: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
 
-class EtatSchemaSource(Base):
+class EtatSchemaSource(BaseMiroir):
     __tablename__ = "etat_schema_source"
 
     source_id: Mapped[str] = mapped_column(String(64), primary_key=True)

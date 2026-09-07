@@ -31,16 +31,28 @@ import sys
 from sqlalchemy import inspect, text
 
 import falkye.models  # noqa: F401 -- enregistre tous les modèles
-from falkye.db import get_engine, init_db
-from falkye.models.base import Base
+from falkye.db import get_engine, get_engine_miroir, init_db
+from falkye.models.base import Base, BaseMiroir
 
 
-def colonnes_manquantes(engine) -> dict[str, list]:
+# Les DEUX cibles, chacune avec sa métadonnée — voir falkye/models/base.py.
+# Une seule aurait laissé la moitié du schéma sans surveillance : une colonne
+# ajoutée à un modèle miroir n'aurait jamais été rapportée, et la dérive y est
+# aussi silencieuse qu'ailleurs.
+def cibles() -> list[tuple[str, object, object]]:
+    return [
+        ("produit", Base.metadata, get_engine()),
+        ("miroirs", BaseMiroir.metadata, get_engine_miroir()),
+    ]
+
+
+def colonnes_manquantes(engine, metadata=None) -> dict[str, list]:
     """{nom de table: [Column, ...]} pour les tables DÉJÀ présentes."""
+    metadata = Base.metadata if metadata is None else metadata
     insp = inspect(engine)
     presentes = set(insp.get_table_names())
     manquantes: dict[str, list] = {}
-    for nom, table in Base.metadata.tables.items():
+    for nom, table in metadata.tables.items():
         if nom not in presentes:
             continue  # create_all s'en charge
         reelles = {c["name"] for c in insp.get_columns(nom)}
@@ -92,25 +104,28 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    engine = get_engine()
     if args.appliquer:
-        init_db()  # les tables manquantes d'abord
+        init_db()  # les tables manquantes des deux côtés d'abord
 
-    manquantes = colonnes_manquantes(engine)
-    if not manquantes:
-        print("Schéma à jour : aucune colonne manquante.")
+    rien_a_faire = True
+    for nom_cible, metadata, engine in cibles():
+        manquantes = colonnes_manquantes(engine, metadata)
+        if not manquantes:
+            continue
+        rien_a_faire = False
+        for table, colonnes in sorted(manquantes.items()):
+            for colonne in colonnes:
+                clause = _clause_ajout(table, colonne)
+                if args.appliquer:
+                    with engine.begin() as connexion:
+                        connexion.execute(text(clause))
+                    print(f"appliqué [{nom_cible}] : {clause}")
+                else:
+                    print(f"à appliquer [{nom_cible}] : {clause}")
+
+    if rien_a_faire:
+        print("Schéma à jour des deux côtés : aucune colonne manquante.")
         return 0
-
-    for table, colonnes in sorted(manquantes.items()):
-        for colonne in colonnes:
-            clause = _clause_ajout(table, colonne)
-            if args.appliquer:
-                with engine.begin() as connexion:
-                    connexion.execute(text(clause))
-                print(f"appliqué : {clause}")
-            else:
-                print(f"à appliquer : {clause}")
-
     if not args.appliquer:
         print("\nRien n'a été modifié. Relancer avec --appliquer.")
     return 0
