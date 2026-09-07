@@ -30,54 +30,133 @@ service; elle ne peut pas lire la base.
 
 ## Préparation de l'hôte — une seule fois, en root
 
-```bash
-# 1. L'utilisateur de service et les dossiers
-adduser --system --group --home /opt/falkye falkye
-mkdir -p /opt/falkye/code /var/lib/falkye
-chown -R falkye:falkye /opt/falkye /var/lib/falkye
-# Le dépôt d'archives de la chaîne — elle y écrit, l'unité d'import y lit.
-# Séparé de /var/lib/falkye à dessein : `deploy` n'a rien à écrire là où vivent
-# les bases.
-install -d -o deploy -g falkye -m 0750 /opt/falkye/import
+⚠️ **L'ordre compte, et il n'est pas intuitif.** Les unités systemd pointent vers
+`/opt/falkye/venv`, que la chaîne crée; la chaîne, elle, démarre une unité à la
+fin. Ni l'un ni l'autre ne peut être premier. La séquence ci-dessous casse ce
+nœud en quatre temps, dont un déploiement **volontairement incomplet**.
 
-# 2. L'utilisateur de déploiement écrit le code, sans être le service
-usermod -aG falkye deploy
-chown -R deploy:falkye /opt/falkye/code
+### Temps 1 — root, sur l'hôte
+
+```bash
+# 1.1 Les paquets. `python3-venv` n'est pas installé par défaut sur une image
+#     Debian minimale; `rsync` et `curl` sont utilisés par la chaîne elle-même.
+apt-get update
+apt-get install -y python3-venv rsync curl
+
+# 1.2 L'utilisateur de service. `--system` : pas de mot de passe, pas de
+#     connexion interactive possible. `--no-create-home` puis mkdir explicite,
+#     pour que les permissions ne dépendent pas des défauts de l'outil.
+adduser --system --group --home /opt/falkye --no-create-home falkye
+
+# 1.3 Les dossiers
+mkdir -p /opt/falkye/code /opt/falkye/import /var/lib/falkye
+
+#     /opt/falkye : la chaîne y crée le venv et version.env, donc le groupe
+#     `falkye` doit pouvoir y écrire. Le bit setgid (2) fait hériter le groupe
+#     aux fichiers créés dedans — sans lui, le venv appartiendrait au groupe de
+#     `deploy` et le service ne pourrait pas l'exécuter.
+chown falkye:falkye /opt/falkye
+chmod 2775 /opt/falkye
+
+#     Le code : écrit par la chaîne, lu par le service.
+chown deploy:falkye /opt/falkye/code
 chmod 2775 /opt/falkye/code
 
-# 3. Les secrets — voir .env.example pour la liste. Mode 600, root seul.
-install -d -m 0750 /etc/falkye
-${EDITOR:-nano} /etc/falkye/falkye.env
-chmod 600 /etc/falkye/falkye.env
+#     Le dépôt d'archives : la chaîne y écrit, l'unité d'import y lit. Séparé de
+#     /var/lib/falkye à dessein — `deploy` n'a rien à écrire là où vivent les
+#     bases.
+chown deploy:falkye /opt/falkye/import
+chmod 2750 /opt/falkye/import
 
-# 4. Les unités du système
+#     Les bases et le journal de repli : le service SEUL y écrit.
+chown falkye:falkye /var/lib/falkye
+chmod 0750 /var/lib/falkye
+
+# 1.4 Les deux appartenances de groupe de `deploy`
+#     `falkye` : pour écrire dans /opt/falkye et /opt/falkye/code.
+#     `systemd-journal` : pour LIRE le journal des unités — la chaîne rapporte
+#     le résultat d'un import de 33 minutes, et sans ce groupe elle ne verrait
+#     rien. Lecture seule, et rien d'autre que le journal.
+usermod -aG falkye,systemd-journal deploy
+
+# 1.5 La variable des miroirs dans le fichier d'environnement (qui existe déjà)
+#     QUATRE barres obliques : le chemin est absolu.
+printf 'FALKYE_MIROIR_DB_URL=sqlite:////var/lib/falkye/miroirs.sqlite3\n' \
+    >> /etc/falkye/falkye.env
+chmod 600 /etc/falkye/falkye.env
+```
+
+**Vérifier avant de continuer** — chaque commande doit répondre :
+
+```bash
+id falkye        # uid=… (falkye) gid=… (falkye) groups=… (falkye)
+id deploy        # doit contenir (falkye) ET (systemd-journal)
+ls -ld /opt/falkye /opt/falkye/code /opt/falkye/import /var/lib/falkye
+                 # drwxrwsr-x falkye falkye   /opt/falkye
+                 # drwxrwsr-x deploy falkye   /opt/falkye/code
+                 # drwxr-s--- deploy falkye   /opt/falkye/import
+                 # drwxr-x---  falkye falkye   /var/lib/falkye
+grep MIROIR /etc/falkye/falkye.env    # la ligne, avec quatre barres
+python3 --version                      # 3.11 ou plus
+```
+
+Le `s` dans `drwxrwsr-x` est le bit setgid : il est attendu, pas une anomalie.
+
+### Temps 2 — un premier déploiement, qui ÉCHOUERA à la dernière étape
+
+Déclencher le flux **Déploiement** depuis GitHub. Il va envoyer le code, créer
+le venv et installer les dépendances — puis échouer sur
+`sudo systemctl start falkye-migration.service`, parce que ni l'unité ni la
+permission n'existent encore.
+
+**Cet échec est attendu et il est le but de ce temps :** amener les fichiers
+d'unité sur l'hôte, où le temps 3 va les installer. Ce qui compte est que les
+étapes *avant* celle-là aient réussi :
+
+```bash
+ls /opt/falkye/venv/bin/falkye        # doit exister
+ls /opt/falkye/code/deploiement/      # les .service et le .timer
+```
+
+### Temps 3 — root, installer les unités et la permission
+
+```bash
+cd /opt/falkye/code
+
+# 3.1 Les unités du système
 cp deploiement/falkye-*.service deploiement/falkye-*.timer /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now falkye-web.service
-systemctl enable --now falkye-cycle.timer
 
-# 5. La permission étroite de la chaîne
+# 3.2 La permission étroite de la chaîne — `visudo -c` VALIDE le fichier.
+#     Une erreur de syntaxe dans /etc/sudoers.d peut rendre sudo inutilisable
+#     sur toute la machine : ne pas sauter cette vérification.
 install -m 0440 deploiement/falkye-deploiement.sudoers /etc/sudoers.d/falkye-deploiement
 visudo -c
+
+# 3.3 Créer le schéma, puis démarrer
+systemctl start falkye-migration.service
+systemctl enable --now falkye-web.service
+systemctl enable --now falkye-cycle.timer
 ```
 
-**La base des miroirs a sa propre variable, et elle est obligatoire sur
-l'hôte.** `/etc/falkye/falkye.env` doit porter :
+**Vérifier :**
 
+```bash
+systemctl status falkye-web.service      # active (running)
+systemctl list-timers falkye-cycle.timer # prochain mardi 8 h
+curl -sf http://127.0.0.1:8000/sante     # ok
+sudo -u deploy sudo -n /usr/bin/systemctl status falkye-web.service >/dev/null \
+    && echo "permission de la chaîne : ok"
 ```
-FALKYE_MIROIR_DB_URL=sqlite:////var/lib/falkye/miroirs.sqlite3
-```
 
-Quatre barres obliques : le chemin est ABSOLU. Sans cette variable, le défaut
-est le chemin relatif `./data/miroirs.sqlite3`, qui se résout dans le répertoire
-de travail de l'unité — hors des chemins que `ProtectSystem=strict` autorise en
-écriture. `outils/import_miroir_req.py` refuse alors de démarrer en nommant la
-variable, plutôt que de laisser tomber une erreur de permissions qui enverrait
-chercher au mauvais endroit. Voir docs/MIROIRS.md.
+### Temps 4 — relancer le déploiement
 
-**Ajouter une unité plus tard demandera de refaire l'étape 4.** C'est assumé :
+Le même flux, qui doit cette fois aller jusqu'au bout et confirmer que le point
+d'entrée répond. **C'est ce passage-là qui prouve la chaîne**, pas le premier.
+
+**Ajouter une unité plus tard demandera de refaire le temps 3.** C'est assumé :
 installer une unité est un geste de root, et donner ce pouvoir à la chaîne
-annulerait la séparation que les étapes précédentes construisent.
+annulerait la séparation que le reste construit.
 
 ## Le mandataire inverse
 
