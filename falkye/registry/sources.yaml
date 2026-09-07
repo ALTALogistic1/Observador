@@ -200,7 +200,7 @@ sources:
   - id: guichet_emplois
     nom: "Guichet-Emplois (Job Bank Canada)"
     signal_associe: [recrutement_massif]
-    statut: actif
+    statut: en_pause
     blocage_type: null
     methode_acces: donnees_ouvertes
     champs_pertinents:
@@ -254,6 +254,47 @@ sources:
       offres/mois sur ~52 000 nationalement) pour qu'un scan reste praticable — même
       principe que subventions_federales. Voir docs/STATUT_RESEAU.md pour le détail
       complet de la découverte et de la validation.
+
+      MISE EN VEILLEUSE le 2026-09-07 (décision d'Alexandre). Ce n'est PAS le nom
+      d'employeur manquant du fichier en vrac qui la bloque — le connecteur va le
+      chercher sur la page de détail, et ça marche. C'est le décalage ci-dessus :
+      le fichier paraît avec environ un mois de retard, les offres expirent plus
+      vite, donc les identifiants qu'il porte sont déjà morts (HTTP 410) quand on
+      les suit. Preuves : 5/5 puis 4/4 identifiants expirés sur deux échantillons
+      réels, 15 offres Québec tentées pour 0 signal le 2026-09-01, et 0 signal
+      encore au cycle du 2026-09-07.
+
+      Pourquoi la mettre en veilleuse plutôt que de la laisser tourner, alors
+      qu'elle ne coûte presque rien : **une source active qui retourne toujours
+      zéro est indiscernable d'une source qui n'a rien trouvé cette semaine**.
+      C'est le motif des trois silences, et il vient de se payer une fois de plus
+      — depuis le 2026-09-07, la ligne de fin du cycle compte les sources en
+      erreur sur les sources TENTÉES, et celle-ci gonflait le dénominateur sans
+      jamais pouvoir contribuer.
+
+      CONDITION DE RÉACTIVATION — deux contrôles, à vérifier avant et non à
+      supposer.
+
+      (1) Que le décalage de publication soit passé sous la durée de vie d'une
+      offre : suivre dix identifiants du fichier le plus récent et compter les
+      HTTP 200. Tant que la réponse est zéro, la réactiver ne produirait que du
+      bruit.
+
+      (2) Qu'elle fasse RÉELLEMENT le travail qu'elle annonce. Au cycle du
+      2026-09-07 elle s'est exécutée en QUATRE SECONDES (16:43:46 → 16:43:50, voir
+      SourceRunLog) pour un statut « succès ». Avec le `Crawl-delay: 5` imposé par
+      le site et une borne de cent offres, une tentative réelle prendrait des
+      minutes. Deux explications possibles, et elles ne sont pas équivalentes :
+      soit elle n'a trouvé aucune ligne candidate à essayer — une limite de
+      source, cohérente avec (1) — soit elle n'a pas tenté ce qu'elle prétend
+      tenter, et c'est alors un DÉFAUT du connecteur, pas une limite. Non
+      tranché : la question est sans objet tant qu'elle dort, mais la trancher est
+      un préalable à la rallumer. Sinon on rallumerait une source dont on ne sait
+      pas si le zéro vient de la donnée ou du code — exactement le silence
+      indiscernable qu'on cherche à éliminer.
+
+      Le connecteur reste correct sur ce qu'on a pu vérifier, et testé : rien à
+      réécrire le jour où la donnée le permet.
 
   - id: eimt
     nom: "Employeurs avec EIMT positive (EDSC)"

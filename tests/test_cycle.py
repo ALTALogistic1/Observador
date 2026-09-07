@@ -525,3 +525,71 @@ def test_un_cycle_sans_aucune_source_ne_compte_pas_comme_un_effondrement(
     monkeypatch.setattr(falkye.engine, "run_veille_continue", lambda **kw: _ScanAvecPannes())
 
     assert executer_cycle(livrer_les_resumes=False).toutes_les_sources_sont_tombees is False
+
+
+# --- Un cache inaccessible se dit tout de suite ------------------------------
+#
+# Le 2026-09-07, cinq sources sur neuf sont mortes sur le même
+# `OSError: [Errno 30] Read-only file system: 'cache'`, à vingt-cinq secondes
+# d'intervalle, chacune au fond d'une trace de pile. Le cycle s'est terminé en
+# succès, 0 notification créée. Une erreur de configuration n'est pas une source
+# qui tombe : elle les emporte toutes, et rien dans le déroulement ne le disait.
+
+
+def test_un_cache_inaccessible_arrete_le_cycle_avant_tout(branche, monkeypatch, tmp_path):
+    import falkye.sources.ckan_client
+    from falkye.cycle import CacheInaccessible
+
+    # Un FICHIER comme parent, et non un `chmod` : la suite peut tourner en
+    # root — elle le fait dans le conteneur de développement — et root passe
+    # outre les bits de permission. Un test bâti sur `chmod 0500` passerait
+    # alors sans rien vérifier. `mkdir` sous un fichier lève `NotADirectoryError`
+    # pour tout le monde.
+    obstacle = tmp_path / "un-fichier"
+    obstacle.write_text("")
+    monkeypatch.setattr(falkye.sources.ckan_client, "CACHE_DIR", obstacle / "cache")
+
+    passages = []
+    monkeypatch.setattr(
+        falkye.engine, "run_veille_continue", lambda **kw: passages.append(1) or _Scan()
+    )
+
+    with pytest.raises(CacheInaccessible) as echec:
+        executer_cycle(livrer_les_resumes=False)
+
+    assert passages == [], "aucune source ne doit être tentée"
+    message = str(echec.value)
+    assert "FALKYE_CACHE_DIR" in message
+    assert "CacheDirectory=falkye" in message
+
+
+def test_lechec_du_cache_est_journalise_comme_un_echec(branche, monkeypatch, tmp_path):
+    """Un début sans fin se lit « le cycle s'est interrompu ». Ici on sait
+    pourquoi, et la ligne doit le porter."""
+    import falkye.sources.ckan_client
+    from falkye.cycle import CacheInaccessible
+
+    obstacle = tmp_path / "un-fichier"
+    obstacle.write_text("")
+    monkeypatch.setattr(falkye.sources.ckan_client, "CACHE_DIR", obstacle / "cache")
+
+    with pytest.raises(CacheInaccessible):
+        executer_cycle(livrer_les_resumes=False)
+
+    assert _evenements(branche) == [
+        EvenementExploitation.CYCLE_DEBUT,
+        EvenementExploitation.CYCLE_ECHEC,
+    ]
+
+
+def test_un_cache_accessible_laisse_passer(branche, monkeypatch, tmp_path):
+    """Et il est créé s'il manque — c'est le cas normal au premier démarrage."""
+    import falkye.sources.ckan_client
+
+    cible = tmp_path / "cache-neuf"
+    monkeypatch.setattr(falkye.sources.ckan_client, "CACHE_DIR", cible)
+
+    executer_cycle(livrer_les_resumes=False)
+
+    assert cible.is_dir()
+    assert not (cible / ".falkye-ecriture").exists(), "le témoin doit être retiré"

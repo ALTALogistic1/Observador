@@ -161,6 +161,19 @@ d'entrée répond. **C'est ce passage-là qui prouve la chaîne**, pas le premie
 installer une unité est un geste de root, et donner ce pouvoir à la chaîne
 annulerait la séparation que le reste construit.
 
+> **⚠️ L'ordre du geste, appris le 7 septembre 2026.** La recopie en root lit
+> `/opt/falkye/code/deploiement/`, que **le déploiement remplit**. Elle doit donc
+> venir *après* que le flux Déploiement soit VERT, jamais dès qu'il est lancé.
+>
+> Fait dans le mauvais ordre, on recopie les unités de la version précédente. Et
+> ça ne se voit pas : `systemctl daemon-reload` réussit, l'unité démarre, le
+> cycle tourne — il perd simplement toutes les sources que la correction devait
+> sauver. Cinq sur neuf, ce jour-là. **Vérifier plutôt que supposer :**
+>
+> ```bash
+> systemctl cat falkye-cycle-sans-livraison.service | grep -i cache
+> ```
+
 ### Temps 5 — charger le miroir, voir un cycle, PUIS activer le minuteur
 
 Trois gestes, dans cet ordre, et le troisième dépend de ce que montre le second.
@@ -172,8 +185,25 @@ Trois gestes, dans cet ordre, et le troisième dépend de ce que montre le secon
 2. **Lancer un cycle à la main, sans livraison** — flux **« Lancer un cycle sans
    livraison »**. Il démarre `falkye-cycle-sans-livraison.service`, qui exécute
    `falkye cycle --sans-livraison` : réconciliation et détection réelles, aucun
-   résumé généré ni envoyé. C'est ce passage qui donne la **durée réelle** d'un
-   cycle sur l'hôte.
+   résumé généré ni envoyé.
+
+   **Le flux lance et rend la main; il ne supervise pas.** Un travail sur coureur
+   hébergé par GitHub est plafonné à six heures, et un premier passage dure plus
+   que ça — celui du 7 septembre 2026 a été tué à 3 h sur la troisième source de
+   neuf, alors qu'il travaillait encore. Un flux qui attendrait serait tué
+   pendant que l'unité continue : un flux en échec à côté d'un cycle vivant, deux
+   signaux contradictoires pour un seul fait. L'hôte possède l'exécution, bornée
+   par `TimeoutStartSec` de l'unité.
+
+   L'avancement se lit avec le flux **« État du cycle sans livraison »**, qui ne
+   demande aucun privilège et se déclenche autant de fois qu'on veut. Le détail
+   PAR SOURCE, lui, vit dans `SourceRunLog`, donc en base : le coureur n'a pas
+   les identifiants pour la lire, et c'est délibéré.
+
+   **Le premier passage n'est pas un cycle ordinaire.** Il amorce l'état de diff
+   sur tout l'historique des sources; un cycle hebdomadaire ne verra ensuite que
+   les lignes neuves. Régler le minuteur sur l'amorçage serait l'erreur
+   symétrique de l'heure ronde.
 
 3. **Régler le délai, puis activer le minuteur** — `TimeoutStartSec` de
    `falkye-cycle.service` valait 3 600 s, un chiffre posé avant toute mesure. Un

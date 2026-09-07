@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -135,6 +136,49 @@ def profils_abonnes(db_session) -> list[Profile]:
     )
 
 
+class CacheInaccessible(RuntimeError):
+    """Le répertoire de cache des téléchargements n'est pas accessible en écriture."""
+
+
+def verifier_cache_telechargement() -> None:
+    """Refuser tôt et fort plutôt que de perdre les sources une par une.
+
+    **Ce qui est arrivé le 2026-09-07.** Le cache visait un chemin RELATIF,
+    résolu sous le répertoire de travail de l'unité — en lecture seule sous
+    `ProtectSystem=strict`. **Cinq sources sur neuf sont mortes**, à vingt-cinq
+    secondes d'intervalle, chacune au fond d'une trace de pile, sur le même
+    `OSError: [Errno 30]`. Le cycle s'est terminé en succès, 0 notification
+    créée, et il a fallu lire le journal ligne à ligne pour comprendre que ce
+    n'était pas une semaine calme mais une variable d'environnement manquante.
+
+    Une erreur de CONFIGURATION n'est pas une source qui tombe. Une source qui
+    tombe coûte une source — c'est la règle, et elle tient. Un cache
+    inaccessible coûte toutes les sources qui téléchargent, et rien dans le
+    déroulement ne le dit d'un coup. C'est le même arbitrage que
+    `outils/import_miroir_req.py` : nommer ce qu'il faut corriger, avant
+    d'avoir rien touché.
+    """
+    from falkye.sources.ckan_client import CACHE_DIR
+
+    chemin = Path(CACHE_DIR)
+    try:
+        chemin.mkdir(parents=True, exist_ok=True)
+        temoin = chemin / ".falkye-ecriture"
+        temoin.write_bytes(b"")
+        temoin.unlink()
+    except OSError as exc:
+        raise CacheInaccessible(
+            f"Le cache de téléchargement ({chemin}) n'est pas accessible en "
+            f"écriture : {exc}. Toutes les sources qui téléchargent un fichier "
+            "échoueraient, une par une, sans que le cycle le dise. "
+            "Sous systemd, poser dans l'unité :\n"
+            "    CacheDirectory=falkye\n"
+            "    Environment=FALKYE_CACHE_DIR=/var/cache/falkye\n"
+            "Hors systemd, définir FALKYE_CACHE_DIR sur un répertoire "
+            "accessible en écriture."
+        ) from exc
+
+
 def executer_cycle(lookback_days: int = 30, livrer_les_resumes: bool = True) -> RapportCycle:
     """Un cycle complet : détecter, puis livrer. Lève si le cycle a échoué.
 
@@ -165,6 +209,12 @@ def executer_cycle(lookback_days: int = 30, livrer_les_resumes: bool = True) -> 
     rapport = RapportCycle()
 
     try:
+        # AVANT tout travail : un cache inaccessible fait échouer toutes les
+        # sources qui téléchargent, et le dire ici coûte une seconde au lieu de
+        # sept minutes. Dans le `try`, pour que l'échec soit journalisé comme
+        # tel — un début sans fin serait le mauvais diagnostic.
+        verifier_cache_telechargement()
+
         scan = run_veille_continue(lookback_days=lookback_days)
         rapport.notifications_creees = scan.nb_notifications_creees
         # Sans ce compte, un cycle où TOUTES les sources ont échoué journalise
