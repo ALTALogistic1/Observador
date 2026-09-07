@@ -5,11 +5,26 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from falkye.models.profile import Profile
     from falkye.registry.loader import NotificationChannelDef
+
+
+# Formes de livraison (charte, section 16 : "le groupement est la forme par défaut;
+# l'envoi unitaire est l'exception justifiée, jamais l'inverse — l'exception a besoin
+# d'un seuil explicite, sinon elle redevient la norme par glissement").
+#
+# Déclarées PAR CANAL au registre (registry/notification_channels.yaml,
+# `formes_livraison`) plutôt que décidées dans le moteur : un canal qui pousse vers un
+# système (webhook, CRM) livre à l'unité parce qu'une machine consomme des événements;
+# un canal lu par un humain livre groupé. Le moteur ne connaît ni l'un ni l'autre — il
+# demande au registre quels canaux servent la forme qu'il est en train de livrer.
+FORME_RESUME = "resume"
+FORME_UNITAIRE = "unitaire"
+FORMES_LIVRAISON = (FORME_RESUME, FORME_UNITAIRE)
 
 
 @dataclass
@@ -24,12 +39,40 @@ class NotificationContent:
     # (pas un formatter séparé pour webhook) ; les canaux texte (email, sms) l'
     # ignorent simplement, WebhookChannel s'en sert comme corps JSON.
     donnees_structurees: dict | None = None
+    # En-têtes de message supplémentaires — point d'accroche pour
+    # `List-Unsubscribe` / `List-Unsubscribe-Post` (RFC 8058), exigés par Gmail et
+    # Yahoo. Volontairement générique plutôt qu'un champ `list_unsubscribe` dédié :
+    # un canal qui n'a pas de notion d'en-tête (SMS, webhook) l'ignore simplement,
+    # au lieu d'avoir à connaître une exigence propre au courriel.
+    entetes: dict[str, str] | None = None
 
 
 @dataclass
 class DeliveryResult:
     succes: bool
     erreur: str | None = None
+    # Identifiant du message CHEZ le fournisseur, quand il en donne un.
+    # `succes=True` veut dire « accepté », jamais « livré » — c'est cette
+    # référence qui permet de lui redemander plus tard ce qui est réellement
+    # arrivé (voir falkye/reconciliation.py). Un canal qui n'en fournit pas
+    # laisse None : sa remise ne sera simplement jamais réconciliée.
+    reference: str | None = None
+
+
+class EtatLivraison(str, Enum):
+    """Ce que le fournisseur dit d'un envoi qu'il a DÉJÀ accepté."""
+
+    CONFIRMEE = "confirmee"
+    REBONDIE = "rebondie"
+    # Encore en vol, ou hors de la fenêtre de rétention du fournisseur. Ne rien
+    # savoir n'est pas savoir que c'est perdu : ce cas ne remet rien en attente.
+    INCONNUE = "inconnue"
+
+
+@dataclass
+class VerdictLivraison:
+    etat: EtatLivraison
+    detail: str | None = None
 
 
 class NotificationChannel(ABC):
@@ -48,8 +91,35 @@ class NotificationChannel(ABC):
         cette méthode plutôt que de dépendre d'un champ codé en dur dans
         falkye/engine.py — retourner None signifie "aucune destination valide
         pour ce profil", auquel cas la livraison sur ce canal est simplement
-        ignorée pour cette notification (pas une erreur)."""
+        ignorée pour cette notification (pas une erreur).
+
+        **Un profil désabonné n'a plus de destination humaine.** Le contrôle est
+        ici, et non chez chaque canal, parce que c'est le seul endroit où la
+        destination « la personne » se calcule — un canal humain ajouté demain
+        hérite du respect du désabonnement sans avoir à y penser, et ne peut pas
+        l'oublier. WebhookChannel redéfinit cette méthode et n'est donc pas
+        concerné, ce qui est voulu : se désabonner d'un courriel n'est pas
+        résilier une intégration (voir Profile.desabonne_le)."""
+        if profile.desabonne_le is not None:
+            return None
         return profile.courriel
+
+    def etat_des_livraisons(self, references: list[str]) -> dict[str, VerdictLivraison]:
+        """Ce que le fournisseur dit d'envois qu'il a déjà acceptés.
+
+        Défaut : un dictionnaire vide — « ce canal ne sait pas dire ». C'est le
+        comportement correct pour un canal sans notion de remise différée (un
+        webhook répond dans l'appel, il n'y a rien à réconcilier plus tard), et
+        c'est aussi ce qui fait qu'ajouter un canal n'oblige pas à écrire cette
+        méthode pour que le reste fonctionne.
+
+        Ne jamais lever : une panne du fournisseur pendant la réconciliation est
+        une panne d'OBSERVATION. Si elle interrompait le cycle, on perdrait les
+        envois de la semaine en plus de l'information sur ceux de la précédente.
+        Retourner {} laisse les remises en `acceptee`, donc réexaminées au cycle
+        suivant — le comportement sûr.
+        """
+        return {}
 
 
 class StubChannel(NotificationChannel):

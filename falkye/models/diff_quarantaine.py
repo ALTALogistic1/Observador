@@ -12,7 +12,7 @@ from datetime import datetime
 from sqlalchemy import JSON, Enum, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from falkye.models.base import Base, utcnow
+from falkye.models.base import BaseMiroir, utcnow
 
 
 class MotifQuarantaine(str, enum.Enum):
@@ -30,7 +30,7 @@ class StatutQuarantaine(str, enum.Enum):
     REJETEE = "rejetee"
 
 
-class DiffQuarantaine(Base):
+class DiffQuarantaine(BaseMiroir):
     __tablename__ = "diff_quarantaines"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

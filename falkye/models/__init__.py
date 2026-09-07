@@ -13,6 +13,12 @@ from falkye.models.diff_run_historique import DiffRunHistorique  # noqa: F401
 from falkye.models.etat_diff_source import EtatLigneSource, EtatSchemaSource  # noqa: F401
 from falkye.models.expansion_interprovinciale import LienInterprovincial  # noqa: F401
 from falkye.models.licence_municipale_entry import LicenceMunicipaleEntry  # noqa: F401
+from falkye.models.livraison_resume import LivraisonResume, StatutLivraison  # noqa: F401
+from falkye.models.jeton_lien import ActionJeton, JetonLien  # noqa: F401
+from falkye.models.journal_exploitation import (  # noqa: F401
+    EvenementExploitation,
+    JournalExploitation,
+)
 from falkye.models.notification import (  # noqa: F401
     Notification,
     NotificationDelivery,
@@ -52,6 +58,8 @@ __all__ = [
     "EtatLigneSource",
     "EtatSchemaSource",
     "LicenceMunicipaleEntry",
+    "LivraisonResume",
+    "StatutLivraison",
     "LienInterprovincial",
     "Notification",
     "NotificationDelivery",
@@ -71,6 +79,10 @@ __all__ = [
     "SousCompte",
     "Sphere",
     "SphereSynonyme",
+    "ActionJeton",
+    "EvenementExploitation",
+    "JournalExploitation",
+    "JetonLien",
     "StatutSuivi",
     "Subscription",
 ]

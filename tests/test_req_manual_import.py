@@ -557,3 +557,85 @@ def test_ingest_zip_reel_disparitions_massives_met_en_quarantaine_reqentry_intac
     # précédentes retirées.
     assert db_session.get(REQEntry, "8880000000") is None
     assert db_session.get(REQEntry, "9990000000") is not None
+
+
+# ---------------------------------------------------------------------------
+# Le repli sur l'adresse du domicile — défaut trouvé et corrigé le 2026-09-06
+#
+# Le test qui portait cette condition n'existait pas : TOUS les décors ci-dessus
+# passent par Etablissements.csv et posent ADR_DOMCL_ADR_DISP='N' avec des lignes
+# d'adresse vides. La branche du domicile n'était donc jamais parcourue, et sa
+# condition — inversée — n'a été trouvée qu'en cherchant pourquoi six entreprises
+# sur dix arrivaient sans ville dans un vrai résumé.
+#
+# Valeurs recopiées du VRAI fichier (édition du 2026-09-01), jamais inventées :
+#   NEQ 1175356097 → 'N' | '8250 rue Edison' | 'Montréal (Québec)' | '' | 'H1J1S8'
+# et la mesure qui donne son poids au défaut :
+#   'N' : 2 954 554 lignes, dont 1 943 990 avec adresse
+#   'O' :       119 lignes, dont         0 avec adresse
+# ---------------------------------------------------------------------------
+
+_ADRESSE_DOMICILE_REELLE = ["8250 rue Edison", "Montréal (Québec)", "", "H1J1S8"]
+
+
+def _zip_domicile(tmp_path, drapeau_dispense, *, nom_zip):
+    """Une entreprise SANS établissement — le seul cas où le domicile sert."""
+    return _ecrire_zip_req_reel(
+        tmp_path,
+        entreprises=[["9990000100", "IM", "2026-01-01", "7311", "", drapeau_dispense]
+                     + _ADRESSE_DOMICILE_REELLE],
+        noms=[["9990000100", "Entreprise Sans Établissement inc.", "V", "N", "1994-01-01", ""]],
+        etablissements=[],
+        nom_zip=nom_zip,
+    )
+
+
+def test_sans_etablissement_ladresse_du_domicile_est_reprise(db_session, tmp_path):
+    """Le défaut exact : « N » veut dire PAS de dispense, donc adresse fournie.
+    L'ancienne condition ne lisait le domicile que sur « O » — le seul cas où le
+    REQ garantit que l'adresse est vide."""
+    ingest_snapshot(db_session, fichier_local=_zip_domicile(tmp_path, "N", nom_zip="dom_n.zip"))
+
+    entry = db_session.get(REQEntry, "9990000100")
+    assert entry.ville == "Montréal"
+    assert entry.adresse == "8250 rue Edison"
+    assert entry.code_postal == "H1J1S8"
+
+
+def test_une_entreprise_dispensee_na_pas_dadresse(db_session, tmp_path):
+    """« O » = dispensée de fournir l'adresse. Les 119 lignes du vrai fichier
+    qui portent ce drapeau ont toutes des champs vides; lire ces champs serait
+    au mieux inutile, au pire une adresse qu'on n'a pas le droit d'avoir."""
+    ingest_snapshot(db_session, fichier_local=_zip_domicile(tmp_path, "O", nom_zip="dom_o.zip"))
+
+    entry = db_session.get(REQEntry, "9990000100")
+    assert entry.ville is None
+    assert entry.adresse is None
+
+
+def test_un_drapeau_vide_ne_bloque_pas_ladresse(db_session, tmp_path):
+    """441 lignes du vrai fichier ont ce champ vide : « pas de dispense connue »
+    n'est pas une dispense, et refuser l'adresse là-dessus perdrait de la donnée
+    présente."""
+    ingest_snapshot(db_session, fichier_local=_zip_domicile(tmp_path, "", nom_zip="dom_vide.zip"))
+
+    assert db_session.get(REQEntry, "9990000100").ville == "Montréal"
+
+
+def test_letablissement_principal_prime_sur_le_domicile(db_session, tmp_path):
+    """L'ordre ne change pas : le domicile est un REPLI, pas une source
+    concurrente. Une adresse d'établissement décrit où l'entreprise opère;
+    le domicile, où elle est domiciliée."""
+    chemin = _ecrire_zip_req_reel(
+        tmp_path,
+        entreprises=[["9990000101", "IM", "2026-01-01", "7311", "", "N"]
+                     + _ADRESSE_DOMICILE_REELLE],
+        noms=[["9990000101", "Entreprise Avec Établissement inc.", "V", "N", "1994-01-01", ""]],
+        etablissements=[
+            ["9990000101", "1", "O", "1 rue Siège", "Québec (Québec)", "", "G1G1G1", "", "", ""]
+        ],
+        nom_zip="dom_et_etab.zip",
+    )
+    ingest_snapshot(db_session, fichier_local=chemin)
+
+    assert db_session.get(REQEntry, "9990000101").ville == "Québec"

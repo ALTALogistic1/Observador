@@ -410,11 +410,33 @@ def _resoudre_entreprise(
     if principal is not None:
         adresse, ville, code_postal = principal.adresse, principal.ville, principal.code_postal
         secteur_code, secteur_libelle = principal.secteur_code, principal.secteur_libelle
-    elif (row.get("ADR_DOMCL_ADR_DISP") or "").strip().upper() == "O":
-        # Repli sur l'adresse du domicile (Entreprise.csv) — seulement quand aucun
-        # établissement n'est trouvé ET qu'elle est marquée disponible (confirmé
-        # réel : ADR_DOMCL_ADR_DISP='N' est fréquent, l'adresse est alors absente
-        # même remplie, donc on ne l'utilise QUE si disponible='O').
+    elif (row.get("ADR_DOMCL_ADR_DISP") or "").strip().upper() != "O":
+        # Repli sur l'adresse du domicile (Entreprise.csv) quand aucun
+        # établissement n'est trouvé.
+        #
+        # ⚠️ CE TEST ÉTAIT INVERSÉ jusqu'au 2026-09-06, et le commentaire qui le
+        # justifiait affirmait le contraire de la documentation. Le guide
+        # d'utilisation officiel du REQ (Données Québec, section 4.1, position
+        # 33) dit : « Indicateur relatif à la DISPENSE de fournir l'adresse du
+        # domicile […] tous les éléments de l'adresse seront vides, car
+        # l'entreprise a été dispensée de nous fournir cette adresse. »
+        #
+        # 'O' veut donc dire « dispensée », c'est-à-dire ADRESSE ABSENTE — et
+        # c'était le seul cas où l'ancien code acceptait de la lire. Mesuré sur
+        # l'édition du 2026-09-01 :
+        #
+        #   ADR_DOMCL_ADR_DISP='N' : 2 954 554 lignes, dont 1 943 990 avec adresse
+        #   ADR_DOMCL_ADR_DISP='O' :       119 lignes, dont         0 avec adresse
+        #
+        # Le repli ne se déclenchait donc jamais utilement, et les seules villes
+        # du miroir venaient d'Etablissements.csv, qui ne couvre que 201 853 NEQ
+        # sur 2 955 114 — 6,8 %. Conséquence produit : plus de neuf entreprises
+        # sur dix sans localisation, donc invisibles à tout filtre territorial.
+        #
+        # La comparaison reste sur 'O' plutôt que sur 'N' : une valeur vide (441
+        # lignes) ou inattendue signifie « pas de dispense connue », et tenter la
+        # lecture ne coûte rien puisqu'une adresse absente ressort de toute façon
+        # à None.
         adresse, ville, code_postal = _decouper_adresse(
             row.get("ADR_DOMCL_LIGN1_ADR") or "",
             row.get("ADR_DOMCL_LIGN2_ADR") or "",

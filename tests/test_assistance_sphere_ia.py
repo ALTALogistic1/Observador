@@ -12,7 +12,6 @@ import pytest
 from falkye.assistance_sphere import SuggestionSphere
 from falkye.assistance_sphere_ia import (
     AssistanceIANonConfiguree,
-    PlanInsuffisantPourAssistanceIA,
     departager_spheres_niveau2,
     suggerer_spheres_niveau2,
 )
@@ -50,15 +49,31 @@ def _mock_reponse_anthropic(mocker, payload: dict):
     return mock_anthropic_cls, mock_client
 
 
-# --- Gating de plan / configuration (partagé, vérifié via l'enveloppe sphère) ---
+# --- Absence de porte de palier / configuration (via l'enveloppe sphère) ---
 
 
-def test_leve_si_plan_echo(db_session, mocker):
+def test_le_niveau2_est_disponible_au_plan_echo(db_session, monkeypatch, mocker):
+    """Décision du 2026-09-04, appliquée au code le 2026-09-06 : le Niveau 2
+    n'est plus réservé à Radar.
+
+    C'est une escalade qui rend la configuration JUSTE, pas un enrichissement
+    qu'on vend. Fermé au plan Écho — celui du premier profil réel — il produisait
+    un cul-de-sac : pas de sphère, donc pas de besoin, donc jamais de
+    notification. Constaté en parcourant le fil de bout en bout.
+    """
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-x")
+    _semer_spheres(db_session)
     profile = _profile(db_session, plan=PlanTarifaire.ECHO)
-    mock_anthropic_cls = mocker.patch("anthropic.Anthropic")
-    with pytest.raises(PlanInsuffisantPourAssistanceIA):
-        suggerer_spheres_niveau2(db_session, profile, "une description")
-    mock_anthropic_cls.assert_not_called()
+    mock_anthropic_cls, _ = _mock_reponse_anthropic(
+        mocker,
+        {"liens": [{"id": "cybersecurite", "poids": 100}], "confiance": "haute",
+         "raisonnement": "correspondance directe", "synonyme_a_retenir": None},
+    )
+
+    resultat = suggerer_spheres_niveau2(db_session, profile, "une description")
+
+    assert [l.sphere_id for l in resultat.liens] == ["cybersecurite"]
+    mock_anthropic_cls.assert_called_once()
 
 
 def test_leve_si_cle_manquante(db_session, monkeypatch):

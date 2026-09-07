@@ -27,15 +27,29 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from falkye.models.base import Base
+from falkye.models.base import Base, BaseMiroir
 
 DEFAULT_DB_URL = "sqlite:///./data/falkye.sqlite3"
+
+# La base des MIROIRS — miroirs de sources et état de diff. Toujours un fichier
+# local par défaut, jamais la base distante : elle porte 5,7 millions de lignes
+# contre moins de 3 000 pour le produit, et son import coûte 33 minutes en local
+# contre environ 168 heures au distant (mesuré le 2026-09-06, 2 allers-retours
+# par ligne à 111 ms). Voir docs/MIROIRS.md pour la procédure de rebâtissage.
+DEFAULT_MIROIR_DB_URL = "sqlite:///./data/miroirs.sqlite3"
 
 PREFIXE_LIBSQL = "libsql://"
 
 
 def get_db_url() -> str:
     return os.environ.get("FALKYE_DB_URL", DEFAULT_DB_URL)
+
+
+def get_miroir_db_url() -> str:
+    """La cible des miroirs. Indépendante de `FALKYE_DB_URL` À DESSEIN : sur
+    l'hôte, le produit vit au distant et les miroirs sur le disque, et faire
+    dériver l'une de l'autre rendrait ce découpage implicite."""
+    return os.environ.get("FALKYE_MIROIR_DB_URL", DEFAULT_MIROIR_DB_URL)
 
 
 def est_base_distante(db_url: str | None = None) -> bool:
@@ -81,17 +95,30 @@ def _ensure_sqlite_dir(db_url: str) -> None:
 
 
 _engine = None
+_engine_miroir = None
 _SessionLocal: sessionmaker | None = None
 
 
+def _creer_moteur(db_url: str):
+    _ensure_sqlite_dir(db_url)
+    url_sqlalchemy, connect_args = resoudre_cible(db_url)
+    return create_engine(url_sqlalchemy, connect_args=connect_args)
+
+
 def get_engine():
+    """Le moteur du PRODUIT."""
     global _engine
     if _engine is None:
-        db_url = get_db_url()
-        _ensure_sqlite_dir(db_url)
-        url_sqlalchemy, connect_args = resoudre_cible(db_url)
-        _engine = create_engine(url_sqlalchemy, connect_args=connect_args)
+        _engine = _creer_moteur(get_db_url())
     return _engine
+
+
+def get_engine_miroir():
+    """Le moteur des MIROIRS — voir falkye/models/base.py::BaseMiroir."""
+    global _engine_miroir
+    if _engine_miroir is None:
+        _engine_miroir = _creer_moteur(get_miroir_db_url())
+    return _engine_miroir
 
 
 def reinitialiser_moteur() -> None:
@@ -99,17 +126,40 @@ def reinitialiser_moteur() -> None:
 
     Le moteur est mémorisé au niveau du module : sans ce point d'entrée, un test
     qui change `FALKYE_DB_URL` continue de parler à la cible précédente."""
-    global _engine, _SessionLocal
-    if _engine is not None:
-        _engine.dispose()
+    global _engine, _engine_miroir, _SessionLocal
+    for moteur in (_engine, _engine_miroir):
+        if moteur is not None:
+            moteur.dispose()
     _engine = None
+    _engine_miroir = None
     _SessionLocal = None
 
 
 def get_sessionmaker() -> sessionmaker:
+    """UNE session, DEUX moteurs — routés par métadonnée.
+
+    `binds` est le mécanisme natif de SQLAlchemy pour ça : une requête sur un
+    modèle part vers le moteur de la métadonnée à laquelle sa table appartient.
+    `db_session.get(REQEntry, neq)` va donc au fichier local et
+    `db_session.add(Company(...))` à la base distante, sans qu'aucun appelant ne
+    le sache.
+
+    C'est ce qui rend le découpage possible sans toucher aux 59 appels à
+    `get_session()`, ni à une seule requête. L'alternative — un paramètre
+    `session_miroir` de plus dans chaque fonction de source — aurait fait passer
+    la même information par la signature de tout le monde, avec un oubli
+    possible à chaque étape.
+
+    Le prix, dit franchement : `commit()` valide les deux moteurs l'un après
+    l'autre, sans validation en deux phases. Voir BaseMiroir pour pourquoi c'est
+    acceptable ici et pas ailleurs.
+    """
     global _SessionLocal
     if _SessionLocal is None:
-        _SessionLocal = sessionmaker(bind=get_engine(), expire_on_commit=False)
+        _SessionLocal = sessionmaker(
+            binds={Base: get_engine(), BaseMiroir: get_engine_miroir()},
+            expire_on_commit=False,
+        )
     return _SessionLocal
 
 
@@ -124,6 +174,7 @@ def init_db() -> None:
     import falkye.models  # noqa: F401 -- garantit que tous les modèles sont importés
 
     Base.metadata.create_all(get_engine())
+    BaseMiroir.metadata.create_all(get_engine_miroir())
 
 
 def seed_spheres_from_registry() -> None:

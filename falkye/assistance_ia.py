@@ -54,13 +54,9 @@ import json
 import os
 from dataclasses import dataclass, field
 
-from falkye.models.profile import PlanTarifaire, Profile
+from falkye.models.profile import Profile
 
 _MODELE_PAR_DEFAUT = "claude-haiku-4-5"
-
-
-class PlanInsuffisantPourAssistanceIA(RuntimeError):
-    """Levée quand un profil Écho tente d'utiliser le Niveau 2 (Radar/Radar+ seulement)."""
 
 
 class AssistanceIANonConfiguree(RuntimeError):
@@ -86,16 +82,24 @@ class ResultatNiveau2:
     synonyme_a_retenir: str | None = None
 
 
-def _verifier_plan(profile: Profile) -> None:
-    if profile.plan == PlanTarifaire.ECHO:
-        raise PlanInsuffisantPourAssistanceIA(
-            f"Le Niveau 2 de l'assistance IA est réservé aux plans Radar et Radar+ "
-            f"(profil #{profile.id} est au plan Écho)."
-        )
-
-
 def _client_et_modele(profile: Profile):
-    _verifier_plan(profile)
+    """Aucune porte de palier — décision du 2026-09-04, appliquée au code le
+    2026-09-06.
+
+    Le Niveau 2 était réservé à Radar et Radar+. Il ne l'est plus, et la raison
+    tient à ce qu'il EST : une escalade qui rend la configuration JUSTE, pas un
+    enrichissement qu'on vend. Un utilisateur dont le vocabulaire sort des
+    synonymes du Niveau 1 n'obtenait aucune sphère — donc aucun besoin, donc
+    aucune notification. La porte ne limitait pas un confort, elle produisait un
+    cul-de-sac; et le plan par défaut étant Écho, elle le produisait pour le
+    premier profil réel.
+
+    Constaté en parcourant le fil de bout en bout : sur six formulations
+    éprouvées, cinq passent au Niveau 1 et la sixième butait sur ce mur.
+
+    `profile` reste dans la signature : il porte l'identité journalisée avec
+    l'appel, et le Niveau 2 écrit des synonymes appris rattachés au profil.
+    """
     import anthropic
 
     cle = os.environ.get("ANTHROPIC_API_KEY")

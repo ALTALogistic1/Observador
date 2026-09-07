@@ -27,10 +27,10 @@ from datetime import datetime
 from sqlalchemy import String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from falkye.models.base import Base, utcnow
+from falkye.models.base import BaseMiroir, utcnow
 
 
-class LicenceMunicipaleEntry(Base):
+class LicenceMunicipaleEntry(BaseMiroir):
     __tablename__ = "licences_municipales_entries"
     __table_args__ = (UniqueConstraint("municipalite", "cle_entreprise", name="uq_licence_municipale"),)
 

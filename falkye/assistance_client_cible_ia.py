@@ -20,7 +20,6 @@ from sqlalchemy.orm import Session
 from falkye.assistance_client_cible import SuggestionClientCible
 from falkye.assistance_ia import (
     AssistanceIANonConfiguree,  # noqa: F401 -- réexporté pour les appelants (cli.py)
-    PlanInsuffisantPourAssistanceIA,  # noqa: F401 -- réexporté pour les appelants (cli.py)
     ResultatNiveau2,
     classifier_niveau2,
     departager_niveau2,

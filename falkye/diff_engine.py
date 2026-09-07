@@ -138,7 +138,17 @@ def _variables_par_ligne_etat_ligne(db_session: Session) -> int:
     global _variables_par_ligne
     if _variables_par_ligne is None:
         exemple = {"source_id": "", "cle_naturelle": "", "empreinte": "", "donnees_normalisees": {}}
-        compile_ = insert(EtatLigneSource).values([exemple]).compile(bind=db_session.get_bind())
+        # `get_bind(EtatLigneSource)` et non `get_bind()` : depuis le découpage en
+        # deux bases (2026-09-06), la session est liée à DEUX moteurs et ne peut
+        # plus deviner lequel sans qu'on nomme la table. Un appel sans indice
+        # lève `UnboundExecutionError` — bruyamment, ce qui est le bon
+        # comportement : silencieusement, il aurait compilé contre le mauvais
+        # dialecte et la taille de lot aurait été calculée pour l'autre base.
+        compile_ = (
+            insert(EtatLigneSource)
+            .values([exemple])
+            .compile(bind=db_session.get_bind(EtatLigneSource))
+        )
         _variables_par_ligne = max(1, len(compile_.positiontup or ()))
     return _variables_par_ligne
 

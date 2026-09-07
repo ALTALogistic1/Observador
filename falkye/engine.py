@@ -24,6 +24,8 @@ from falkye.crm_sync import pousser_notification_vers_crm, sonder_statuts_crm
 from falkye.db import get_session
 from falkye.enrichment import enrichir_entreprise
 from falkye.matching import MatchResult, match_profile, spheres_probables
+from falkye.motif import motif_avec_mots_cles
+from falkye.models.base import en_utc
 from falkye.models.company import Company, StatutVerification
 from falkye.models.notification import (
     ModeUsage,
@@ -34,7 +36,9 @@ from falkye.models.notification import (
 from falkye.models.profile import PlanTarifaire, Profile
 from falkye.models.run_log import SourceRunLog
 from falkye.models.signal import Signal
+from falkye.notifications.base import FORME_UNITAIRE
 from falkye.notifications.formatter import formatter_notification
+from falkye.notifications.livraison import livrer
 from falkye.registry.loader import Registry, get_registry
 from falkye.resolution import resolve_company
 from falkye.scoring import calculer_score, franchit_seuil_sensibilite
@@ -161,9 +165,13 @@ def _signaux_deja_couverts(db_session: Session, company_id: int, profile_id: int
 
 
 def _besoin_enrichissement(company: Company) -> bool:
-    if company.site_web_vérifié_le is None:
+    # `en_utc` : la date relue depuis SQLite revient naïve (le fuseau n'est pas
+    # stocké), et la soustraction lèverait au deuxième cycle — le premier ayant
+    # posé la valeur. Voir falkye/models/base.py.
+    verifie_le = en_utc(company.site_web_vérifié_le)
+    if verifie_le is None:
         return True
-    age = datetime.now(timezone.utc) - company.site_web_vérifié_le
+    age = datetime.now(timezone.utc) - verifie_le
     return age > timedelta(days=ENRICHISSEMENT_VALIDITE_JOURS)
 
 
@@ -230,13 +238,14 @@ def _traiter_entreprise_pour_profil(
         matches_par_signal[signal.id] = matches
 
         meilleur_signal = max(matches, key=lambda m: m.correspondance_qualitative)
-        if meilleur_signal.correspondance_qualitative:
-            justifications[signal.id] = (
-                f"{signal.titre_ou_description or ''} — correspond aux mots-clés : "
-                f"{', '.join(meilleur_signal.mots_cles_trouves)}"
-            )
-        else:
-            justifications[signal.id] = signal.titre_ou_description or "Signal détecté"
+        # Le motif vient de la STRUCTURE DE FAITS, pas du seul libellé de la
+        # source — voir falkye/motif.py. L'ancienne version retombait sur
+        # « Signal détecté » dès qu'une source ne libellait pas ses événements,
+        # et ouvrait la variante à mots-clés par un tiret orphelin.
+        justifications[signal.id] = motif_avec_mots_cles(
+            signal,
+            meilleur_signal.mots_cles_trouves if meilleur_signal.correspondance_qualitative else [],
+        )
 
         # Sphère retenue pour LA notification (une seule, même simplification déjà
         # en place) : le MEILLEUR tier de pertinence toutes correspondances
@@ -415,30 +424,20 @@ def deliver_notification(db_session: Session, notification: Notification, regist
     if notification.hors_profil:
         return
 
+    # Livraison UNITAIRE seulement — c'est-à-dire, depuis la décision du
+    # 2026-09-05, les canaux qui poussent vers un SYSTÈME (webhook ici, CRM plus
+    # bas), jamais un message lu par un humain. Le courriel part désormais GROUPÉ,
+    # par le résumé (falkye/summary.py) : charte section 16, "le groupement est la
+    # forme par défaut; l'envoi unitaire est l'exception justifiée, jamais
+    # l'inverse". Quinze notifications séparées transforment une bonne nouvelle en
+    # irritant et poussent vers le désabonnement.
+    #
+    # Quels canaux servent quelle forme est déclaré au REGISTRE
+    # (registry/notification_channels.yaml::formes_livraison), et la résolution de
+    # destination reste propre à chaque canal — le moteur ne nomme aucun canal.
+    # Chemin commun avec le résumé : falkye/notifications/livraison.py.
     contenu = formatter_notification(notification, registry)
-    for channel_def in registry.canaux_actifs():
-        channel = channel_def.charger_canal()
-        if channel is None:
-            continue
-        # Chaque canal résout SA propre destination à partir du profil (spec
-        # section 4bis, "accès API/webhook complet" réservé à Radar+, avec une URL
-        # PROPRE à chaque profil) — le moteur ne doit jamais savoir qu'un canal
-        # précis existe ni comment il calcule sa destination (principe déjà
-        # établi, voir falkye/notifications/base.py). None = ce canal n'a pas de
-        # destination valide pour ce profil (ex. webhook non configuré, ou plan
-        # insuffisant) — silencieux, pas une erreur de livraison.
-        destinataire = channel.resoudre_destinataire(notification.profile)
-        if destinataire is None:
-            continue
-        result = channel.envoyer(destinataire, contenu)
-        db_session.add(
-            NotificationDelivery(
-                notification_id=notification.id,
-                channel_id=channel_def.id,
-                statut="envoyee" if result.succes else "echec",
-                erreur=result.erreur,
-            )
-        )
+    livrer(db_session, notification.profile, contenu, registry, FORME_UNITAIRE, notification=notification)
     # Intégration CRM (Radar et Radar+, ajoutée le 2026-09-02) — même point de
     # déclenchement qu'un canal de notification classique (une notification
     # nouvellement créée), mais PAS un NotificationChannel : un push CRM est un

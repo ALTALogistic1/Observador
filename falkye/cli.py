@@ -586,6 +586,35 @@ def profile_add_need(profile_id, usage_precis, mots_cles, type_besoin, territoir
         session.close()
 
 
+@profile.command("reprendre-envoi")
+@click.option("--profile-id", type=int, required=True)
+def profile_reprendre_envoi(profile_id):
+    """Lève une suspension d'envoi posée après trois rebonds consécutifs.
+
+    Sans cette commande, la suspension serait un cul-de-sac : le produit
+    cesserait d'écrire à quelqu'un sans qu'aucun geste ne puisse le reprendre.
+    Elle ne touche PAS `desabonne_le` — un abonné qui s'est désabonné le reste,
+    et le confondre avec une suspension le réabonnerait sans qu'il l'ait demandé.
+    """
+    session = get_session()
+    try:
+        p = session.get(Profile, profile_id)
+        if p is None:
+            raise click.ClickException(f"Profil {profile_id} introuvable")
+        if p.envoi_suspendu_le is None:
+            click.echo(f"Le profil {profile_id} n'est pas suspendu — rien à faire.")
+            return
+        p.envoi_suspendu_le = None
+        p.rebonds_consecutifs = 0
+        session.commit()
+        click.echo(
+            f"Envoi repris pour le profil {profile_id}. Ses opportunités en attente "
+            "repartiront au prochain résumé."
+        )
+    finally:
+        session.close()
+
+
 @profile.command("list")
 def profile_list():
     session = get_session()
@@ -595,6 +624,14 @@ def profile_list():
                 f"#{p.id} {p.nom} <{p.courriel}> type={p.type_profil.value} plan={p.plan.value} "
                 f"sensibilite_confiance={p.sensibilite_confiance.value} "
                 f"sensibilite_pertinence={p.sensibilite_pertinence.value}"
+                + (" [DÉSABONNÉ]" if p.desabonne_le else "")
+                + (
+                    f" [ENVOI SUSPENDU depuis {p.envoi_suspendu_le:%Y-%m-%d} — "
+                    f"{p.rebonds_consecutifs} rebond(s) consécutif(s); "
+                    "reprendre avec `falkye profile reprendre-envoi`]"
+                    if p.envoi_suspendu_le
+                    else ""
+                )
             )
             for n in p.besoins:
                 spheres_txt = ", ".join(
@@ -639,7 +676,6 @@ def _proposer_liens_spheres(session, profile_obj, texte, niveau2_autorise):
     from falkye.assistance_sphere import suggerer_spheres_niveau1
     from falkye.assistance_sphere_ia import (
         AssistanceIANonConfiguree,
-        PlanInsuffisantPourAssistanceIA,
         departager_spheres_niveau2,
         suggerer_spheres_niveau2,
     )
@@ -656,13 +692,13 @@ def _proposer_liens_spheres(session, profile_obj, texte, niveau2_autorise):
                 )
                 rapport += f"\n  Niveau 2 (départage d'égalité) — raisonnement : {resultat.raisonnement}"
                 return liens, rapport
-            except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree):
+            except AssistanceIANonConfiguree:
                 pass  # repli silencieux : poids égaux ci-dessous, pas d'erreur bloquante
         candidats_egalite = [s for s in suggestions if s.score == suggestions[0].score]
         liens = [(s.sphere_id, 100.0) for s in candidats_egalite]
         rapport = "\n".join(
             f"  - {s.sphere_id} ({s.sphere_nom}) — poids 100 (égalité exacte au Niveau 1, "
-            f"départage Niveau 2 indisponible pour ce plan)"
+            f"départage Niveau 2 indisponible)"
             for s in candidats_egalite
         )
         return liens, rapport
@@ -682,7 +718,7 @@ def _proposer_liens_spheres(session, profile_obj, texte, niveau2_autorise):
         return [], "  Aucune correspondance locale (Niveau 1). Niveau 2 non demandé (--no-niveau2)."
     try:
         resultat = suggerer_spheres_niveau2(session, profile_obj, texte)
-    except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree) as exc:
+    except AssistanceIANonConfiguree as exc:
         return [], f"  Aucune correspondance locale (Niveau 1). Niveau 2 indisponible : {exc}"
     if not resultat.liens:
         return [], (
@@ -701,7 +737,6 @@ def _proposer_liens_client_cible(session, profile_obj, texte, niveau2_autorise):
     from falkye.assistance_client_cible import suggerer_clients_cibles_niveau1
     from falkye.assistance_client_cible_ia import (
         AssistanceIANonConfiguree,
-        PlanInsuffisantPourAssistanceIA,
         departager_clients_cibles_niveau2,
         suggerer_clients_cibles_niveau2,
     )
@@ -719,13 +754,13 @@ def _proposer_liens_client_cible(session, profile_obj, texte, niveau2_autorise):
                 )
                 rapport += f"\n  Niveau 2 (départage d'égalité) — raisonnement : {resultat.raisonnement}"
                 return liens, rapport
-            except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree):
+            except AssistanceIANonConfiguree:
                 pass
         candidats_egalite = [s for s in suggestions if s.score == suggestions[0].score]
         liens = [(s.client_cible_id, 100.0) for s in candidats_egalite]
         rapport = "\n".join(
             f"  - {s.client_cible_id} ({s.client_cible_nom}) — poids 100 (égalité exacte au Niveau 1, "
-            f"départage Niveau 2 indisponible pour ce plan)"
+            f"départage Niveau 2 indisponible)"
             for s in candidats_egalite
         )
         return liens, rapport
@@ -745,7 +780,7 @@ def _proposer_liens_client_cible(session, profile_obj, texte, niveau2_autorise):
         return [], "  Aucune correspondance locale (Niveau 1). Niveau 2 non demandé (--no-niveau2)."
     try:
         resultat = suggerer_clients_cibles_niveau2(session, profile_obj, texte)
-    except (PlanInsuffisantPourAssistanceIA, AssistanceIANonConfiguree) as exc:
+    except AssistanceIANonConfiguree as exc:
         return [], f"  Aucune correspondance locale (Niveau 1). Niveau 2 indisponible : {exc}"
     if not resultat.liens:
         return [], (
@@ -1579,6 +1614,32 @@ def _afficher_rapport(report):
         click.echo(f"Statuts synchronisés depuis un CRM : {report.nb_statuts_crm_synchronises}")
     if report.nb_liens_interprovinciaux_detectes:
         click.echo(f"Liens inter-provinciaux détectés : {report.nb_liens_interprovinciaux_detectes}")
+
+
+@cli.command("cycle")
+@click.option(
+    "--lookback-days",
+    default=30,
+    help="Fenêtre de détection. Le mandat impose une fréquence FIXE — ce réglage borne "
+    "la détection, il ne règle pas la cadence d'envoi (chantier 8).",
+)
+def cycle_cmd(lookback_days):
+    """Le cycle complet, tel que le minuteur l'exécute — détection puis livraison.
+
+    C'est le point d'entrée de l'ordonnanceur (voir deploiement/). Utilisable à
+    la main pour reproduire exactement ce que fait l'exécution automatique :
+    même chemin, mêmes battements de cœur, aucune variante réservée aux tests.
+    """
+    from falkye.cycle import executer_cycle
+
+    rapport = executer_cycle(lookback_days=lookback_days)
+    click.echo(rapport.resume_lisible())
+    for echec in rapport.echecs:
+        click.echo(f"  échec — {echec}", err=True)
+    if rapport.resumes_en_echec:
+        # Sortie non nulle : le gestionnaire de services doit voir qu'une partie
+        # du cycle n'a pas livré, même si le reste a fonctionné.
+        raise SystemExit(1)
 
 
 @cli.group()

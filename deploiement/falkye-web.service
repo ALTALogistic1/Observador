@@ -1,0 +1,36 @@
+# Le point d'entrée HTTPS — désabonnement (RFC 8058) et rétroaction.
+#
+# Sert en clair sur la boucle locale ; le mandataire inverse porte le certificat.
+[Unit]
+Description=FALKYE — point d'entrée public (lien.falkye.com)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=falkye
+Group=falkye
+WorkingDirectory=/opt/falkye/code
+EnvironmentFile=/etc/falkye/falkye.env
+# La révision déployée, écrite par la chaîne de déploiement. Le `-` la rend
+# facultative : un hôte préparé à la main démarre sans elle.
+EnvironmentFile=-/opt/falkye/version.env
+ExecStart=/opt/falkye/venv/bin/gunicorn \
+    --bind 127.0.0.1:8000 \
+    --workers 2 \
+    --access-logfile - \
+    'falkye.web.app:create_app()'
+ExecReload=/bin/kill -s HUP $MAINPID
+# Toujours relancer : ce service est le SEUL chemin par lequel un désabonnement
+# peut passer. Le laisser mort transformerait une panne en plainte pour pourriel.
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/falkye
+
+[Install]
+WantedBy=multi-user.target
