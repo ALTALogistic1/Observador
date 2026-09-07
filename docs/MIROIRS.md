@@ -126,24 +126,45 @@ dispense d'adresse n'est pas dans le code déployé — voir
 
 ## Ce que le miroir coûte à chaque cycle
 
-Un cycle complet mesuré le 7 septembre 2026, miroir chargé : **92,5 minutes**,
-428 Mo de pic mémoire, limité par le PROCESSEUR et non par le réseau (41 min de
-temps processeur sur 41 min écoulées, à mi-parcours).
+**⚠️ Deux mesures, et la seconde renverse la conclusion de la première.** Elles
+sont gardées toutes les deux : c'est l'écart entre elles qui porte l'information.
 
-Douze prélèvements sur quatorze tombent au même endroit :
-`falkye/sources/req.py`, le **repli par sous-chaîne** de `resolve_neq_by_name`.
-Quand la recherche par préfixe ne rend rien, le repli fait un `LIKE '%...%'` —
-que SQLite ne peut pas indexer, donc un SCAN des 2,7 millions de lignes :
+| | En développement | Sur l'hôte |
+|---|---|---|
+| Durée | 92,5 min | **1 h 26** |
+| Temps processeur | 41 min sur 41 écoulées — **100 %** | 19 min sur 86 — **22 %** |
+| Pic mémoire | 428 Mo | 414 Mo |
+| Base du produit | fichier local | **distante, ~111 ms l'aller-retour** |
+
+**En développement, le cycle est limité par le processeur.** Douze prélèvements
+sur quatorze tombent au même endroit : `falkye/sources/req.py`, le **repli par
+sous-chaîne** de `resolve_neq_by_name`. Quand la recherche par préfixe ne rend
+rien, le repli fait un `LIKE '%...%'` que SQLite ne peut pas indexer, donc un
+SCAN des 2,7 millions de lignes :
 
 | | |
 |---|---|
 | Préfixe indexé (`GLOB 'transport*'`) | 0,007 s — SEARCH via l'index |
 | Repli par sous-chaîne (`LIKE '%boulan%'`) | 0,32 s — SCAN complet |
 
-Quarante fois plus cher. Il ne domine peut-être pas en nombre d'appels, mais il
-domine le temps — c'est lui qui décide de la durée d'un cycle. **Non corrigé au
-7 septembre 2026**, consigné ici pour que le prochain qui trouve le cycle lent
-n'ait pas à le rechercher.
+**Sur l'hôte, il n'est plus le facteur dominant.** 78 % du temps est de
+l'ATTENTE, pas du calcul. Le miroir y est local et rapide; ce qui coûte, c'est la
+latence de la base du produit — un aller-retour par validation, et depuis le
+7 septembre une validation par signal neuf.
+
+**Ce que ça change au levier**, et c'est la raison de garder les deux mesures :
+indexer autrement le repli optimiserait 22 % du temps. Le vrai gain serait de
+réduire le NOMBRE d'allers-retours — valider par lots, vérifier les doublons en
+une requête par lot plutôt qu'une par ligne.
+
+**Mais ça entre en tension directe avec la validation par signal**, qui a déjà
+sauvé de la donnée deux fois le même jour : un `SIGTERM` à 3 h, puis une erreur
+d'entrée-sortie du serveur. Tout lot reste par ailleurs borné par les dix
+secondes au-delà desquelles la base distante annule une transaction portant une
+écriture (voir docs/DEPLOIEMENT.md), donc le lot se borne au TEMPS, pas au
+nombre. **À mesurer avant de trancher. Rien n'est corrigé au 8 septembre 2026**,
+et le prochain qui trouvera le cycle lent devra d'abord regarder lequel des deux
+régimes il observe.
 
 ## L'état de diff
 
