@@ -16,6 +16,9 @@ name: Lancer un cycle sans livraison
 #
 # Pourquoi À LA DEMANDE : c'est une mesure et une observation, pas un
 # ordonnancement. Le cycle régulier, lui, a son minuteur.
+#
+# Ce flux LANCE et rend la main — il ne supervise pas. L'état se lit avec le flux
+# « État du cycle sans livraison », qui ne demande aucun privilège.
 on:
   workflow_dispatch:
 
@@ -29,9 +32,9 @@ concurrency:
 jobs:
   lancer:
     runs-on: ubuntu-latest
-    # L'unité s'accorde 3 heures. Le flux doit lui laisser finir, sinon on perd
-    # exactement la mesure qu'on est venu chercher.
-    timeout-minutes: 200
+    # Quelques minutes suffisent : ce flux LANCE, il ne supervise pas. Voir la
+    # note sur les six heures ci-dessous.
+    timeout-minutes: 10
     steps:
       - name: Préparer l'accès SSH
         env:
@@ -47,42 +50,56 @@ jobs:
           printf '%s\n' "$HOTES_CONNUS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Lancer le cycle
+      - name: Lancer le cycle, sans attendre sa fin
         env:
           HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
           UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
         run: |
           set -euo pipefail
-          # `ServerAlive*` : le cycle peut tourner longtemps sans rien écrire sur
-          # la connexion, et un pare-feu intermédiaire couperait une session
-          # muette bien avant la fin.
-          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes \
-              -o ServerAliveInterval=30 -o ServerAliveCountMax=400 \
-              "$UTILISATEUR@$HOTE" \
-              'sudo /usr/bin/systemctl start falkye-cycle-sans-livraison.service'
+          # **Pourquoi le lancement est DÉTACHÉ.** Un travail sur coureur hébergé
+          # par GitHub est plafonné à SIX HEURES, quoi qu'on mette dans
+          # `timeout-minutes`. Un run de référence dure plus que ça : le flux
+          # serait tué pendant que l'unité continue sur l'hôte, et on lirait un
+          # flux en échec à côté d'un cycle vivant — deux signaux contradictoires
+          # pour un seul fait.
+          #
+          # L'hôte POSSÈDE l'exécution, le coureur ne fait que la déclencher.
+          # C'est `TimeoutStartSec` de l'unité qui la borne, pas le coureur.
+          #
+          # La commande `sudo` est identique AU CARACTÈRE PRÈS à celle du fichier
+          # de sudoers : une entrée portant des arguments n'autorise que ces
+          # arguments exacts, donc ajouter un `--no-block` la ferait refuser. Le
+          # détachement est fait par le shell autour, jamais dans la commande.
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            'nohup sudo /usr/bin/systemctl start falkye-cycle-sans-livraison.service \
+                >/dev/null 2>&1 &'
 
-      - name: Rapporter la durée et le pic mémoire
-        if: always()
+      - name: Vérifier que le cycle a bien démarré
         env:
           HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
           UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
         run: |
           set -euo pipefail
-          # SANS `sudo` : lire les propriétés d'une unité et son journal ne
-          # demande aucun privilège.
-          # `always()` : c'est en ÉCHEC qu'on a le plus besoin de ces chiffres.
-          # Un cycle tué par le délai ou par manque de mémoire ne dit rien de
-          # lui-même depuis la sortie de `systemctl start`.
-          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
-            'systemctl show falkye-cycle-sans-livraison.service \
-               -p Result -p ExecMainStatus \
-               -p ExecMainStartTimestamp -p ExecMainExitTimestamp'
-          echo "--- journal du service ---"
-          # La ligne « Consumed ... memory peak » de systemd porte le pic du
-          # groupe de contrôle. `systemctl show -p MemoryPeak` ne le retient PAS
-          # pour une unité oneshot terminée — mesuré le 2026-09-07 sur l'import
-          # du miroir, où la propriété revenait vide alors que le journal avait
-          # le chiffre.
-          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
-            'journalctl -u falkye-cycle-sans-livraison.service -n 200 --no-pager' || \
-            echo "journal non lisible par l'utilisateur de déploiement — voir sur l'hôte"
+          # Lancer sans vérifier serait un filet qui capture sans livrer : un
+          # `sudo` refusé, une unité absente, une faute de frappe dans son nom —
+          # tout ça disparaîtrait dans le `>/dev/null` du détachement, et le flux
+          # se déclarerait vert sans que rien n'ait démarré. On CONSTATE donc
+          # l'état avant de rendre la main.
+          for essai in $(seq 1 15); do
+            ETAT=$(ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes \
+              "$UTILISATEUR@$HOTE" \
+              'systemctl is-active falkye-cycle-sans-livraison.service' || true)
+            echo "tentative $essai : $ETAT"
+            case "$ETAT" in
+              activating|active) echo "::notice::cycle démarré — état $ETAT"; exit 0 ;;
+            esac
+            sleep 2
+          done
+          echo "::error::le cycle n'a pas démarré (dernier état : ${ETAT:-inconnu})"
+          exit 1
+
+      - name: Où lire la suite
+        run: |
+          echo "Le cycle tourne sur l'hôte, hors de ce flux."
+          echo "Déclencher « État du cycle sans livraison » pour son avancement,"
+          echo "sa durée et son pic mémoire."

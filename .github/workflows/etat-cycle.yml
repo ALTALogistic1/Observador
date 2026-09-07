@@ -1,0 +1,88 @@
+name: État du cycle sans livraison
+
+# Le pendant du flux de lancement. Celui-là DÉCLENCHE et rend la main; celui-ci
+# REGARDE, autant de fois qu'on veut, pendant ou après.
+#
+# Pourquoi deux flux plutôt qu'un. Un travail sur coureur hébergé par GitHub est
+# plafonné à six heures, et un run de référence dure plus que ça. Un flux unique
+# qui attendrait la fin serait tué pendant que l'unité continue sur l'hôte : on
+# lirait un flux en échec à côté d'un cycle vivant. L'hôte possède l'exécution,
+# le coureur ne fait que la déclencher puis la consulter.
+#
+# **Ce flux ne demande AUCUN privilège.** Lire les propriétés d'une unité et son
+# journal se fait sans `sudo` — il n'y a donc rien à ajouter au fichier de
+# sudoers, et une chaîne compromise n'y gagne rien. `deploy` lit le journal
+# parce qu'il appartient au groupe `systemd-journal`, en lecture seule.
+on:
+  workflow_dispatch:
+    inputs:
+      lignes:
+        description: "Nombre de lignes de journal à ramener"
+        required: false
+        default: "80"
+        type: string
+
+jobs:
+  regarder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Préparer l'accès SSH
+        env:
+          CLE: ${{ secrets.FALKYE_DEPLOY_SSH_KEY }}
+          HOTES_CONNUS: ${{ secrets.FALKYE_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/id_deploiement
+          chmod 600 ~/.ssh/id_deploiement
+          # L'empreinte du serveur vient d'un secret, jamais d'un ssh-keyscan :
+          # la récupérer depuis le réseau qu'on cherche à ne pas croire ne
+          # vérifie rien. Même règle que les autres flux.
+          printf '%s\n' "$HOTES_CONNUS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: État de l'unité
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          echo "--- état ---"
+          # `is-active` répond `activating` tant qu'une unité oneshot travaille,
+          # avec un code de sortie non nul : d'où le `|| true`, sans quoi le flux
+          # échouerait précisément quand le cycle va bien.
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            'systemctl is-active falkye-cycle-sans-livraison.service' || true
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            'systemctl show falkye-cycle-sans-livraison.service \
+               -p Result -p ExecMainStatus -p ActiveState -p SubState \
+               -p ExecMainStartTimestamp -p ExecMainExitTimestamp'
+
+      - name: Journal du service
+        if: always()
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+          LIGNES: ${{ inputs.lignes }}
+        run: |
+          set -euo pipefail
+          echo "--- journal du service ---"
+          # La ligne « Consumed ... memory peak » de systemd porte le pic du
+          # groupe de contrôle et le temps processeur. `systemctl show -p
+          # MemoryPeak` ne les retient PAS pour une unité oneshot terminée —
+          # mesuré le 2026-09-07 sur l'import du miroir, où la propriété revenait
+          # vide alors que le journal avait le chiffre.
+          #
+          # `always()` : c'est en échec qu'on a le plus besoin de ces lignes.
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            "journalctl -u falkye-cycle-sans-livraison.service -n ${LIGNES:-80} --no-pager" || \
+            echo "journal non lisible par l'utilisateur de déploiement — voir sur l'hôte"
+
+      - name: Ce que ce flux ne peut pas dire
+        run: |
+          # Le détail par source — quelle source tourne, depuis quand, combien de
+          # signaux — vit dans SourceRunLog, donc dans la base distante. Le
+          # coureur n'a PAS les identifiants pour la lire, et c'est voulu : la
+          # chaîne de déploiement ne doit jamais pouvoir ouvrir la base.
+          echo "L'avancement par source vit dans SourceRunLog, en base."
+          echo "Le coureur n'a pas les identifiants — c'est délibéré."

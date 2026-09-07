@@ -272,11 +272,28 @@ sources:
       erreur sur les sources TENTÉES, et celle-ci gonflait le dénominateur sans
       jamais pouvoir contribuer.
 
-      CONDITION DE RÉACTIVATION, à vérifier avant et non à supposer : que le
-      décalage de publication passe sous la durée de vie d'une offre. Le contrôle
-      tient en une commande — suivre dix identifiants du fichier le plus récent et
-      compter les HTTP 200. Tant que la réponse est zéro, la réactiver ne
-      produirait que du bruit. Le connecteur, lui, reste correct et testé : rien à
+      CONDITION DE RÉACTIVATION — deux contrôles, à vérifier avant et non à
+      supposer.
+
+      (1) Que le décalage de publication soit passé sous la durée de vie d'une
+      offre : suivre dix identifiants du fichier le plus récent et compter les
+      HTTP 200. Tant que la réponse est zéro, la réactiver ne produirait que du
+      bruit.
+
+      (2) Qu'elle fasse RÉELLEMENT le travail qu'elle annonce. Au cycle du
+      2026-09-07 elle s'est exécutée en QUATRE SECONDES (16:43:46 → 16:43:50, voir
+      SourceRunLog) pour un statut « succès ». Avec le `Crawl-delay: 5` imposé par
+      le site et une borne de cent offres, une tentative réelle prendrait des
+      minutes. Deux explications possibles, et elles ne sont pas équivalentes :
+      soit elle n'a trouvé aucune ligne candidate à essayer — une limite de
+      source, cohérente avec (1) — soit elle n'a pas tenté ce qu'elle prétend
+      tenter, et c'est alors un DÉFAUT du connecteur, pas une limite. Non
+      tranché : la question est sans objet tant qu'elle dort, mais la trancher est
+      un préalable à la rallumer. Sinon on rallumerait une source dont on ne sait
+      pas si le zéro vient de la donnée ou du code — exactement le silence
+      indiscernable qu'on cherche à éliminer.
+
+      Le connecteur reste correct sur ce qu'on a pu vérifier, et testé : rien à
       réécrire le jour où la donnée le permet.
 
   - id: eimt

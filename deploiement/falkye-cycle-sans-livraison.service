@@ -34,12 +34,21 @@ EnvironmentFile=/etc/falkye/falkye.env
 EnvironmentFile=-/opt/falkye/version.env
 ExecStart=/opt/falkye/venv/bin/falkye cycle --sans-livraison
 
-# 3 heures, DÉLIBÉRÉMENT plus large que les 3 600 s de falkye-cycle.service.
-# C'est cette unité qui doit produire la mesure servant à régler l'autre : un
-# délai serré ici tuerait précisément l'exécution qu'on cherche à chronométrer,
-# et on n'apprendrait rien d'autre que « plus long que la limite qu'on a posée
-# au hasard ».
-TimeoutStartSec=10800
+# 12 heures, POUR LE RUN DE RÉFÉRENCE — et ce chiffre-là est temporaire.
+#
+# Les 3 heures précédentes ont tué le cycle du 2026-09-07 à la seconde, sur la
+# TROISIÈME source de neuf. Il ne bloquait pas : `eimt` avait écrit 23 142
+# signaux en 2 h 47 et continuait. Un premier passage amorce l'état de diff sur
+# tout l'historique des sources; un cycle ordinaire ne verra ensuite que les
+# lignes neuves.
+#
+# Dimensionner le minuteur hebdomadaire sur CE passage serait l'erreur
+# symétrique de l'heure ronde : régler sur l'amorçage plutôt que sur le régime.
+# La valeur définitive de falkye-cycle.service se mesurera sur le premier cycle
+# ordinaire, une fois la référence établie — et cette unité-ci devra alors
+# redescendre, sans quoi une exécution bloquée pourrait mobiliser l'hôte une
+# demi-journée sans que rien ne le signale.
+TimeoutStartSec=43200
 
 # Le cache de téléchargement des sources. SANS ces deux lignes, le connecteur
 # CKAN écrit dans le chemin RELATIF `./cache`, qui se résout sous
