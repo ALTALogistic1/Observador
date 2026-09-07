@@ -127,6 +127,31 @@ def _consigner_lechec(
     Et si même cette mise à jour échoue, on le dit au journal du système et on
     continue. Perdre la trace d'un échec est mauvais; perdre les huit sources
     suivantes pour cette raison serait pire.
+
+    **LIMITE OBSERVÉE le 2026-09-07, et elle est structurelle.** Quand c'est LA
+    BASE qui tombe — `eimt` est morte sur un `Hrana: SQLite error: disk I/O
+    error` renvoyé par le serveur pendant un `commit()` — cette mise à jour
+    échoue pour la même raison que ce qu'elle essaie de consigner. La ligne reste
+    donc `en_cours` **et elle ment** : elle se lit comme une source qui travaille
+    encore, alors que le cycle est fini depuis longtemps.
+
+    Aucun garde-fou local ne referme ça : le journal ne peut pas se décrire
+    lui-même quand son support tombe. Ce qui a sauvé la lecture ce jour-là, c'est
+    que le compte de sources en erreur vient du rapport EN MÉMOIRE
+    (`IngestReport.erreur`, agrégé par falkye/cycle.py) et non de cette table :
+    la ligne de fin du journal d'exploitation annonçait « 1 source(s) en erreur
+    sur 8 » — juste — là où `SourceRunLog` disait « en cours » — faux.
+
+    **D'où la règle, qui dépasse ce cas : un compte qui décrit une exécution ne
+    se calcule jamais depuis la base que cette exécution écrit.** Il se tient en
+    mémoire pendant l'exécution et n'est consigné qu'à la fin. Une lecture a
+    posteriori de la table donnerait le décompte de ce qui a pu s'écrire, pas de
+    ce qui s'est passé — et les deux diffèrent précisément quand ça compte.
+
+    Refermer les lignes restées ouvertes relève d'un autre mécanisme, et d'un
+    autre chantier (chantier 2) : un cycle qui démarre peut clore celles plus
+    anciennes qu'un seuil raisonnable. Ce module-ci n'a pas les moyens de le
+    faire, puisque le moment où il faudrait écrire est celui où il ne peut pas.
     """
     if run_log_id is None:
         return
