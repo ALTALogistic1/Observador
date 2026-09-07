@@ -161,6 +161,19 @@ d'entrée répond. **C'est ce passage-là qui prouve la chaîne**, pas le premie
 installer une unité est un geste de root, et donner ce pouvoir à la chaîne
 annulerait la séparation que le reste construit.
 
+> **⚠️ L'ordre du geste, appris le 7 septembre 2026.** La recopie en root lit
+> `/opt/falkye/code/deploiement/`, que **le déploiement remplit**. Elle doit donc
+> venir *après* que le flux Déploiement soit VERT, jamais dès qu'il est lancé.
+>
+> Fait dans le mauvais ordre, on recopie les unités de la version précédente. Et
+> ça ne se voit pas : `systemctl daemon-reload` réussit, l'unité démarre, le
+> cycle tourne — il perd simplement toutes les sources que la correction devait
+> sauver. Cinq sur neuf, ce jour-là. **Vérifier plutôt que supposer :**
+>
+> ```bash
+> systemctl cat falkye-cycle-sans-livraison.service | grep -i cache
+> ```
+
 ### Temps 5 — charger le miroir, voir un cycle, PUIS activer le minuteur
 
 Trois gestes, dans cet ordre, et le troisième dépend de ce que montre le second.

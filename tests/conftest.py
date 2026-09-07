@@ -1,3 +1,24 @@
+"""Décors partagés de la suite.
+
+**Un test doit passer parce que le code est correct, jamais parce que son
+environnement le lui permet.** Le motif s'est produit trois fois en deux jours,
+sous trois formes, et il vaut la peine d'être surveillé :
+
+  - *une variable d'environnement présente sur la machine* — sept tests
+    vérifiaient une configuration et non un comportement (2026-09-05);
+  - *un état que l'opération fautive produit aussi* — un test regardait
+    `session.new`, que `flush()` vide comme `commit()`, donc la mutation qui
+    remettait un `flush()` passait sans rien casser (2026-09-07);
+  - *les privilèges du compte qui lance la suite* — un test rendait un
+    répertoire non inscriptible par `chmod 0500`, mais la suite tourne en root
+    dans le conteneur de développement et root passe outre les bits de
+    permission (2026-09-07). Pour rendre un chemin réellement impossible à
+    créer, mettre un FICHIER en guise de parent : `mkdir` lève alors pour tout
+    le monde.
+
+La question qui les attrape tous : **quel test tomberait si je défaisais ce que
+je viens de faire?** Si la réponse est « aucun », le test ne verrouille rien.
+"""
 import os
 
 import pytest
