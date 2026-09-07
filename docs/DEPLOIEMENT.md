@@ -136,14 +136,17 @@ visudo -c
 # 3.3 Créer le schéma, puis démarrer
 systemctl start falkye-migration.service
 systemctl enable --now falkye-web.service
-systemctl enable --now falkye-cycle.timer
 ```
+
+**Le minuteur n'est PAS activé ici, et c'est délibéré.** Sans miroir REQ chargé,
+un cycle ne résout aucun NEQ, ne produit aucune notification et livre un résumé
+vide — la seule chose qu'il enverrait est un courriel qui décrédibilise le
+produit. L'activation vient au temps 5, après qu'un cycle ait été vu tourner.
 
 **Vérifier :**
 
 ```bash
 systemctl status falkye-web.service      # active (running)
-systemctl list-timers falkye-cycle.timer # prochain mardi 8 h
 curl -sf http://127.0.0.1:8000/sante     # ok
 sudo -u deploy sudo -n /usr/bin/systemctl status falkye-web.service >/dev/null \
     && echo "permission de la chaîne : ok"
@@ -157,6 +160,38 @@ d'entrée répond. **C'est ce passage-là qui prouve la chaîne**, pas le premie
 **Ajouter une unité plus tard demandera de refaire le temps 3.** C'est assumé :
 installer une unité est un geste de root, et donner ce pouvoir à la chaîne
 annulerait la séparation que le reste construit.
+
+### Temps 5 — charger le miroir, voir un cycle, PUIS activer le minuteur
+
+Trois gestes, dans cet ordre, et le troisième dépend de ce que montre le second.
+
+1. **Charger le miroir REQ** — flux **« Charger le miroir REQ »**, avec
+   l'étiquette de la release portant `JeuDonnees.zip`. Sans lui, la résolution
+   NEQ échoue et le cycle n'a rien à dire (voir `docs/MIROIRS.md`).
+
+2. **Lancer un cycle à la main, sans livraison** — flux **« Lancer un cycle sans
+   livraison »**. Il démarre `falkye-cycle-sans-livraison.service`, qui exécute
+   `falkye cycle --sans-livraison` : réconciliation et détection réelles, aucun
+   résumé généré ni envoyé. C'est ce passage qui donne la **durée réelle** d'un
+   cycle sur l'hôte.
+
+3. **Régler le délai, puis activer le minuteur** — `TimeoutStartSec` de
+   `falkye-cycle.service` vaut 3 600 s, un chiffre posé avant toute mesure. Le
+   corriger à partir de la durée observée, puis :
+
+   ```bash
+   systemctl daemon-reload                    # si le délai a changé
+   systemctl enable --now falkye-cycle.timer
+   systemctl list-timers falkye-cycle.timer   # prochain mardi 8 h
+   ```
+
+**Pourquoi le cycle d'observation ne livre pas.** Deux raisons qui se cumulent :
+le réglage de désabonnement du flux de diffusion n'est pas débloqué chez le
+fournisseur (rien ne doit partir), et un premier cycle sert à voir ce que la
+détection produit avant qu'un destinataire le reçoive. La coupure est dans le
+code, avant la génération des résumés, et trois tests la verrouillent
+(`tests/test_cycle.py`). L'unité qui livre, `falkye-cycle.service`, n'est pas
+dans le fichier de sudoers : la chaîne de déploiement ne peut pas la démarrer.
 
 ## Le mandataire inverse
 

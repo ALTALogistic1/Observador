@@ -1,0 +1,88 @@
+name: Lancer un cycle sans livraison
+
+# Pourquoi ce flux existe : l'hôte ne peut être administré QUE d'ici — le port 22
+# est bloqué depuis l'environnement de développement. Le coureur, lui, l'atteint.
+#
+# Ce qu'il déclenche : `falkye cycle --sans-livraison`. Un cycle RÉEL —
+# réconciliation des livraisons du cycle précédent, puis détection sur les neuf
+# sources avec le miroir REQ en place. Il écrit des entreprises, des signaux, de
+# l'état de diff et du journal. Il n'envoie AUCUN courriel : la coupure est dans
+# le code, avant la génération des résumés, et trois tests la verrouillent
+# (tests/test_cycle.py).
+#
+# Ce qu'il NE fait pas : démarrer `falkye-cycle.service`, qui livre. Cette unité
+# n'est pas dans le fichier de sudoers, et ne doit pas y entrer — seul son
+# minuteur la déclenche.
+#
+# Pourquoi À LA DEMANDE : c'est une mesure et une observation, pas un
+# ordonnancement. Le cycle régulier, lui, a son minuteur.
+on:
+  workflow_dispatch:
+
+concurrency:
+  # Deux cycles simultanés écriraient le même état de diff, et le second verrait
+  # le travail du premier comme déjà fait. Le second attend; il n'annule pas le
+  # premier, dont l'écriture serait alors laissée à moitié.
+  group: cycle-production
+  cancel-in-progress: false
+
+jobs:
+  lancer:
+    runs-on: ubuntu-latest
+    # L'unité s'accorde 3 heures. Le flux doit lui laisser finir, sinon on perd
+    # exactement la mesure qu'on est venu chercher.
+    timeout-minutes: 200
+    steps:
+      - name: Préparer l'accès SSH
+        env:
+          CLE: ${{ secrets.FALKYE_DEPLOY_SSH_KEY }}
+          HOTES_CONNUS: ${{ secrets.FALKYE_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/id_deploiement
+          chmod 600 ~/.ssh/id_deploiement
+          # L'empreinte du serveur vient d'un secret, jamais d'un ssh-keyscan :
+          # la récupérer depuis le réseau qu'on cherche à ne pas croire ne
+          # vérifie rien. Même règle que la chaîne de déploiement.
+          printf '%s\n' "$HOTES_CONNUS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Lancer le cycle
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          # `ServerAlive*` : le cycle peut tourner longtemps sans rien écrire sur
+          # la connexion, et un pare-feu intermédiaire couperait une session
+          # muette bien avant la fin.
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes \
+              -o ServerAliveInterval=30 -o ServerAliveCountMax=400 \
+              "$UTILISATEUR@$HOTE" \
+              'sudo /usr/bin/systemctl start falkye-cycle-sans-livraison.service'
+
+      - name: Rapporter la durée et le pic mémoire
+        if: always()
+        env:
+          HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
+          UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          # SANS `sudo` : lire les propriétés d'une unité et son journal ne
+          # demande aucun privilège.
+          # `always()` : c'est en ÉCHEC qu'on a le plus besoin de ces chiffres.
+          # Un cycle tué par le délai ou par manque de mémoire ne dit rien de
+          # lui-même depuis la sortie de `systemctl start`.
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            'systemctl show falkye-cycle-sans-livraison.service \
+               -p Result -p ExecMainStatus \
+               -p ExecMainStartTimestamp -p ExecMainExitTimestamp'
+          echo "--- journal du service ---"
+          # La ligne « Consumed ... memory peak » de systemd porte le pic du
+          # groupe de contrôle. `systemctl show -p MemoryPeak` ne le retient PAS
+          # pour une unité oneshot terminée — mesuré le 2026-09-07 sur l'import
+          # du miroir, où la propriété revenait vide alors que le journal avait
+          # le chiffre.
+          ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
+            'journalctl -u falkye-cycle-sans-livraison.service -n 200 --no-pager' || \
+            echo "journal non lisible par l'utilisateur de déploiement — voir sur l'hôte"

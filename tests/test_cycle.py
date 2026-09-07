@@ -226,3 +226,125 @@ def test_le_repli_ajoute_sans_ecraser(monkeypatch, tmp_path):
     journaliser(EvenementExploitation.CYCLE_ECHEC)
 
     assert len(chemin.read_text(encoding="utf-8").strip().splitlines()) == 2
+
+
+# --- Le cycle mesuré, sans livraison ---------------------------------------
+#
+# Pourquoi ces tests existent : le 2026-09-07, il fallait voir tourner un cycle
+# réel sur l'hôte pendant qu'un envoi ne devait PAS partir (réglage de
+# désabonnement bloqué chez le fournisseur). La seule chose qui garantit qu'un
+# courriel ne part pas, c'est que la génération ne soit jamais appelée — pas une
+# intention dans un commentaire.
+
+
+def test_sans_livraison_aucun_resume_nest_genere(branche, monkeypatch):
+    """Le test central : `generer_et_envoyer_resume` ne doit pas être appelé.
+
+    Retirer la garde de falkye/cycle.py fait tomber celui-ci — c'est ce qu'on
+    veut, parce que l'appel est l'unique chemin vers un envoi réel.
+    """
+    _profile(branche, "a@exemple.com")
+    _profile(branche, "b@exemple.com")
+    appels = []
+    monkeypatch.setattr(
+        falkye.summary,
+        "generer_et_envoyer_resume",
+        lambda s, p: appels.append(p.id) or _Resume(),
+    )
+
+    rapport = executer_cycle(livrer_les_resumes=False)
+
+    assert appels == []
+    assert rapport.resumes_envoyes == 0
+    assert rapport.opportunites_livrees == 0
+    assert rapport.resumes_en_echec == 0
+
+
+def test_sans_livraison_les_profils_sont_comptes_pas_servis(branche, monkeypatch):
+    """Le chiffre qu'on veut du cycle mesuré : combien d'envois il aurait faits."""
+    _profile(branche, "a@exemple.com")
+    _profile(branche, "b@exemple.com")
+    monkeypatch.setattr(falkye.summary, "generer_et_envoyer_resume", lambda s, p: _Resume())
+
+    rapport = executer_cycle(livrer_les_resumes=False)
+
+    assert rapport.profils_traites == 2
+    assert rapport.livraison_omise is True
+
+
+def test_sans_livraison_la_detection_tourne_quand_meme(branche, monkeypatch):
+    """C'est la détection qu'on mesure : la couper viderait l'exercice de son
+    sens, et le miroir REQ ne serait jamais sollicité."""
+    passages = []
+    monkeypatch.setattr(
+        falkye.engine, "run_veille_continue", lambda **kw: passages.append(kw) or _Scan()
+    )
+
+    rapport = executer_cycle(livrer_les_resumes=False)
+
+    assert len(passages) == 1
+    assert rapport.notifications_creees == 3
+
+
+def test_sans_livraison_le_journal_dit_que_personne_na_essaye(branche, monkeypatch):
+    """« 0 résumé envoyé » se lirait comme une panne. Six mois plus tard, la
+    ligne doit distinguer « rien n'a pu partir » de « rien ne devait partir »."""
+    _profile(branche, "a@exemple.com")
+
+    executer_cycle(livrer_les_resumes=False)
+
+    fin = branche.execute(
+        select(JournalExploitation).where(
+            JournalExploitation.evenement == EvenementExploitation.CYCLE_FIN
+        )
+    ).scalar_one()
+    assert "LIVRAISON OMISE" in fin.detail
+    assert "résumé(s) envoyé(s)" not in fin.detail
+
+
+def test_sans_livraison_la_reconciliation_tourne_pour_de_vrai(branche, monkeypatch):
+    """La réconciliation est une lecture de l'état des livraisons passées : elle
+    n'envoie rien, et c'est elle qui rattrape le rebond du cycle précédent. La
+    couper ferait perdre la moitié de ce qu'on cherche à observer."""
+    import falkye.reconciliation
+
+    passages = []
+
+    class _Reconciliation:
+        rebondies = 1
+        opportunites_remises_en_attente = 4
+        resumes_rebondis = []
+        profils_suspendus = []
+
+    # Sur `falkye.reconciliation` et non sur `falkye.cycle` : l'import est fait
+    # DANS la fonction, donc le module d'origine est le seul point d'ancrage.
+    # Et sans `raising=False`, pour qu'un mauvais nom échoue au lieu de créer
+    # un attribut que personne ne lit.
+    monkeypatch.setattr(
+        falkye.reconciliation,
+        "reconcilier_livraisons",
+        lambda s, r: passages.append(1) or _Reconciliation(),
+    )
+
+    rapport = executer_cycle(livrer_les_resumes=False)
+
+    assert passages == [1]
+    assert rapport.remises_rebondies == 1
+    assert rapport.opportunites_remises_en_attente == 4
+
+
+def test_par_defaut_la_livraison_a_lieu(branche, monkeypatch):
+    """La garde ne doit pas déteindre sur le chemin normal : le minuteur, lui,
+    livre."""
+    _profile(branche, "a@exemple.com")
+    appels = []
+    monkeypatch.setattr(
+        falkye.summary,
+        "generer_et_envoyer_resume",
+        lambda s, p: appels.append(p.id) or _Resume(),
+    )
+
+    rapport = executer_cycle()
+
+    assert appels == [1]
+    assert rapport.livraison_omise is False

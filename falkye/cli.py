@@ -1623,16 +1623,33 @@ def _afficher_rapport(report):
     help="Fenêtre de détection. Le mandat impose une fréquence FIXE — ce réglage borne "
     "la détection, il ne règle pas la cadence d'envoi (chantier 8).",
 )
-def cycle_cmd(lookback_days):
+@click.option(
+    "--sans-livraison",
+    is_flag=True,
+    help="Réconcilier et détecter, mais ne générer ni n'envoyer aucun résumé. "
+    "Pour mesurer un cycle réel quand un envoi ne doit pas partir.",
+)
+def cycle_cmd(lookback_days, sans_livraison):
     """Le cycle complet, tel que le minuteur l'exécute — détection puis livraison.
 
     C'est le point d'entrée de l'ordonnanceur (voir deploiement/). Utilisable à
     la main pour reproduire exactement ce que fait l'exécution automatique :
     même chemin, mêmes battements de cœur, aucune variante réservée aux tests.
+
+    `--sans-livraison` est la seule variante, et elle n'est pas réservée aux
+    tests non plus : elle sert à voir tourner un cycle sur l'hôte pendant qu'un
+    envoi est interdit. Elle coupe avant la génération des résumés, pas dans le
+    canal — voir falkye/cycle.py.
     """
     from falkye.cycle import executer_cycle
 
-    rapport = executer_cycle(lookback_days=lookback_days)
+    if sans_livraison:
+        # Dit à l'écran ET au journal du service : quelqu'un qui relit ce
+        # journal dans six mois doit voir tout de suite pourquoi rien n'est
+        # parti, sans avoir à retrouver la ligne de commande.
+        click.echo("Cycle SANS LIVRAISON : rien ne sera généré ni envoyé.")
+
+    rapport = executer_cycle(lookback_days=lookback_days, livrer_les_resumes=not sans_livraison)
     click.echo(rapport.resume_lisible())
     for echec in rapport.echecs:
         click.echo(f"  échec — {echec}", err=True)

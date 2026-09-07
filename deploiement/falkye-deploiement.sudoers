@@ -1,8 +1,8 @@
 # À installer par root : /etc/sudoers.d/falkye-deploiement (mode 0440),
 # après `visudo -c -f` pour valider.
 #
-# La chaîne de déploiement peut redémarrer TROIS unités nommées, et rien
-# d'autre. Pas de `systemctl *`, pas de shell, pas de lecture de fichier.
+# La chaîne de déploiement peut faire SIX actions nommées sur CINQ unités, et
+# rien d'autre. Pas de `systemctl *`, pas de shell, pas de lecture de fichier.
 # Ce que ça garantit concrètement : une chaîne compromise peut interrompre le
 # service, jamais lire la base ni les clés d'envoi — celles-ci vivent dans
 # /etc/falkye/falkye.env, que `deploy` ne peut pas ouvrir.
@@ -10,6 +10,12 @@
 # `falkye-miroir-req.service` s'ajoute à la liste le 2026-09-06, avec la même
 # garantie : `deploy` peut la DÉMARRER, jamais lire ce qu'elle lit. L'unité
 # tourne avec les identifiants de la base; la chaîne, non.
+#
+# `falkye-cycle-sans-livraison.service` s'ajoute le 2026-09-07, sous la même
+# garantie encore. Elle porte en plus une propriété qui compte ici : c'est la
+# SEULE unité de cycle que la chaîne peut démarrer, et elle n'envoie rien.
+# `falkye-cycle.service`, qui livre, reste hors de portée — seul son minuteur
+# la déclenche. Une chaîne compromise ne peut donc pas provoquer d'envoi.
 #
 # ⚠️ Rien ici pour LIRE le résultat de l'import, et ce n'est pas un oubli :
 # `systemctl show` et `journalctl -u` sont des lectures que tout utilisateur
@@ -25,4 +31,5 @@ deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart falkye-web.service, \
                             /usr/bin/systemctl restart falkye-cycle.timer, \
                             /usr/bin/systemctl start falkye-migration.service, \
                             /usr/bin/systemctl start falkye-miroir-req.service, \
+                            /usr/bin/systemctl start falkye-cycle-sans-livraison.service, \
                             /usr/bin/systemctl status falkye-web.service
