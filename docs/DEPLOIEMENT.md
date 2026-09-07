@@ -198,6 +198,51 @@ code, avant la génération des résumés, et trois tests la verrouillent
 (`tests/test_cycle.py`). L'unité qui livre, `falkye-cycle.service`, n'est pas
 dans le fichier de sudoers : la chaîne de déploiement ne peut pas la démarrer.
 
+## La base distante et les transactions longues — mesuré le 7 septembre 2026
+
+**Une transaction qui porte une écriture non validée meurt en moins de dix
+secondes d'inactivité.** Le message du serveur est explicite :
+
+    interactive transaction was rolled back because the stream was idle
+    for too long
+
+| Transaction ouverte | Inactivité | Verdict |
+|---|---|---|
+| Lecture seule | 180 s | survit |
+| Portant une écriture | 5 s | survit |
+| Portant une écriture | **10 s** | **morte** |
+| Portant une écriture | 20 s et au-delà | flux disparu (`stream not found`) |
+
+**Ce que ça interdit.** Tenir une écriture non validée pendant quoi que ce soit
+de lent — un téléchargement, une résolution contre le miroir, un appel
+d'enrichissement. La première opération qui suit échoue, **y compris le
+`rollback()` du gestionnaire d'erreur**, et l'exception emporte alors tout ce qui
+l'entoure. C'est ce qui a tué le premier cycle réel sur l'hôte : une source est
+tombée, son annulation a levé sur un flux mort, et huit sources saines n'ont
+jamais été essayées.
+
+**Ce qui est corrigé.** La ligne d'exécution d'une source est validée avant le
+travail réseau, et `ingest_source` ne lève plus jamais : une connexion morte
+coûte une source, pas le cycle (`tests/test_ingestion_resiliente.py`).
+
+**La boucle de détection valide à chaque signal**, décision du 7 septembre 2026.
+Un `flush()` y laissait une écriture ouverte pendant la résolution NEQ du signal
+suivant — 0,32 s par appel de repli, sans borne sur le nombre d'appels.
+
+*Ce que ça coûte* : un aller-retour facturé par signal neuf. Le run de référence
+en a consommé 3,47 M sur les 10 M du forfait mensuel, et un cycle ordinaire en
+écrit quelques centaines. Quelques milliers d'écritures contre une classe de
+panne silencieuse est un bon échange, et le quota est à coût constant.
+
+*Ce que ça change aussi, et qui est voulu* : une source qui tombe à mi-chemin
+garde ce qu'elle a déjà trouvé. La déduplication par `source_ref` fait que la
+reprise ramasse le reste sans doublon. Avant, l'annulation jetait tout.
+
+**Règle générale à retenir.** Sur la base distante, ne jamais tenir une écriture
+non validée pendant quoi que ce soit dont la durée n'est pas bornée. Ni un appel
+réseau, ni une résolution contre le miroir, ni une boucle sur des milliers de
+lignes.
+
 ## Le mandataire inverse
 
 L'application sert en clair sur `127.0.0.1:8000`. Le certificat vit devant.

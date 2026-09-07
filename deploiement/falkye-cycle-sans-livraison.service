@@ -41,6 +41,17 @@ ExecStart=/opt/falkye/venv/bin/falkye cycle --sans-livraison
 # au hasard ».
 TimeoutStartSec=10800
 
+# Le cache de téléchargement des sources. SANS ces deux lignes, le connecteur
+# CKAN écrit dans le chemin RELATIF `./cache`, qui se résout sous
+# WorkingDirectory — en lecture seule sous ProtectSystem=strict. Mesuré en
+# production le 2026-09-07 : la première source est morte sur
+# `OSError: [Errno 30] Read-only file system: 'cache'`, et toutes les sources
+# CKAN auraient fait pareil. `CacheDirectory=` fait créer /var/cache/falkye par
+# systemd, avec le bon propriétaire, et l'ajoute lui-même aux chemins
+# accessibles en écriture.
+CacheDirectory=falkye
+Environment=FALKYE_CACHE_DIR=/var/cache/falkye
+
 # Le pic du groupe de contrôle, pas seulement celui du processus. L'import du
 # miroir a montré l'écart : 3 753 Mo côté processus, 5,4 G côté cgroup — c'est
 # le second qui décide si l'hôte tient.

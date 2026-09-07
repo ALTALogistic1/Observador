@@ -15,7 +15,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from falkye import expansion_interprovinciale, pertinence, ponderation, retroaction
@@ -79,17 +79,113 @@ class ScanReport:
     nb_liens_interprovinciaux_detectes: int = 0
 
 
+def _sortir_de_la_transaction(db_session: Session) -> None:
+    """Annule la transaction en cours — et si l'annulation elle-même échoue,
+    jette la connexion plutôt que de laisser l'erreur remonter.
+
+    **Pourquoi ce garde-fou existe.** Mesuré en production le 2026-09-07 : une
+    source est tombée, le gestionnaire d'erreur a appelé `rollback()`, et le
+    rollback a levé `Hrana: stream not found` — la connexion vers la base
+    distante était morte. L'exception a traversé `ingest_source`,
+    `ingest_all_active_sources` et `run_veille_continue`, et a emporté le cycle
+    entier. Huit sources saines n'ont jamais été essayées.
+
+    Le chemin de secours doit être plus robuste que ce qu'il rattrape, sans quoi
+    il ne rattrape rien. `invalidate()` jette la connexion sans tenter de
+    l'annuler : la suivante en obtiendra une neuve.
+    """
+    try:
+        db_session.rollback()
+    except Exception:  # noqa: BLE001
+        logger.exception("Annulation impossible — la connexion est jetée")
+        try:
+            db_session.invalidate()
+        except Exception:  # noqa: BLE001
+            logger.exception("Invalidation impossible — la session est peut-être perdue")
+
+
+def _consigner_lechec(
+    db_session: Session, run_log_id: int | None, source_id: str, message: str
+) -> None:
+    """Marque la ligne d'exécution comme `erreur`, dans SA PROPRE transaction.
+
+    **Une mise à jour, pas une insertion.** La ligne a été validée avant le
+    travail réseau : elle survit donc au rollback. En ajouter une seconde
+    laisserait la première à `en_cours` pour toujours — et une ligne `en_cours`
+    qui survit à l'exécution se lit comme un cycle interrompu, c'est-à-dire le
+    mauvais diagnostic posé par la trace elle-même.
+
+    **Par identifiant plutôt que par l'objet.** Après un rollback — a fortiori
+    après une connexion jetée — l'objet Python n'est plus fiable. L'identifiant,
+    lui, l'est.
+
+    Le défaut d'origine, trouvé le 2026-09-07 : la ligne n'était que *flushée*,
+    donc le rollback de l'échec l'effaçait, et `run_log.statut = "erreur"`
+    portait sur un objet que la session ne suivait plus. **Une source tombée
+    n'écrivait rien** — indiscernable d'une source saine sans résultat.
+
+    Et si même cette mise à jour échoue, on le dit au journal du système et on
+    continue. Perdre la trace d'un échec est mauvais; perdre les huit sources
+    suivantes pour cette raison serait pire.
+    """
+    if run_log_id is None:
+        return
+    try:
+        db_session.execute(
+            update(SourceRunLog)
+            .where(SourceRunLog.id == run_log_id)
+            .values(
+                statut="erreur",
+                erreur=message,
+                finished_at=datetime.now(timezone.utc),
+            )
+        )
+        db_session.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("Trace de l'échec de la source %s non écrite en base", source_id)
+        _sortir_de_la_transaction(db_session)
+
+
 def ingest_source(
     db_session: Session, source_id: str, since: datetime | None, registry: Registry, mode: str
 ) -> IngestReport:
     """Étape 1-3 du pipeline pour UNE source : détection, résolution NEQ,
-    persistance dans le dossier cumulatif (Company + Signal)."""
+    persistance dans le dossier cumulatif (Company + Signal).
+
+    **Ne lève jamais.** C'est le contrat de cette fonction, et c'est ce qui donne
+    son sens à « une source en échec ne bloque pas les autres ». Il tenait sur le
+    chemin nominal et pas sur le chemin de secours — voir
+    `_sortir_de_la_transaction`.
+    """
     source_def = registry.source(source_id)
     report = IngestReport(source_id=source_id)
 
     run_log = SourceRunLog(source_id=source_id, mode=mode, statut="en_cours")
-    db_session.add(run_log)
-    db_session.flush()
+    try:
+        db_session.add(run_log)
+        # VALIDÉ, pas seulement flushé — c'est la cause profonde de la panne du
+        # 2026-09-07. Un `flush()` laisse une ÉCRITURE non validée ouverte sur la
+        # base distante pendant tout ce qui suit, et ce qui suit est un
+        # téléchargement réseau qui peut durer une minute. Mesuré ce jour-là :
+        # une transaction en lecture seule survit à 180 s d'inactivité, une
+        # transaction portant une écriture meurt en 75 s — le fournisseur expire
+        # bien plus vite un flux qui tient un verrou d'écriture. Le flux mort
+        # fait ensuite échouer la première opération suivante, rollback compris.
+        # L'identifiant est pris APRÈS le flush et AVANT la validation. Le lire
+        # après la validation forcerait un rafraîchissement — un aller-retour
+        # distant de plus, et surtout une transaction rouverte au moment précis
+        # où le connecteur part sur le réseau.
+        db_session.flush()
+        run_log_id = run_log.id
+        db_session.commit()
+    except Exception as exc:  # noqa: BLE001
+        # Sous protection comme le reste : si la connexion est déjà morte ici,
+        # lever ferait exactement ce qu'on vient de corriger — emporter les
+        # sources suivantes. On perd la trace de celle-ci, pas le cycle.
+        _sortir_de_la_transaction(db_session)
+        logger.exception("Ouverture du journal d'exécution impossible pour %s", source_id)
+        report.erreur = str(exc)
+        return report
 
     try:
         connector = source_def.charger_connecteur()
@@ -97,6 +193,11 @@ def ingest_source(
             report.erreur = "Aucun connecteur codé pour cette source (statut probablement a_developper)."
             report.ignoree = True
             run_log.statut = "ignoree"
+            run_log.finished_at = datetime.now(timezone.utc)
+            # Validé ICI : le `finally` qui s'en chargeait a disparu avec la
+            # refonte du chemin d'erreur, et sans cette ligne une source pas
+            # encore construite ne laisserait plus que sa ligne `en_cours`.
+            db_session.commit()
             return report
 
         for raw in connector.detect(since, db_session):
@@ -122,21 +223,38 @@ def ingest_source(
                 methode_acces=source_def.methode_acces,
             )
             db_session.add(signal)
-            db_session.flush()
+            # VALIDÉ à chaque signal, pas flushé — décision du 2026-09-07, prise
+            # sur la mesure : la base distante annule une transaction portant une
+            # écriture non validée après moins de dix secondes d'inactivité. Un
+            # `flush()` ici laisserait cette écriture ouverte pendant la
+            # résolution NEQ du signal SUIVANT — 0,32 s par appel de repli, et
+            # rien ne borne le nombre d'appels. La source entière serait alors
+            # perdue, proprement mais perdue.
+            #
+            # Ce que ça coûte : un aller-retour facturé par signal neuf. Mis en
+            # regard du quota — le run de référence en a consommé 3,47 M sur
+            # 10 M, un cycle normal en écrit quelques centaines — c'est un bon
+            # échange contre une classe de panne silencieuse.
+            #
+            # Ce que ça change aussi, et qui est voulu : une source qui tombe à
+            # mi-chemin garde ce qu'elle a déjà trouvé. La déduplication par
+            # `source_ref` fait que la reprise ramasse le reste sans doublon.
+            db_session.commit()
             report.nb_signaux_nouveaux += 1
 
         db_session.commit()
         run_log.statut = "succes"
         run_log.nb_signaux_detectes = report.nb_signaux_nouveaux
-    except Exception as exc:  # noqa: BLE001 -- une source en échec ne doit pas bloquer les autres
-        db_session.rollback()
-        logger.exception("Échec de l'ingestion pour la source %s", source_id)
-        report.erreur = str(exc)
-        run_log.statut = "erreur"
-        run_log.erreur = str(exc)
-    finally:
         run_log.finished_at = datetime.now(timezone.utc)
         db_session.commit()
+    except Exception as exc:  # noqa: BLE001 -- une source en échec ne doit pas bloquer les autres
+        # L'ordre compte : sortir de la transaction morte AVANT d'essayer
+        # d'écrire quoi que ce soit, et écrire la trace dans une transaction
+        # neuve. L'ancienne portait la ligne `en_cours`, que le rollback efface.
+        _sortir_de_la_transaction(db_session)
+        logger.exception("Échec de l'ingestion pour la source %s", source_id)
+        report.erreur = str(exc)
+        _consigner_lechec(db_session, run_log_id, source_id, str(exc))
 
     return report
 
