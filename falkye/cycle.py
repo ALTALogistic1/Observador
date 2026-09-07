@@ -46,16 +46,62 @@ class RapportCycle:
     resumes_en_echec: int = 0
     opportunites_livrees: int = 0
     notifications_creees: int = 0
+    sources_en_erreur: int = 0
+    sources_ingerees: int = 0
+    livraison_omise: bool = False
     echecs: list[str] = field(default_factory=list)
+
+    @property
+    def toutes_les_sources_sont_tombees(self) -> bool:
+        """Le seuil où « une source en panne » devient « le cycle n'a rien fait ».
+
+        Une source sur neuf qui tombe est une panne partielle : le cycle a
+        quand même observé le reste, et faire échouer l'unité pour ça ferait
+        passer huit sources saines pour un cycle mort. Mais quand elles tombent
+        TOUTES, il n'y a plus de cycle du tout — seulement une exécution qui
+        s'est terminée. L'unité doit alors sortir en échec, sans quoi
+        `systemctl list-units --failed` reste vide au moment précis où il
+        devrait crier.
+
+        Arbitrage tranché le 2026-09-07, sur exception explicite à la règle
+        « une source en panne ne fait pas échouer le cycle ».
+        """
+        return self.sources_ingerees > 0 and self.sources_en_erreur == self.sources_ingerees
 
     def resume_lisible(self) -> str:
         """Une phrase pour le journal — des faits, jamais une trace de débogage."""
-        texte = (
-            f"{self.profils_traites} profil(s), "
-            f"{self.notifications_creees} notification(s) créée(s), "
-            f"{self.resumes_envoyes} résumé(s) envoyé(s), "
-            f"{self.opportunites_livrees} opportunité(s) livrée(s)"
-        )
+        if self.livraison_omise:
+            # « 0 résumé envoyé » se lirait comme une panne. La ligne doit dire
+            # que personne n'a essayé, sans quoi le journal d'un cycle mesuré
+            # serait indiscernable de celui d'un cycle qui n'a rien pu livrer.
+            texte = (
+                f"{self.profils_traites} profil(s), "
+                f"{self.notifications_creees} notification(s) créée(s), "
+                "LIVRAISON OMISE (--sans-livraison) : aucun résumé généré ni envoyé"
+            )
+        else:
+            texte = (
+                f"{self.profils_traites} profil(s), "
+                f"{self.notifications_creees} notification(s) créée(s), "
+                f"{self.resumes_envoyes} résumé(s) envoyé(s), "
+                f"{self.opportunites_livrees} opportunité(s) livrée(s)"
+            )
+        if self.toutes_les_sources_sont_tombees:
+            # Pas une nuance de la ligne précédente : c'est un cycle qui n'a
+            # rien observé du tout, et il doit se lire comme tel du premier
+            # coup d'œil.
+            texte += (
+                f", AUCUNE OBSERVATION — les {self.sources_ingerees} source(s) "
+                "tentée(s) ont toutes échoué"
+            )
+        elif self.sources_en_erreur:
+            # Comptées, jamais nommées : la ligne part dans la base et le nom
+            # d'une source est révélateur (charte, neutralité des libellés). Le
+            # détail par source vit déjà dans SourceRunLog.
+            texte += (
+                f", {self.sources_en_erreur} source(s) en erreur "
+                f"sur {self.sources_ingerees}"
+            )
         if self.resumes_en_echec:
             texte += f", {self.resumes_en_echec} en échec"
         if self.profils_suspendus:
@@ -89,12 +135,25 @@ def profils_abonnes(db_session) -> list[Profile]:
     )
 
 
-def executer_cycle(lookback_days: int = 30) -> RapportCycle:
+def executer_cycle(lookback_days: int = 30, livrer_les_resumes: bool = True) -> RapportCycle:
     """Un cycle complet : détecter, puis livrer. Lève si le cycle a échoué.
 
     Lever est voulu : le gestionnaire de services doit voir l'unité en échec.
     La ligne d'échec est écrite AVANT de relever, pour qu'elle existe même si
     plus rien ne tourne ensuite.
+
+    **`livrer_les_resumes=False` — pourquoi ça existe.** Pour mesurer un cycle
+    réel sur l'hôte pendant qu'un envoi ne doit PAS partir : c'est la situation
+    du 2026-09-07, où le réglage de désabonnement du flux de diffusion n'est pas
+    encore débloqué chez le fournisseur. Sans ce mode, voir tourner le cycle et
+    respecter l'interdiction d'envoi s'excluaient.
+
+    La coupure est posée AVANT `generer_et_envoyer_resume`, jamais à l'intérieur
+    du canal. Générer un résumé puis retenir l'envoi laisserait un
+    `PeriodicSummary` avec `envoye_le` à NULL — indiscernable d'une tentative qui
+    a échoué, et la réconciliation du cycle suivant travaillerait sur une trace
+    inventée. La réconciliation et la détection, elles, tournent pour de vrai :
+    ce sont elles qu'on veut mesurer, et elles n'envoient rien.
     """
     from falkye.db import get_session
     from falkye.engine import run_veille_continue
@@ -108,6 +167,18 @@ def executer_cycle(lookback_days: int = 30) -> RapportCycle:
     try:
         scan = run_veille_continue(lookback_days=lookback_days)
         rapport.notifications_creees = scan.nb_notifications_creees
+        # Sans ce compte, un cycle où TOUTES les sources ont échoué journalise
+        # « 0 notification créée » et sort en succès — mot pour mot ce que
+        # journalise une semaine calme. Constaté le 2026-09-07 en répétition :
+        # une source tombée sur une base verrouillée, cycle vert, rien dit.
+        # Le dénominateur est le nombre de sources TENTÉES. Une source sans
+        # connecteur n'a pas échoué, elle n'a pas été essayée — la compter
+        # gonflerait le dénominateur et ferait passer un effondrement complet
+        # pour une panne partielle.
+        rapport.sources_ingerees = sum(1 for r in scan.ingestion if not r.ignoree)
+        rapport.sources_en_erreur = sum(
+            1 for r in scan.ingestion if r.erreur and not r.ignoree
+        )
 
         db_session = get_session()
         try:
@@ -130,7 +201,15 @@ def executer_cycle(lookback_days: int = 30) -> RapportCycle:
                     EvenementExploitation.ENVOI_SUSPENDU, ligne, db_session=db_session
                 )
 
-            for profile in profils_abonnes(db_session):
+            profils = profils_abonnes(db_session)
+            if not livrer_les_resumes:
+                # Comptés, pas servis. Le nombre est ce qu'on veut savoir : il
+                # dit combien d'envois ce cycle aurait produits.
+                rapport.profils_traites = len(profils)
+                rapport.livraison_omise = True
+                profils = []
+
+            for profile in profils:
                 rapport.profils_traites += 1
                 try:
                     summary = generer_et_envoyer_resume(db_session, profile)

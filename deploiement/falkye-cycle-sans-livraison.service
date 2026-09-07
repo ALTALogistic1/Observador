@@ -1,0 +1,54 @@
+# Un cycle réel, à la main, qui n'envoie rien.
+#
+# **Pourquoi cette unité existe.** Le 2026-09-07, deux exigences s'opposaient :
+# voir tourner un cycle complet sur l'hôte (miroir REQ en place, filtre
+# territorial enfin actif) et ne laisser partir AUCUN courriel tant que le
+# réglage de désabonnement du flux de diffusion n'est pas débloqué chez le
+# fournisseur. `falkye cycle --sans-livraison` réconcilie et détecte pour de
+# vrai, puis s'arrête avant la génération des résumés.
+#
+# **Ce qu'elle n'est pas.** Pas un doublon de falkye-cycle.service : celle-là
+# livre, et c'est elle que le minuteur déclenche. Celle-ci ne sert qu'à mesurer
+# et à observer, à la demande. Les deux écrivent le même journal
+# d'exploitation, et la ligne de fin dit laquelle a tourné.
+#
+# **Ce qu'elle écrit quand même**, et il faut le savoir avant de la lancer :
+# l'ingestion des sources, les entreprises repérées, les signaux, l'état de
+# diff et le journal. Ce n'est pas un essai à blanc — c'est un vrai cycle
+# amputé de sa livraison.
+[Unit]
+Description=FALKYE — un cycle réel, sans livraison (mesure et observation)
+After=network-online.target
+Wants=network-online.target
+# Ne jamais tourner en même temps que le cycle du minuteur : les deux écrivent
+# le même état de diff, et le second verrait le travail du premier comme déjà
+# fait.
+Conflicts=falkye-cycle.service
+
+[Service]
+Type=oneshot
+User=falkye
+Group=falkye
+WorkingDirectory=/opt/falkye/code
+EnvironmentFile=/etc/falkye/falkye.env
+EnvironmentFile=-/opt/falkye/version.env
+ExecStart=/opt/falkye/venv/bin/falkye cycle --sans-livraison
+
+# 3 heures, DÉLIBÉRÉMENT plus large que les 3 600 s de falkye-cycle.service.
+# C'est cette unité qui doit produire la mesure servant à régler l'autre : un
+# délai serré ici tuerait précisément l'exécution qu'on cherche à chronométrer,
+# et on n'apprendrait rien d'autre que « plus long que la limite qu'on a posée
+# au hasard ».
+TimeoutStartSec=10800
+
+# Le pic du groupe de contrôle, pas seulement celui du processus. L'import du
+# miroir a montré l'écart : 3 753 Mo côté processus, 5,4 G côté cgroup — c'est
+# le second qui décide si l'hôte tient.
+MemoryAccounting=yes
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# La base des miroirs ET l'état de diff vivent ici, et le cycle écrit les deux.
+ReadWritePaths=/var/lib/falkye

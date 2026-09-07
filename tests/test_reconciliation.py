@@ -441,7 +441,12 @@ def test_le_cycle_reconcilie_avant_de_generer(db_session, monkeypatch, tmp_path)
     monkeypatch.setattr(db_session, "close", lambda: None)
     monkeypatch.setenv("FALKYE_JOURNAL_REPLI", str(tmp_path / "repli.jsonl"))
     monkeypatch.setattr(
-        falkye.engine, "run_veille_continue", lambda **kw: type("S", (), {"nb_notifications_creees": 0})()
+        falkye.engine,
+        "run_veille_continue",
+        # `ingestion` autant que `nb_notifications_creees` : le vrai ScanReport
+        # porte les deux, et le cycle lit désormais la liste pour compter les
+        # sources en panne.
+        lambda **kw: type("S", (), {"nb_notifications_creees": 0, "ingestion": []})(),
     )
 
     from falkye.reconciliation import RapportReconciliation

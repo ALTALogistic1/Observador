@@ -30,6 +30,22 @@ jeton de test documenté `POSTMARK_API_TEST` (accepte l'appel, ne livre rien) :
 `Headers` (pour `List-Unsubscribe` / `List-Unsubscribe-Post`), `MessageStream` et
 `HtmlBody` sont acceptés — vérifié par un appel réel, pas supposé.
 
+**Le réglage de désabonnement est débloqué depuis le 2026-09-06.** Il était
+verrouillé au niveau du compte — ni l'interface ni l'API ne l'ouvraient — et le
+support du fournisseur l'a activé sur demande : « gérer les désabonnements
+soi-même » est sélectionné sur le flux de diffusion. Leurs deux exigences
+étaient déjà remplies par ce qui était construit : un lien visible dans le corps
+(falkye/summary.py) et les en-têtes `List-Unsubscribe` / `List-Unsubscribe-Post`
+ci-dessous.
+
+**⚠️ À VÉRIFIER AU PROCHAIN ENVOI RÉEL — c'est le seul moment où c'est
+observable.** Que l'en-tête `List-Unsubscribe` reçu par le destinataire pointe
+vers `lien.falkye.com` et non vers un domaine du fournisseur. Avant le déblocage,
+Postmark réécrivait l'en-tête vers son propre point d'entrée; **rien dans notre
+code ne peut constater si le réglage a pris effet** — l'en-tête part correct dans
+les deux cas, et seule la source du message reçu tranche. Le vérifier depuis
+l'en-tête brut du courriel arrivé, pas depuis notre journal.
+
 Un `ErrorCode` non nul est traité comme un échec même sur un 200 : la
 documentation ne garantit pas que le code HTTP porte toute l'information, et un
 faux succès ferait marquer un lot comme livré alors qu'il ne l'est pas — c'est

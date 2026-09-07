@@ -136,14 +136,17 @@ visudo -c
 # 3.3 Créer le schéma, puis démarrer
 systemctl start falkye-migration.service
 systemctl enable --now falkye-web.service
-systemctl enable --now falkye-cycle.timer
 ```
+
+**Le minuteur n'est PAS activé ici, et c'est délibéré.** Sans miroir REQ chargé,
+un cycle ne résout aucun NEQ, ne produit aucune notification et livre un résumé
+vide — la seule chose qu'il enverrait est un courriel qui décrédibilise le
+produit. L'activation vient au temps 5, après qu'un cycle ait été vu tourner.
 
 **Vérifier :**
 
 ```bash
 systemctl status falkye-web.service      # active (running)
-systemctl list-timers falkye-cycle.timer # prochain mardi 8 h
 curl -sf http://127.0.0.1:8000/sante     # ok
 sudo -u deploy sudo -n /usr/bin/systemctl status falkye-web.service >/dev/null \
     && echo "permission de la chaîne : ok"
@@ -157,6 +160,43 @@ d'entrée répond. **C'est ce passage-là qui prouve la chaîne**, pas le premie
 **Ajouter une unité plus tard demandera de refaire le temps 3.** C'est assumé :
 installer une unité est un geste de root, et donner ce pouvoir à la chaîne
 annulerait la séparation que le reste construit.
+
+### Temps 5 — charger le miroir, voir un cycle, PUIS activer le minuteur
+
+Trois gestes, dans cet ordre, et le troisième dépend de ce que montre le second.
+
+1. **Charger le miroir REQ** — flux **« Charger le miroir REQ »**, avec
+   l'étiquette de la release portant `JeuDonnees.zip`. Sans lui, la résolution
+   NEQ échoue et le cycle n'a rien à dire (voir `docs/MIROIRS.md`).
+
+2. **Lancer un cycle à la main, sans livraison** — flux **« Lancer un cycle sans
+   livraison »**. Il démarre `falkye-cycle-sans-livraison.service`, qui exécute
+   `falkye cycle --sans-livraison` : réconciliation et détection réelles, aucun
+   résumé généré ni envoyé. C'est ce passage qui donne la **durée réelle** d'un
+   cycle sur l'hôte.
+
+3. **Régler le délai, puis activer le minuteur** — `TimeoutStartSec` de
+   `falkye-cycle.service` valait 3 600 s, un chiffre posé avant toute mesure. Un
+   cycle complet mesuré le 7 septembre 2026, en local sur une copie de la base
+   de production avec le miroir chargé, a pris **92,5 minutes** pour 428 Mo de
+   pic mémoire, aucune source en erreur, 7 notifications. Le délai d'une heure
+   aurait donc tué le cycle chaque mardi. Il est passé à 10 800 s, provisoire et
+   large : l'hôte écrit le produit dans la base distante, il sera plus lent, pas
+   plus rapide. À resserrer avec la durée observée sur l'hôte, puis :
+
+   ```bash
+   systemctl daemon-reload                    # si le délai a changé
+   systemctl enable --now falkye-cycle.timer
+   systemctl list-timers falkye-cycle.timer   # prochain mardi 8 h
+   ```
+
+**Pourquoi le cycle d'observation ne livre pas.** Deux raisons qui se cumulent :
+le réglage de désabonnement du flux de diffusion n'est pas débloqué chez le
+fournisseur (rien ne doit partir), et un premier cycle sert à voir ce que la
+détection produit avant qu'un destinataire le reçoive. La coupure est dans le
+code, avant la génération des résumés, et trois tests la verrouillent
+(`tests/test_cycle.py`). L'unité qui livre, `falkye-cycle.service`, n'est pas
+dans le fichier de sudoers : la chaîne de déploiement ne peut pas la démarrer.
 
 ## Le mandataire inverse
 
@@ -204,6 +244,20 @@ Et le journal d'exploitation, qui dit si le cycle a tourné :
 sudo -u falkye /opt/falkye/venv/bin/falkye ...   # (lecture directe en base)
 ```
 
-Trois lectures possibles, et c'est le point : **aucune ligne** veut dire que le
-cycle n'a pas démarré, **un début sans fin** qu'il s'est interrompu, **un début
-et une fin à zéro** qu'il a tourné sans rien à signaler.
+Quatre lectures possibles, et c'est le point : **aucune ligne** veut dire que le
+cycle n'a pas démarré, **un début sans fin** qu'il s'est interrompu, **une fin
+portant « N source(s) en erreur »** qu'il a tourné mais n'a rien pu observer, et
+**un début et une fin à zéro sans mention de source** qu'il a tourné sans rien à
+signaler.
+
+La troisième lecture manquait jusqu'au 7 septembre 2026 : une source en panne
+écrivait bien son échec dans `SourceRunLog`, mais la ligne de fin annonçait
+« 0 notification créée » — mot pour mot ce qu'annonce une semaine calme.
+
+**Une panne partielle ne fait pas sortir l'unité en échec** : une source sur neuf
+ne doit pas passer pour un cycle qui n'a pas tourné. Elle se dit, elle ne crie
+pas. **Une panne totale, si** — quand toutes les sources tentées tombent, la
+ligne porte « AUCUNE OBSERVATION » et l'unité sort en échec, parce que là c'est
+bien le cycle qui n'a rien fait et que `systemctl list-units --failed` doit le
+dire. Les sources sans connecteur (`a_developper`) ne comptent pas au
+dénominateur : elles n'ont pas échoué, elles n'ont pas été tentées.
