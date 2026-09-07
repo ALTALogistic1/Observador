@@ -56,6 +56,11 @@ class IngestReport:
     nb_signaux_nouveaux: int = 0
     nb_signaux_dupliques: int = 0
     erreur: str | None = None
+    # « Pas encore construite » n'est pas « en panne ». Les deux posent `erreur`,
+    # et sans ce drapeau une source au statut `a_developper` compterait comme une
+    # défaillance à chaque cycle — le bruit permanent qui finit par faire ignorer
+    # le signal quand il devient vrai.
+    ignoree: bool = False
 
 
 @dataclass
@@ -90,6 +95,7 @@ def ingest_source(
         connector = source_def.charger_connecteur()
         if connector is None:
             report.erreur = "Aucun connecteur codé pour cette source (statut probablement a_developper)."
+            report.ignoree = True
             run_log.statut = "ignoree"
             return report
 

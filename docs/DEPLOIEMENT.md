@@ -239,6 +239,14 @@ Et le journal d'exploitation, qui dit si le cycle a tourné :
 sudo -u falkye /opt/falkye/venv/bin/falkye ...   # (lecture directe en base)
 ```
 
-Trois lectures possibles, et c'est le point : **aucune ligne** veut dire que le
-cycle n'a pas démarré, **un début sans fin** qu'il s'est interrompu, **un début
-et une fin à zéro** qu'il a tourné sans rien à signaler.
+Quatre lectures possibles, et c'est le point : **aucune ligne** veut dire que le
+cycle n'a pas démarré, **un début sans fin** qu'il s'est interrompu, **une fin
+portant « N source(s) en erreur »** qu'il a tourné mais n'a rien pu observer, et
+**un début et une fin à zéro sans mention de source** qu'il a tourné sans rien à
+signaler.
+
+La troisième lecture manquait jusqu'au 7 septembre 2026 : une source en panne
+écrivait bien son échec dans `SourceRunLog`, mais la ligne de fin annonçait
+« 0 notification créée » — mot pour mot ce qu'annonce une semaine calme. Une
+source en panne ne fait toujours pas sortir l'unité en échec (une source sur neuf
+ne doit pas passer pour un cycle qui n'a pas tourné), mais elle se dit.

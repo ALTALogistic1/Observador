@@ -46,6 +46,8 @@ class RapportCycle:
     resumes_en_echec: int = 0
     opportunites_livrees: int = 0
     notifications_creees: int = 0
+    sources_en_erreur: int = 0
+    sources_ingerees: int = 0
     livraison_omise: bool = False
     echecs: list[str] = field(default_factory=list)
 
@@ -66,6 +68,14 @@ class RapportCycle:
                 f"{self.notifications_creees} notification(s) créée(s), "
                 f"{self.resumes_envoyes} résumé(s) envoyé(s), "
                 f"{self.opportunites_livrees} opportunité(s) livrée(s)"
+            )
+        if self.sources_en_erreur:
+            # Comptées, jamais nommées : la ligne part dans la base et le nom
+            # d'une source est révélateur (charte, neutralité des libellés). Le
+            # détail par source vit déjà dans SourceRunLog.
+            texte += (
+                f", {self.sources_en_erreur} source(s) en erreur "
+                f"sur {self.sources_ingerees}"
             )
         if self.resumes_en_echec:
             texte += f", {self.resumes_en_echec} en échec"
@@ -132,6 +142,14 @@ def executer_cycle(lookback_days: int = 30, livrer_les_resumes: bool = True) -> 
     try:
         scan = run_veille_continue(lookback_days=lookback_days)
         rapport.notifications_creees = scan.nb_notifications_creees
+        # Sans ce compte, un cycle où TOUTES les sources ont échoué journalise
+        # « 0 notification créée » et sort en succès — mot pour mot ce que
+        # journalise une semaine calme. Constaté le 2026-09-07 en répétition :
+        # une source tombée sur une base verrouillée, cycle vert, rien dit.
+        rapport.sources_ingerees = len(scan.ingestion)
+        rapport.sources_en_erreur = sum(
+            1 for r in scan.ingestion if r.erreur and not r.ignoree
+        )
 
         db_session = get_session()
         try:

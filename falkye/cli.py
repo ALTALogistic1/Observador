@@ -1651,6 +1651,16 @@ def cycle_cmd(lookback_days, sans_livraison):
 
     rapport = executer_cycle(lookback_days=lookback_days, livrer_les_resumes=not sans_livraison)
     click.echo(rapport.resume_lisible())
+    if rapport.sources_en_erreur:
+        # Sur la sortie d'erreur : c'est la ligne qu'un opérateur doit voir
+        # ressortir du journal du service, pas une ligne de rapport parmi
+        # d'autres. Elle ne fait PAS sortir en échec — une source en panne ne
+        # doit pas passer pour un cycle qui n'a pas tourné.
+        click.echo(
+            f"  ⚠ {rapport.sources_en_erreur} source(s) sur {rapport.sources_ingerees} "
+            "n'ont rien pu ingérer — détail dans SourceRunLog.",
+            err=True,
+        )
     for echec in rapport.echecs:
         click.echo(f"  échec — {echec}", err=True)
     if rapport.resumes_en_echec:

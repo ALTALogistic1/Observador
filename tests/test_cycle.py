@@ -21,6 +21,10 @@ from falkye.models.profile import Profile
 
 class _Scan:
     nb_notifications_creees = 3
+    # Le vrai ScanReport porte toujours cette liste, une entrée par source. La
+    # doublure doit la porter aussi, sinon elle fige une forme que la production
+    # n'a jamais eue.
+    ingestion = []
 
 
 class _Resume:
@@ -348,3 +352,86 @@ def test_par_defaut_la_livraison_a_lieu(branche, monkeypatch):
 
     assert appels == [1]
     assert rapport.livraison_omise is False
+
+
+# --- Une source en panne ne doit pas se lire comme une semaine calme --------
+#
+# Constaté le 2026-09-07 : une source dont l'ingestion lève écrit bien son échec
+# dans SourceRunLog, mais le cycle journalise « 0 notification créée » et sort en
+# succès. C'est mot pour mot ce que journalise un cycle où il n'y avait rien à
+# signaler — et docs/DEPLOIEMENT.md promet justement à l'opérateur qu'« un début
+# et une fin à zéro » veut dire « rien à signaler ».
+
+
+class _ScanAvecPannes:
+    """Un rapport de scan comme en produit `run_veille_continue`."""
+
+    nb_notifications_creees = 0
+
+    def __init__(self, *etats):
+        from falkye.engine import IngestReport
+
+        self.ingestion = [
+            IngestReport(source_id=f"s{i}", erreur=err, ignoree=ign)
+            for i, (err, ign) in enumerate(etats)
+        ]
+
+
+def test_une_source_en_panne_apparait_dans_la_ligne_de_journal(branche, monkeypatch):
+    monkeypatch.setattr(
+        falkye.engine,
+        "run_veille_continue",
+        lambda **kw: _ScanAvecPannes((None, False), ("base verrouillée", False), (None, False)),
+    )
+
+    rapport = executer_cycle(livrer_les_resumes=False)
+
+    assert rapport.sources_en_erreur == 1
+    assert rapport.sources_ingerees == 3
+    fin = branche.execute(
+        select(JournalExploitation).where(
+            JournalExploitation.evenement == EvenementExploitation.CYCLE_FIN
+        )
+    ).scalar_one()
+    assert "1 source(s) en erreur sur 3" in fin.detail
+
+
+def test_une_source_pas_encore_construite_nest_pas_une_panne(branche, monkeypatch):
+    """`a_developper` pose aussi `erreur`. La compter ferait crier le journal à
+    chaque cycle, et le cri finirait par ne plus rien vouloir dire le jour où il
+    est vrai."""
+    monkeypatch.setattr(
+        falkye.engine,
+        "run_veille_continue",
+        lambda **kw: _ScanAvecPannes((None, False), ("Aucun connecteur codé", True)),
+    )
+
+    rapport = executer_cycle(livrer_les_resumes=False)
+
+    assert rapport.sources_en_erreur == 0
+    fin = branche.execute(
+        select(JournalExploitation).where(
+            JournalExploitation.evenement == EvenementExploitation.CYCLE_FIN
+        )
+    ).scalar_one()
+    assert "en erreur" not in fin.detail
+
+
+def test_la_ligne_de_journal_ne_nomme_aucune_source(branche, monkeypatch):
+    """Elle part dans la base et le nom d'une source est révélateur (charte,
+    neutralité des libellés). Le détail par source vit dans SourceRunLog."""
+    monkeypatch.setattr(
+        falkye.engine,
+        "run_veille_continue",
+        lambda **kw: _ScanAvecPannes((None, False), ("base verrouillée", False)),
+    )
+
+    executer_cycle(livrer_les_resumes=False)
+
+    fin = branche.execute(
+        select(JournalExploitation).where(
+            JournalExploitation.evenement == EvenementExploitation.CYCLE_FIN
+        )
+    ).scalar_one()
+    assert "s1" not in fin.detail
+    assert "verrouillée" not in fin.detail
