@@ -198,6 +198,39 @@ code, avant la génération des résumés, et trois tests la verrouillent
 (`tests/test_cycle.py`). L'unité qui livre, `falkye-cycle.service`, n'est pas
 dans le fichier de sudoers : la chaîne de déploiement ne peut pas la démarrer.
 
+## La base distante et les transactions longues — mesuré le 7 septembre 2026
+
+**Une transaction qui porte une écriture non validée meurt en moins de dix
+secondes d'inactivité.** Le message du serveur est explicite :
+
+    interactive transaction was rolled back because the stream was idle
+    for too long
+
+| Transaction ouverte | Inactivité | Verdict |
+|---|---|---|
+| Lecture seule | 180 s | survit |
+| Portant une écriture | 5 s | survit |
+| Portant une écriture | **10 s** | **morte** |
+| Portant une écriture | 20 s et au-delà | flux disparu (`stream not found`) |
+
+**Ce que ça interdit.** Tenir une écriture non validée pendant quoi que ce soit
+de lent — un téléchargement, une résolution contre le miroir, un appel
+d'enrichissement. La première opération qui suit échoue, **y compris le
+`rollback()` du gestionnaire d'erreur**, et l'exception emporte alors tout ce qui
+l'entoure. C'est ce qui a tué le premier cycle réel sur l'hôte : une source est
+tombée, son annulation a levé sur un flux mort, et huit sources saines n'ont
+jamais été essayées.
+
+**Ce qui est corrigé.** La ligne d'exécution d'une source est validée avant le
+travail réseau, et `ingest_source` ne lève plus jamais : une connexion morte
+coûte une source, pas le cycle (`tests/test_ingestion_resiliente.py`).
+
+**Ce qui ne l'est pas, et qu'il faut savoir.** La boucle de détection valide
+signal par signal groupé, pas après chacun : si la résolution d'une entreprise
+prend plus de dix secondes alors qu'un signal est déjà flushé, la transaction
+meurt. La source est alors perdue proprement — mais elle est perdue. Le remède
+est de valider plus souvent, au prix d'allers-retours facturés. **Non tranché.**
+
 ## Le mandataire inverse
 
 L'application sert en clair sur `127.0.0.1:8000`. Le certificat vit devant.

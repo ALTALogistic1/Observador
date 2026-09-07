@@ -42,6 +42,17 @@ ExecStart=/opt/falkye/venv/bin/falkye cycle
 # cher que la recherche par préfixe indexée qu'il remplace. Consigné.
 TimeoutStartSec=10800
 
+# Le cache de téléchargement des sources. SANS ces deux lignes, le connecteur
+# CKAN écrit dans le chemin RELATIF `./cache`, qui se résout sous
+# WorkingDirectory — en lecture seule sous ProtectSystem=strict. Mesuré en
+# production le 2026-09-07 : la première source est morte sur
+# `OSError: [Errno 30] Read-only file system: 'cache'`, et toutes les sources
+# CKAN auraient fait pareil. `CacheDirectory=` fait créer /var/cache/falkye par
+# systemd, avec le bon propriétaire, et l'ajoute lui-même aux chemins
+# accessibles en écriture.
+CacheDirectory=falkye
+Environment=FALKYE_CACHE_DIR=/var/cache/falkye
+
 # Durcissement — le cycle n'a besoin ni d'écrire ailleurs que dans son état, ni
 # de privilèges.
 NoNewPrivileges=true
