@@ -24,7 +24,23 @@ EnvironmentFile=-/opt/falkye/version.env
 ExecStart=/opt/falkye/venv/bin/falkye cycle
 # Un cycle qui dépasse largement sa durée normale est bloqué, pas lent : le tuer
 # libère le créneau suivant au lieu d'empiler deux exécutions.
-TimeoutStartSec=3600
+#
+# 3 600 s tenaient jusqu'au 2026-09-07. Ce n'était pas une mesure, c'était une
+# heure ronde — et un cycle complet mesuré ce jour-là, sur une copie de la base
+# de production avec le miroir REQ chargé, a pris **92,5 minutes**. Le délai
+# aurait tué le cycle hebdomadaire à mi-parcours, chaque mardi, en laissant
+# l'unité en échec sans que rien ne dise pourquoi.
+#
+# 10 800 s est provisoire et volontairement large : la mesure est locale, et
+# l'hôte écrit le produit dans la base DISTANTE (~111 ms l'aller-retour), donc
+# il sera plus lent, pas plus rapide. À resserrer quand la durée sur l'hôte
+# sera connue — falkye-cycle-sans-livraison.service est là pour ça.
+#
+# Le vrai remède n'est pas le délai. 12 prélèvements sur 14 pendant ce cycle
+# tombent au même endroit : le repli par sous-chaîne de la résolution NEQ
+# (falkye/sources/req.py), un SCAN des 2,7 M lignes du miroir, 40 fois plus
+# cher que la recherche par préfixe indexée qu'il remplace. Consigné.
+TimeoutStartSec=10800
 
 # Durcissement — le cycle n'a besoin ni d'écrire ailleurs que dans son état, ni
 # de privilèges.

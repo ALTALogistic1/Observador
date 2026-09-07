@@ -124,6 +124,27 @@ autour de 7 % signale que le correctif du 6 septembre sur l'indicateur de
 dispense d'adresse n'est pas dans le code déployé — voir
 `falkye/sources/req.py::_resoudre_entreprise`.
 
+## Ce que le miroir coûte à chaque cycle
+
+Un cycle complet mesuré le 7 septembre 2026, miroir chargé : **92,5 minutes**,
+428 Mo de pic mémoire, limité par le PROCESSEUR et non par le réseau (41 min de
+temps processeur sur 41 min écoulées, à mi-parcours).
+
+Douze prélèvements sur quatorze tombent au même endroit :
+`falkye/sources/req.py`, le **repli par sous-chaîne** de `resolve_neq_by_name`.
+Quand la recherche par préfixe ne rend rien, le repli fait un `LIKE '%...%'` —
+que SQLite ne peut pas indexer, donc un SCAN des 2,7 millions de lignes :
+
+| | |
+|---|---|
+| Préfixe indexé (`GLOB 'transport*'`) | 0,007 s — SEARCH via l'index |
+| Repli par sous-chaîne (`LIKE '%boulan%'`) | 0,32 s — SCAN complet |
+
+Quarante fois plus cher. Il ne domine peut-être pas en nombre d'appels, mais il
+domine le temps — c'est lui qui décide de la durée d'un cycle. **Non corrigé au
+7 septembre 2026**, consigné ici pour que le prochain qui trouve le cycle lent
+n'ait pas à le rechercher.
+
 ## L'état de diff
 
 Il se rebâtit par un **run de référence** : le premier passage d'une source sur

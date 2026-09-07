@@ -176,8 +176,13 @@ Trois gestes, dans cet ordre, et le troisième dépend de ce que montre le secon
    cycle sur l'hôte.
 
 3. **Régler le délai, puis activer le minuteur** — `TimeoutStartSec` de
-   `falkye-cycle.service` vaut 3 600 s, un chiffre posé avant toute mesure. Le
-   corriger à partir de la durée observée, puis :
+   `falkye-cycle.service` valait 3 600 s, un chiffre posé avant toute mesure. Un
+   cycle complet mesuré le 7 septembre 2026, en local sur une copie de la base
+   de production avec le miroir chargé, a pris **92,5 minutes** pour 428 Mo de
+   pic mémoire, aucune source en erreur, 7 notifications. Le délai d'une heure
+   aurait donc tué le cycle chaque mardi. Il est passé à 10 800 s, provisoire et
+   large : l'hôte écrit le produit dans la base distante, il sera plus lent, pas
+   plus rapide. À resserrer avec la durée observée sur l'hôte, puis :
 
    ```bash
    systemctl daemon-reload                    # si le délai a changé
