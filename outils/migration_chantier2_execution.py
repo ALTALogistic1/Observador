@@ -4,7 +4,8 @@
 deux mesures de coût d'une exécution :
 
     source_run_logs      (base du PRODUIT, distante)
-        execution_id, nb_lignes_source, nb_lignes_lues_base, duree_ms
+        execution_id, nb_lignes_source, nb_lignes_lues_base, duree_ms,
+        nb_resolutions_exact, nb_resolutions_prefixe, nb_resolutions_sous_chaine
     diff_run_historique  (base des MIROIRS, fichier local)
         execution_id
     diff_quarantaines    (base des MIROIRS, fichier local)
@@ -44,6 +45,9 @@ COLONNES: tuple[tuple[str, str, str, str], ...] = (
     ("SourceRunLog", "source_run_logs", "nb_lignes_source", "INTEGER"),
     ("SourceRunLog", "source_run_logs", "nb_lignes_lues_base", "INTEGER"),
     ("SourceRunLog", "source_run_logs", "duree_ms", "INTEGER"),
+    ("SourceRunLog", "source_run_logs", "nb_resolutions_exact", "INTEGER"),
+    ("SourceRunLog", "source_run_logs", "nb_resolutions_prefixe", "INTEGER"),
+    ("SourceRunLog", "source_run_logs", "nb_resolutions_sous_chaine", "INTEGER"),
     ("DiffRunHistorique", "diff_run_historique", "execution_id", "VARCHAR(32)"),
     ("DiffQuarantaine", "diff_quarantaines", "execution_id", "VARCHAR(32)"),
 )
@@ -145,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
             print("\nÉCHEC : après application, il manque encore " +
                   ", ".join(f"{t}.{c}" for _, t, c, _ in reste))
             return 1
-        print("Les six colonnes sont en place dans les deux bases.")
+        print(f"Les {len(COLONNES)} colonnes sont en place dans les deux bases.")
         return 0
     finally:
         session.close()

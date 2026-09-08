@@ -35,6 +35,7 @@ from falkye.models.notification import (
     NotificationSignal,
 )
 from falkye.models.profile import PlanTarifaire, Profile
+from falkye.cout_lectures import CHEMIN_EXACT, CHEMIN_PREFIXE, CHEMIN_SOUS_CHAINE, ouvrir_comptes
 from falkye.execution import execution
 from falkye.models.run_log import SourceRunLog, StatutExecution
 from falkye.models.signal import Signal
@@ -241,8 +242,8 @@ def ingest_source(
     chemin nominal et pas sur le chemin de secours — voir
     `_sortir_de_la_transaction`.
     """
-    with execution() as execution_id:
-        return _ingerer_source(db_session, source_id, since, registry, mode, execution_id)
+    with execution() as execution_id, ouvrir_comptes() as comptes:
+        return _ingerer_source(db_session, source_id, since, registry, mode, execution_id, comptes)
 
 
 def _ingerer_source(
@@ -252,6 +253,7 @@ def _ingerer_source(
     registry: Registry,
     mode: str,
     execution_id: str,
+    comptes,
 ) -> IngestReport:
     """Le corps de `ingest_source`, à l'intérieur d'une exécution ouverte.
 
@@ -390,6 +392,11 @@ def _ingerer_source(
         run_log.nb_signaux_detectes = report.nb_signaux_nouveaux
         run_log.finished_at = datetime.now(timezone.utc)
         run_log.duree_ms = int((time.monotonic() - debut) * 1000)
+        # Des comptes, pas des lignes lues : la conversion se fait à la lecture,
+        # depuis la population du moment (falkye/cout_lectures.py).
+        run_log.nb_resolutions_exact = comptes.appels[CHEMIN_EXACT]
+        run_log.nb_resolutions_prefixe = comptes.appels[CHEMIN_PREFIXE]
+        run_log.nb_resolutions_sous_chaine = comptes.appels[CHEMIN_SOUS_CHAINE]
         db_session.commit()
     except Exception as exc:  # noqa: BLE001 -- une source en échec ne doit pas bloquer les autres
         # L'ordre compte : sortir de la transaction morte AVANT d'essayer

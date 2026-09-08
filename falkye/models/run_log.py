@@ -85,3 +85,19 @@ class SourceRunLog(Base):
     # n'a rien coûté » — la troisième forme du silence indistinct.
     nb_lignes_lues_base: Mapped[int | None] = mapped_column(Integer, nullable=True)
     duree_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # --- Ventilation par CHEMIN DE RÉSOLUTION (falkye/cout_lectures.py).
+    #
+    # Des COMPTES exacts, mesurés par incrément au point d'appel — pas des
+    # lignes lues. Les lignes se DÉRIVENT de ces comptes et de la population du
+    # moment, à la lecture du rapport, jamais ici : le prix d'un chemin dépend
+    # du nombre d'entreprises sans NEQ, donc un total figé dans cette ligne
+    # vieillirait sans que rien ne le signale.
+    #
+    # `nb_resolutions_sous_chaine` est celui qui compte : c'est le seul des
+    # trois chemins que l'index composite du 2026-09-08 ne corrige pas, et il
+    # lit toute la population sans NEQ à chaque appel. Sa fréquence décide s'il
+    # se borne ou se retire.
+    nb_resolutions_exact: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nb_resolutions_prefixe: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nb_resolutions_sous_chaine: Mapped[int | None] = mapped_column(Integer, nullable=True)
