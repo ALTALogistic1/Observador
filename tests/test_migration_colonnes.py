@@ -171,3 +171,88 @@ def test_les_tables_de_lautre_cible_ne_sont_pas_reportees_comme_manquantes(tmp_p
     # Les tables du produit sont ABSENTES de cette base : l'outil ne les
     # examine pas plutôt que de les déclarer incomplètes.
     assert colonnes_manquantes(miroir, Base.metadata) == {}
+
+
+# --- Le même angle mort, un cran plus bas : les INDEX ------------------------
+
+
+@pytest.fixture()
+def moteur_sans_index(tmp_path):
+    """Une base réelle à laquelle il manque exactement un index.
+
+    Le cas réel du 2026-09-08 : la chaîne de déploiement avait posé toutes les
+    colonnes du chantier 2 et AUCUN de leurs index — `source_run_logs` et
+    `journal_exploitation` n'en portaient pas un seul en production.
+    """
+    import falkye.models  # noqa: F401
+    from falkye.models.base import Base
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'sans_index.db'}")
+    Base.metadata.create_all(engine)
+    with engine.begin() as c:
+        c.execute(text("DROP INDEX ix_journal_exploitation_repli_id"))
+    return engine
+
+
+def test_lindex_absent_est_repere(moteur_sans_index):
+    from outils.migration_colonnes import index_manquants
+
+    manquants = index_manquants(moteur_sans_index)
+
+    assert [i.name for i in manquants["journal_exploitation"]] == [
+        "ix_journal_exploitation_repli_id"
+    ]
+
+
+def test_create_all_ne_repare_pas_non_plus_les_index(moteur_sans_index):
+    """La raison d'être de l'ajout, écrite comme un test — jumeau exact de
+    `test_create_all_ne_repare_pas_la_derive`, un cran plus bas."""
+    import falkye.models  # noqa: F401
+    from falkye.models.base import Base
+    from outils.migration_colonnes import index_manquants
+
+    Base.metadata.create_all(moteur_sans_index)
+
+    assert "journal_exploitation" in index_manquants(moteur_sans_index)
+
+
+def test_la_clause_recree_lindex_avec_son_unicite(moteur_sans_index):
+    """`repli_id` est UNIQUE, et ce n'est pas de la performance : c'est ce qui
+    fait que deux reprises concurrentes du journal de repli se heurtent à la
+    base au lieu de se fier chacune à une lecture prise juste avant. Un index
+    recréé sans son unicité rendrait la garantie muette."""
+    from outils.migration_colonnes import _clause_index, index_manquants
+
+    (index,) = index_manquants(moteur_sans_index)["journal_exploitation"]
+    clause = _clause_index(index)
+    assert "UNIQUE" in clause
+
+    with moteur_sans_index.begin() as c:
+        c.execute(text(clause))
+        c.execute(
+            text(
+                "INSERT INTO journal_exploitation (evenement, moment, repli_id) "
+                "VALUES ('cycle_debut', '2026-09-08', 'a')"
+            )
+        )
+    assert index_manquants(moteur_sans_index) == {}
+
+    with pytest.raises(Exception):  # noqa: B017 -- l'unicité doit MORDRE
+        with moteur_sans_index.begin() as c:
+            c.execute(
+                text(
+                    "INSERT INTO journal_exploitation (evenement, moment, repli_id) "
+                    "VALUES ('cycle_fin', '2026-09-08', 'a')"
+                )
+            )
+
+
+def test_une_base_a_jour_ne_reporte_aucun_index(tmp_path):
+    import falkye.models  # noqa: F401
+    from falkye.models.base import Base
+    from outils.migration_colonnes import index_manquants
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'a_jour.db'}")
+    Base.metadata.create_all(engine)
+
+    assert index_manquants(engine) == {}
