@@ -300,6 +300,12 @@ sources:
     nom: "Employeurs avec EIMT positive (EDSC)"
     signal_associe: [recrutement_massif]
     statut: actif
+    # Le fichier est NATIONAL. Sans ce filtre, mesuré le 2026-09-07 : 26 175
+    # employeurs ingérés dont 17 309 hors Québec — 66 % du travail, du volume et
+    # des écritures facturées pour de la donnée que le produit ne sert pas.
+    # La graphie est celle qui est JUSTE; c'est falkye/territoire.py qui sait que
+    # le fichier écrit `Qu bec`, pas le registre.
+    territoire: ["Québec"]
     blocage_type: null
     methode_acces: donnees_ouvertes
     champs_pertinents:

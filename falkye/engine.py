@@ -43,6 +43,7 @@ from falkye.registry.loader import Registry, get_registry
 from falkye.resolution import resolve_company
 from falkye.scoring import calculer_score, franchit_seuil_sensibilite
 from falkye.sources.base import RawSignal
+from falkye.territoire import appartient
 from falkye.verification import appliquer_verification, verifier_avant_enrichissement
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,26 @@ class ScanReport:
     # défaut pour run_recherche_ponctuelle, même raison que ci-dessus (passe
     # par lot greffée sur le cycle de veille continue seulement).
     nb_liens_interprovinciaux_detectes: int = 0
+
+
+class CalibrationTerritoriale(RuntimeError):
+    """Un filtre territorial déclaré qui n'a RIEN retenu sur une passe complète.
+
+    **Pourquoi c'est une erreur et non une semaine calme.** Un filtre porte sur
+    une valeur qu'on croit connaître — et le 2026-09-07 on a découvert que la
+    valeur réelle du fichier des travailleurs étrangers temporaires était
+    ``'Qu bec'`` et non « Québec ». Un filtre bâti sur la graphie attendue aurait
+    tout rejeté, sans un mot, et la source aurait paru simplement vide. C'est le
+    défaut de l'indicateur de dispense d'adresse, qui a rendu le rayon d'action
+    inopérant pendant des semaines en supprimant silencieusement.
+
+    **Le seuil est ZÉRO, jamais « peu ».** Un filtre qui retient 3 % là où il
+    devrait en retenir 34 % est tout aussi cassé — mais on ne peut pas le savoir
+    sans norme de volume, et cette norme n'existe pas encore (chantier 2, santé
+    de source). Zéro est le seul cas qui se tranche sans connaître la bonne
+    valeur : une source a produit des lignes, le filtre n'en a gardé aucune, donc
+    le filtre ne parle pas la même langue que la donnée.
+    """
 
 
 def _sortir_de_la_transaction(db_session: Session) -> None:
@@ -225,7 +246,17 @@ def ingest_source(
             db_session.commit()
             return report
 
+        hors_territoire = 0
+        dans_territoire = 0
+
         for raw in connector.detect(since, db_session):
+            # Le filtre territorial s'applique ICI, pour TOUTES les sources, à
+            # partir de ce que le registre déclare. Le connecteur l'ignore.
+            if not appartient(raw.region, source_def.territoire):
+                hors_territoire += 1
+                continue
+            dans_territoire += 1
+
             existing = db_session.execute(
                 select(Signal).where(Signal.source_id == source_id, Signal.source_ref == raw.source_ref)
             ).scalar_one_or_none()
@@ -266,6 +297,20 @@ def ingest_source(
             # `source_ref` fait que la reprise ramasse le reste sans doublon.
             db_session.commit()
             report.nb_signaux_nouveaux += 1
+
+        if source_def.territoire and dans_territoire == 0 and hors_territoire > 0:
+            raise CalibrationTerritoriale(
+                f"le filtre territorial {source_def.territoire} n'a retenu AUCUNE "
+                f"des {hors_territoire} ligne(s) produites par cette source. Le "
+                "filtre ne parle probablement pas la même langue que la donnée — "
+                "voir falkye/territoire.py, et vérifier la valeur RÉELLE écrite "
+                "par la source avant de corriger la graphie attendue."
+            )
+        if hors_territoire:
+            logger.info(
+                "%s : %s ligne(s) retenue(s), %s écartée(s) hors du territoire %s",
+                source_id, dans_territoire, hors_territoire, source_def.territoire,
+            )
 
         db_session.commit()
         run_log.statut = "succes"
