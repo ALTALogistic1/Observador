@@ -401,3 +401,71 @@ Ce qui a sauvé la trace, ici : le journal de repli. Le déclenchement de
 pouvait rien écrire, et les deux lignes — début, puis échec avec sa cause —
 n'existent que dans `/var/lib/falkye/journal-repli.jsonl`. Sans lui, ce
 déclenchement-là n'aurait laissé aucune trace nulle part.
+
+## Le déploiement migre le schéma tout seul — sixième occurrence du motif
+
+**Le fait, avant tout le reste.** Une fusion sur la branche principale déclenche
+le déploiement, et le déploiement applique les migrations de schéma sur les DEUX
+bases, sans que personne le demande. Il n'y a pas de geste manuel à faire après :
+il est déjà fait quand on y pense.
+
+```
+fusion → push sur la branche principale
+       → .github/workflows/deploiement.yml   (on: push: branches: [<principale>])
+       → sudo systemctl start falkye-migration.service
+           → falkye init-db                        # les TABLES manquantes (create_all)
+           → outils/migration_colonnes.py --appliquer
+                                                   # les COLONNES puis les INDEX manquants,
+                                                   # base du produit ET base des miroirs
+```
+
+Mesuré le 2026-09-08 : le déploiement démarre **quatre secondes** après le
+commit de fusion. Sur cinq fusions consécutives (#7 à #11), cinq déploiements,
+cinq migrations.
+
+### Pourquoi c'est consigné ici plutôt que laissé dans l'unité
+
+Le mécanisme était déjà écrit dans `deploiement/falkye-migration.service` et dans
+le flux de déploiement. Il y était depuis le 2026-09-06. Et pendant une journée
+entière, ni l'opérateur ni l'assistant ne l'avaient en tête : on a cru pendant
+cinq passages qu'une migration attendait un geste manuel, alors qu'elle était
+faite avant qu'on en parle, et on a cherché l'auteur humain d'une écriture de
+schéma que la chaîne avait posée.
+
+**Un mécanisme documenté à un seul endroit est un mécanisme qu'on redécouvre.**
+C'est la sixième fois que ce projet rencontre un dispositif actif qu'il croyait
+au repos — après le minuteur armé depuis l'installation, l'index unique qui
+trompait le planificateur, et les quatre occurrences déjà listées plus haut.
+
+### L'ordre qu'on s'était donné était inapplicable
+
+On disait : *fusion, déploiement, PUIS migration sur l'hôte avec `is-active`
+revérifié juste avant.* Il n'existe aucune fenêtre entre le déploiement et la
+migration — **le déploiement EST la migration**. Le garde-fou qu'on croyait
+poser avant arrivait systématiquement après coup.
+
+**La vraie séquence sûre, le point de contrôle déplacé avant la fusion :**
+
+```bash
+# 1. AVANT de fusionner — c'est le dernier moment où on décide encore.
+systemctl is-active falkye-cycle.timer      # doit répondre inactive
+systemctl is-active falkye-cycle.service    # aucun cycle en vol
+python outils/migration_colonnes.py         # ce que la fusion VA appliquer, en lecture seule
+
+# 2. La fusion. À partir d'ici tout s'enchaîne, sans point d'arrêt.
+
+# 3. APRÈS — vérifier, pas supposer.
+python outils/migration_colonnes.py         # « aucune colonne ni index manquant »
+```
+
+`is-active` se lit donc **avant la fusion**, jamais entre le déploiement et la
+migration : cet entre-deux n'existe pas. Et le passage à blanc de l'étape 1 est
+la seule occasion de voir ce que la chaîne va écrire avant qu'elle l'écrive.
+
+### Ce que la chaîne ne fait toujours pas
+
+Elle **ajoute** : tables, colonnes, index. Elle ne renomme rien, ne supprime
+rien, ne change aucun type — ces gestes perdent de la donnée et exigent une
+décision humaine. Une migration destructive reste un passage manuel, et celle-là
+a besoin de la fenêtre de restauration, contrairement aux migrations additives
+dont le retour arrière est `DROP INDEX` puis `DROP COLUMN`.
