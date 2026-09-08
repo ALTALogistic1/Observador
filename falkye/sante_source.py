@@ -174,3 +174,136 @@ def refermer_executions_interrompues(
     if rapport.non_decidables or delai.perime:
         logger.warning("%s", rapport.resume_lisible())
     return rapport
+
+
+# ---------------------------------------------------------------------------
+# Fermer par déclaration — quand aucune règle ne permet de conclure
+# ---------------------------------------------------------------------------
+
+
+class DeclarationRefusee(ValueError):
+    """La déclaration ne remplit pas ses conditions. Refuser tôt et fort."""
+
+
+#: Un motif doit dire quelque chose. « ok », « fix », « n/a » ne sont pas des
+#: raisons — ce sont des cases cochées, et une case cochée ne se relit pas.
+LONGUEUR_MOTIF_MINIMALE = 20
+
+
+@dataclass
+class RapportDeclaration:
+    """Ce qu'une déclaration a fermé, et ce qu'elle n'a pas eu à fermer."""
+
+    par: str
+    motif: str
+    fermees: list[int] = field(default_factory=list)
+    #: Déjà refermées avant que la déclaration passe — jamais réécrites. Une
+    #: déclaration arrivée après coup ne doit pas écraser une conclusion mieux
+    #: fondée que la sienne.
+    deja_fermees: list[int] = field(default_factory=list)
+    introuvables: list[int] = field(default_factory=list)
+
+    def resume_lisible(self) -> str:
+        parts = [f"{len(self.fermees)} fermée(s) par déclaration de {self.par}"]
+        if self.deja_fermees:
+            parts.append(
+                f"{len(self.deja_fermees)} déjà refermée(s), laissée(s) intacte(s)"
+            )
+        if self.introuvables:
+            parts.append(
+                f"{len(self.introuvables)} INTROUVABLE(S) : "
+                + ", ".join(f"#{i}" for i in self.introuvables)
+            )
+        return "; ".join(parts) + f" — motif : « {self.motif} »"
+
+
+def fermer_par_declaration(
+    db_session: Session,
+    identifiants: list[int],
+    par: str,
+    motif: str,
+    maintenant: datetime | None = None,
+) -> RapportDeclaration:
+    """Referme des lignes qu'aucune règle ne permet de conclure. LÈVE si mal formée.
+
+    **Pourquoi ce geste existe.** Une ligne `en_cours` dont on ne sait pas si un
+    délai la gouvernait ne peut pas être refermée par déduction — c'est la
+    réserve 2 du 2026-09-08, et elle tient. Mais la laisser ouverte a son propre
+    coût : deux lignes non décidables signalées à chaque cycle deviennent une
+    ligne rouge permanente, et **une erreur bénigne mais permanente apprend à
+    ignorer une ligne rouge**, ce qui défait un journal construit pour distinguer
+    une panne d'un silence (guide d'ingénierie).
+
+    Le mandat prévoit la sortie : *quand le code ne peut pas faire la distinction
+    automatiquement, il demande une déclaration explicite plutôt que de laisser
+    l'ambiguïté*. Ce n'est donc pas une inférence déguisée — c'est le mécanisme
+    prévu, à condition qu'il porte son auteur et sa raison.
+
+    **Ce qui distingue cette fermeture de la bascule automatique.** Un statut
+    différent, `interrompue_declaree`. Pas un drapeau à côté d'`interrompue` :
+    le statut est ce qu'on lit en premier, et deux origines de force de preuve
+    différente ne peuvent pas porter le même mot.
+
+    Lève, contrairement au reste de ce module : ce n'est pas un mécanisme
+    automatique dont une panne ne doit rien interrompre, c'est un geste humain
+    qui doit échouer bruyamment quand il est mal formé.
+    """
+    par = (par or "").strip()
+    motif = " ".join((motif or "").split())
+    if not par:
+        raise DeclarationRefusee("Une déclaration sans auteur n'est pas une décision.")
+    if len(motif) < LONGUEUR_MOTIF_MINIMALE:
+        raise DeclarationRefusee(
+            f"Motif trop court ({len(motif)} caractères, minimum "
+            f"{LONGUEUR_MOTIF_MINIMALE}). Une fermeture sans raison écrite est "
+            "une inférence déguisée en décision — écrire ce qu'on sait et ce "
+            "qu'on suppose, pour que ça se relise dans six mois."
+        )
+    if not identifiants:
+        raise DeclarationRefusee("Aucune ligne visée.")
+
+    maintenant = maintenant or datetime.now(timezone.utc).replace(tzinfo=None)
+    rapport = RapportDeclaration(par=par, motif=motif)
+
+    for identifiant in identifiants:
+        ligne = db_session.get(SourceRunLog, identifiant)
+        if ligne is None:
+            rapport.introuvables.append(identifiant)
+            continue
+        # Idempotente, comme la bascule automatique : ne ferme que ce qui est
+        # ENCORE ouvert. Une ligne conclue entre-temps garde sa conclusion.
+        if ligne.statut != StatutExecution.EN_COURS.value or ligne.finished_at is not None:
+            rapport.deja_fermees.append(identifiant)
+            continue
+        ligne.statut = StatutExecution.INTERROMPUE_DECLAREE.value
+        ligne.finished_at = maintenant
+        ligne.decision_par = par
+        ligne.decision_motif = motif
+        ligne.decision_le = maintenant
+        rapport.fermees.append(identifiant)
+
+    if rapport.fermees:
+        db_session.commit()
+    logger.info("%s", rapport.resume_lisible())
+    return rapport
+
+
+def executions_non_decidables(db_session: Session) -> list[SourceRunLog]:
+    """Les lignes ouvertes qu'aucune règle ne peut conclure — ce que la
+    déclaration a vocation à traiter.
+
+    Séparée de `refermer_executions_interrompues` pour que l'outil de
+    déclaration montre CE QU'IL VA TOUCHER avant de toucher quoi que ce soit,
+    sans avoir à rejouer la bascule automatique.
+    """
+    ouvertes = (
+        db_session.execute(
+            select(SourceRunLog).where(
+                SourceRunLog.statut == StatutExecution.EN_COURS.value,
+                SourceRunLog.finished_at.is_(None),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [ligne for ligne in ouvertes if ligne.lance_par != Lancement.UNITE.value]

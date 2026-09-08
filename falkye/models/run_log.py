@@ -49,6 +49,16 @@ class StatutExecution(str, enum.Enum):
     #: pas fini ». Le 2026-09-08 en donne les deux exemples — un SIGTERM, et un
     #: quota épuisé qui empêchait d'écrire la trace de sa propre panne.
     INTERROMPUE = "interrompue"
+    #: Refermée par une DÉCLARATION HUMAINE, pas par une bascule automatique.
+    #:
+    #: Valeur distincte, et pas un drapeau posé à côté d'`INTERROMPUE` : le
+    #: statut est ce qu'on lit en premier, et deux origines qui n'ont pas la même
+    #: force de preuve ne peuvent pas porter le même mot. La bascule automatique
+    #: repose sur une déduction vérifiable — au-delà du délai de l'unité, systemd
+    #: l'aurait tuée. Celle-ci repose sur le jugement de quelqu'un, qui doit
+    #: pouvoir être relu et contesté. Les confondre reproduirait, un cran plus
+    #: loin, le défaut que tout ce chantier existe pour retirer.
+    INTERROMPUE_DECLAREE = "interrompue_declaree"
 
 
 #: Les statuts qui décrivent **la source**, et eux seuls, entrent dans sa santé :
@@ -70,7 +80,9 @@ STATUTS_DE_SOURCE = frozenset(
 )
 
 #: Ce qui décrit l'INFRASTRUCTURE — l'hôte, la base, le quota —, jamais la source.
-STATUTS_DINFRASTRUCTURE = frozenset({StatutExecution.INTERROMPUE.value})
+STATUTS_DINFRASTRUCTURE = frozenset(
+    {StatutExecution.INTERROMPUE.value, StatutExecution.INTERROMPUE_DECLAREE.value}
+)
 
 
 def decrit_la_source(statut: str) -> bool:
@@ -104,6 +116,19 @@ class SourceRunLog(Base):
     # surveillait. Un cycle lancé à la main n'est gouverné par aucun délai. Sans
     # ce champ, la bascule serait vraie sous une condition non vérifiée.
     lance_par: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    # --- La déclaration humaine, quand aucune règle ne permettait de conclure.
+    #
+    # Renseignés UNIQUEMENT sur `interrompue_declaree`. Le motif est EXIGÉ par
+    # l'outil qui pose ce statut : une fermeture sans raison écrite serait une
+    # inférence déguisée en décision, ce qui est précisément ce qu'on refuse.
+    #
+    # `decision_motif` n'est PAS `erreur`. `erreur` porte une cause technique
+    # observée; celui-ci porte le raisonnement de quelqu'un. Les réunir dans un
+    # champ ferait lire un jugement comme une observation.
+    decision_par: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    decision_motif: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decision_le: Mapped[datetime | None] = mapped_column(nullable=True)
 
     started_at: Mapped[datetime] = mapped_column(default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
