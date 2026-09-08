@@ -11,11 +11,25 @@ posée par le chantier 28, était absente de la base distante alors que les deux
 NOUVELLES tables du même chantier, elles, s'y étaient créées. Une lecture de
 profil suffisait à lever `no such column`.
 
+**Le même angle mort, un cran plus bas — corrigé le 2026-09-08.** L'outil
+ajoutait la colonne et s'arrêtait là : les INDEX déclarés sur elle n'étaient
+créés par personne. `create_all` ne regarde pas non plus à l'intérieur d'une
+table existante, donc un `index=True` posé sur une colonne neuve n'arrivait
+jamais en base. Constaté sur la production : `source_run_logs` et
+`journal_exploitation` n'avaient AUCUN index, alors que leurs colonnes du
+chantier 2 étaient toutes en place — un demi-schéma que rien ne signalait.
+
+Ce n'est pas qu'une affaire de vitesse. `journal_exploitation.repli_id` porte
+un index **UNIQUE**, et c'est lui qui fait que deux reprises concurrentes du
+journal de repli se heurtent à la base plutôt que de se fier chacune à une
+lecture prise juste avant. Sans lui, l'idempotence annoncée ne tenait qu'à
+cette lecture.
+
 **Ce que cet outil fait, et rien de plus.** Il AJOUTE les colonnes manquantes
-(`ALTER TABLE ... ADD COLUMN`), opération additive et réversible par abandon.
-Il ne renomme rien, ne supprime rien, ne change aucun type : ces gestes-là
-perdent de la donnée et exigent une décision humaine, jamais un outil qui
-tourne au déploiement.
+(`ALTER TABLE ... ADD COLUMN`) puis les INDEX manquants (`CREATE INDEX`),
+opérations additives et réversibles par abandon. Il ne renomme rien, ne
+supprime rien, ne change aucun type : ces gestes-là perdent de la donnée et
+exigent une décision humaine, jamais un outil qui tourne au déploiement.
 
 Il ne remplace pas Alembic — il rend visible et réparable la dérive en
 attendant, ce que le silence de `create_all` ne fait pas.
@@ -60,6 +74,36 @@ def colonnes_manquantes(engine, metadata=None) -> dict[str, list]:
         if absentes:
             manquantes[nom] = absentes
     return manquantes
+
+
+def index_manquants(engine, metadata=None) -> dict[str, list]:
+    """{nom de table: [Index, ...]} pour les tables DÉJÀ présentes.
+
+    Même raisonnement que `colonnes_manquantes`, et même angle mort comblé :
+    `create_all` crée les index d'une table qu'il crée, jamais ceux qui
+    s'ajoutent ensuite à une table qui existe déjà.
+    """
+    metadata = Base.metadata if metadata is None else metadata
+    insp = inspect(engine)
+    presentes = set(insp.get_table_names())
+    manquants: dict[str, list] = {}
+    for nom, table in metadata.tables.items():
+        if nom not in presentes:
+            continue  # create_all s'en charge
+        # Les index implicites (clé primaire, contraintes UNIQUE de table) ne
+        # sont pas dans `table.indexes` : on ne compare que ce que le modèle
+        # déclare explicitement.
+        reels = {i["name"] for i in insp.get_indexes(nom)}
+        absents = [i for i in table.indexes if i.name not in reels]
+        if absents:
+            manquants[nom] = sorted(absents, key=lambda i: i.name or "")
+    return manquants
+
+
+def _clause_index(index) -> str:
+    colonnes = ", ".join(c.name for c in index.columns)
+    unique = "UNIQUE " if index.unique else ""
+    return f"CREATE {unique}INDEX IF NOT EXISTS {index.name} ON {index.table.name} ({colonnes})"
 
 
 def _defaut_sql(colonne) -> str | None:
@@ -123,8 +167,25 @@ def main() -> int:
                 else:
                     print(f"à appliquer [{nom_cible}] : {clause}")
 
+    # Les index APRÈS les colonnes, dans le même passage : un index sur une
+    # colonne qui vient d'être ajoutée n'existerait pas si on inversait.
+    for nom_cible, metadata, engine in cibles():
+        manquants = index_manquants(engine, metadata)
+        if not manquants:
+            continue
+        rien_a_faire = False
+        for table, index in sorted(manquants.items()):
+            for un_index in index:
+                clause = _clause_index(un_index)
+                if args.appliquer:
+                    with engine.begin() as connexion:
+                        connexion.execute(text(clause))
+                    print(f"appliqué [{nom_cible}] : {clause}")
+                else:
+                    print(f"à appliquer [{nom_cible}] : {clause}")
+
     if rien_a_faire:
-        print("Schéma à jour des deux côtés : aucune colonne manquante.")
+        print("Schéma à jour des deux côtés : aucune colonne ni index manquant.")
         return 0
     if not args.appliquer:
         print("\nRien n'a été modifié. Relancer avec --appliquer.")

@@ -417,6 +417,20 @@ def _ingerer_source(
         # l'un à la place de l'autre ferait comparer des sources instantané et
         # des sources événement sur deux grandeurs différentes portant le même
         # nom, ce que le renommage du 8 septembre a précisément retiré.
+        #
+        # ⚠️ **NE PAS « corriger » en comptant après le filtre.** La ligne
+        # ci-dessous additionne `dans_territoire` ET `hors_territoire`, ce qui a
+        # l'air d'une inattention et n'en est pas. Un compte pris après le
+        # filtre décrirait NOTRE TRI, pas la santé de la source : une source
+        # nationale qui cesse de publier hors Québec s'effondre en volume sans
+        # qu'un seul signal retenu ne change, et une norme bâtie sur le compte
+        # filtré ne verrait rien.
+        #
+        # C'est le journal des cas, cas 21 — une source active qui retourne
+        # toujours zéro est indiscernable d'une source qui n'a rien trouvé
+        # cette semaine. Tout ce chantier existe pour lever ce genre de
+        # confusion; la reconstruire dans le compte qui doit la détecter serait
+        # un pas en arrière déguisé en nettoyage.
         run_log.nb_lignes_source = dans_territoire + hors_territoire
         run_log.finished_at = datetime.now(timezone.utc)
         run_log.duree_ms = int((time.monotonic() - debut) * 1000)

@@ -24,6 +24,15 @@ dans DEUX cibles — dont une seule est facturée.
 **Pourquoi un outil et pas `init_db()`.** `create_all()` ne crée que les tables
 manquantes; il n'ajoute jamais une colonne à une table qui existe déjà.
 
+**⚠️ Recoupement avec `outils/migration_colonnes.py`, constaté le 2026-09-08.**
+Cet outil-ci a été écrit en croyant qu'aucun chemin automatique ne posait de
+colonnes. C'était faux : `deploiement/falkye-migration.service` lance
+`migration_colonnes.py --appliquer` à CHAQUE déploiement, et les colonnes du
+chantier 2 étaient déjà en base avant qu'on les demande. Cet outil-ci reste
+utile pour VÉRIFIER un état précis et nommer ce qui manque, mais il ne doit plus
+être présenté comme le seul chemin de pose — et le jour où il ne vérifie plus
+rien que l'autre ne couvre, il se retire.
+
 **Retour arrière.** Additive : les colonnes sont nullables et rien n'est réécrit.
 Le retour arrière est `DROP INDEX` puis `ALTER TABLE ... DROP COLUMN`, dans cet
 ordre — SQLite refuse de retirer une colonne tant qu'un index porte dessus
