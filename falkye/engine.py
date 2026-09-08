@@ -12,6 +12,7 @@ implémente l'interface générique (SourceConnector / NotificationChannel)."""
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
@@ -34,7 +35,8 @@ from falkye.models.notification import (
     NotificationSignal,
 )
 from falkye.models.profile import PlanTarifaire, Profile
-from falkye.models.run_log import SourceRunLog
+from falkye.execution import execution
+from falkye.models.run_log import SourceRunLog, StatutExecution
 from falkye.models.signal import Signal
 from falkye.notifications.base import FORME_UNITAIRE
 from falkye.notifications.formatter import formatter_notification
@@ -192,6 +194,42 @@ def _consigner_lechec(
         _sortir_de_la_transaction(db_session)
 
 
+def _a_ete_mise_en_quarantaine(db_session: Session, execution_id: str) -> bool:
+    """Cette exécution a-t-elle mis un diff en quarantaine?
+
+    **La réponse vit dans l'AUTRE base.** `DiffRunHistorique` est une table des
+    miroirs, un fichier local; `SourceRunLog` est dans la base du produit. Aucune
+    jointure SQL ne les relie — le rapprochement se fait ici, sur
+    `execution_id`, et la session route la requête vers le bon moteur par la
+    métadonnée du modèle (falkye/db.py::get_sessionmaker).
+
+    Ne lève jamais : si la base des miroirs est muette, on ne peut pas savoir, et
+    ne pas savoir ne doit pas transformer une ingestion réussie en échec. Le
+    statut retombe alors sur « succes », ce qui est le comportement d'avant — un
+    défaut connu vaut mieux qu'un nouveau.
+    """
+    from falkye.models.diff_run_historique import DiffRunHistorique
+
+    try:
+        return (
+            db_session.execute(
+                select(DiffRunHistorique.id)
+                .where(
+                    DiffRunHistorique.execution_id == execution_id,
+                    DiffRunHistorique.quarantaine.is_(True),
+                )
+                .limit(1)
+            ).first()
+            is not None
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "Quarantaine indéterminable pour l'exécution %s — statut laissé à succès",
+            execution_id,
+        )
+        return False
+
+
 def ingest_source(
     db_session: Session, source_id: str, since: datetime | None, registry: Registry, mode: str
 ) -> IngestReport:
@@ -203,10 +241,36 @@ def ingest_source(
     chemin nominal et pas sur le chemin de secours — voir
     `_sortir_de_la_transaction`.
     """
+    with execution() as execution_id:
+        return _ingerer_source(db_session, source_id, since, registry, mode, execution_id)
+
+
+def _ingerer_source(
+    db_session: Session,
+    source_id: str,
+    since: datetime | None,
+    registry: Registry,
+    mode: str,
+    execution_id: str,
+) -> IngestReport:
+    """Le corps de `ingest_source`, à l'intérieur d'une exécution ouverte.
+
+    La séparation existe pour que l'identifiant d'exécution soit posé AVANT la
+    première ligne écrite : `SourceRunLog` le porte, et les traces que le moteur
+    de diff écrit dans l'AUTRE base le liront depuis le contexte (voir
+    falkye/execution.py). Une exécution ouverte plus tard laisserait des traces
+    orphelines au début de son propre run.
+    """
     source_def = registry.source(source_id)
     report = IngestReport(source_id=source_id)
+    debut = time.monotonic()
 
-    run_log = SourceRunLog(source_id=source_id, mode=mode, statut="en_cours")
+    run_log = SourceRunLog(
+        source_id=source_id,
+        mode=mode,
+        statut=StatutExecution.EN_COURS.value,
+        execution_id=execution_id,
+    )
     try:
         db_session.add(run_log)
         # VALIDÉ, pas seulement flushé — c'est la cause profonde de la panne du
@@ -238,7 +302,7 @@ def ingest_source(
         if connector is None:
             report.erreur = "Aucun connecteur codé pour cette source (statut probablement a_developper)."
             report.ignoree = True
-            run_log.statut = "ignoree"
+            run_log.statut = StatutExecution.IGNOREE.value
             run_log.finished_at = datetime.now(timezone.utc)
             # Validé ICI : le `finally` qui s'en chargeait a disparu avec la
             # refonte du chemin d'erreur, et sans cette ligne une source pas
@@ -313,9 +377,19 @@ def ingest_source(
             )
 
         db_session.commit()
-        run_log.statut = "succes"
+        # **Le statut se lit sur ce que l'exécution a fait, pas sur l'absence
+        # d'exception.** Une source mise en quarantaine retourne zéro signal
+        # sans lever : jusqu'ici elle s'enregistrait « succes », mot pour mot ce
+        # qu'enregistre un territoire calme. C'est le premier critère
+        # d'acceptation du chantier 2, et il échouait avant d'avoir commencé.
+        run_log.statut = (
+            StatutExecution.QUARANTAINE.value
+            if _a_ete_mise_en_quarantaine(db_session, execution_id)
+            else StatutExecution.SUCCES.value
+        )
         run_log.nb_signaux_detectes = report.nb_signaux_nouveaux
         run_log.finished_at = datetime.now(timezone.utc)
+        run_log.duree_ms = int((time.monotonic() - debut) * 1000)
         db_session.commit()
     except Exception as exc:  # noqa: BLE001 -- une source en échec ne doit pas bloquer les autres
         # L'ordre compte : sortir de la transaction morte AVANT d'essayer

@@ -35,6 +35,13 @@ class DiffRunHistorique(BaseMiroir):
     source_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     executed_at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
 
+    # Rattache cette ligne à `SourceRunLog`, qui vit dans l'AUTRE base (voir
+    # falkye/execution.py). Valeur opaque, jamais une clé étrangère : rien ne
+    # traverse deux bases. NULL est un état normal — un diff exécuté hors d'une
+    # ingestion (outil, reprise manuelle) n'appartient à aucune exécution, et
+    # lui en inventer une ferait croire à un lien vérifié.
+    execution_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+
     run_reference: Mapped[bool] = mapped_column(default=False)
     quarantaine: Mapped[bool] = mapped_column(default=False)
     # Chaîne libre (valeur de MotifQuarantaine.value) plutôt que l'enum lui-même

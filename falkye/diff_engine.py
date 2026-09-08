@@ -76,6 +76,7 @@ from sqlalchemy.orm import Session
 
 from falkye.models.base import utcnow
 from falkye.models.diff_quarantaine import DiffQuarantaine, MotifQuarantaine, StatutQuarantaine
+from falkye.execution import execution_courante
 from falkye.models.diff_run_historique import DiffRunHistorique
 from falkye.models.etat_diff_source import EtatLigneSource, EtatSchemaSource
 
@@ -539,6 +540,7 @@ def _journaliser_run(
     db_session.add(
         DiffRunHistorique(
             source_id=source_id,
+            execution_id=execution_courante(),
             run_reference=run_reference,
             quarantaine=quarantaine,
             motif_quarantaine=motif_quarantaine.value if motif_quarantaine else None,
@@ -636,6 +638,7 @@ def executer_diff(
         chemin_archive = _archiver_snapshot(source_id, lignes)
         q = DiffQuarantaine(
             source_id=source_id,
+            execution_id=execution_courante(),
             motif=MotifQuarantaine.LECTURE_ECHOUEE,
             detail={"taux_erreur_lecture": taux_erreur_lecture, "seuil": seuil_erreur_lecture},
             chemin_archive=chemin_archive,
@@ -699,6 +702,7 @@ def executer_diff(
             chemin_archive = _archiver_snapshot(source_id, lignes)
             q = DiffQuarantaine(
                 source_id=source_id,
+                execution_id=execution_courante(),
                 motif=motif,
                 detail={
                     "colonnes_pertinentes_retirees": sorted(retirees_pertinentes),
@@ -795,6 +799,7 @@ def executer_diff(
         chemin_archive = _archiver_snapshot(source_id, lignes)
         q = DiffQuarantaine(
             source_id=source_id,
+            execution_id=execution_courante(),
             motif=motif,
             detail={
                 "nb_apparitions": len(apparitions),
