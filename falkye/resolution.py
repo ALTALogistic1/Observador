@@ -34,14 +34,22 @@ SEUIL_RESOLUTION_CONFIANTE = 92.0
 SEUIL_AMBIGUITE_ECART_MIN = 8.0  # écart minimal avec le 2e candidat pour ne pas être "ambigu"
 
 
+def requete_nom_exact(nom_norm: str):
+    """La requête, séparée de son exécution — pour que l'outil qui VÉRIFIE son plan
+    vérifie la vraie. Un plan mesuré sur une requête réécrite à côté ne prouve rien
+    de celle que le moteur envoie (même règle que pour les outils qui agissent sur
+    les données : emprunter la fonction du moteur, jamais son équivalent recopié)."""
+    return select(Company).where(
+        Company.neq.is_(None), Company.nom_detecte_normalise == nom_norm
+    )
+
+
 def _find_unresolved_company(db_session: Session, nom_detecte: str) -> Company | None:
     """Recherche indexée (Company.nom_detecte_normalise), pas un balayage Python de
     toutes les entreprises non résolues — voir le commentaire sur cette colonne dans
     falkye/models/company.py (sinon quadratique sur de gros volumes, ex. SEAO)."""
     nom_norm = normaliser(nom_detecte)
-    return db_session.execute(
-        select(Company).where(Company.neq.is_(None), Company.nom_detecte_normalise == nom_norm)
-    ).scalar_one_or_none()
+    return db_session.execute(requete_nom_exact(nom_norm)).scalar_one_or_none()
 
 
 def resolve_company(db_session: Session, raw: RawSignal) -> Company:

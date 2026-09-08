@@ -9,7 +9,7 @@ from __future__ import annotations
 import enum
 from datetime import datetime
 
-from sqlalchemy import Enum, Float, Integer, String
+from sqlalchemy import Enum, Float, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from falkye.models.base import Base, utcnow
@@ -43,6 +43,42 @@ class StatutVerification(str, enum.Enum):
 
 class Company(Base):
     __tablename__ = "companies"
+
+    # **L'index composite (neq, nom_detecte_normalise) n'est pas un raffinement,
+    # c'est ce qui borne le coût de la résolution.** Mesuré le 2026-09-08 sur la
+    # base réelle (11 556 entreprises, dont 8 395 sans NEQ), par `rows_read` du
+    # protocole Hrana :
+    #
+    #     neq = ?                                      →       0 ligne lue
+    #     neq IS NULL AND nom_normalise = ?            →   8 396 lignes lues
+    #     neq IS NULL AND nom_normalise GLOB 'préfixe*' →   8 396 lignes lues
+    #
+    # Pourquoi l'index simple sur `nom_detecte_normalise` n'y suffisait pas.
+    # `ix_companies_neq` est UNIQUE, donc SQLite estime que `neq = ?` rend UNE
+    # ligne — mais un index unique accepte autant de NULL qu'on veut, et il y en
+    # a 8 395. Le planificateur choisit donc l'index qu'il croit parfait, et lit
+    # toute la population non résolue. Le prédicat ajouté pour la justesse
+    # annulait l'optimisation GLOB documentée dans falkye/sources/req.py.
+    # `EXPLAIN QUERY PLAN` le dit mot pour mot :
+    #
+    #     avec neq IS NULL   → SEARCH USING INDEX ix_companies_neq (neq=?)
+    #     sans neq IS NULL   → SEARCH USING COVERING INDEX ix_companies_nom_…
+    #
+    # Avec l'index composite, les deux requêtes chères passent en recherche par
+    # PLAGE dans un index couvrant. Un index PARTIEL (`WHERE neq IS NULL`) a été
+    # essayé d'abord : il corrige l'égalité, pas le GLOB — le planificateur reste
+    # sur `ix_companies_neq`. Vérifié sur réplique locale de même population.
+    #
+    # Ce que ça coûtait : ~16 800 lignes lues par signal neuf non résolu, soit le
+    # quota mensuel de lectures consommé par ~600 signaux. Trois passages de
+    # l'EIMT (23 142 signaux chacun) l'ont épuisé le 2026-09-08.
+    #
+    # L'index simple ci-dessous devient redondant — les TROIS requêtes du code
+    # portent `neq IS NULL`. Il est conservé par défaut (le retirer est un geste
+    # séparé, `outils/migration_index_neq_nom.py --retirer-index-redondant`) :
+    # il ne coûte que du poids en écriture, et le retirer d'office ferait diverger
+    # une base migrée d'une base neuve.
+    __table_args__ = (Index("ix_companies_neq_nom_normalise", "neq", "nom_detecte_normalise"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 

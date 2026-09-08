@@ -35,6 +35,9 @@ class DiffQuarantaine(BaseMiroir):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     source_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # Même rattachement que DiffRunHistorique — valeur opaque partagée avec
+    # SourceRunLog dans l'autre base (falkye/execution.py).
+    execution_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     motif: Mapped[MotifQuarantaine] = mapped_column(Enum(MotifQuarantaine, native_enum=False), nullable=False)
 
     # Détail structuré du diff suspect — comptes par type, seuils dépassés,
