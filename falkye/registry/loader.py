@@ -44,6 +44,19 @@ class SourceDef:
     region: str | None
     connecteur: str | None
     notes: str | None = None
+    # **La portée territoriale est une décision de PRODUIT, pas une propriété de
+    # la source** — et elle changera le jour d'une expansion hors Québec. Elle
+    # vit donc ICI, sous sa graphie juste et lisible, et non dans le code d'un
+    # connecteur : changer une décision qui n'en est pas ne doit pas demander de
+    # modifier du code.
+    #
+    # Vide (défaut) = aucun filtre, la source est ingérée telle quelle. Le
+    # moteur applique la règle (falkye/engine.py), le connecteur ne sait même
+    # pas qu'un filtre existe — une seule implantation pour toutes les sources.
+    #
+    # Ajouté le 2026-09-07 : le programme des travailleurs étrangers temporaires
+    # écrivait 26 175 employeurs dont 66 % hors Québec, faute de ce filtre.
+    territoire: list[str] = field(default_factory=list)
     # Principe directeur non négociable (spec, "Principes directeurs" #3) : aucune
     # source n'est activée sans une règle concrète et vérifiable qui distingue un
     # vrai signal de croissance du bruit. Ce champ documente CETTE règle — vide

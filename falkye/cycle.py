@@ -221,6 +221,16 @@ def executer_cycle(lookback_days: int = 30, livrer_les_resumes: bool = True) -> 
         # « 0 notification créée » et sort en succès — mot pour mot ce que
         # journalise une semaine calme. Constaté le 2026-09-07 en répétition :
         # une source tombée sur une base verrouillée, cycle vert, rien dit.
+        #
+        # **Et il se calcule ICI, depuis le rapport en mémoire, jamais depuis
+        # SourceRunLog.** La règle : un compte qui décrit une exécution ne se
+        # calcule jamais depuis la base que cette exécution écrit. Éprouvé le
+        # soir même — `eimt` est tombée sur une erreur d'entrée-sortie DU
+        # SERVEUR, donc la mise à jour de sa ligne a échoué pour la même raison
+        # que ce qu'elle consignait. La table dit encore « en cours »; cette
+        # ligne-ci disait « 1 source(s) en erreur sur 8 », et c'est elle qui
+        # avait raison. Voir falkye/engine.py::_consigner_lechec.
+        #
         # Le dénominateur est le nombre de sources TENTÉES. Une source sans
         # connecteur n'a pas échoué, elle n'a pas été essayée — la compter
         # gonflerait le dénominateur et ferait passer un effondrement complet
