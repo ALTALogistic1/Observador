@@ -339,3 +339,65 @@ ligne porte « AUCUNE OBSERVATION » et l'unité sort en échec, parce que là c
 bien le cycle qui n'a rien fait et que `systemctl list-units --failed` doit le
 dire. Les sources sans connecteur (`a_developper`) ne comptent pas au
 dénominateur : elles n'ont pas échoué, elles n'ont pas été tentées.
+
+## Les états qu'on croit éteints — cinq occurrences, et la règle qui en sort
+
+Le 8 septembre 2026, le minuteur du cycle a livré un vrai courriel à un vrai
+destinataire pendant que tout le monde le croyait éteint :
+
+```
+2026-09-08 08:03:50 UTC  CYCLE_DEBUT  e6308aa
+2026-09-08 08:31:44 UTC  CYCLE_FIN    1 profil(s), 0 notification(s), 1 résumé(s) envoyé(s)
+```
+
+`systemctl is-enabled` répondait `disabled`, et c'est ce qu'on avait vérifié.
+Mais **`disabled` ne veut pas dire arrêté** : le lien symbolique d'activation
+n'existait plus, et l'unité tournait quand même — `enable` gouverne le
+DÉMARRAGE AU PROCHAIN AMORÇAGE, pas l'état courant. La seule lecture qui
+répond à « est-ce que ça peut se déclencher maintenant » est `is-active`.
+
+Trois mécanismes se sont enchaînés, chacun correct pris seul :
+
+1. `OnCalendar=Tue *-*-* 08:00:00` s'évalue dans le fuseau LOCAL de l'hôte.
+   L'hôte était en UTC, donc le créneau tombait à 4 h du matin à Montréal —
+   pas l'heure « où la personne peut agir » que la charte demande.
+2. `timedatectl set-timezone` fait recalculer les minuteurs de calendrier.
+   Le recalcul a vu un créneau désormais passé.
+3. `Persistent=true` rattrape un créneau manqué **immédiatement**. Il est là
+   pour ne pas perdre une livraison parce que l'hôte était éteint; il a fait
+   exactement ça.
+
+Le fichier `/var/lib/systemd/timers/stamp-<unité>.timer` est la mémoire de ce
+mécanisme. systemd l'écrit au DÉMARRAGE d'un minuteur persistant qui n'en a pas
+— précisément pour qu'un minuteur neuf ne se déclenche pas d'un coup. Sa date
+est donc une information : un horodatage d'il y a une minute garantit qu'aucun
+rattrapage ne peut partir, puisque le prochain créneau calculé après lui est
+forcément dans le futur. **Ne pas le supprimer** : c'est lui la garantie.
+
+### Avant d'activer un minuteur, les quatre lectures
+
+```bash
+timedatectl                                    # Time zone: America/Toronto, pas UTC
+systemctl is-active  falkye-cycle.timer        # la seule qui dit s'il peut partir
+systemctl is-enabled falkye-cycle.timer        # ne dit QUE le prochain amorçage
+stat /var/lib/systemd/timers/stamp-falkye-cycle.timer
+```
+
+### La règle
+
+C'est la **cinquième** fois que ce projet rencontre un état qu'il croyait
+éteint : la source qui tombe sans le dire, les cinq sources mortes sur le cache
+lues comme une semaine calme, les deux lignes d'exécution restées `en_cours`,
+l'index unique dont le planificateur croit qu'il rend une ligne, et ce
+minuteur. À chaque fois, la même forme : **une valeur qu'on croit connaître
+tient lieu de la valeur qu'on n'a pas lue.**
+
+Un état d'exécution ne se déduit pas d'un état de configuration, ni d'un
+souvenir de ce qu'on a fait. Il se lit. Et ce qui livre — un courriel, une
+écriture en base, une facture — se lit AVANT le geste, pas après.
+
+Ce qui a sauvé la trace, ici : le journal de repli. Le déclenchement de
+14 h 17 UTC est tombé pendant le blocage du quota de lectures; la base ne
+pouvait rien écrire, et les deux lignes — début, puis échec avec sa cause —
+n'existent que dans `/var/lib/falkye/journal-repli.jsonl`. Sans lui, ce
+déclenchement-là n'aurait laissé aucune trace nulle part.

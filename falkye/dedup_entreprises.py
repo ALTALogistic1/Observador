@@ -93,6 +93,32 @@ BONUS_VILLE = 5.0
 LIMITE_CANDIDATS = 500
 
 
+def requete_candidats_prefixe(prefix: str):
+    """Recherche bornée par PRÉFIXE. Séparée de son exécution pour que
+    `outils/migration_index_neq_nom.py` vérifie le plan de la VRAIE requête —
+    c'est cette forme-ci qui lisait 8 396 lignes par appel avant l'index
+    composite (voir falkye/models/company.py)."""
+    return (
+        select(Company)
+        .where(Company.neq.is_(None), Company.nom_detecte_normalise.op("GLOB")(f"{prefix}*"))
+        .limit(LIMITE_CANDIDATS)
+    )
+
+
+def requete_candidats_sous_chaine(fragment: str):
+    """Repli par SOUS-CHAÎNE, quand le préfixe ne rend rien.
+
+    ⚠️ Aucun index ne rattrape un `LIKE '%…%'` : la sous-chaîne n'est pas ancrée,
+    donc le balayage est dans la nature de la requête, pas dans le plan. Mesuré à
+    8 396 lignes lues, index composite ou non. Le borner ou le retirer est une
+    décision de CONCEPTION — inscrite au chantier 2, pas réglée ici."""
+    return (
+        select(Company)
+        .where(Company.neq.is_(None), Company.nom_detecte_normalise.contains(fragment))
+        .limit(LIMITE_CANDIDATS)
+    )
+
+
 @dataclass
 class MeilleurCandidat:
     company: Company
@@ -127,24 +153,10 @@ def trouver_meilleur_candidat_fusion(
         return None
 
     prefix = nom_normalise.split(" ")[0]
-    candidats = (
-        db_session.execute(
-            select(Company)
-            .where(Company.neq.is_(None), Company.nom_detecte_normalise.op("GLOB")(f"{prefix}*"))
-            .limit(LIMITE_CANDIDATS)
-        )
-        .scalars()
-        .all()
-    )
+    candidats = db_session.execute(requete_candidats_prefixe(prefix)).scalars().all()
     if not candidats:
         candidats = (
-            db_session.execute(
-                select(Company)
-                .where(Company.neq.is_(None), Company.nom_detecte_normalise.contains(nom_normalise[:6]))
-                .limit(LIMITE_CANDIDATS)
-            )
-            .scalars()
-            .all()
+            db_session.execute(requete_candidats_sous_chaine(nom_normalise[:6])).scalars().all()
         )
 
     meilleur: MeilleurCandidat | None = None
