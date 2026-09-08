@@ -54,8 +54,10 @@ def test_appliquer_pose_lindex_et_le_plan_le_prend(base_non_migree):
 
     assert INDEX in migration.index_existants(base_non_migree)
     assert migration.verifier(base_non_migree) == []
-    for plan in migration.plans(base_non_migree).values():
-        assert INDEX in plan
+
+    plans = migration.plans(base_non_migree)
+    assert INDEX in plans["exact (resolution.py)"]
+    assert INDEX in plans["préfixe GLOB (dedup_entreprises.py)"]
 
 
 def test_appliquer_est_idempotent(base_non_migree):
@@ -89,9 +91,7 @@ def test_main_sort_en_echec_si_le_plan_ignore_lindex(base_non_migree, monkeypatc
     `ix_companies_neq`. La sortie non nulle est la seule chose qui l'aurait dit."""
     monkeypatch.setattr("falkye.db.get_session", lambda: base_non_migree)
     monkeypatch.setattr(base_non_migree, "close", lambda: None)
-    monkeypatch.setattr(
-        migration, "plans", lambda session: {"feinte": "SCAN companies"}
-    )
+    monkeypatch.setattr(migration, "_plan", lambda session, requete: "SCAN companies")
 
     assert migration.main(["--appliquer"]) == 1
 
@@ -108,7 +108,25 @@ def test_les_plans_viennent_des_requetes_du_moteur(base_non_migree, monkeypatch)
     temoin = select(Company).where(Company.ville == "temoin-unique")
     monkeypatch.setattr("falkye.resolution.requete_nom_exact", lambda nom: temoin)
 
-    plan = migration.plans(base_non_migree)["nom exact (resolution.py)"]
+    plan = migration.plans(base_non_migree)["exact (resolution.py)"]
 
     assert "SCAN" in plan
     assert "ix_companies_neq" not in plan
+
+
+def test_le_repli_par_sous_chaine_est_rapporte_mais_hors_verdict(base_non_migree):
+    """La fuite est réduite, pas fermée — et le rapport doit le montrer.
+
+    Aucun index ne rattrape un `LIKE '%…%'` : ce chemin balaie toujours, et c'est
+    une lecture FACTURÉE de la base durable, pas du miroir local. L'exclure du
+    verdict est délibéré; l'exclure du rapport ferait lire « deux plans corrigés »
+    comme « la fuite est fermée ».
+    """
+    migration.appliquer(base_non_migree)
+
+    plans = migration.plans(base_non_migree)
+    repli = plans["sous-chaîne (dedup_entreprises.py)"]
+
+    assert repli, "le repli doit figurer au rapport"
+    assert INDEX not in repli, "un index ne corrige pas une sous-chaîne non ancrée"
+    assert migration.verifier(base_non_migree) == [], "il ne doit pas peser au verdict"

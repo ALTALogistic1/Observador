@@ -82,29 +82,53 @@ def _plan(session, requete) -> str:
     return " ; ".join(str(l[-1]) for l in lignes)
 
 
-def plans(session) -> dict[str, str]:
-    """Les DEUX requêtes que l'index doit corriger — importées du moteur.
+# LES TROIS chemins de résolution, dans l'ordre où le moteur les emprunte. Le
+# rapport les montre tous — un correctif se lit à côté de ce qu'il ne corrige
+# pas, sinon « deux plans améliorés » se lit comme « la fuite est fermée ».
+# `corrigeable` dit lesquels l'index doit prendre en charge : le verdict ne porte
+# que sur ceux-là, parce qu'un `LIKE '%…%'` qui balaie n'est pas un défaut de
+# plan mais la nature de la requête.
+CHEMINS: tuple[tuple[str, str, bool], ...] = (
+    ("exact (resolution.py)", "requete_nom_exact", True),
+    ("préfixe GLOB (dedup_entreprises.py)", "requete_candidats_prefixe", True),
+    ("sous-chaîne (dedup_entreprises.py)", "requete_candidats_sous_chaine", False),
+)
 
-    Le repli par sous-chaîne n'est pas ici : aucun index ne le corrige, et
-    l'inclure ferait échouer une vérification qui a raison de passer.
-    """
-    from falkye.dedup_entreprises import requete_candidats_prefixe
-    from falkye.resolution import requete_nom_exact
 
-    return {
-        "nom exact (resolution.py)": _plan(session, requete_nom_exact("construction abc")),
-        "préfixe GLOB (dedup_entreprises.py)": _plan(
-            session, requete_candidats_prefixe("construction")
+def _requetes():
+    """Les requêtes DU MOTEUR, jamais recopiées ici — un plan mesuré sur une
+    requête réécrite à côté ne dit rien de celle qui tourne."""
+    from falkye import dedup_entreprises, resolution
+
+    fabriques = {
+        "requete_nom_exact": lambda: resolution.requete_nom_exact("construction abc"),
+        "requete_candidats_prefixe": lambda: dedup_entreprises.requete_candidats_prefixe(
+            "construction"
+        ),
+        "requete_candidats_sous_chaine": lambda: dedup_entreprises.requete_candidats_sous_chaine(
+            "constr"
         ),
     }
+    return [(libelle, fabriques[nom](), corrigeable) for libelle, nom, corrigeable in CHEMINS]
+
+
+def plans(session) -> dict[str, str]:
+    """Le plan des TROIS chemins de résolution, dans l'ordre du moteur."""
+    return {libelle: _plan(session, requete) for libelle, requete, _ in _requetes()}
 
 
 def verifier(session) -> list[str]:
-    """Les plans qui n'utilisent PAS l'index composite. Vide = l'index sert."""
+    """Les plans CORRIGEABLES qui n'utilisent pas l'index composite.
+
+    Vide = l'index sert. Le repli par sous-chaîne en est exclu à dessein : aucun
+    index ne rattrape une sous-chaîne non ancrée, et l'inclure ferait échouer une
+    vérification qui a raison de passer.
+    """
+    plan_par_libelle = plans(session)
     return [
-        f"{nom} → {plan}"
-        for nom, plan in plans(session).items()
-        if INDEX_COMPOSITE not in plan
+        f"{libelle} → {plan_par_libelle[libelle]}"
+        for libelle, _, corrigeable in _requetes()
+        if corrigeable and INDEX_COMPOSITE not in plan_par_libelle[libelle]
     ]
 
 
@@ -116,6 +140,13 @@ def appliquer(session, retirer_redondant: bool = False) -> None:
     if retirer_redondant:
         connexion.execute(text(f"DROP INDEX IF EXISTS {INDEX_REDONDANT}"))
     session.commit()
+
+
+def _afficher(plan_par_libelle: dict[str, str]) -> None:
+    corrigeable_par_libelle = {libelle: c for libelle, _, c in CHEMINS}
+    for libelle, plan in plan_par_libelle.items():
+        marque = " " if corrigeable_par_libelle[libelle] else "!"
+        print(f"  {marque} {libelle:<38} {plan}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -143,9 +174,9 @@ def main(argv: list[str] | None = None) -> int:
         for nom in sorted(avant):
             print(f"    {nom}")
 
+        avant_plans = plans(session)
         print("\nplans AVANT :")
-        for nom, plan in plans(session).items():
-            print(f"    {nom:<38} {plan}")
+        _afficher(avant_plans)
 
         if not args.appliquer:
             print(
@@ -159,8 +190,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{INDEX_REDONDANT} retiré.")
 
         print("\nplans APRÈS :")
-        for nom, plan in plans(session).items():
-            print(f"    {nom:<38} {plan}")
+        _afficher(plans(session))
 
         manques = verifier(session)
         if manques:
@@ -169,7 +199,13 @@ def main(argv: list[str] | None = None) -> int:
                 + "\n".join(f"    {m}" for m in manques)
             )
             return 1
-        print("\nLes deux requêtes chères passent par l'index composite.")
+        print(
+            "\nLes deux requêtes corrigeables passent par l'index composite.\n"
+            "! le repli par sous-chaîne balaie toujours : aucun index ne rattrape "
+            "un `LIKE '%…%'`.\n"
+            "  C'est une LECTURE FACTURÉE de la base durable — la fuite est "
+            "réduite, pas fermée."
+        )
         return 0
     finally:
         session.close()
