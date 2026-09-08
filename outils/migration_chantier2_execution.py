@@ -10,6 +10,8 @@ deux mesures de coût d'une exécution :
         execution_id
     diff_quarantaines    (base des MIROIRS, fichier local)
         execution_id
+    journal_exploitation (base du PRODUIT, distante)
+        repli_id — index UNIQUE
 
 **Deux bases, et c'est le fait qui commande.** Le mandat demande « un
 identifiant d'exécution partagé permettant de rattacher les trois traces à un
@@ -50,24 +52,31 @@ COLONNES: tuple[tuple[str, str, str, str], ...] = (
     ("SourceRunLog", "source_run_logs", "nb_resolutions_sous_chaine", "INTEGER"),
     ("DiffRunHistorique", "diff_run_historique", "execution_id", "VARCHAR(32)"),
     ("DiffQuarantaine", "diff_quarantaines", "execution_id", "VARCHAR(32)"),
+    ("JournalExploitation", "journal_exploitation", "repli_id", "VARCHAR(32)"),
 )
 
+# (modèle, nom, table, colonne, unique). `repli_id` est UNIQUE : deux reprises
+# concurrentes du journal de repli doivent se heurter à la base plutôt que de se
+# fier chacune à une lecture faite juste avant.
 INDEX = (
-    ("SourceRunLog", "ix_source_run_logs_execution_id", "source_run_logs", "execution_id"),
-    ("DiffRunHistorique", "ix_diff_run_historique_execution_id", "diff_run_historique", "execution_id"),
-    ("DiffQuarantaine", "ix_diff_quarantaines_execution_id", "diff_quarantaines", "execution_id"),
+    ("SourceRunLog", "ix_source_run_logs_execution_id", "source_run_logs", "execution_id", False),
+    ("DiffRunHistorique", "ix_diff_run_historique_execution_id", "diff_run_historique", "execution_id", False),
+    ("DiffQuarantaine", "ix_diff_quarantaines_execution_id", "diff_quarantaines", "execution_id", False),
+    ("JournalExploitation", "ix_journal_exploitation_repli_id", "journal_exploitation", "repli_id", True),
 )
 
 
 def _modele(nom: str):
     from falkye.models.diff_quarantaine import DiffQuarantaine
     from falkye.models.diff_run_historique import DiffRunHistorique
+    from falkye.models.journal_exploitation import JournalExploitation
     from falkye.models.run_log import SourceRunLog
 
     return {
         "SourceRunLog": SourceRunLog,
         "DiffRunHistorique": DiffRunHistorique,
         "DiffQuarantaine": DiffQuarantaine,
+        "JournalExploitation": JournalExploitation,
     }[nom]
 
 
@@ -108,9 +117,10 @@ def appliquer(session) -> list[str]:
             text(f"ALTER TABLE {table} ADD COLUMN {colonne} {typesql}")
         )
         faits.append(f"{table}.{colonne}")
-    for modele, nom_index, table, colonne in INDEX:
+    for modele, nom_index, table, colonne, unique in INDEX:
+        mot = "UNIQUE INDEX" if unique else "INDEX"
         connexion(session, modele).execute(
-            text(f"CREATE INDEX IF NOT EXISTS {nom_index} ON {table} ({colonne})")
+            text(f"CREATE {mot} IF NOT EXISTS {nom_index} ON {table} ({colonne})")
         )
     session.commit()
     return faits
