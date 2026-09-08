@@ -6,7 +6,7 @@ deux mesures de coût d'une exécution :
     source_run_logs      (base du PRODUIT, distante)
         execution_id, nb_lignes_source, nb_lignes_lues_base, duree_ms,
         nb_resolutions_exact, nb_resolutions_prefixe, nb_resolutions_sous_chaine,
-        lance_par
+        lance_par, decision_par, decision_motif, decision_le
     diff_run_historique  (base des MIROIRS, fichier local)
         execution_id
     diff_quarantaines    (base des MIROIRS, fichier local)
@@ -54,6 +54,9 @@ COLONNES: tuple[tuple[str, str, str, str], ...] = (
     ("DiffRunHistorique", "diff_run_historique", "execution_id", "VARCHAR(32)"),
     ("DiffQuarantaine", "diff_quarantaines", "execution_id", "VARCHAR(32)"),
     ("SourceRunLog", "source_run_logs", "lance_par", "VARCHAR(10)"),
+    ("SourceRunLog", "source_run_logs", "decision_par", "VARCHAR(120)"),
+    ("SourceRunLog", "source_run_logs", "decision_motif", "TEXT"),
+    ("SourceRunLog", "source_run_logs", "decision_le", "DATETIME"),
     ("JournalExploitation", "journal_exploitation", "repli_id", "VARCHAR(32)"),
 )
 
