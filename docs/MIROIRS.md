@@ -126,15 +126,22 @@ dispense d'adresse n'est pas dans le code déployé — voir
 
 ## Ce que le miroir coûte à chaque cycle
 
-**⚠️ Deux mesures, et la seconde renverse la conclusion de la première.** Elles
-sont gardées toutes les deux : c'est l'écart entre elles qui porte l'information.
+**⚠️ TROIS mesures, et chacune déplace le diagnostic de la précédente.** Elles
+sont gardées toutes les trois : c'est l'écart entre elles qui porte
+l'information, et le même code a trois régimes selon les conditions.
 
-| | En développement | Sur l'hôte |
-|---|---|---|
-| Durée | 92,5 min | **1 h 26** |
-| Temps processeur | 41 min sur 41 écoulées — **100 %** | 19 min sur 86 — **22 %** |
-| Pic mémoire | 428 Mo | 414 Mo |
-| Base du produit | fichier local | **distante, ~111 ms l'aller-retour** |
+| | En développement | Hôte, amorçage | Hôte, **régime** |
+|---|---|---|---|
+| Durée | 92,5 min | 1 h 26 | **29 min 10 s** |
+| Temps processeur | 41 min sur 41 — **100 %** | 19 min sur 86 — **22 %** | 1 min 43 s sur 29 — **6 %** |
+| Pic mémoire | 428 Mo | 414 Mo | 396 Mo |
+| Base du produit | fichier local | distante, ~111 ms | distante, ~111 ms |
+| État de diff | amorcé | **à amorcer** | amorcé |
+| Facteur dominant | le repli de résolution | la latence de la base | **l'enrichissement qui échoue** |
+
+**Avant de conclure quoi que ce soit sur la lenteur d'un cycle, établir lequel
+des trois régimes on observe.** Un profil mesuré dans l'un ne dit rien des deux
+autres — c'est l'erreur commise deux fois ici.
 
 **En développement, le cycle est limité par le processeur.** Douze prélèvements
 sur quatorze tombent au même endroit : `falkye/sources/req.py`, le **repli par
@@ -147,10 +154,26 @@ SCAN des 2,7 millions de lignes :
 | Préfixe indexé (`GLOB 'transport*'`) | 0,007 s — SEARCH via l'index |
 | Repli par sous-chaîne (`LIKE '%boulan%'`) | 0,32 s — SCAN complet |
 
-**Sur l'hôte, il n'est plus le facteur dominant.** 78 % du temps est de
-l'ATTENTE, pas du calcul. Le miroir y est local et rapide; ce qui coûte, c'est la
-latence de la base du produit — un aller-retour par validation, et depuis le
+**Sur l'hôte à l'amorçage, il n'est plus le facteur dominant.** 78 % du temps est
+de l'ATTENTE, pas du calcul. Le miroir y est local et rapide; ce qui coûte, c'est
+la latence de la base du produit — un aller-retour par validation, et depuis le
 7 septembre une validation par signal neuf.
+
+**En régime, ce n'est plus la latence non plus.** Le cycle du 8 septembre :
+
+    ingestion des 8 sources   13 min 07 s   ← le travail utile
+    enrichissement web        16 min 03 s   ← des 403 en série
+
+**Seize minutes sur vingt-neuf sont du temps passé à ÉCHOUER**, pas à travailler.
+Et 6 % de processeur dit que le reste ne calcule presque rien : en régime, un
+cycle vérifie surtout que rien n'a changé.
+
+Ça change la nature du point 27.1 du mandat. Il n'était que « l'enrichissement
+tourne pour chaque entreprise détectée, avant tout seuil » — du gaspillage
+mesuré en appels. Il est devenu **la moitié de la durée d'un cycle, entièrement
+dépensée en échecs**, depuis que le moteur de recherche répond 403 Forbidden
+depuis l'hôte (et non plus des délais d'attente). À remonter dans l'ordre du
+chantier 27.
 
 **Ce que ça change au levier**, et c'est la raison de garder les deux mesures :
 indexer autrement le repli optimiserait 22 % du temps. Le vrai gain serait de

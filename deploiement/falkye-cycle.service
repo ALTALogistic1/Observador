@@ -25,26 +25,33 @@ ExecStart=/opt/falkye/venv/bin/falkye cycle
 # Un cycle qui dépasse largement sa durée normale est bloqué, pas lent : le tuer
 # libère le créneau suivant au lieu d'empiler deux exécutions.
 #
-# 3 600 s tenaient jusqu'au 2026-09-07. Ce n'était pas une mesure, c'était une
-# heure ronde — et un cycle complet mesuré ce jour-là, sur une copie de la base
-# de production avec le miroir REQ chargé, a pris **92,5 minutes**. Le délai
-# aurait tué le cycle hebdomadaire à mi-parcours, chaque mardi, en laissant
-# l'unité en échec sans que rien ne dise pourquoi.
+# **1 h 30, dimensionné sur une mesure du RÉGIME — 2026-09-08.** Un cycle
+# hebdomadaire ordinaire, état de diff amorcé et filtre territorial actif, prend
+# **29 min 10 s** : 13 min d'ingestion sur huit sources, puis 16 min
+# d'enrichissement. Marge de 3,1.
 #
-# 10 800 s est provisoire et volontairement large : la mesure est locale, et
-# l'hôte écrit le produit dans la base DISTANTE (~111 ms l'aller-retour), donc
-# il sera plus lent, pas plus rapide. À resserrer quand la durée sur l'hôte
-# sera connue — falkye-cycle-sans-livraison.service est là pour ça.
+# **Pourquoi 3,1 et pas plus, ni moins.** Les deux erreurs ne sont pas
+# symétriques mais elles se valent : trop court TUE un cycle qui travaillait —
+# vécu deux fois, à 3 600 s puis à 10 800 s ; trop long laisse un cycle BLOQUÉ
+# mobiliser l'hôte une demi-journée sans que rien ne le signale. 5 400 s est le
+# point où elles coûtent à peu près pareil. La marge absorbe une source lente,
+# un portail en 504, un trimestre neuf qui ferait remonter le volume, ou un
+# enrichissement qui redevient fonctionnel — donc plus lent qu'un échec
+# immédiat.
 #
-# Le vrai remède n'est pas le délai — mais il n'est pas non plus là où on l'a
-# d'abord cru. En développement, le cycle est limité par le processeur et le
-# repli par sous-chaîne de la résolution NEQ le domine. SUR L'HÔTE, mesuré le
-# 2026-09-07 : 19 min de calcul sur 1 h 26 écoulées, soit 78 % d'ATTENTE. Le
-# miroir y est local; ce qui coûte est la latence de la base distante. Réduire
-# le nombre d'allers-retours paierait, indexer le repli beaucoup moins — et la
-# première piste entre en tension avec la validation par signal. Voir
-# docs/MIROIRS.md, section « Ce que le miroir coûte à chaque cycle ».
-TimeoutStartSec=10800
+# **L'histoire des valeurs, parce qu'elle explique la méthode.**
+#   3 600 s  — une heure ronde, aucune mesure. A tué un cycle.
+#   10 800 s — dimensionné sur l'AMORÇAGE. A tué le run de référence.
+#   5 400 s  — dimensionné sur le RÉGIME, le seul état que ce minuteur verra.
+# Régler sur l'amorçage aurait été l'erreur symétrique de l'heure ronde.
+#
+# **Où va le temps, et ce n'est plus ce qu'on croyait.** Le même code a TROIS
+# régimes : limité par le processeur en développement, par la latence de la base
+# à l'amorçage sur l'hôte, et EN RÉGIME par un enrichissement web qui échoue en
+# 403 — seize minutes sur vingt-neuf passées à échouer, pour 6 % de processeur.
+# Voir docs/MIROIRS.md, « Ce que le miroir coûte à chaque cycle » : avant de
+# conclure sur la lenteur d'un cycle, établir lequel des trois on observe.
+TimeoutStartSec=5400
 
 # Le cache de téléchargement des sources. SANS ces deux lignes, le connecteur
 # CKAN écrit dans le chemin RELATIF `./cache`, qui se résout sous
