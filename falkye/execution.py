@@ -31,6 +31,8 @@ pas de rattachement du tout : il ferait croire à un lien vérifié.
 """
 from __future__ import annotations
 
+import enum
+import os
 import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -69,3 +71,32 @@ def execution(identifiant: str | None = None):
         yield identifiant
     finally:
         _execution.reset(jeton)
+
+
+class Lancement(str, enum.Enum):
+    """Qui a lancé cette exécution — et donc ce qu'on a le droit d'en déduire.
+
+    **La distinction n'est pas cosmétique.** « systemd l'aurait tuée » suppose
+    que systemd la surveillait. Un cycle lancé à la main n'est gouverné par aucun
+    délai : il peut tourner trois heures sans que personne l'interrompe, et il y
+    en a eu beaucoup cette semaine. Conclure `interrompue` sur une de ces
+    exécutions serait une conclusion vraie sous une condition qu'on n'a pas
+    vérifiée — la forme même du défaut que ce chantier existe pour retirer.
+    """
+
+    UNITE = "unite"
+    MANUEL = "manuel"
+    #: Les lignes écrites avant que ce champ existe. Ni l'un ni l'autre : on ne
+    #: sait pas, et on ne le devinera pas après coup.
+    INCONNU = "inconnu"
+
+
+def mode_de_lancement() -> Lancement:
+    """`UNITE` si systemd a démarré ce processus, `MANUEL` sinon.
+
+    `INVOCATION_ID` est posé par systemd dans l'environnement de tout processus
+    qu'il démarre, et par rien d'autre. Le lire est plus sûr que d'inspecter le
+    parent : un cycle lancé à la main depuis un shell d'un service resterait
+    manuel pour la question qui nous occupe — personne ne le tuera au délai.
+    """
+    return Lancement.UNITE if os.environ.get("INVOCATION_ID") else Lancement.MANUEL
