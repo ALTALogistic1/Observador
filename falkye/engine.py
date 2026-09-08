@@ -393,6 +393,31 @@ def _ingerer_source(
             else StatutExecution.SUCCES.value
         )
         run_log.nb_signaux_detectes = report.nb_signaux_nouveaux
+        # **Le volume BRUT de l'exécution — écrit dès maintenant, lu plus tard.**
+        #
+        # La norme de volume (travail 2 du chantier 2) ne devient calculable
+        # qu'avec de l'historique, et l'historique ne se rattrape pas en
+        # accélérant après coup : reporter la LECTURE de la norme est un choix,
+        # reporter son ACCUMULATION en serait un autre, et le second coûterait
+        # six mois.
+        #
+        # **Ce que ce compte est, exactement.** Le nombre de lignes que le
+        # connecteur a RENDUES pour cette exécution — avant le filtre
+        # territorial, avant la déduplication par `source_ref`, avant toute
+        # résolution. C'est le volume que la source a produit, pas celui qui a
+        # survécu, et c'est bien ce dont une norme de volume a besoin : une
+        # source qui se dégrade rend moins de lignes, même quand le nombre de
+        # signaux NEUFS reste stable parce que le reste était déjà connu.
+        #
+        # **Ce qu'il n'est PAS.** Pour une source de type instantané, ce n'est
+        # pas le nombre de lignes du FICHIER : le connecteur rend des signaux
+        # dérivés d'un diff, pas les lignes lues. Ce compte-là existe, dans
+        # `DiffRunHistorique.nb_lignes_actuelles` — et il se rejoint par
+        # `execution_id`, ce pour quoi cet identifiant a été posé. Écrire
+        # l'un à la place de l'autre ferait comparer des sources instantané et
+        # des sources événement sur deux grandeurs différentes portant le même
+        # nom, ce que le renommage du 8 septembre a précisément retiré.
+        run_log.nb_lignes_source = dans_territoire + hors_territoire
         run_log.finished_at = datetime.now(timezone.utc)
         run_log.duree_ms = int((time.monotonic() - debut) * 1000)
         # Des comptes, pas des lignes lues : la conversion se fait à la lecture,
