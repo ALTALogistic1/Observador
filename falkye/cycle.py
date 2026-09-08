@@ -55,6 +55,9 @@ class RapportCycle:
     #: états distincts (introuvable, vide, lu) et les aplatir en nombres
     #: reperdrait la distinction qu'il existe pour porter.
     repli: str | None = None
+    #: Ce que la reprise des exécutions restées ouvertes a conclu — et surtout
+    #: ce qu'elle a REFUSÉ de conclure. Une chaîne, même raison que `repli`.
+    interruptions: str | None = None
     echecs: list[str] = field(default_factory=list)
 
     @property
@@ -122,6 +125,10 @@ class RapportCycle:
         # n'existe pas, et l'écrire à chaque cycle apprendrait à l'ignorer.
         if self.repli and "vide" not in self.repli:
             texte += f", {self.repli}"
+        # Même règle : ne s'écrit que s'il y a quelque chose à dire. « 0
+        # refermée » chaque semaine apprendrait à sauter la ligne.
+        if self.interruptions and "0 refermée(s)" not in self.interruptions:
+            texte += f", {self.interruptions}"
         return texte
 
 
@@ -213,6 +220,7 @@ def executer_cycle(lookback_days: int = 30, livrer_les_resumes: bool = True) -> 
     from falkye.engine import run_veille_continue
     from falkye.reconciliation import reconcilier_livraisons
     from falkye.reconciliation_repli import EtatJournal, reconcilier_journal_repli
+    from falkye.sante_source import refermer_executions_interrompues
     from falkye.registry.loader import get_registry
     from falkye.summary import generer_et_envoyer_resume
 
@@ -271,6 +279,15 @@ def executer_cycle(lookback_days: int = 30, livrer_les_resumes: bool = True) -> 
                 logger.warning("%s", rapport.repli)
             elif rapport_repli.lignes_illisibles or rapport_repli.a_repris_quelque_chose:
                 logger.info("%s", rapport.repli)
+
+            # Puis les lignes d'exécution restées ouvertes. APRÈS la reprise du
+            # journal de repli, pas avant : c'est elle qui rapatrie ce que la
+            # base n'avait pas pu écrire, et refermer d'abord ferait conclure
+            # sur un état incomplet.
+            interruptions = refermer_executions_interrompues(db_session)
+            rapport.interruptions = interruptions.resume_lisible()
+            if interruptions.refermees or interruptions.non_decidables:
+                logger.info("%s", rapport.interruptions)
 
             reconciliation = reconcilier_livraisons(db_session, get_registry())
             rapport.remises_rebondies = reconciliation.rebondies

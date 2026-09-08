@@ -43,6 +43,43 @@ class StatutExecution(str, enum.Enum):
     QUARANTAINE = "quarantaine"
     ERREUR = "erreur"
     IGNOREE = "ignoree"
+    #: L'exécution n'a pas fini, et personne n'a pu écrire pourquoi. Distincte
+    #: d'`ERREUR`, qui veut dire « on a vu l'échec et on l'a consigné » :
+    #: `INTERROMPUE` veut dire « on ne sait pas pourquoi, seulement que ça n'a
+    #: pas fini ». Le 2026-09-08 en donne les deux exemples — un SIGTERM, et un
+    #: quota épuisé qui empêchait d'écrire la trace de sa propre panne.
+    INTERROMPUE = "interrompue"
+
+
+#: Les statuts qui décrivent **la source**, et eux seuls, entrent dans sa santé :
+#: norme de volume, escalade de quarantaine, dernière exécution réussie.
+#:
+#: `INTERROMPUE` n'en est pas. Un quota épuisé n'est pas huit connecteurs qui se
+#: dégradent, c'est l'infrastructure qui tombe — et le statut décrit l'exécution,
+#: pas le connecteur. Le compter dans la santé recréerait, par le statut même qui
+#: les distingue, la confusion des causes que ce chantier existe pour lever.
+#:
+#: Il reste VISIBLE au tableau de bord d'exploitation : ne pas dégrader une
+#: source n'est pas se taire.
+STATUTS_DE_SOURCE = frozenset(
+    {
+        StatutExecution.SUCCES.value,
+        StatutExecution.QUARANTAINE.value,
+        StatutExecution.ERREUR.value,
+    }
+)
+
+#: Ce qui décrit l'INFRASTRUCTURE — l'hôte, la base, le quota —, jamais la source.
+STATUTS_DINFRASTRUCTURE = frozenset({StatutExecution.INTERROMPUE.value})
+
+
+def decrit_la_source(statut: str) -> bool:
+    """Ce statut doit-il peser sur la santé de la source?
+
+    Ni `EN_COURS` (rien n'est conclu) ni `IGNOREE` (la source n'a pas été
+    tentée) ni `INTERROMPUE` (l'infrastructure a lâché) n'y entrent.
+    """
+    return statut in STATUTS_DE_SOURCE
 
 
 class SourceRunLog(Base):
@@ -57,6 +94,16 @@ class SourceRunLog(Base):
     # trace écrite hors d'une exécution ouverte — jamais un identifiant
     # fabriqué (falkye/execution.py).
     execution_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+
+    # Qui a démarré cette exécution — `unite`, `manuel`, ou `inconnu` pour les
+    # lignes écrites avant que ce champ existe.
+    #
+    # **Ce champ est la condition de validité d'une déduction**, pas une
+    # curiosité. Refermer une ligne restée ouverte s'appuie sur « au-delà du
+    # délai de l'unité, systemd l'aurait tuée » — ce qui suppose que systemd la
+    # surveillait. Un cycle lancé à la main n'est gouverné par aucun délai. Sans
+    # ce champ, la bascule serait vraie sous une condition non vérifiée.
+    lance_par: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     started_at: Mapped[datetime] = mapped_column(default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
