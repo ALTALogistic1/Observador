@@ -50,6 +50,11 @@ class RapportCycle:
     sources_en_erreur: int = 0
     sources_ingerees: int = 0
     livraison_omise: bool = False
+    #: Ce que la reprise du journal de repli a trouvé — son résumé lisible, tel
+    #: quel. Une chaîne plutôt que des compteurs éclatés : ce rapport dit trois
+    #: états distincts (introuvable, vide, lu) et les aplatir en nombres
+    #: reperdrait la distinction qu'il existe pour porter.
+    repli: str | None = None
     echecs: list[str] = field(default_factory=list)
 
     @property
@@ -112,6 +117,11 @@ class RapportCycle:
                 f", {self.remises_rebondies} remise(s) rebondie(s) du cycle précédent "
                 f"({self.opportunites_remises_en_attente} opportunité(s) reprise(s))"
             )
+        # La reprise du journal de repli ne s'ajoute que si elle a quelque chose
+        # à dire : sur une machine où la base n'est jamais tombée, le fichier
+        # n'existe pas, et l'écrire à chaque cycle apprendrait à l'ignorer.
+        if self.repli and "vide" not in self.repli:
+            texte += f", {self.repli}"
         return texte
 
 
@@ -202,6 +212,7 @@ def executer_cycle(lookback_days: int = 30, livrer_les_resumes: bool = True) -> 
     from falkye.db import get_session
     from falkye.engine import run_veille_continue
     from falkye.reconciliation import reconcilier_livraisons
+    from falkye.reconciliation_repli import EtatJournal, reconcilier_journal_repli
     from falkye.registry.loader import get_registry
     from falkye.summary import generer_et_envoyer_resume
 
@@ -246,6 +257,21 @@ def executer_cycle(lookback_days: int = 30, livrer_les_resumes: bool = True) -> 
             # livrer l'a-t-il été? Un rebond remet ses opportunités en attente, et
             # elles doivent repartir DANS CE CYCLE-CI, pas au suivant — sinon un
             # refus coûterait deux semaines au lieu d'une.
+            # AVANT tout le reste : ce que le cycle PRÉCÉDENT n'a pas pu écrire
+            # parce que la base était muette. Ces lignes-là n'existent que dans
+            # le fichier de repli, et c'est ici le premier moment où la base
+            # répond — même place et même raison que la réconciliation des
+            # livraisons juste en dessous.
+            rapport_repli = reconcilier_journal_repli(db_session)
+            rapport.repli = rapport_repli.resume_lisible()
+            if rapport_repli.etat is EtatJournal.INTROUVABLE:
+                # « Je ne sais pas » n'est pas « rien à réconcilier ». Le dire
+                # une fois, sans faire échouer le cycle : le journal de repli
+                # peut légitimement ne jamais avoir servi.
+                logger.warning("%s", rapport.repli)
+            elif rapport_repli.lignes_illisibles or rapport_repli.a_repris_quelque_chose:
+                logger.info("%s", rapport.repli)
+
             reconciliation = reconcilier_livraisons(db_session, get_registry())
             rapport.remises_rebondies = reconciliation.rebondies
             rapport.opportunites_remises_en_attente = (

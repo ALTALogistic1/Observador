@@ -21,7 +21,7 @@ def base_non_migree(db_session):
     la colonne (« error in index … after drop column »). C'est aussi l'ordre du
     retour arrière réel, et c'est pour ça qu'il est écrit ici plutôt que supposé.
     """
-    for modele, nom_index, _, _ in migration.INDEX:
+    for modele, nom_index, _, _, _ in migration.INDEX:
         migration.connexion(db_session, modele).execute(
             text(f"DROP INDEX IF EXISTS {nom_index}")
         )

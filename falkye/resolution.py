@@ -18,6 +18,7 @@ from falkye.dedup_entreprises import (
     journaliser_candidat_fusion,
     trouver_meilleur_candidat_fusion,
 )
+from falkye.cout_lectures import CHEMIN_EXACT, compter
 from falkye.models.company import Company, StatutLegal, StatutResolution
 from falkye.sources import req as req_source
 from falkye.sources.base import RawSignal
@@ -49,6 +50,7 @@ def _find_unresolved_company(db_session: Session, nom_detecte: str) -> Company |
     toutes les entreprises non résolues — voir le commentaire sur cette colonne dans
     falkye/models/company.py (sinon quadratique sur de gros volumes, ex. SEAO)."""
     nom_norm = normaliser(nom_detecte)
+    compter(CHEMIN_EXACT)
     return db_session.execute(requete_nom_exact(nom_norm)).scalar_one_or_none()
 
 
