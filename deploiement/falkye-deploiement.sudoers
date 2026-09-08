@@ -1,7 +1,7 @@
 # À installer par root : /etc/sudoers.d/falkye-deploiement (mode 0440),
 # après `visudo -c -f` pour valider.
 #
-# La chaîne de déploiement peut faire SIX actions nommées sur CINQ unités, et
+# La chaîne de déploiement peut faire SEPT actions nommées sur CINQ unités, et
 # rien d'autre. Pas de `systemctl *`, pas de shell, pas de lecture de fichier.
 # Ce que ça garantit concrètement : une chaîne compromise peut interrompre le
 # service, jamais lire la base ni les clés d'envoi — celles-ci vivent dans
@@ -10,6 +10,14 @@
 # `falkye-miroir-req.service` s'ajoute à la liste le 2026-09-06, avec la même
 # garantie : `deploy` peut la DÉMARRER, jamais lire ce qu'elle lit. L'unité
 # tourne avec les identifiants de la base; la chaîne, non.
+#
+# **Pouvoir lancer sans pouvoir arrêter est un défaut**, constaté le 2026-09-07 :
+# un cycle déclenché par la chaîne tournait en écrivant dans la base distante, et
+# il a fallu une intervention humaine en root pour l'interrompre. `stop` est
+# moins dangereux que `start` — il ne peut que rendre la machine plus calme — et
+# son absence obligeait à réveiller quelqu'un pour défaire ce que la chaîne avait
+# fait. Il n'est ajouté que pour l'unité d'observation : arrêter le cycle du
+# minuteur ou le point d'entrée public reste hors de portée.
 #
 # `falkye-cycle-sans-livraison.service` s'ajoute le 2026-09-07, sous la même
 # garantie encore. Elle porte en plus une propriété qui compte ici : c'est la
@@ -32,4 +40,5 @@ deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart falkye-web.service, \
                             /usr/bin/systemctl start falkye-migration.service, \
                             /usr/bin/systemctl start falkye-miroir-req.service, \
                             /usr/bin/systemctl start falkye-cycle-sans-livraison.service, \
+                            /usr/bin/systemctl stop falkye-cycle-sans-livraison.service, \
                             /usr/bin/systemctl status falkye-web.service
