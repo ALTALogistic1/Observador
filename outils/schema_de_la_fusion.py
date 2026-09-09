@@ -53,17 +53,32 @@ LIMITE = (
 )
 
 
-def _revision() -> str:
+def _revision(annoncee: str | None = None) -> tuple[str, str]:
+    """La révision du relevé, et COMMENT on l'a obtenue.
+
+    `git rev-parse HEAD` est faux dans un flux déclenché sur `pull_request` :
+    GitHub y extrait une **fusion éphémère** entre la demande et sa base, dont
+    l'empreinte n'existe dans aucune branche et ne se retrouve nulle part. Le
+    rapport affichait donc une révision que personne ne peut aller regarder —
+    exactement le genre de valeur qui se lit comme vérifiée sans l'être.
+
+    D'où `--revision` : l'appelant qui SAIT quelle révision il relève la nomme.
+    La provenance voyage avec la valeur dans le relevé, pour qu'une reprise qui
+    la perd se voie.
+    """
+    if annoncee:
+        return annoncee[:7], "annoncee"
     try:
-        return subprocess.run(
+        courte = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
             capture_output=True, text=True, timeout=5, check=False,
-        ).stdout.strip() or "inconnue"
+        ).stdout.strip()
     except (OSError, subprocess.SubprocessError):
-        return "inconnue"
+        courte = ""
+    return (courte, "git") if courte else ("inconnue", "indisponible")
 
 
-def relever() -> dict:
+def relever(revision: str | None = None) -> dict:
     """Le schéma que les modèles DE CE DÉPÔT décrivent. Aucune base ouverte.
 
     On lit les métadonnées SQLAlchemy directement plutôt que de créer une base
@@ -90,8 +105,10 @@ def relever() -> dict:
                 },
             }
         bases[nom] = tables
+    revision_relevee, provenance = _revision(revision)
     return {
-        "revision": _revision(),
+        "revision": revision_relevee,
+        "revision_provenance": provenance,
         "releve_le": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "bases": bases,
     }
@@ -186,11 +203,17 @@ def main(argv: list[str] | None = None) -> int:
     parseur.add_argument(
         "--comparer", nargs=2, metavar=("AVANT", "APRES"), help="compare deux relevés"
     )
+    parseur.add_argument(
+        "--revision",
+        metavar="SHA",
+        help="révision à inscrire au relevé; sans elle, `git rev-parse HEAD`, "
+        "qui vaut une fusion éphémère sous un flux `pull_request`",
+    )
     args = parseur.parse_args(argv)
 
     if args.relever:
         with open(args.relever, "w", encoding="utf-8") as f:
-            json.dump(relever(), f, ensure_ascii=False, indent=2)
+            json.dump(relever(args.revision), f, ensure_ascii=False, indent=2)
         print(f"relevé écrit dans {args.relever}")
         return 0
 

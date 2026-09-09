@@ -158,3 +158,43 @@ def test_le_releve_nomme_les_index_uniques_du_vrai_modele():
     index = relever()["bases"]["produit"]["journal_exploitation"]["index"]
 
     assert index["ix_journal_exploitation_repli_id"]["unique"] is True
+
+
+# --- La révision affichée doit se retrouver -------------------------------
+#
+# Sous un flux `pull_request`, GitHub extrait une FUSION ÉPHÉMÈRE entre la
+# demande et sa base. `git rev-parse HEAD` y répond une empreinte réelle, mais
+# qui n'existe dans aucune branche : le premier rapport affichait `2c36c3c`,
+# introuvable. Une valeur exacte et invérifiable se lit comme vérifiée.
+
+
+def test_la_revision_annoncee_l_emporte_sur_celle_du_depot():
+    releve = relever(revision="0123456789abcdef0123456789abcdef01234567")
+
+    assert releve["revision"] == "0123456"
+    assert releve["revision_provenance"] == "annoncee"
+
+
+def test_sans_revision_annoncee_le_releve_dit_qu_il_a_lu_le_depot():
+    """La provenance voyage avec la valeur : un relevé qui a deviné sa révision
+    ne doit pas être indiscernable d'un relevé à qui on l'a nommée."""
+    releve = relever()
+
+    assert releve["revision_provenance"] in {"git", "indisponible"}
+
+
+def test_le_flux_nomme_les_deux_revisions_qu_il_releve():
+    """Ce test fige un LIEN entre deux fichiers, pas une valeur : le flux ne
+    peut pas tourner ici, et sans lui rien n'empêcherait un futur passage de
+    retirer `--revision` du YAML en croyant simplifier — le rapport
+    recommencerait alors à afficher la fusion éphémère, sans rien casser."""
+    from pathlib import Path
+
+    flux = Path(__file__).resolve().parents[1] / ".github/workflows/schema-fusion.yml"
+    lignes = flux.read_text(encoding="utf-8")
+
+    # `--revision "` : la forme APPELÉE. Compter `--revision` tout court
+    # attraperait aussi le commentaire qui l'explique juste au-dessus.
+    assert lignes.count('--relever ') == lignes.count('--revision "') == 2
+    assert "pull_request.base.sha" in lignes
+    assert "pull_request.head.sha" in lignes
