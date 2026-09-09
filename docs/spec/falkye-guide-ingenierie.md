@@ -58,6 +58,8 @@ Un fait vérifié se fait citer sous une forme raccourcie, puis sert de prémiss
 
 **Deux règles mécaniques. La preuve voyage avec le fait** — pas « le serveur est actif » mais « le serveur répond, vérifié le 5 septembre par connexion », de sorte qu'une reprise qui la perd se voit. Et **un fait sans preuve attachée ne peut pas servir de prémisse à autre chose**.
 
+**Une valeur tronquée à l'affichage ne se complète jamais de mémoire — elle se relit à la source.** *(journal, cas 29)* C'est le glissement appliqué à une VALEUR plutôt qu'à un état : une forme abrégée est visible — empreinte courte, identifiant tronqué, numéro de version, chemin abrégé — le reste est complété par déduction, et **rien ne distingue à la lecture ce qui a été vu de ce qui a été reconstruit**. Et quand une opération offre de vérifier la valeur attendue, on la lui passe : c'est le seul moment où la reconstitution se voit.
+
 **Test de relecture :** cette affirmation porte-t-elle la trace de ce qui l'a établie? Sinon, c'est une décision — et il faut le dire — ou une supposition déguisée en fait.
 
 ## Un chantier n'est clos que sur l'état observable
