@@ -45,7 +45,14 @@ import sys
 from sqlalchemy import inspect, text
 
 import falkye.models  # noqa: F401 -- enregistre tous les modèles
-from falkye.db import get_engine, get_engine_miroir, init_db
+from falkye.db import (
+    cible_annoncee,
+    get_db_url,
+    get_engine,
+    get_engine_miroir,
+    init_db,
+    sur_repli_par_defaut,
+)
 from falkye.models.base import Base, BaseMiroir
 
 
@@ -139,6 +146,23 @@ def _clause_ajout(table: str, colonne) -> str:
     return clause
 
 
+#: Un verdict de schéma rendu sur une base vide est le PIRE des verdicts
+#: possibles, parce que c'est le plus rassurant. `colonnes_manquantes` saute les
+#: tables absentes — « create_all s'en charge » — ce qui est juste sur une base
+#: réelle qu'on étend, et faux sur une base qui n'a rien : zéro table présente
+#: donne zéro colonne manquante, donc « Schéma à jour des deux côtés », code de
+#: sortie 0. Reproduit le 2026-09-09.
+#:
+#: Cette table témoin est la plus ancienne du produit. Si elle manque, ce n'est
+#: pas une dérive de schéma — c'est qu'on ne parle pas à la base du produit.
+TABLE_TEMOIN = "companies"
+
+
+def _refuser(message: str) -> int:
+    print(f"\nREFUS — {message}", file=sys.stderr)
+    return 2
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -146,10 +170,47 @@ def main() -> int:
         action="store_true",
         help="exécute les ALTER TABLE (sans ce drapeau, l'outil ne fait que rapporter)",
     )
+    parser.add_argument(
+        "--repli-par-defaut",
+        action="store_true",
+        help="autorise le repli local par défaut — à ne passer qu'en développement, "
+        "jamais sur l'hôte",
+    )
     args = parser.parse_args()
+
+    # ANNONCER LA CIBLE, TOUJOURS, ET AVANT TOUT LE RESTE. Le 9 septembre 2026,
+    # deux outils lancés dans la même session root ont rendu des verdicts opposés
+    # sur le schéma. Ni l'un ni l'autre ne disait à quelle base il parlait, et
+    # personne ne pouvait donc voir qu'ils ne parlaient pas à la même.
+    print(cible_annoncee())
+
+    # **Un outil de migration qui crée sa propre cible ne migre rien, il
+    # fabrique.** Le repli de `falkye/db.py` est silencieux ET relatif au
+    # répertoire courant : sur l'hôte, `/etc/falkye/falkye.env` n'est chargé que
+    # par les unités systemd, jamais par un shell interactif. Une commande tapée
+    # à la main crée donc un fichier vide et rend son verdict dessus.
+    if sur_repli_par_defaut() and not args.repli_par_defaut:
+        return _refuser(
+            "aucune cible n'a été choisie : FALKYE_DB_URL est absente, et le repli "
+            f"par défaut ({get_db_url()}) est relatif au répertoire courant.\n"
+            "  Sur l'hôte : set -a; . /etc/falkye/falkye.env; set +a\n"
+            "  En développement, si le repli est vraiment voulu : --repli-par-defaut"
+        )
 
     if args.appliquer:
         init_db()  # les tables manquantes des deux côtés d'abord
+
+    # Après `init_db` sous --appliquer, la table témoin existe forcément. Sans ce
+    # drapeau, son absence dit qu'on lit une base qui n'est pas celle du produit.
+    presentes = set(inspect(get_engine()).get_table_names())
+    if TABLE_TEMOIN not in presentes:
+        return _refuser(
+            f"la table témoin « {TABLE_TEMOIN} » est absente de cette base "
+            f"({len(presentes)} table(s) en tout).\n"
+            "  Ce n'est pas une dérive de schéma : c'est une base vide ou étrangère.\n"
+            "  Rendre « aucune colonne manquante » ici serait exact et trompeur — "
+            "elles manquent TOUTES."
+        )
 
     rien_a_faire = True
     for nom_cible, metadata, engine in cibles():

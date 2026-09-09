@@ -45,6 +45,45 @@ def get_db_url() -> str:
     return os.environ.get("FALKYE_DB_URL", DEFAULT_DB_URL)
 
 
+def sur_repli_par_defaut(db_url: str | None = None) -> bool:
+    """Vrai quand PERSONNE n'a choisi la cible — `FALKYE_DB_URL` est absente.
+
+    **Le défaut que cette fonction existe pour rendre visible.** Le repli est
+    silencieux ET RELATIF au répertoire courant. Sur l'hôte, les identifiants
+    vivent dans `/etc/falkye/falkye.env`, chargé par les unités systemd via
+    `EnvironmentFile=` — jamais par un shell interactif. Une commande tapée à la
+    main parle donc à un fichier local sans le dire, et le chemin change avec le
+    répertoire d'où on la tape.
+    """
+    return (db_url if db_url is not None else get_db_url()) == DEFAULT_DB_URL
+
+
+def cible_annoncee(db_url: str | None = None) -> str:
+    """La cible, en une ligne lisible, sans jamais ouvrir de moteur.
+
+    À imprimer EN TÊTE de tout outil qui juge ou modifie le schéma. Un outil qui
+    ne nomme pas sa cible laisse le lecteur la déduire — et le 9 septembre 2026,
+    deux outils lancés dans la même session ont rendu des verdicts opposés parce
+    que personne ne pouvait voir qu'ils ne parlaient pas à la même base.
+
+    N'appelle NI `get_engine()` NI `resoudre_cible()` : le premier crée le
+    répertoire du repli (`_ensure_sqlite_dir`), et une fonction qui sert à dire
+    « attention, mauvaise cible » ne doit pas fabriquer cette cible en le disant.
+    Le jeton n'apparaît jamais : l'URL distante n'en contient pas, il est un
+    argument nommé du pilote.
+    """
+    url = db_url if db_url is not None else get_db_url()
+    if est_base_distante(url):
+        return f"base : {url}  (distante, durable)"
+    if sur_repli_par_defaut(url):
+        chemin = Path(url.removeprefix("sqlite:///")).resolve()
+        return (
+            f"base : {url}  ⚠️ REPLI PAR DÉFAUT — FALKYE_DB_URL n'est pas définie\n"
+            f"       chemin réel : {chemin}  (relatif au répertoire courant)"
+        )
+    return f"base : {url}  (locale, choisie explicitement)"
+
+
 def get_miroir_db_url() -> str:
     """La cible des miroirs. Indépendante de `FALKYE_DB_URL` À DESSEIN : sur
     l'hôte, le produit vit au distant et les miroirs sur le disque, et faire

@@ -60,6 +60,8 @@ Un fait vérifié se fait citer sous une forme raccourcie, puis sert de prémiss
 
 **Une valeur tronquée à l'affichage ne se complète jamais de mémoire — elle se relit à la source.** *(journal, cas 29)* C'est le glissement appliqué à une VALEUR plutôt qu'à un état : une forme abrégée est visible — empreinte courte, identifiant tronqué, numéro de version, chemin abrégé — le reste est complété par déduction, et **rien ne distingue à la lecture ce qui a été vu de ce qui a été reconstruit**. Et quand une opération offre de vérifier la valeur attendue, on la lui passe : c'est le seul moment où la reconstitution se voit.
 
+**Un outil qui juge ou modifie un schéma annonce sa cible en tête de sortie, et refuse de juger une cible que personne n'a choisie.** *(journal, cas 30)* Troisième forme, après la preuve absente et la preuve périmée : **la preuve fabriquée par l'instrument qui devait la recueillir**. Un repli silencieux vers une base vide fait rendre le verdict le plus RASSURANT — rien ne manque, parce que rien n'existe. Le vert est sincère et l'outil est structurellement incapable de dire non. **Un outil de migration qui crée sa propre cible ne migre rien, il fabrique.**
+
 **Test de relecture :** cette affirmation porte-t-elle la trace de ce qui l'a établie? Sinon, c'est une décision — et il faut le dire — ou une supposition déguisée en fait.
 
 ## Un chantier n'est clos que sur l'état observable

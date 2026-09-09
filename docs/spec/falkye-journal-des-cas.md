@@ -341,3 +341,38 @@ paramètre a rendu inoffensif un défaut qui n'aurait laissé aucune trace.**
 **La règle.** Une valeur tronquée à l'affichage **ne se complète jamais de mémoire — elle se relit à la
 source**. Et quand une opération offre de vérifier la valeur attendue, on la lui passe : c'est le seul
 moment où la reconstitution se voit.
+
+## Cas 30 — La preuve fabriquée par l'instrument qui devait la recueillir *(guide d'ingénierie)*
+
+Le 9 septembre 2026, deux outils lancés dans la même session root, sur le même hôte, ont rendu des
+verdicts opposés sur le schéma de la base. `migration_colonnes.py` : **« Schéma à jour des deux côtés :
+aucune colonne ni index manquant »**, code de sortie 0. `rapport_cout_cycle.py`, deux heures plus tard :
+**quatorze colonnes manquantes**, dont `journal_exploitation.repli_id` — qu'un cycle venait pourtant
+d'écrire, et **une colonne absente ne peut pas recevoir d'écriture**.
+
+**Ni l'un ni l'autre ne disait à quelle base il parlait.** Le repli de `falkye/db.py` est silencieux et
+**relatif au répertoire courant** : sur l'hôte, `/etc/falkye/falkye.env` n'est chargé que par les unités
+systemd, jamais par un shell interactif. Une commande tapée à la main crée donc un fichier SQLite vide et
+rend son verdict dessus, sans que rien ne le signale.
+
+**Le vert était le pire des deux verdicts, et c'est ça le cas.** La comparaison saute les tables absentes
+— *« create_all s'en charge »*, juste sur une base réelle qu'on étend. Sur une base vide, **zéro table
+présente donne zéro colonne manquante** : l'outil bâti pour détecter ce qui manque annonce que rien ne
+manque, précisément quand tout manque. Reproduit sur un fichier vide avant d'être refermé.
+
+**Ce que ce cas ajoute aux précédents.** Les autres portaient sur une preuve **absente** — un état qu'on
+n'avait pas lu — ou **périmée** — un fait vrai qui avait vieilli. Celui-ci porte sur une preuve
+**fabriquée par l'instrument qui devait la recueillir**. Le vert était sincère : l'outil faisait
+exactement ce qu'on lui demandait, sur la base qu'on lui avait donnée sans le savoir, et **il était
+structurellement incapable de dire non**. Rien à corriger dans son raisonnement; tout à corriger dans ce
+qu'il acceptait de juger.
+
+**Et l'essai depuis l'environnement de développement ne pouvait pas le révéler** — `FALKYE_DB_URL` y est
+toujours définie, donc le repli n'y existe pas. Cas 26, mot pour mot, sur une variable différente.
+
+**Les deux règles, et la seconde est celle qui empêche.** Un outil qui juge ou modifie un schéma
+**annonce sa cible en tête de sortie** — la cible lue, pas déduite; sans quoi deux verdicts opposés ne se
+distinguent pas d'un désaccord de fond. Et **un outil de migration qui crée sa propre cible ne migre
+rien, il fabrique** : il refuse de tourner sur un repli que personne n'a choisi, et refuse de rendre un
+verdict vert sur une base où sa table témoin est absente. *Un verdict rendu sur une base vide est le plus
+rassurant de tous.*
