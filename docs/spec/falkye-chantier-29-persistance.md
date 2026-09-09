@@ -145,7 +145,7 @@ Un cycle d'observation qui tourne depuis deux heures, ce qui est normal sous 43 
 refermé en `interrompue` avec le motif « au-delà du délai de l'unité (5 400 s) » : **une ligne vivante
 déclarée morte, avec une raison chiffrée qui se lit comme vérifiée.**
 
-**Décision retenue le 9 septembre, à construire au chantier 2** *(registre, D30)* : `lance_par` porte le
+**Corrigé le 9 septembre au chantier 2** *(registre, D30)* : `lance_par` porte le
 nom de l'unité, et le seuil se lit sur cette unité-là. *Ni le seuil maximal — ça rendrait la bascule
 inutile sous l'unité de livraison — ni deux tables séparées : les deux cycles ont raison de partager
 `SourceRunLog`, ce qui manquait c'est qu'ils s'y distinguent.* **Les lignes existantes restent non
