@@ -1550,7 +1550,7 @@ décision d'ouvrir les inscriptions**, pour migrer à vide plutôt qu'avec des d
 **Le minuteur qu'on croyait éteint a livré.** Armé depuis l'installation de l'hôte — `disabled` mais
 `active` — il a lancé un vrai cycle avec livraison à 8 h UTC, **4 h 31 heure de Montréal**, sans témoin.
 Le fuseau de l'hôte a été corrigé d'UTC vers `America/Toronto`; le minuteur est arrêté, **vérifié
-`inactive`**. `docs/DEPLOIEMENT.md` porte les cinq occurrences du motif et les quatre lectures à faire
+`inactive`**. `docs/DEPLOIEMENT.md` porte les occurrences du motif et les cinq lectures à faire
 avant d'en activer un — avec le point qui manquait : **`disabled` ne veut pas dire arrêté, `enable` ne
 gouverne que le prochain amorçage, seul `is-active` répond à la question qu'on posait.**
 
