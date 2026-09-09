@@ -1,0 +1,105 @@
+name: Schéma de la fusion
+
+# Ce que cette vérification remplace : une discipline.
+#
+# Le déploiement applique les migrations de schéma tout seul, à chaque fusion,
+# sur les deux bases (voir docs/DEPLOIEMENT.md). Le seul moment où l'on décide
+# encore est AVANT la fusion — et une règle qui ne tient qu'à ce que quelqu'un
+# s'en souvienne au bon moment ne tient pas. Le 2026-09-09 l'a montré : à la
+# première occasion de l'appliquer, elle a été sautée.
+#
+# Ce flux répond à UNE question, et pas à l'autre :
+#   ✓ qu'est-ce que CETTE FUSION ajoutera au schéma?   — deux jeux de modèles suffisent
+#   ✗ qu'est-ce qui manque à la PRODUCTION?            — demanderait les identifiants
+#                                                        de la base dans le dépôt, ce
+#                                                        que l'architecture interdit
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: schema-fusion-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # L'historique complet : il faut pouvoir sortir l'arbre de la base.
+          fetch-depth: 0
+
+      - name: Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Relever les deux révisions
+        env:
+          # `python outils/…` met `outils/` sur sys.path, jamais la racine, et
+          # le paquet n'est pas installé ici — `import falkye` échouerait. En
+          # développement il est installé en mode éditable, ce qui MASQUAIT le
+          # défaut : le premier passage de ce flux est tombé dessus.
+          # Le relevé de la base écrase cette valeur dans son sous-shell, à
+          # dessein : lui doit lire les modèles de l'arbre de base.
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          git worktree add ../base "${{ github.event.pull_request.base.sha }}"
+
+          # L'outil de LA DEMANDE lit les modèles de LA BASE, via PYTHONPATH.
+          # Sans ce détour, une base antérieure à cet outil ne pourrait pas être
+          # relevée — et c'est exactement le cas de la toute première fusion qui
+          # l'introduit. Un mécanisme qui ne sait pas se comparer à un passé qui
+          # l'ignore ne sert pas au moment où on en a le plus besoin.
+          ( cd ../base && PYTHONPATH="$PWD" \
+              python "$GITHUB_WORKSPACE/outils/schema_de_la_fusion.py" \
+                --relever "$GITHUB_WORKSPACE/avant.json" )
+
+          python outils/schema_de_la_fusion.py --relever apres.json
+
+      - name: Rapporter
+        run: |
+          set -euo pipefail
+          python outils/schema_de_la_fusion.py --comparer avant.json apres.json > rapport.md
+          cat rapport.md >> "$GITHUB_STEP_SUMMARY"
+          cat rapport.md
+
+      - name: Afficher dans la demande de fusion
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const MARQUEUR = '<!-- schema-de-la-fusion -->';
+            const corps = MARQUEUR + '\n' + fs.readFileSync('rapport.md', 'utf8');
+
+            // Un commentaire COLLANT, mis à jour en place. Un nouveau à chaque
+            // poussée noierait le rapport dans son propre historique, et on
+            // apprendrait à ne plus le lire.
+            const { data: existants } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const ancien = existants.find(c => c.body && c.body.includes(MARQUEUR));
+            if (ancien) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                comment_id: ancien.id, body: corps,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: context.issue.number, body: corps,
+              });
+            }
