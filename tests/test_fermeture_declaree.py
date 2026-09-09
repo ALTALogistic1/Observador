@@ -192,11 +192,16 @@ def test_les_candidates_excluent_ce_que_la_bascule_sait_conclure(db_session):
     exécution de l'unité appartient à la bascule automatique, pas à un humain."""
     manuelle = _ouverte(db_session, lance_par=Lancement.MANUEL.value)
     inconnue = _ouverte(db_session, lance_par=None)
-    _ouverte(db_session, source_id="seao", lance_par=Lancement.UNITE.value)
+    # Sous unité mais SANS nom d'unité : les lignes d'avant le champ. On sait que
+    # systemd la surveillait, pas avec quel délai — donc rien à en conclure.
+    sans_nom = _ouverte(db_session, source_id="req", lance_par=Lancement.UNITE.value)
+    decidable = _ouverte(db_session, source_id="seao", lance_par=Lancement.UNITE.value)
+    decidable.unite = "falkye-cycle.service"
+    db_session.commit()
 
     candidates = executions_non_decidables(db_session)
 
-    assert {ligne.id for ligne in candidates} == {manuelle.id, inconnue.id}
+    assert {ligne.id for ligne in candidates} == {manuelle.id, inconnue.id, sans_nom.id}
 
 
 def test_une_ligne_deja_fermee_nest_plus_candidate(db_session):

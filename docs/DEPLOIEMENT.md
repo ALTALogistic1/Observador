@@ -233,6 +233,23 @@ Trois gestes, dans cet ordre, et le troisième dépend de ce que montre le secon
    > une ligne qui tournait encore, et ce statut se lit ensuite comme un fait
    > vérifié. **Avant de changer cette valeur, relire ce que la réconciliation
    > en déduit** — pas seulement ce que le cycle a le droit de durer.
+   >
+   > **Et il y a DEUX unités, pas une** — corrigé le 9 septembre 2026 :
+   >
+   > | unité | `TimeoutStartSec` | |
+   > |---|---|---|
+   > | `falkye-cycle.service` | 5 400 s | le cycle qui livre |
+   > | `falkye-cycle-sans-livraison.service` | 43 200 s | mesure et observation |
+   >
+   > Les deux lancent le même cycle et écrivent dans la même table. Le seuil se
+   > lit désormais sur **l'unité qui a produit la ligne**, nommée dans le champ
+   > `source_run_logs.unite` — pas sur une constante. Toucher au délai d'une des
+   > deux ne déplace la frontière que pour ses propres lignes.
+   >
+   > *Les lignes écrites avant ce champ portent `unite` à NULL : on sait que
+   > systemd les surveillait, pas avec quel délai. Elles restent NON DÉCIDABLES
+   > et se signalent — leur attribuer l'unité la plus courante referait le même
+   > geste une deuxième fois.*
 
    Puis :
 

@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import enum
 import os
+import re
 import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -100,3 +101,37 @@ def mode_de_lancement() -> Lancement:
     manuel pour la question qui nous occupe — personne ne le tuera au délai.
     """
     return Lancement.UNITE if os.environ.get("INVOCATION_ID") else Lancement.MANUEL
+
+
+#: Le chemin de groupe de contrôle d'un processus démarré par systemd se termine
+#: par le nom de l'unité : « 0::/system.slice/falkye-cycle.service ».
+_CGROUP = "/proc/self/cgroup"
+_NOM_UNITE = re.compile(r"([A-Za-z0-9@:_.\\-]+\.(?:service|scope|timer|mount|socket))")
+
+
+def unite_de_lancement(chemin_cgroup: str = _CGROUP) -> str | None:
+    """LAQUELLE des unités a démarré ce processus. `None` si on ne sait pas.
+
+    **Pourquoi ce n'est pas une variable d'environnement déclarée dans l'unité.**
+    Une `Environment=FALKYE_UNITE=…` dirait ce qu'on a écrit dans le fichier, pas
+    ce que systemd a fait — et deux unités copiées l'une sur l'autre porteraient
+    le même nom sans que rien ne le signale. Le groupe de contrôle, lui, est posé
+    par systemd au démarrage : il ne peut pas mentir sur l'unité qui l'a créé.
+
+    **`None` n'est pas un échec, c'est l'absence d'un fait**, et tout ce qui s'en
+    déduit doit rester non décidable. Trois cas le produisent : hors systemd, un
+    `/proc` illisible, et un chemin où aucun nom d'unité n'apparaît. Aucun des
+    trois n'autorise à nommer une unité par défaut — c'est exactement ce que
+    `UNITE_CYCLE` faisait quand il servait de valeur implicite.
+    """
+    if not os.environ.get("INVOCATION_ID"):
+        return None
+    try:
+        with open(chemin_cgroup, encoding="utf-8") as f:
+            contenu = f.read()
+    except OSError:
+        return None
+    # Le dernier segment nommé gagne : une unité imbriquée (un `systemd-run` sous
+    # un service) est celle qui gouverne réellement le délai de ce processus.
+    trouves = _NOM_UNITE.findall(contenu)
+    return trouves[-1] if trouves else None
