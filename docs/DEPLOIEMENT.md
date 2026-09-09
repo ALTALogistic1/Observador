@@ -376,7 +376,7 @@ bien le cycle qui n'a rien fait et que `systemctl list-units --failed` doit le
 dire. Les sources sans connecteur (`a_developper`) ne comptent pas au
 dénominateur : elles n'ont pas échoué, elles n'ont pas été tentées.
 
-## Les états qu'on croit éteints — cinq occurrences, et la règle qui en sort
+## Les états qu'on croit éteints — la règle, et les occurrences qui l'ont écrite
 
 Le 8 septembre 2026, le minuteur du cycle a livré un vrai courriel à un vrai
 destinataire pendant que tout le monde le croyait éteint :
@@ -410,14 +410,24 @@ est donc une information : un horodatage d'il y a une minute garantit qu'aucun
 rattrapage ne peut partir, puisque le prochain créneau calculé après lui est
 forcément dans le futur. **Ne pas le supprimer** : c'est lui la garantie.
 
-### Avant d'activer un minuteur, les quatre lectures
+### Avant d'activer un minuteur, les cinq lectures
 
 ```bash
 timedatectl                                    # Time zone: America/Toronto, pas UTC
 systemctl is-active  falkye-cycle.timer        # la seule qui dit s'il peut partir
 systemctl is-enabled falkye-cycle.timer        # ne dit QUE le prochain amorçage
 stat /var/lib/systemd/timers/stamp-falkye-cycle.timer
+systemctl is-enabled falkye-cycle.service      # le SERVICE, pas le minuteur
 ```
+
+La cinquième a été ajoutée le 9 septembre 2026. `falkye-cycle.service` est un
+`Type=oneshot` **qui livre**, et il porte `[Install] WantedBy=multi-user.target` :
+**s'il était `enabled`, il partirait à chaque amorçage de la machine**, sans
+minuteur, sans créneau, sans que rien ne le rattache à un mardi. Ce n'est pas
+un défaut constaté — c'est un chemin latent que les quatre lectures ne
+regardaient pas, alors qu'elles existent exactement pour ça. Un minuteur
+`inactive` au-dessus d'un service `enabled` serait la même illusion d'un cran
+plus bas.
 
 ### La règle
 
@@ -437,6 +447,64 @@ Ce qui a sauvé la trace, ici : le journal de repli. Le déclenchement de
 pouvait rien écrire, et les deux lignes — début, puis échec avec sa cause —
 n'existent que dans `/var/lib/falkye/journal-repli.jsonl`. Sans lui, ce
 déclenchement-là n'aurait laissé aucune trace nulle part.
+
+### Le déploiement réarmait le minuteur — la même forme, en boucle
+
+*Écrit le 9 septembre 2026, après une sixième occurrence du motif ci-dessus.*
+
+Le minuteur, arrêté et **vérifié `inactive`** le 8 septembre, était `active` le
+lendemain soir. Le mécanisme est une ligne de `.github/workflows/deploiement.yml` :
+
+```bash
+sudo /usr/bin/systemctl restart falkye-cycle.timer     # retirée le 2026-09-09
+```
+
+**`systemctl restart` sur une unité arrêtée la DÉMARRE.** Ce n'est pas
+« redémarre si elle tourne » — c'est arrête-puis-démarre, et sur une unité
+inactive la première moitié ne fait rien. Le verbe qui respecte un arrêt
+délibéré est `try-restart`, qui est un non-geste si l'unité ne tourne pas.
+
+Chaque déploiement réarmait donc le minuteur. Trois fusions le 9 septembre, et
+la première a suffi. **C'est la première de ces occurrences qui se reproduisait
+toute seule** : arrêter le minuteur ne tenait que jusqu'à la fusion suivante.
+
+La ligne est retirée plutôt que corrigée en `try-restart`. Elle ne servait à
+rien de démontrable — un minuteur ne porte pas de code, et `restart` ne
+recharge pas une définition changée; ça, c'est `daemon-reload`, que la chaîne
+ne fait pas et n'a pas le droit de faire. La garder aurait coûté une recopie du
+fichier de permissions en root, qui n'autorise que `restart`.
+
+**Ce qui reste, et qu'on assume :** la permission `sudo` sur
+`restart falkye-cycle.timer` existe toujours sur l'hôte. Elle n'est plus
+appelée par rien. La retirer demanderait une recopie en root pour un gain
+nul aujourd'hui — mais c'est elle qui permettrait à la ligne de revenir sans
+bruit. À retirer au prochain passage en root, avec le reste.
+
+**Conséquence permanente : l'activation du minuteur est un geste délibéré,
+jamais un effet de bord d'un déploiement.**
+
+### ⚠️ `Persistent=true` — le danger réel, et il n'est PAS testé
+
+Le réarmement n'est pas le pire. `falkye-cycle.timer` porte `Persistent=true`,
+qui rattrape un créneau manqué **immédiatement au démarrage du minuteur**.
+
+Donc, tant que la ligne existait : **un déploiement survenant après un mardi
+8 h passé sans que le minuteur ait tourné ne réarmait pas seulement — il
+déclenchait un cycle AVEC LIVRAISON sur-le-champ.** Un courriel à un vrai
+destinataire, déclenché par une fusion, sans que rien ne l'annonce.
+
+Le 9 septembre, rien n'est parti : le dernier créneau du calendrier était le
+mardi 8, et le fichier d'horodatage le couvrait. **C'est le calendrier qui a
+protégé, pas le mécanisme.**
+
+**Ce comportement n'est pas vérifié**, et il ne le sera pas : le tester
+consiste à laisser passer un mardi avec le minuteur arrêté, puis à déployer —
+c'est-à-dire à provoquer exactement l'envoi qu'on cherche à empêcher. Il est
+donc écrit ici comme un **risque documenté et non traité**, ce qui n'est pas
+un risque géré. Un risque non documenté est pire.
+
+La ligne étant retirée, le chemin est fermé. Il se rouvrirait à la première
+commande qui démarre ce minuteur sans qu'on ait lu le fichier d'horodatage.
 
 ## Le déploiement migre le schéma tout seul — sixième occurrence du motif
 

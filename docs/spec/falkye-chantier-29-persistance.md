@@ -164,11 +164,28 @@ exécution interrompue** — la modifier sans le savoir rendrait la réconciliat
   lieu, sans témoin : le minuteur était armé depuis l'installation de l'hôte — `disabled` mais `active` —
   et il a lancé un vrai cycle avec livraison le mardi 8 septembre à 8 h **UTC**, soit 4 h 31 à Montréal.
   Le fuseau de l'hôte a été corrigé d'UTC vers `America/Toronto`; le minuteur est arrêté, **vérifié
-  `inactive`**. Les quatre lectures à faire avant d'activer un minuteur sont à `docs/DEPLOIEMENT.md`,
+  `inactive`**. Les cinq lectures à faire avant d'activer un minuteur sont à `docs/DEPLOIEMENT.md`,
   avec le point qui manquait : `disabled` ne veut pas dire arrêté, `enable` ne gouverne que le prochain
   amorçage, **seul `is-active` répond à la question qu'on posait**.*
   **Condition retenue : après le premier rapport de coût sur l'hôte**, pour ne pas laisser des cycles
   automatiques consommer un quota qu'on ne mesure pas encore.
+
+  ⚠️ **Le 9 septembre, il était `active` de nouveau — et le mécanisme est identifié.** La chaîne de
+  déploiement portait `systemctl restart falkye-cycle.timer`. **`restart` sur une unité arrêtée la
+  démarre** : chaque fusion réarmait le minuteur, y compris après un arrêt délibéré et vérifié. La ligne
+  est retirée le 9 septembre; l'activation redevient un geste, jamais un effet de bord. *La permission
+  `sudo` correspondante subsiste sur l'hôte, inutilisée — à retirer au prochain passage en root.*
+
+  ⚠️ **`Persistent=true` est le danger réel, et il n'est PAS testé.** Il rattrape un créneau manqué
+  **immédiatement au démarrage du minuteur**. Tant que la ligne existait, un déploiement survenant après
+  un mardi 8 h passé sans que le minuteur ait tourné ne réarmait pas seulement : **il déclenchait un
+  cycle AVEC LIVRAISON sur-le-champ** — un courriel à un vrai destinataire, déclenché par une fusion,
+  sans que rien ne l'annonce. Le 9 septembre rien n'est parti parce que le fichier d'horodatage couvrait
+  le dernier créneau : **c'est le calendrier qui a protégé, pas le mécanisme.** Ce comportement ne sera
+  pas vérifié — le tester consiste à laisser passer un mardi puis à déployer, c'est-à-dire à provoquer
+  l'envoi qu'on cherche à empêcher. **Risque documenté et non traité, ce qui n'est pas un risque géré;
+  un risque non documenté serait pire.** Le chemin est fermé tant qu'aucune commande ne démarre ce
+  minuteur sans qu'on ait lu son fichier d'horodatage.
 - ⬜ **Tester la fenêtre de restauration** — **débloque aussi le point 27.9**, la suppression des copies
   vides sur la base distante étant une migration destructive, qui a besoin de ce filet contrairement à un
   index. Demander une restauration antérieure au changement de palier.

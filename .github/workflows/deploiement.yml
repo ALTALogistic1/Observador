@@ -88,7 +88,27 @@ jobs:
           sudo /usr/bin/systemctl start falkye-migration.service
 
           sudo /usr/bin/systemctl restart falkye-web.service
-          sudo /usr/bin/systemctl restart falkye-cycle.timer
+
+          # ⚠️ IL N'Y A PAS DE LIGNE SUR LE MINUTEUR ICI, ET C'EST DÉLIBÉRÉ.
+          #
+          # Il y en a eu une — `systemctl restart falkye-cycle.timer` — retirée
+          # le 9 septembre 2026. `restart` sur une unité ARRÊTÉE la démarre :
+          # ce n'est pas « redémarre si elle tourne », c'est arrête-puis-démarre,
+          # et sur une unité inactive la première moitié ne fait rien. Chaque
+          # déploiement RÉARMAIT donc le minuteur, y compris après un arrêt
+          # délibéré. Cinquième occurrence d'un mécanisme qu'on croyait au repos,
+          # et la seule qui se reproduisait toute seule.
+          #
+          # Elle ne servait à rien de démontrable : un minuteur ne porte pas de
+          # code, et `restart` ne recharge pas une définition changée — ça, c'est
+          # `daemon-reload`, que la chaîne ne fait pas et n'a pas le droit de
+          # faire. Le verbe qui aurait respecté un arrêt est `try-restart`, mais
+          # le fichier de permissions n'autorise que `restart` : le garder aurait
+          # coûté une recopie en root pour une ligne sans effet utile.
+          #
+          # **L'activation du minuteur est un geste délibéré, jamais un effet de
+          # bord d'un déploiement.** Voir docs/DEPLOIEMENT.md, « Les états qu'on
+          # croit éteints ».
 
           # Vérifier plutôt que supposer : un redémarrage accepté n'est pas un
           # service qui répond.
