@@ -485,3 +485,52 @@ rien, ne change aucun type — ces gestes perdent de la donnée et exigent une
 décision humaine. Une migration destructive reste un passage manuel, et celle-là
 a besoin de la fenêtre de restauration, contrairement aux migrations additives
 dont le retour arrière est `DROP INDEX` puis `DROP COLUMN`.
+
+### Pourquoi la vérification de fusion ne parle pas à la base de production
+
+Le passage à blanc de l'étape 1 répond en fait à **deux questions**, et les
+confondre a coûté une journée :
+
+| | ce qu'il faut pour y répondre |
+|---|---|
+| **(1)** Qu'est-ce que **cette fusion** ajoutera au schéma ? | rien — les modèles de deux révisions suffisent |
+| **(2)** Qu'est-ce qui manque **à la production** ? | les identifiants de la base durable |
+
+Seule la **(1)** se pose au moment de fusionner, et elle est gratuite : c'est
+`.github/workflows/schema-fusion.yml`, qui compare les modèles de la demande à
+ceux de sa base et affiche le résultat dans la demande elle-même.
+
+**La (2) est écartée, et ce refus est une décision, pas un oubli.** Y répondre
+depuis un flux demanderait de mettre `FALKYE_DB_URL` et `FALKYE_DB_AUTH_TOKEN`
+dans les secrets du dépôt. La chaîne n'a aujourd'hui que quatre secrets — clé
+SSH, empreinte de l'hôte, hôte, utilisateur — et **aucun identifiant de base**.
+C'est exactement pourquoi la migration passe par une unité root plutôt que par
+un appel direct : **une chaîne compromise peut redémarrer le service, jamais
+lire la base.** Ajouter ces deux secrets défait cette propriété, qui est l'une
+des deux raisons d'être de l'architecture des secrets du chantier 29 — l'autre
+étant qu'une restauration change l'adresse et le jeton, et qu'on doit pouvoir
+basculer sans redéployer, au pire moment possible.
+
+**On n'échange pas cette propriété contre une commodité de vérification.** Si
+quelqu'un reprend cette question dans six mois, c'est cette phrase qui répond.
+
+La (2) reste donc une question d'exploitation, et le déploiement y répond déjà
+après coup, par `migration_colonnes.py` sur l'hôte.
+
+**Deux autres chemins, écartés eux aussi.**
+
+*Une unité de vérification sur l'hôte* préserverait les identifiants, mais
+`migration_colonnes.py` compare les modèles **du code depuis lequel il tourne** :
+sur l'hôte, c'est le code DÉPLOYÉ. Pour une demande qui ajoute une colonne, elle
+afficherait « rien à faire » — précisément dans le cas où elle devait servir. La
+corriger demanderait d'envoyer du code non fusionné sur l'hôte à chaque demande.
+
+*Un instantané de schéma* pris à chaque déploiement répondrait à la (2) sans
+identifiants. Gardé en réserve, pas construit — et s'il revient, il porte sa
+révision et sa date, et la vérification **échoue** plutôt que de passer quand
+l'instantané est plus vieux que la tête de branche. Un instantané sans
+provenance est une vérité périmée, et on en a déjà eu une : la table de prix du
+coût de lecture, vraie le matin et fausse l'après-midi.
+
+*Une vérification qui exigerait la sortie du passage à blanc dans le corps de la
+demande* vérifierait qu'un texte **existe**, pas qu'il est **vrai**.
