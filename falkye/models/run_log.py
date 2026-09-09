@@ -117,6 +117,24 @@ class SourceRunLog(Base):
     # ce champ, la bascule serait vraie sous une condition non vérifiée.
     lance_par: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
+    # LAQUELLE des unités, quand `lance_par` vaut `unite`. Sans ce champ, la
+    # condition de validité ci-dessus était vraie mais incomplète : deux unités
+    # lancent le cycle, avec des délais de 5 400 s et 43 200 s, et la
+    # réconciliation lisait 5 400 s pour les deux. Une ligne du cycle
+    # d'observation encore vivante à deux heures était refermée en `interrompue`
+    # avec un motif chiffré — le défaut même que `lance_par` existait pour
+    # retirer, déplacé d'un cran.
+    #
+    # **NULL ne se rattrape jamais après coup.** Les lignes écrites avant ce
+    # champ portent `lance_par = 'unite'` sans savoir laquelle : leur attribuer
+    # l'unité de livraison parce que c'est la plus courante serait refaire le
+    # même geste une deuxième fois. Elles restent non décidables et se
+    # signalent — la déclaration humaine est faite pour ça.
+    #
+    # 64 caractères : le plus long nom d'unité du projet en fait 35
+    # (`falkye-cycle-sans-livraison.service`).
+    unite: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     # --- La déclaration humaine, quand aucune règle ne permettait de conclure.
     #
     # Renseignés UNIQUEMENT sur `interrompue_declaree`. Le motif est EXIGÉ par

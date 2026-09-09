@@ -36,7 +36,7 @@ from falkye.models.notification import (
 )
 from falkye.models.profile import PlanTarifaire, Profile
 from falkye.cout_lectures import CHEMIN_EXACT, CHEMIN_PREFIXE, CHEMIN_SOUS_CHAINE, ouvrir_comptes
-from falkye.execution import execution, mode_de_lancement
+from falkye.execution import execution, mode_de_lancement, unite_de_lancement
 from falkye.models.run_log import SourceRunLog, StatutExecution
 from falkye.models.signal import Signal
 from falkye.notifications.base import FORME_UNITAIRE
@@ -275,6 +275,7 @@ def _ingerer_source(
         # Posé au DÉBUT, avec la ligne — c'est la seule information qu'on ne
         # pourra pas retrouver après coup si l'exécution meurt sans rien écrire.
         lance_par=mode_de_lancement().value,
+        unite=unite_de_lancement(),
     )
     try:
         db_session.add(run_log)

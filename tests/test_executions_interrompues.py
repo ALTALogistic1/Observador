@@ -29,25 +29,44 @@ from falkye.sante_source import derniere_execution_reussie, refermer_executions_
 MAINTENANT = datetime(2026, 9, 8, 16, 0, 0)
 
 
-def _ouverte(session, source_id, debut, lance_par):
+LIVRAISON = "falkye-cycle.service"
+OBSERVATION = "falkye-cycle-sans-livraison.service"
+
+
+def _ouverte(session, source_id, debut, lance_par, unite=LIVRAISON):
     ligne = SourceRunLog(
         source_id=source_id,
         mode="veille_continue",
         statut=StatutExecution.EN_COURS.value,
         started_at=debut,
         lance_par=lance_par,
+        # `unite` seulement si `lance_par` dit qu'il y en avait une : une ligne
+        # manuelle qui porterait un nom d'unité serait un état impossible.
+        unite=unite if lance_par == Lancement.UNITE.value else None,
     )
     session.add(ligne)
     session.commit()
     return ligne
 
 
+#: Les deux délais RÉELS des deux unités, au 2026-09-09. L'écart est le défaut.
+DELAIS = {LIVRAISON: 5400.0, OBSERVATION: 43200.0}
+
+
 @pytest.fixture()
 def delai_lu(monkeypatch):
-    """L'unité déclare 5 400 s — le cas nominal sur l'hôte."""
+    """Chaque unité déclare LE SIEN — le cas nominal sur l'hôte.
+
+    La simulation prend l'unité en argument, comme le vrai appel : une simulation
+    qui l'ignorerait ne pourrait pas faire tomber le défaut qu'on corrige ici.
+    """
     monkeypatch.setattr(
         "falkye.sante_source.delai_maximal",
-        lambda: DelaiUnite(secondes=5400.0, lu=True, provenance="unité (test)"),
+        lambda unite: DelaiUnite(
+            secondes=DELAIS.get(unite),
+            lu=True,
+            provenance=f"{unite} (test)",
+        ),
     )
 
 
@@ -69,14 +88,15 @@ def test_infinity_ne_donne_aucun_seuil():
 def test_un_delai_illisible_ne_referme_rien(db_session, monkeypatch):
     monkeypatch.setattr(
         "falkye.sante_source.delai_maximal",
-        lambda: DelaiUnite(secondes=None, lu=True, provenance="infinity"),
+        lambda unite: DelaiUnite(secondes=None, lu=True, provenance="infinity"),
     )
-    _ouverte(db_session, "seao", MAINTENANT - timedelta(days=3), Lancement.UNITE.value)
+    ligne = _ouverte(db_session, "seao", MAINTENANT - timedelta(days=3), Lancement.UNITE.value)
 
     rapport = refermer_executions_interrompues(db_session, MAINTENANT)
 
     assert rapport.refermees == []
-    assert "indécidable" in rapport.resume_lisible()
+    assert rapport.non_decidables == [ligne.id]
+    assert "aucun délai exploitable" in rapport.resume_lisible()
 
 
 def test_le_repli_se_declare_perime_quand_il_diverge_de_lunite():
@@ -227,3 +247,147 @@ def test_deux_passages_ne_changent_rien_au_second(db_session, delai_lu):
     assert premier.refermees == [ligne.id]
     assert second.refermees == []
     assert ligne.finished_at == fin
+
+
+# --- Réserve 5 : le seuil se lit sur L'UNITÉ QUI A PRODUIT LA LIGNE ---------
+#
+# Ajoutée le 2026-09-09. Les quatre réserves d'origine disaient « limite la
+# bascule aux cycles lancés par l'unité » — le mot qui manquait était LAQUELLE.
+# Deux unités lancent le même cycle et écrivent dans la même table :
+#
+#     falkye-cycle.service                 TimeoutStartSec=5400   (1 h 30)
+#     falkye-cycle-sans-livraison.service  TimeoutStartSec=43200  (12 h)
+#
+# Aucun test ci-dessus ne pouvait faire tomber le défaut : ils ne construisaient
+# qu'une seule unité, et la simulation du délai ignorait son argument.
+
+
+def test_une_ligne_du_cycle_dobservation_encore_vivante_nest_pas_refermee(
+    db_session, delai_lu
+):
+    """**LE test du défaut.** Deux heures sous une unité qui en autorise douze :
+    la ligne tourne encore. L'ancien code lisait 5 400 s pour tout le monde et
+    la refermait en `interrompue` avec un motif chiffré — une ligne vivante
+    déclarée morte, avec une raison qui se lit comme vérifiée."""
+    ligne = _ouverte(
+        db_session,
+        "req",
+        MAINTENANT - timedelta(hours=2),
+        Lancement.UNITE.value,
+        unite=OBSERVATION,
+    )
+
+    rapport = refermer_executions_interrompues(db_session, MAINTENANT)
+
+    assert rapport.refermees == []
+    assert rapport.encore_possibles == [ligne.id]
+    assert ligne.statut == StatutExecution.EN_COURS.value
+
+
+def test_les_deux_unites_sont_jugees_chacune_sur_son_delai(db_session, delai_lu):
+    """Dans le MÊME passage : deux heures est mort sous 1 h 30, vivant sous 12 h.
+    C'est la seule forme qui distingue un seuil par unité d'un seuil unique."""
+    livraison = _ouverte(
+        db_session, "seao", MAINTENANT - timedelta(hours=2), Lancement.UNITE.value
+    )
+    observation = _ouverte(
+        db_session,
+        "req",
+        MAINTENANT - timedelta(hours=2),
+        Lancement.UNITE.value,
+        unite=OBSERVATION,
+    )
+
+    rapport = refermer_executions_interrompues(db_session, MAINTENANT)
+
+    assert rapport.refermees == [livraison.id]
+    assert rapport.encore_possibles == [observation.id]
+
+
+def test_une_ligne_du_cycle_dobservation_vraiment_trop_vieille_est_refermee(
+    db_session, delai_lu
+):
+    """Le seuil n'est pas désactivé pour l'unité d'observation, il est déplacé.
+    Sans ce test, rendre `non_decidable` tout ce qui vient d'elle passerait."""
+    ligne = _ouverte(
+        db_session,
+        "req",
+        MAINTENANT - timedelta(hours=13),
+        Lancement.UNITE.value,
+        unite=OBSERVATION,
+    )
+
+    rapport = refermer_executions_interrompues(db_session, MAINTENANT)
+
+    assert rapport.refermees == [ligne.id]
+    assert OBSERVATION in ligne.erreur
+    assert "43200" in ligne.erreur
+
+
+def test_une_ligne_sous_unite_sans_nom_dunite_reste_non_decidable(db_session, delai_lu):
+    """Les lignes écrites avant le champ `unite`. On sait que systemd les
+    surveillait, pas avec quel délai. Leur attribuer l'unité de livraison parce
+    que c'est la plus courante serait refaire le même geste une deuxième fois,
+    en croyant le corriger — et elles sont TRÈS au-delà des deux seuils."""
+    ligne = _ouverte(
+        db_session, "seao", MAINTENANT - timedelta(days=2), Lancement.UNITE.value
+    )
+    ligne.unite = None
+    db_session.commit()
+
+    rapport = refermer_executions_interrompues(db_session, MAINTENANT)
+
+    assert rapport.refermees == []
+    assert rapport.non_decidables == [ligne.id]
+    assert ligne.statut == StatutExecution.EN_COURS.value
+
+
+def test_le_motif_ecrit_nomme_lunite_pas_seulement_le_chiffre(db_session, delai_lu):
+    """Un chiffre seul ne dit pas à quoi il se rapportait. C'est ainsi qu'un
+    mauvais seuil reste invisible dans la ligne qu'il a produite."""
+    ligne = _ouverte(
+        db_session, "seao", MAINTENANT - timedelta(hours=3), Lancement.UNITE.value
+    )
+
+    refermer_executions_interrompues(db_session, MAINTENANT)
+
+    assert LIVRAISON in ligne.erreur
+
+
+def test_le_resume_nomme_chaque_unite_rencontree(db_session, delai_lu):
+    """Un résumé qui ne montre qu'un délai laisse croire qu'un seul s'applique —
+    la lecture même qui a produit le défaut."""
+    _ouverte(db_session, "seao", MAINTENANT - timedelta(hours=2), Lancement.UNITE.value)
+    _ouverte(
+        db_session,
+        "req",
+        MAINTENANT - timedelta(hours=2),
+        Lancement.UNITE.value,
+        unite=OBSERVATION,
+    )
+
+    rapport = refermer_executions_interrompues(db_session, MAINTENANT)
+
+    assert set(rapport.delais) == {LIVRAISON, OBSERVATION}
+
+
+def test_chaque_unite_nest_interrogee_quune_fois(db_session, delai_lu, monkeypatch):
+    """`systemctl show` est un sous-processus. Une base peut porter des centaines
+    de lignes ouvertes; une lecture par ligne serait une régression silencieuse,
+    lente sans rien casser."""
+    appels = []
+    vrai = __import__("falkye.sante_source", fromlist=["delai_maximal"]).delai_maximal
+
+    def compte(unite):
+        appels.append(unite)
+        return vrai(unite)
+
+    monkeypatch.setattr("falkye.sante_source.delai_maximal", compte)
+    for i in range(5):
+        _ouverte(
+            db_session, f"s{i}", MAINTENANT - timedelta(hours=2), Lancement.UNITE.value
+        )
+
+    refermer_executions_interrompues(db_session, MAINTENANT)
+
+    assert appels == [LIVRAISON]

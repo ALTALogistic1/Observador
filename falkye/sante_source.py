@@ -74,7 +74,9 @@ def date_derniere_reussite(db_session: Session, source_id: str) -> datetime | No
 class RapportInterruptions:
     """Ce que la reprise a refermé, et ce qu'elle a refusé de conclure."""
 
-    delai: DelaiUnite
+    #: Un délai PAR UNITÉ rencontrée. Un seul délai pour toutes les lignes était
+    #: le défaut : deux unités lancent le cycle, à 5 400 s et 43 200 s.
+    delais: dict[str, DelaiUnite] = field(default_factory=dict)
     refermees: list[int] = field(default_factory=list)
     #: Ouvertes, trop vieilles, mais lancées à la main ou d'origine inconnue :
     #: aucun délai ne les gouvernait, donc rien ne permet de conclure. Elles
@@ -84,24 +86,25 @@ class RapportInterruptions:
     encore_possibles: list[int] = field(default_factory=list)
 
     def resume_lisible(self) -> str:
-        if self.delai.secondes is None:
-            return (
-                "exécutions interrompues : indécidable — aucun délai exploitable "
-                f"({self.delai.provenance})"
-            )
         parts = [f"{len(self.refermees)} refermée(s)"]
         if self.non_decidables:
             parts.append(
-                f"{len(self.non_decidables)} NON DÉCIDABLE(S) (hors unité) : "
+                f"{len(self.non_decidables)} NON DÉCIDABLE(S) : "
                 + ", ".join(f"#{i}" for i in self.non_decidables)
             )
         if self.encore_possibles:
             parts.append(f"{len(self.encore_possibles)} encore dans le délai")
-        if self.delai.perime:
-            parts.append(
-                "⚠ le délai de repli DIVERGE de l'unité "
-                f"({self.delai.provenance}) — le reprendre"
-            )
+        # Chaque unité rencontrée se nomme avec le délai qu'elle a donné. Un
+        # résumé qui n'en montre qu'un laisserait croire qu'un seul s'applique,
+        # ce qui est précisément la lecture qui a produit le défaut.
+        for unite, delai in sorted(self.delais.items()):
+            if delai.secondes is None:
+                parts.append(f"{unite} : aucun délai exploitable ({delai.provenance})")
+            elif delai.perime:
+                parts.append(
+                    f"⚠ {unite} : le délai de repli DIVERGE de l'unité "
+                    f"({delai.provenance}) — le reprendre"
+                )
         return "exécutions interrompues : " + ", ".join(parts)
 
 
@@ -117,26 +120,39 @@ def refermer_executions_interrompues(
     beaucoup cette semaine; la conclure `interrompue` serait vrai sous une
     hypothèse jamais vérifiée.
 
-    **Le délai se LIT**, il ne se recopie pas : il a valu 3 600, puis 10 800,
-    puis 5 400 s, et chacune des deux premières valeurs a tué un cycle. Voir
-    falkye/delai_unite.py — la valeur de repli porte sa provenance et se déclare
-    périmée si elle diverge de ce que l'unité déclare.
+    **Le délai se LIT**, il ne se recopie pas : celui du cycle de livraison a
+    valu 3 600, puis 10 800, puis 5 400 s, et chacune des deux premières valeurs
+    a tué un cycle. Voir falkye/delai_unite.py — la valeur de repli porte sa
+    provenance et se déclare périmée si elle diverge de ce que l'unité déclare.
+
+    **Et il se lit sur L'UNITÉ QUI A PRODUIT LA LIGNE.** Deux unités lancent le
+    même cycle : `falkye-cycle.service` à 5 400 s et
+    `falkye-cycle-sans-livraison.service` à 43 200 s. Un seuil unique lu sur la
+    première refermait en `interrompue` des lignes de la seconde qui tournaient
+    encore, avec un motif chiffré qui se lit comme vérifié — le défaut même que
+    ce mécanisme existe pour retirer. *Un seuil déduit d'un réglage se lit sur
+    l'instance qui a produit la ligne, jamais sur une constante nommée d'après
+    une seule d'entre elles.*
+
+    **Une ligne sous unité mais sans nom d'unité reste NON DÉCIDABLE.** C'est le
+    cas de toutes celles écrites avant que le champ existe. Leur attribuer
+    l'unité de livraison parce que c'est la plus courante serait refaire le même
+    geste une deuxième fois, en croyant le corriger.
 
     **Idempotente.** Ne referme que ce qui est ENCORE ouvert : une ligne
     refermée proprement entre-temps n'est jamais réécrite. Le `WHERE` porte sur
     `statut == en_cours` et `finished_at is None`, pas sur une liste calculée
     avant.
     """
-    delai = delai_maximal()
-    rapport = RapportInterruptions(delai=delai)
-    if delai.secondes is None:
-        # Délai infini ou illisible : aucune durée ne permet de conclure.
-        # Ne rien refermer est la bonne réponse, et le dire est la seconde.
-        logger.warning("%s", rapport.resume_lisible())
-        return rapport
-
+    rapport = RapportInterruptions()
     maintenant = maintenant or datetime.now(timezone.utc).replace(tzinfo=None)
-    limite = maintenant - timedelta(seconds=delai.secondes)
+
+    # Une unité n'est interrogée qu'une fois par passage : `systemctl show` est
+    # un sous-processus, et une base peut porter des centaines de lignes ouvertes.
+    def delai_de(unite: str) -> DelaiUnite:
+        if unite not in rapport.delais:
+            rapport.delais[unite] = delai_maximal(unite)
+        return rapport.delais[unite]
 
     ouvertes = (
         db_session.execute(
@@ -153,25 +169,40 @@ def refermer_executions_interrompues(
         debut = ligne.started_at
         if debut is not None and debut.tzinfo is not None:
             debut = debut.replace(tzinfo=None)
-        if debut is None or debut > limite:
+        if debut is None:
             rapport.encore_possibles.append(ligne.id)
             continue
-        if ligne.lance_par != Lancement.UNITE.value:
+        # L'ordre des trois conditions compte. On établit d'abord QUI gouverne
+        # la ligne, ensuite seulement combien de temps — sans quoi on comparerait
+        # à un délai qui ne s'y applique pas, ce qui était le défaut.
+        if ligne.lance_par != Lancement.UNITE.value or not ligne.unite:
             rapport.non_decidables.append(ligne.id)
+            continue
+        delai = delai_de(ligne.unite)
+        if delai.secondes is None:
+            # Délai infini ou illisible pour CETTE unité : aucune durée ne
+            # permet de conclure. Ne rien refermer est la bonne réponse.
+            rapport.non_decidables.append(ligne.id)
+            continue
+        if debut > maintenant - timedelta(seconds=delai.secondes):
+            rapport.encore_possibles.append(ligne.id)
             continue
         ligne.statut = StatutExecution.INTERROMPUE.value
         ligne.finished_at = maintenant
         # Pas de `erreur` inventée : on ne sait PAS pourquoi. Le détail dit ce
-        # qu'on sait — que le délai est dépassé — et rien de plus.
+        # qu'on sait — quel délai, et de quelle unité — et rien de plus. Nommer
+        # l'unité rend le motif relisible : un chiffre seul ne dit pas à quoi il
+        # se rapportait, et c'est ainsi qu'un mauvais seuil passe inaperçu.
         ligne.erreur = (
-            f"Aucune fin écrite au-delà du délai de l'unité ({int(delai.secondes)} s). "
+            f"Aucune fin écrite au-delà du délai de {ligne.unite} "
+            f"({int(delai.secondes)} s). "
             "Cause inconnue : la trace de la panne n'a pas pu être écrite."
         )
         rapport.refermees.append(ligne.id)
 
     if rapport.refermees:
         db_session.commit()
-    if rapport.non_decidables or delai.perime:
+    if rapport.non_decidables or any(d.perime for d in rapport.delais.values()):
         logger.warning("%s", rapport.resume_lisible())
     return rapport
 
@@ -306,4 +337,11 @@ def executions_non_decidables(db_session: Session) -> list[SourceRunLog]:
         .scalars()
         .all()
     )
-    return [ligne for ligne in ouvertes if ligne.lance_par != Lancement.UNITE.value]
+    # Une ligne sous unité SANS nom d'unité est aussi non décidable : on sait que
+    # systemd la surveillait, pas avec quel délai. C'est le cas de toutes celles
+    # écrites avant que le champ `unite` existe.
+    return [
+        ligne
+        for ligne in ouvertes
+        if ligne.lance_par != Lancement.UNITE.value or not ligne.unite
+    ]

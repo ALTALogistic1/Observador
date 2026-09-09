@@ -26,7 +26,24 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-UNITE_CYCLE = "falkye-cycle.service"
+#: ⚠️ Le nom porte l'unité qu'il désigne, et c'est délibéré. Il s'est d'abord
+#: appelé `UNITE_CYCLE` — un nom de CATÉGORIE pour une unité PRÉCISE — et il
+#: servait de valeur par défaut à `delai_maximal()`. Deux unités lancent le
+#: cycle, avec des délais qui vont du simple au octuple :
+#:
+#:     falkye-cycle.service                 TimeoutStartSec=5400   (1 h 30)
+#:     falkye-cycle-sans-livraison.service  TimeoutStartSec=43200  (12 h)
+#:
+#: La réconciliation lisait donc 5 400 s pour TOUTES les lignes, y compris
+#: celles du cycle d'observation, qu'elle refermait en `interrompue` alors
+#: qu'elles tournaient encore — avec un motif chiffré qui se lit comme vérifié.
+#:
+#: **La règle qui en sort : un seuil déduit d'un réglage se lit sur l'instance
+#: qui a produit la ligne, jamais sur une constante nommée d'après une seule
+#: d'entre elles.** Un nom de catégorie qui désigne un cas particulier fait
+#: passer ce cas pour la règle, et le défaut se lit alors comme une évidence.
+UNITE_CYCLE_LIVRAISON = "falkye-cycle.service"
+UNITE_CYCLE_OBSERVATION = "falkye-cycle-sans-livraison.service"
 
 #: Valeur de repli, avec sa provenance. Employée UNIQUEMENT quand l'unité n'est
 #: pas interrogeable, et jamais en silence : `DelaiUnite.lu` dit d'où elle vient.
@@ -105,12 +122,22 @@ def _demander_a_systemd(unite: str) -> str | None:
     return resultat.stdout.strip() or None
 
 
-def delai_maximal(unite: str = UNITE_CYCLE) -> DelaiUnite:
-    """Le délai déclaré par l'unité, ou la valeur de repli avec sa provenance.
+def delai_maximal(unite: str) -> DelaiUnite:
+    """Le délai déclaré par CETTE unité. L'argument n'a pas de défaut, exprès.
 
     `systemctl show` est une LECTURE que tout utilisateur fait sans privilège —
     aucune entrée de sudoers n'est nécessaire, et c'est pourquoi le fichier de
     permissions n'en porte pas (voir deploiement/falkye-deploiement.sudoers).
+
+    **Aucune valeur par défaut.** Un appelant qui ne sait pas quelle unité a
+    produit la ligne ne doit pas obtenir un délai plausible : il doit être
+    obligé de le dire. Le défaut d'hier rendait 5 400 s à qui ne demandait
+    rien, ce qui est la forme la plus discrète du glissement du décidé au fait.
+
+    **Le repli ne vaut que pour l'unité qu'il décrit.** `DELAI_REPLI_SECONDES`
+    a été mesuré sur le cycle de livraison; l'appliquer au cycle d'observation
+    reproduirait le défaut sous un autre nom. Pour toute autre unité, hors
+    systemd, on rend `None` — aucune durée ne permet de conclure.
     """
     brut = _demander_a_systemd(unite)
     if brut is not None:
@@ -125,6 +152,16 @@ def delai_maximal(unite: str = UNITE_CYCLE) -> DelaiUnite:
             secondes=None,
             lu=True,
             provenance=f"{unite} déclare « {brut} » — aucune durée n'en dérive",
+        )
+    if unite != UNITE_CYCLE_LIVRAISON:
+        return DelaiUnite(
+            secondes=None,
+            lu=False,
+            provenance=(
+                f"{unite} n'est pas interrogeable et aucune valeur de repli ne la "
+                "décrit — le repli connu vaut pour "
+                f"{UNITE_CYCLE_LIVRAISON} seule"
+            ),
         )
     return DelaiUnite(
         secondes=float(DELAI_REPLI_SECONDES),
