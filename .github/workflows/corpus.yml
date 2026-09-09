@@ -1,0 +1,59 @@
+name: Cohérence du corpus
+
+# Ce que cette vérification protège : un corpus qui se cite lui-même.
+#
+# Seize documents à `docs/spec/`, qui se renvoient les uns aux autres par nom
+# de fichier, par section de charte et par numéro de cas du journal. Aucun de
+# ces renvois n'est un lien que quoi que ce soit résout : ils ne cassent pas,
+# ils pourrissent. Le 8 septembre, dix renvois morts ont dû être réparés à la
+# main, et deux collisions de numéro de cas se sont produites dans la semaine.
+#
+# ⚠️ Ce que ce flux NE DIT PAS, et que le script imprime sous chaque passage :
+# il vérifie qu'une cible EXISTE, jamais qu'elle contient encore ce qu'on y
+# cherche. Le contenu de la section 11 de la charte est parti au guide le
+# 7 septembre; la section existait toujours, et trois renvois pointaient vers
+# du vide sans que rien ne le signale. Un déplacement de contenu se rattrape
+# à la relecture, pas ici.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corpus-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Vérifier les renvois du corpus
+        run: |
+          set -euo pipefail
+          # Le script glob `*.md` dans le répertoire COURANT, à dessein : c'est
+          # ainsi qu'il se lance à la main sur une copie du corpus, hors du
+          # dépôt. On se déplace donc plutôt que de lui apprendre un chemin —
+          # un script qui ne tourne plus de la même façon aux deux endroits
+          # cesse d'être vérifié à l'un des deux.
+          #
+          # Aucune dépendance installée : il n'importe que la bibliothèque
+          # standard. Rien à installer veut dire rien à masquer — c'est le
+          # défaut qui a fait tomber le flux `schema` à son premier passage.
+          {
+            echo '### Cohérence du corpus'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          cd docs/spec
+          # `tee` garde la sortie visible dans le journal du job ET dans le
+          # résumé. `pipefail` fait remonter le code de sortie du script, pas
+          # celui de `tee` : sans lui, un corpus incohérent passerait au vert.
+          python3 ../../outils/verifier-corpus.py | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

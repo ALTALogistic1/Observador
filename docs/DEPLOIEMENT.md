@@ -213,7 +213,26 @@ Trois gestes, dans cet ordre, et le troisième dépend de ce que montre le secon
    Les deux valeurs précédentes ont chacune tué un cycle : 3 600 s (une heure
    ronde, aucune mesure) et 10 800 s (dimensionné sur l'amorçage). Régler sur
    l'amorçage était l'erreur symétrique de l'heure ronde — un minuteur
-   hebdomadaire ne verra jamais que le régime.
+   hebdomadaire ne verra jamais que le régime. *L'historique complet se lit
+   dans l'unité elle-même : `git log -p -- deploiement/falkye-cycle.service`.
+   Le mandat qui a décidé la valeur est à
+   `docs/spec/falkye-chantier-29-persistance.md`; ce document-ci ne porte que
+   le geste.*
+
+   > ### ⚠️ Cette valeur a un DEUXIÈME consommateur depuis le 8 septembre 2026
+   >
+   > Le seuil qui fait basculer une ligne d'exécution vers le statut
+   > `interrompue` s'en déduit : au-delà de `TimeoutStartSec`, une exécution
+   > lancée par l'unité ne peut plus tourner, puisque systemd l'aurait tuée.
+   > `falkye/sante_source.py::refermer_executions_interrompues` **lit la valeur
+   > sur l'unité** (`falkye/delai_unite.py`), il ne la recopie pas — donc un
+   > changement ici déplace aussi, et silencieusement, **la frontière entre une
+   > exécution en cours et une exécution interrompue**.
+   >
+   > Ce n'est pas une note d'exploitation. Baisser le délai rend `interrompue`
+   > une ligne qui tournait encore, et ce statut se lit ensuite comme un fait
+   > vérifié. **Avant de changer cette valeur, relire ce que la réconciliation
+   > en déduit** — pas seulement ce que le cycle a le droit de durer.
 
    Puis :
 
