@@ -423,6 +423,22 @@ Mesuré le 2026-09-08 : le déploiement démarre **quatre secondes** après le
 commit de fusion. Sur cinq fusions consécutives (#7 à #11), cinq déploiements,
 cinq migrations.
 
+### Il n'existe plus de fusion inoffensive
+
+**Une demande de fusion qui ne change qu'un document déploie exactement comme
+les autres.** Le déclencheur est `push` sur la branche principale : il ne
+regarde pas ce que le commit contient. Un correctif de coquille dans un fichier
+Markdown envoie le code, redémarre le service web, redémarre le minuteur du
+cycle, et applique les migrations de schéma sur les deux bases.
+
+Ce n'est pas une note d'exploitation, **c'est ce qui change la façon de
+décider.** Tant qu'on croyait à des fusions sans conséquence, une PR de
+documentation se fusionnait sans y penser — le raisonnement « c'est juste un
+document » est faux ici, et il l'est depuis le premier jour où ce flux existe.
+
+Concrètement : le passage à blanc de l'étape 1 ci-dessous vaut pour **toute**
+fusion, y compris celles qui ne touchent aucun code.
+
 ### Pourquoi c'est consigné ici plutôt que laissé dans l'unité
 
 Le mécanisme était déjà écrit dans `deploiement/falkye-migration.service` et dans
