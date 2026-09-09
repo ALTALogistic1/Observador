@@ -3,8 +3,9 @@
 Système qui surveille en continu des signaux publics de croissance d'entreprises
 (appels d'offres décrochés, financement, recrutement, changements corporatifs) et
 notifie l'utilisateur des prospects probables — voir
-`docs/spec/repereur-entreprises-croissance-specs.md` pour les spécifications
-complètes et `docs/spec/README-demarrage.md` pour les consignes de démarrage.
+`docs/spec/falkye-specifications-produit.md` pour les spécifications
+complètes et `docs/spec/FALKYE-000-PAR-OU-COMMENCER.md` pour l'ordre de
+lecture du corpus.
 
 **Phase 1 atteinte** (2026-09-01) : pipeline validé de bout en bout avec de
 vraies notifications (311, dont l'exemple Sigma-RH) sur 8 sources actives —

@@ -3,6 +3,13 @@
 Mandat de développement destiné à Claude Code. À exécuter **seul**, sans entamer aucun autre chantier
 du document `falkye-audit-et-mandat.md`, qui sert de contexte et non de liste de travail.
 
+> **⚠️ Lire le glossaire en tête de `falkye-audit-et-mandat.md` avant ce document.** Cinq mots du corpus
+> portent chacun deux sens ou plus — **état** (celui d'une source, chantier 1, contre celui du produit,
+> chantier 29), **journal** (d'exécution, de diagnostic, de repli, d'exploitation, ou le journal des
+> cas), **numéro contre rang**, **statut d'exécution contre état de santé**, et **chantier contre travail
+> contre point**. *La contradiction du 7 septembre s'était logée dans le premier.*
+
+
 ---
 
 ## Pourquoi ce chantier passe avant tout le reste
@@ -61,7 +68,7 @@ points ci-dessous.
 
 ## Ce qu'il faut construire
 
-### 1. Conservation d'état
+### 1. Conservation de l'état d'une source
 
 Un état courant par source, mis à jour à chaque exécution réussie. Pas un historique de copies
 complètes — l'état courant suffit, puisque le diff se fait toujours contre la dernière exécution
@@ -124,6 +131,14 @@ et l'exécution attend une révision humaine.
 
 Trois décisions de conception à respecter :
 
+**⚠️ Limite de cette règle, découverte le 4 septembre 2026 pendant le chantier 29.** Les seuils protègent
+contre le **bruit**, pas contre une **limite technique**. Les disparitions passaient par une liste de clés
+non découpée, qui plantait au-delà de 32 766 clés — alors que les seuils laissent passer jusqu'à 30 % de
+disparitions sans quarantaine, soit 818 000 clés pour le REQ. Le seuil relatif et l'absolu devant être
+franchis **ensemble**, la règle ne bornait rien à cette échelle. Corrigé par découpage. **À retenir pour
+tout seuil futur : un seuil calibré sur la vraisemblance ne protège pas d'un plafond technique — les deux
+se vérifient séparément.**
+
 **Deux seuils qui doivent être franchis ensemble**, un pourcentage et un nombre absolu de lignes. Le
 pourcentage seul mettrait en quarantaine les petites sources sur du bruit normal; l'absolu seul ne
 verrait rien venir sur les grosses. Les deux ensemble, jamais l'un ou l'autre.
@@ -153,7 +168,7 @@ avec un motif. Suivre les conventions de commande existantes du projet plutôt q
 
 ## Les deux questions de la section 11 — réponses proposées, à implémenter et tester
 
-La charte, section 11, exige qu'avant de considérer un mécanisme terminé, on réponde explicitement à
+Le guide d'ingénierie exige qu'avant de considérer un mécanisme terminé, on réponde explicitement à
 « que se passe-t-il quand deux éléments de la même dimension sont en désaccord? ». Voici les réponses
 retenues. Les implémenter telles quelles, et les tester.
 
@@ -223,7 +238,7 @@ ces tests verts.
 
 ## Vérification macro — obligatoire avant de déclarer le chantier fini
 
-La charte, section 11, documente une erreur déjà commise : `champs_pertinents.yaml` avait été vérifié
+Le guide d'ingénierie documente une erreur déjà commise : `champs_pertinents.yaml` avait été vérifié
 contre le REQ seulement, jamais contre les autres sources actives. **Ne pas refaire ça ici.**
 
 Avant de considérer le chantier terminé, faire tourner le moteur contre **toutes** les sources actives
@@ -245,7 +260,8 @@ déjà confirmées, volume suffisant pour que les seuils veuillent dire quelque 
 5. La mise à jour de la documentation d'architecture, dans le même format que les scénarios
    d'authentification et de lien sphère↔service déjà documentés.
 6. La liste des seuils par défaut retenus, avec leur justification — c'est une décision à valider avec
-   Alexandre, pas une constante à enfouir dans le code.
+   Alexandre *(registre des décisions ouvertes, en tête de `falkye-audit-et-mandat.md`)*, pas une
+   constante à enfouir dans le code.
 
 **Ne rien commencer d'autre.** Si le chantier révèle un problème appartenant à un autre chantier, le
 consigner dans le `DiagnosticJournal` et le rapporter, sans l'attaquer.

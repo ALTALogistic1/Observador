@@ -1,7 +1,7 @@
 # FALKYE — Architecture (Phase 2)
 
 Ce document explique comment le code répond à chaque exigence structurelle du
-README de démarrage et de `repereur-entreprises-croissance-specs.md`.
+corpus, et de `falkye-specifications-produit.md` en particulier.
 
 ## Import manuel de documents sources (spec section 9, ajouté le 2026-08-31)
 

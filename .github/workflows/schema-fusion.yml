@@ -62,11 +62,18 @@ jobs:
           # relevée — et c'est exactement le cas de la toute première fusion qui
           # l'introduit. Un mécanisme qui ne sait pas se comparer à un passé qui
           # l'ignore ne sert pas au moment où on en a le plus besoin.
+          # `--revision` : sous `pull_request`, l'arbre extrait est une FUSION
+          # ÉPHÉMÈRE entre la demande et sa base. Son empreinte n'existe dans
+          # aucune branche — le rapport affichait une révision que personne ne
+          # peut aller regarder. On nomme donc les deux révisions qu'on relève
+          # vraiment, celles du bouton « fusionner ».
           ( cd ../base && PYTHONPATH="$PWD" \
               python "$GITHUB_WORKSPACE/outils/schema_de_la_fusion.py" \
-                --relever "$GITHUB_WORKSPACE/avant.json" )
+                --relever "$GITHUB_WORKSPACE/avant.json" \
+                --revision "${{ github.event.pull_request.base.sha }}" )
 
-          python outils/schema_de_la_fusion.py --relever apres.json
+          python outils/schema_de_la_fusion.py --relever apres.json \
+            --revision "${{ github.event.pull_request.head.sha }}"
 
       - name: Rapporter
         run: |

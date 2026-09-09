@@ -993,8 +993,9 @@ différents) — chacune un nouvel établissement légitime, pas un doublon.
 ## Mise à jour de spec : sphère financement, score de pertinence A/AA/AAA (2026-09-01)
 
 Alexandre a communiqué trois décisions produit déjà intégrées au document de
-specs général (`docs/spec/repereur-entreprises-croissance-specs.md`, sections
-4, 6 et 9bis). Deux des trois sont maintenant construites, testées et
+specs général (sections 4, 6 et 9bis de sa numérotation d'alors; le document
+est remplacé depuis par `docs/spec/falkye-specifications-produit.md`, où ces
+contenus vivent aux sections 4, 8 et 12). Deux des trois sont maintenant construites, testées et
 commitées (la troisième, la structure tarifaire à trois plans de la section
 9bis, reste une question de portée ouverte — voir plus bas, pas dans ce
 fichier de statut réseau puisqu'elle ne touche aucune source).
