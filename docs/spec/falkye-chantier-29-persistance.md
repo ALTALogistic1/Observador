@@ -116,20 +116,47 @@ nature et remonte dans l'ordre du chantier 27.**
 
 ### Le délai d'exécution du cycle
 
-**5 400 secondes, une heure et demie** — facteur 3,1 sur la mesure réelle.
+**⚠️ Il y a deux unités, pas une — et ce document l'ignorait jusqu'au 9 septembre 2026.**
 
-**⚠️ Cette valeur a un deuxième consommateur depuis le 8 septembre.** Le seuil de bascule d'une ligne
-d'exécution vers le statut `interrompue` s'en déduit : une ligne `en_cours` dont le `started_at` remonte
-à plus de `TimeoutStartSec` ne peut plus tourner sous l'unité. **Changer 5 400 s déplace donc aussi la
-frontière entre une exécution en cours et une exécution interrompue** — la modifier sans le savoir
-rendrait la réconciliation fausse en silence. La marge absorbe une source
-lente, un portail en erreur, un trimestre neuf, ou un enrichissement redevenu fonctionnel donc plus lent
-qu'un échec immédiat. Elle ne doit pas laisser un cycle bloqué mobiliser l'hôte une demi-journée sans que
-rien ne le signale — **c'est le point où les deux erreurs coûtent à peu près pareil**.
+| Unité | Délai | Ce qu'elle lance |
+|---|---|---|
+| `falkye-cycle.service` | **5 400 s** — 1 h 30 | Le cycle avec livraison |
+| `falkye-cycle-sans-livraison.service` | **43 200 s** — 12 h | Le même cycle en observation |
 
-*Historique des quatre valeurs, parce qu'il explique la méthode mieux que le résultat : une heure ronde
-qui n'était pas une mesure, puis trois heures réglées sur l'amorçage — l'erreur symétrique — puis douze
-heures pour laisser finir, puis le régime.*
+**Les deux écrivent dans `SourceRunLog`.** *Correction du 9 septembre : ce document annonçait « quatre
+valeurs » d'historique en additionnant les deux unités comme s'il n'y en avait qu'une. Il y en a trois
+pour l'unité de livraison, et les douze heures appartiennent à l'autre — où elles sont toujours en
+vigueur.*
+
+**5 400 secondes pour l'unité de livraison** — facteur 3,1 sur la mesure réelle. La marge absorbe une
+source lente, un portail en erreur, un trimestre neuf, ou un enrichissement redevenu fonctionnel donc
+plus lent qu'un échec immédiat. Elle ne doit pas laisser un cycle bloqué mobiliser l'hôte une demi-journée
+sans que rien ne le signale — **c'est le point où les deux erreurs coûtent à peu près pareil**.
+
+*Historique des trois valeurs de cette unité, parce qu'il explique la méthode mieux que le résultat : une
+heure ronde qui n'était pas une mesure (journal, cas 20), puis trois heures réglées sur l'amorçage —
+l'erreur symétrique — puis le régime.*
+
+**⚠️ Cette valeur a un deuxième consommateur depuis le 8 septembre**, et il lit aujourd'hui la mauvaise
+unité pour la moitié des cycles. Le seuil de bascule d'une ligne d'exécution vers `interrompue` s'en
+déduit : une ligne `en_cours` dont le `started_at` remonte à plus de `TimeoutStartSec` ne peut plus
+tourner sous l'unité. **Mais `lance_par` enregistre « sous unité » ou « à la main » — jamais laquelle.**
+Un cycle d'observation qui tourne depuis deux heures, ce qui est normal sous 43 200 s, serait donc
+refermé en `interrompue` avec le motif « au-delà du délai de l'unité (5 400 s) » : **une ligne vivante
+déclarée morte, avec une raison chiffrée qui se lit comme vérifiée.**
+
+**Décision retenue le 9 septembre, à construire au chantier 2** *(registre, D30)* : `lance_par` porte le
+nom de l'unité, et le seuil se lit sur cette unité-là. *Ni le seuil maximal — ça rendrait la bascule
+inutile sous l'unité de livraison — ni deux tables séparées : les deux cycles ont raison de partager
+`SourceRunLog`, ce qui manquait c'est qu'ils s'y distinguent.* **Les lignes existantes restent non
+décidables et ne se basculent pas rétroactivement.**
+
+**Règle qui en sort :** un seuil déduit d'un réglage se lit sur **l'instance** qui a produit la ligne,
+jamais sur une constante nommée d'après une seule d'entre elles. *`UNITE_CYCLE` avait l'air d'un
+identifiant de catégorie et désignait une unité précise.*
+
+**Changer l'un ou l'autre délai déplace donc aussi la frontière entre une exécution en cours et une
+exécution interrompue** — la modifier sans le savoir rendrait la réconciliation fausse en silence.
 
 ### Ce qui reste
 

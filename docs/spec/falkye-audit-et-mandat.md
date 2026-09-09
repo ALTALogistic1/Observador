@@ -90,6 +90,7 @@ redécrire. **Trancher inclut « non, et voici pourquoi ».**
 | D27 | Trouver un registre officiel des entités publiques québécoises | Chantiers 3+4, 20; spéc. §7.2 | ⬜ **avant la conception de la clé du chantier 3** — il ferait pour le public ce que le REQ fait pour le privé, et retirerait au SEAO sa double nature |
 | D28 | Règle de classement d'une entité en publique ou privée | Chantiers 3+4 | ⬜ **avec D27** — société d'État, organisme paramunicipal, coopérative subventionnée : la règle doit avoir une **réponse par défaut** quand elle ne tranche pas, sinon on remplace une ambiguïté de source par une ambiguïté d'entité |
 | D29 | Entité portant les deux identifiants — lequel fait foi | Chantiers 3+4 | ⬜ **avec D27** — une identité peut en porter plusieurs *(spéc. §6.1)*, mais **la vérification du statut légal doit en désigner un** |
+| D30 | `lance_par` porte le nom de l'unité, et le seuil `interrompue` se lit sur elle | Chantier 2, chantier 29 | ✅ **Tranchée le 9 septembre**, à construire au chantier 2. *Deux unités lancent le même cycle — 5 400 s avec livraison, 43 200 s en observation — et écrivent dans la même table sans s'y distinguer. Ni seuil maximal, ni tables séparées. Les lignes existantes restent non décidables, sans bascule rétroactive.* |
 | D12 | Seuils d'alerte de dérive | Mandat chantier 2, livrable 6 | ⬜ **avant clôture du chantier 2** |
 | D17 | Seuils de quarantaine par défaut | Mandat chantier 1, livrable 6 | ⬜ *à dater* — **même forme que D12, jamais une constante enfouie** |
 | D18 | Exception canadienne pour la fouille de textes et de données | Cadre légal | ⬜ *à revalider* — si elle entre en vigueur, elle change l'analyse des sources |
@@ -98,7 +99,7 @@ redécrire. **Trancher inclut « non, et voici pourquoi ».**
 | D14 | Le repli par sous-chaîne : borner ou retirer? | Chantier 2, instrument de coût | ⬜ **après le premier rapport de coût en régime** |
 | D15 | Le vide du 8 septembre — miroir absent ou appariement? | Journal cas 10, faille D | ⬜ **avant de s'en servir comme prémisse** — une commande tranche |
 
-**Vingt-neuf entrées : deux tranchées, douze portant un déclencheur ou une condition de levée, quinze
+**Trente entrées : trois tranchées, douze portant un déclencheur ou une condition de levée, quinze
 attendant encore une date.**
 
 **⚠️ Portée : tout ce qui touche un territoire hors Québec est en veilleuse.** *Décision du 4 septembre
@@ -644,6 +645,13 @@ Quatre conséquences retenues :
   moment-là » est précisément l'information.**
 - ⬜ **Refermer les deux lignes orphelines** — le rapatriement est fait, la fermeture attend le statut
   `interrompue`.
+- ⬜ **Corriger la lecture du seuil `interrompue`** *(D30, tranchée le 9 septembre)*. Deux unités lancent
+  le même cycle — 5 400 s avec livraison, 43 200 s en observation — et écrivent toutes deux dans
+  `SourceRunLog`, mais `lance_par` n'enregistre pas **laquelle**. Un cycle d'observation de deux heures,
+  normal sous 43 200 s, serait refermé en `interrompue` avec un motif chiffré qui se lit comme vérifié.
+  **`lance_par` porte le nom de l'unité, le seuil se lit sur elle, et les lignes existantes restent non
+  décidables.** *Règle générale : un seuil déduit d'un réglage se lit sur l'instance qui a produit la
+  ligne, jamais sur une constante nommée d'après une seule d'entre elles.*
 - ⬜ **Migration à dix colonnes, sur l'hôte**, après déploiement.
 - ⬜ Les autres travaux du mandat, **réordonnés : l'instrument de coût d'abord**.
 - ⬜ **Le rapport de vérification macro par source** — cadence, saisonnalité, norme calculée, état de
