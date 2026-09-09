@@ -320,3 +320,24 @@ signal — *une entreprise qui vient de naître n'est pas une entreprise **en** 
 règle qui distingue le vrai signal du bruit administratif** — et c'est pourquoi la charte pose qu'aucune
 source ne s'active sans elle. Un volume de cet ordre se remarque; **le même défaut sur une source à
 faible volume serait passé inaperçu.**
+
+## Cas 29 — L'empreinte complétée de mémoire au lieu d'être lue *(guide d'ingénierie)*
+
+Le 9 septembre 2026, une fusion a été refusée en `409 Head branch was modified`. La branche n'avait pas
+bougé : l'empreinte attendue avait été **complétée à partir des sept caractères courts affichés**, au lieu
+d'être lue. Une valeur qu'on croyait connaître tenant lieu de la valeur qu'on n'avait pas lue — dix
+minutes après que le même motif ait été écrit dans une demande de fusion.
+
+**Ce que ça ajoute aux occurrences précédentes.** Les autres portaient sur un **état du système** présumé
+plutôt que vérifié — un minuteur, un index, un schéma. Celle-ci porte sur une **valeur reconstituée** :
+une forme abrégée est visible, le reste est complété par déduction, et **rien ne distingue à la lecture ce
+qui a été vu de ce qui a été reconstruit**. Un identifiant tronqué, un numéro de version, un chemin abrégé
+se prêtent au même geste.
+
+**Ce qui l'a attrapée n'est pas la vigilance.** Le serveur vérifie l'empreinte attendue avant de
+fusionner. Sans ce paramètre, la fusion passait sur une tête non confirmée. **Un garde-fou qui coûte un
+paramètre a rendu inoffensif un défaut qui n'aurait laissé aucune trace.**
+
+**La règle.** Une valeur tronquée à l'affichage **ne se complète jamais de mémoire — elle se relit à la
+source**. Et quand une opération offre de vérifier la valeur attendue, on la lui passe : c'est le seul
+moment où la reconstitution se voit.
