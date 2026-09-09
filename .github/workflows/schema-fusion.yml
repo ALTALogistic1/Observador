@@ -45,6 +45,14 @@ jobs:
           pip install -r requirements.txt
 
       - name: Relever les deux révisions
+        env:
+          # `python outils/…` met `outils/` sur sys.path, jamais la racine, et
+          # le paquet n'est pas installé ici — `import falkye` échouerait. En
+          # développement il est installé en mode éditable, ce qui MASQUAIT le
+          # défaut : le premier passage de ce flux est tombé dessus.
+          # Le relevé de la base écrase cette valeur dans son sous-shell, à
+          # dessein : lui doit lire les modèles de l'arbre de base.
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           set -euo pipefail
           git worktree add ../base "${{ github.event.pull_request.base.sha }}"
