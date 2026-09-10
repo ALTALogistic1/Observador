@@ -31,17 +31,21 @@ revue : ce n'est pas le dialecte SQL qui disqualifiait PostgreSQL — le projet 
 construction propre à SQLite. **C'est le port.***
 
 **Décision : base gérée compatible SQLite, accédée en HTTPS.** Turso, organisation `altalogistic`, base
-`falkye`, région `us-east-1`. Palier Developer depuis le 8 septembre 2026 — vingt-cinq millions d'écritures par
-mois, et **fenêtre de restauration annoncée à dix jours par le fournisseur, comportement non vérifié**
-*(voir « Ce qui reste »)*.
+`falkye`, région `us-east-1`. **Palier Scaler depuis le 8 septembre 2026. Deux changements successifs :
+Developer le 7 septembre, puis Scaler le 8** — les besoins étaient plus grands qu'estimé. Le second était
+forcé par l'épuisement du quota de lectures ce matin-là. **Quotas et fenêtre de restauration : à lire sur
+la fiche du palier Scaler, pas recopiés ici** — *un chiffre recopié est une promesse que personne ne
+tient.*
 
-**⚠️ Le passage au palier Developer n'était pas planifié, et il est temporaire.** Il a été forcé le
+**⚠️ Le passage au palier Scaler n'était pas planifié, et il est temporaire.** *Deux paliers franchis en
+deux jours, ce qui est en soi l'information : l'estimation initiale était fausse d'un cran, puis de
+deux.* Il a été forcé le
 8 septembre au matin par **l'épuisement du quota de lectures** — un index unique sur le NEQ acceptant
 8 395 NULL, chaque résolution d'entreprise non identifiée lisait 8 395 lignes deux fois. L'index
 composite `ix_companies_neq_nom_normalise` a réduit la fuite sans la fermer : le repli par sous-chaîne
 balaie toujours 8 396 lignes **sur la base durable, donc facturées**. **Le quota de lectures est le
-chiffre qui manque à ce document**, et la décision de redescendre de palier attend la ventilation du
-coût livrée au chantier 2.
+chiffre qui manque à ce document**, et la décision de redescendre attend la ventilation du coût livrée au
+chantier 2. **Elle mène au Developer, pas au palier gratuit** *(registre, D14)*.
 
 ### Le découpage produit / miroirs
 
@@ -192,14 +196,44 @@ exécution interrompue** — la modifier sans le savoir rendrait la réconciliat
   l'envoi qu'on cherche à empêcher. **Risque documenté et non traité, ce qui n'est pas un risque géré;
   un risque non documenté serait pire.** Le chemin est fermé tant qu'aucune commande ne démarre ce
   minuteur sans qu'on ait lu son fichier d'horodatage.
-- ⬜ **Tester la fenêtre de restauration** — **débloque aussi le point 27.9**, la suppression des copies
-  vides sur la base distante étant une migration destructive, qui a besoin de ce filet contrairement à un
-  index. Demander une restauration antérieure au changement de palier.
-  Deux minutes, et la base d'essai se détruit ensuite puisqu'elle compte dans le quota. Tranchera si la
-  fenêtre est rétroactive ou si elle s'accumule vers l'avant, question que la documentation du
-  fournisseur n'aborde nulle part.
-- ⬜ **Ajouter le domaine d'API du fournisseur d'hébergement à la liste blanche**, pour que l'état des
-  sauvegardes soit vérifiable depuis l'environnement de développement.
+- ✅ **Fenêtre de restauration — testée le 10 septembre 2026, et la question s'est révélée mal posée.**
+  Elle ne se mesure pas encore : **il n'y a rien à restaurer avant le 8 septembre**, date où commencent
+  les données réelles du produit — le premier passage de données, tenté le 7, n'a pas abouti. La fenêtre
+  couvre donc l'intégralité de ce qui existe, et **c'est ce qui débloque le point 27.9** : la suppression
+  des huit copies vides a son filet.
+  *Trois essais : 5 septembre refusé (« pitr … is not available for the group »), 7 septembre refusé sur
+  une **erreur interne du service — non concluant, ce n'est pas un verdict de fenêtre** —, 8 septembre
+  accepté, base créée puis détruite.*
+  ⚠️ **Ce qui reste inconnu, et doit le rester visible : on ne sait pas si la fenêtre fait trente jours en
+  pratique.** Le refus du 5 ne mesure aucune durée — il dit qu'il n'y avait rien là. **On le saura quand
+  le 8 septembre commencera à en sortir.**
+  **Deux faits pour qui refait le test.** Il se fait **entièrement depuis l'interface web** — onglet
+  `Branches`, `Create From Point-in-Time` — et le client de l'hébergeur n'est pas nécessaire. Et **le
+  service refuse AVANT de créer** quand l'instant est hors fenêtre : les essais ne coûtent rien tant
+  qu'ils échouent.
+  ⚠️ **La fenêtre est portée par le GROUPE, pas par la base.** Le message de refus dit « not available
+  for **the group** ». Le groupe s'appelle `default`. **Tout ce qui rejoint ce groupe hérite de la même
+  fenêtre, et un changement de groupe la change pour toutes les bases qu'il porte.** *C'est le genre de
+  fait qu'on découvre au mauvais moment.*
+- ⬜ **Vérifier que les deux bases d'essai sont bien détruites** — `falkye-essai-restauration`, et
+  `falkye-essai-2` si la seconde a été créée avant l'erreur. *À faire quand le site de l'hébergeur sera
+  stable : deux essais ont donné des erreurs internes le matin du 10 septembre, et l'interface a perdu sa
+  barre d'onglets. Une base d'essai oubliée compte dans le quota.*
+- ⬜ **Un jeton d'API de plateforme, sur le poste d'Alexandre — et nulle part ailleurs.** *Remplace la
+  ligne « ajouter le domaine d'API de l'hébergeur à la liste blanche », devenue fausse : le domaine passe
+  déjà. Vérifié le 10 septembre 2026 depuis l'environnement de développement — `api.turso.tech` répond
+  `401` avec les en-têtes du fournisseur, ce qui est un refus d'authentification et non un blocage
+  réseau.*
+  **Ce qui manque n'est pas un chemin, c'est un secret d'une autre nature.** `FALKYE_DB_AUTH_TOKEN` ouvre
+  **la base** `falkye`; il ne dit rien du compte, des sauvegardes ni des autres bases — essayé, `401` lui
+  aussi sur l'API de plateforme. Un jeton de plateforme, lui, peut **créer et détruire des bases**.
+  **Il ne va donc ni dans le dépôt, ni sur l'hôte, ni dans l'environnement de développement.** L'hôte n'a
+  besoin que de lire et écrire *sa* base : lui donner un jeton capable de la détruire élargit exactement
+  la surface que l'architecture de ce chantier protège — *une chaîne compromise peut redémarrer le
+  service, jamais lire la base*, et à plus forte raison jamais la supprimer. Vérifier l'état des
+  sauvegardes est un **geste humain occasionnel** : il se fait en séance, depuis le poste, avec un jeton
+  qui n'existe nulle part en permanence. *Et le test du 10 septembre montre que la vérification courante
+  n'en a même pas besoin : l'interface web suffit.*
 
 ### ⚠️ Question ouverte — où vivent réellement l'historique et les quarantaines de diff
 

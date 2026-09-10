@@ -98,7 +98,7 @@ redécrire. **Trancher inclut « non, et voici pourquoi ».**
 | D17 | Seuils de quarantaine par défaut | Mandat chantier 1, livrable 6 | ⬜ *à dater* — **même forme que D12, jamais une constante enfouie** |
 | D18 | Exception canadienne pour la fouille de textes et de données | Cadre légal | ⬜ *à revalider* — si elle entre en vigueur, elle change l'analyse des sources |
 | D19 | Licence et fréquence du jeu ouvert de la CVMO | Recommandations sources, priorité 3 | ⬜ *à vérifier manuellement* — le site bloque l'accès automatisé |
-| D13 | Fenêtre de restauration — comportement réel | Chantier 29, point 27.9 | ⬜ **avant toute migration destructive** |
+| D13 | Fenêtre de restauration — comportement réel | Chantier 29, point 27.9 | ✅ **Close le 10 septembre 2026, sur un constat qui rend la mesure caduque : il n'y a rien à restaurer avant le 8.** *Le premier passage de données, tenté le 7, n'a pas abouti; les données réelles commencent le 8 septembre. La fenêtre couvre donc l'intégralité de ce qui existe.* Testé depuis l'interface web : 5 septembre refusé (hors fenêtre), 7 septembre refusé sur une **erreur interne — non concluante**, 8 septembre accepté. ⚠️ **Reste inconnu : on ne sait pas si la fenêtre fait trente jours en pratique** — le refus du 5 ne mesure aucune durée, il dit qu'il n'y avait rien là. On le saura quand le 8 septembre commencera à en sortir. *Les durées annoncées par palier restent au dossier de l'hébergeur, pas ici.* |
 | D14 | Le repli par sous-chaîne : borner ou retirer? | Chantier 2, instrument de coût | ⬜ **après un cycle qui RÉSOUT** — celui du 10 septembre a rendu zéro résolution sur les trois chemins, donc zéro mesure. Un cycle en régime ne résout rien : il faut du neuf (premier import REQ, trimestre neuf). *Le palier de quota reste au supérieur en attendant.* |
 | D15 | Le vide du 8 septembre — miroir absent ou appariement? | Journal cas 10, faille D | ⬜ **avant de s'en servir comme prémisse** — une commande tranche |
 
@@ -1608,7 +1608,7 @@ est le filet des migrations qui modifient des données.**
 
 - ✅ Persistance, découpage, hôte, application en production, déploiement, miroir, cycle en régime — **chaque case porte sa preuve au mandat**.
 - ✅ Fuseau de l'hôte corrigé · minuteur vérifié `inactive` · index composite posé et vérifié.
-- ⬜ Activer le minuteur · tester la fenêtre de restauration · liste blanche de l'hébergeur.
+- ⬜ **Activer le minuteur** — dernier geste du chantier 29, en attente d'un rapport de coût qui mesure vraiment quelque chose. *Deux cases fermées le 10 septembre : la fenêtre de restauration, et la liste blanche — qui n'était pas nécessaire, le domaine passait déjà.*
 - ⚠️ **Question ouverte : où vivent l'historique et les quarantaines de diff.** Le mandat les place au
   distant; le travail 1bis du chantier 2 les a mesurés dans le fichier miroir local. **Les deux ne peuvent
   pas être vrais ensemble**, et si l'état de diff vit hors de la base durable, la garantie de persistance
