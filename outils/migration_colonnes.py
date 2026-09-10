@@ -46,12 +46,11 @@ from sqlalchemy import inspect, text
 
 import falkye.models  # noqa: F401 -- enregistre tous les modèles
 from falkye.db import (
+    bases_sur_repli,
     cible_annoncee,
-    get_db_url,
     get_engine,
     get_engine_miroir,
     init_db,
-    sur_repli_par_defaut,
 )
 from falkye.models.base import Base, BaseMiroir
 
@@ -189,10 +188,11 @@ def main() -> int:
     # répertoire courant : sur l'hôte, `/etc/falkye/falkye.env` n'est chargé que
     # par les unités systemd, jamais par un shell interactif. Une commande tapée
     # à la main crée donc un fichier vide et rend son verdict dessus.
-    if sur_repli_par_defaut() and not args.repli_par_defaut:
+    if bases_sur_repli() and not args.repli_par_defaut:
         return _refuser(
-            "aucune cible n'a été choisie : FALKYE_DB_URL est absente, et le repli "
-            f"par défaut ({get_db_url()}) est relatif au répertoire courant.\n"
+            "une base n'a pas de cible choisie — "
+            f"{', '.join(bases_sur_repli())} absente(s), donc repli relatif au "
+            "répertoire courant.\n"
             "  Sur l'hôte : set -a; . /etc/falkye/falkye.env; set +a\n"
             "  En développement, si le repli est vraiment voulu : --repli-par-defaut"
         )

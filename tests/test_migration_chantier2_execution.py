@@ -13,6 +13,20 @@ from sqlalchemy import text
 from outils import migration_chantier2_execution as migration
 
 
+@pytest.fixture(autouse=True)
+def cible_declaree(monkeypatch):
+    """Une cible nommée, parce que l'outil refuse celle que personne n'a choisie.
+
+    Ces tests INJECTENT une session : l'environnement ne décide de rien pour
+    eux. Mais le garde-fou lit l'environnement, et c'est juste — il protège le
+    cas où l'outil résout sa cible tout seul. La déclarer ici n'est donc pas un
+    contournement : c'est dire « oui, une cible a été choisie », ce que tout
+    appelant réel doit faire. Voir falkye/db.py::bases_sur_repli.
+    """
+    monkeypatch.setenv("FALKYE_DB_URL", "sqlite:////tmp/essai-produit.sqlite3")
+    monkeypatch.setenv("FALKYE_MIROIR_DB_URL", "sqlite:////tmp/essai-miroirs.sqlite3")
+
+
 @pytest.fixture()
 def base_non_migree(db_session):
     """Retire les colonnes du chantier 2 pour retrouver l'état d'avant.
