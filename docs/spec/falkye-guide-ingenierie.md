@@ -60,6 +60,12 @@ Un fait vérifié se fait citer sous une forme raccourcie, puis sert de prémiss
 
 **Une valeur tronquée à l'affichage ne se complète jamais de mémoire — elle se relit à la source.** *(journal, cas 29)* C'est le glissement appliqué à une VALEUR plutôt qu'à un état : une forme abrégée est visible — empreinte courte, identifiant tronqué, numéro de version, chemin abrégé — le reste est complété par déduction, et **rien ne distingue à la lecture ce qui a été vu de ce qui a été reconstruit**. Et quand une opération offre de vérifier la valeur attendue, on la lui passe : c'est le seul moment où la reconstitution se voit.
 
+**Un outil qui juge ou modifie un schéma annonce sa cible en tête de sortie, et refuse de juger une cible que personne n'a choisie.** *(journal, cas 30)* Troisième forme, après la preuve absente et la preuve périmée : **la preuve fabriquée par l'instrument qui devait la recueillir**. Un repli silencieux vers une base vide fait rendre le verdict le plus RASSURANT — rien ne manque, parce que rien n'existe. Le vert est sincère et l'outil est structurellement incapable de dire non. **Un outil de migration qui crée sa propre cible ne migre rien, il fabrique.**
+
+**Un état sans date se lit comme courant.** *(constaté le 2026-09-09 sur Guichet-Emplois)* C'est le VOISIN de « la preuve voyage avec le fait », pas la même : là il manquait une preuve, ici la preuve existait et l'état a simplement changé depuis. Quatre documents portaient quatre états de la même source — « à développer faute de nom d'employeur » (31 août), « réactivée par les pages de détail » (1er septembre), « 9e source active » (1er septembre), et `en_pause` pour une TROISIÈME raison découverte le 7. **Chacun était vrai à sa date, aucun ne le disait**, et le plus récent était le seul introuvable dans les documents.
+
+**Trois remèdes, du plus fort au plus faible.** *Ne pas recopier* — un état qui a une source de vérité ailleurs s'y lit, il ne se duplique pas. *Dater en tête* quand il faut le garder comme repère : « Au 1er septembre — » plutôt qu'une parenthèse au milieu de la phrase. *Et signaler le dépassement là où l'ancien état est écrit*, plutôt que de le corriger : un récit d'investigation garde sa valeur, à condition de dire qu'il a été dépassé et par quoi.
+
 **Test de relecture :** cette affirmation porte-t-elle la trace de ce qui l'a établie? Sinon, c'est une décision — et il faut le dire — ou une supposition déguisée en fait.
 
 ## Un chantier n'est clos que sur l'état observable
@@ -78,6 +84,39 @@ Un fait vérifié se fait citer sous une forme raccourcie, puis sert de prémiss
 
 **Deux formes d'un même contenu ne s'écrivent jamais séparément.** Version texte et version HTML, résumé et notification unitaire : écrites en parallèle, elles divergent. **Une divergence entre deux formes du même contenu est un mensonge** — celui qui lit l'une n'a pas la même information que l'autre, sans que rien ne le signale. Une source unique, deux rendus, un test sur l'invariant.
 
+
+## Une phrase qui a une source de vérité ailleurs n'a rien à faire là
+
+**Elle a une date d'expiration que personne ne surveille.** *(constaté le 2026-09-09)* Le README du
+dépôt recopiait l'inventaire des sources, dont la vérité vit au registre. Deux jours après un
+changement de statut, il annonçait encore l'ancien — sans que rien ne soit tombé, puisque rien ne
+comparait les deux.
+
+**Un document d'accueil dit OÙ REGARDER et COMMENT DÉMARRER, jamais ce qui est vrai.** Trois choses
+lui appartiennent en propre : ce que le projet est, comment on le lance, et la carte de ce qui répond
+à quelle question. Tout le reste se renvoie.
+
+**Une exception, et une seule : la carte doit dire comment lire ce vers quoi elle renvoie.** Si
+l'inventaire vers lequel on pointe se lit de deux façons — ici `actif` ne veut pas dire « tourne dans
+un cycle » —, le renvoi sans cette clé produit un lecteur qui compte faux en suivant le bon conseil.
+
+**Ce qui se vérifie mécaniquement se verrouille par un test, mais après le retrait, pas à sa place.**
+Un test qui ferait mentir un document moins vaut moins que le retrait de ce qu'il n'avait pas à dire.
+Et il ne doit jamais exiger plus que la cohérence : **nommer une chose sans la déclarer active reste
+légitime** — un test qui l'interdirait forcerait à retirer une information vraie pour passer au vert.
+
+## Qui repère qu'un document est devenu faux
+
+**Repérer est une obligation, pas une courtoisie.** Un écart constaté se dit dans le tour où il est
+constaté, même sans rapport avec ce qu'on faisait. Convenir de qui ÉCRIT dans un document ne dit rien
+de qui REGARDE — et laisser cette ambiguïté valoir « je ne touche pas » revient à ne pas regarder.
+
+**Le constat voyage avec sa proposition de texte.** Un signalement sans proposition fait porter le
+travail deux fois; une correction sans signalement est une main dans le texte de quelqu'un d'autre.
+
+**Quand une modification rend un document faux, corriger ce document fait partie de la modification.**
+Pas d'un suivi, pas d'une demande ultérieure — de celle-là. Un suivi est une intention; une intention
+ne tient pas un document à jour.
 
 ## Ne jamais présumer une capacité non testée
 
