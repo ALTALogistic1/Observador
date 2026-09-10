@@ -445,7 +445,7 @@ vit dans `engine.py` (`if profile.plan != PlanTarifaire.ECHO`), jamais dans
 `falkye/ponderation.py`/`falkye/pertinence.py`, où le module reste agnostique
 du plan et l'appelant gate au moment de l'usage.
 
-## Structure de plans tarifaires et portail de sources payantes (spec section 9bis)
+## Structure de plans tarifaires et portail de sources payantes (spéc. section 12)
 
 Trois plans (`falkye/models/profile.py::PlanTarifaire`) — ÉCHO / RADAR / RADAR_PLUS,
 strictement ordonnés (`falkye/registry/loader.py::PLANS_TARIFAIRES`) — mais **un seul
@@ -508,7 +508,7 @@ report.
 ## Tableau de bord et statut de suivi (spec section 4bis, ajoutée le 2026-09-02)
 
 Réservé aux plans Radar/Radar+ (`falkye/cli.py::_verifier_plan_dashboard` — même
-porte que le reste du système de plans, section 9bis ci-dessus, pas un mécanisme
+porte que le reste du système de plans, section 12 des spécifications, pas un mécanisme
 séparé). Une carte par notification (`falkye dashboard voir`) : pertinence,
 confiance, site web, coordonnées d'enrichissement, statut de suivi.
 
@@ -866,7 +866,7 @@ statut "Pas pertinent" vienne d'un clic au tableau de bord ou d'un
 changement lu côté CRM par `sonder_statuts_crm`.
 
 **Cartes de source à l'étape de connexion, portail Radar/Radar+** (spec
-section 9bis, ajoutée le 2026-09-02) : chaque option de source présentée au
+section 12 des spécifications, décidée le 2026-09-02) : chaque option de source présentée au
 client doit afficher DEUX éléments, jamais un nom de marque seul — le
 domaine/type de la source et l'avantage concret qu'elle apporte, pour que le
 client choisisse en connaissance de cause plutôt que sur la notoriété (ex.
