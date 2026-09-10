@@ -18,12 +18,17 @@ Document de référence à consulter avant toute recherche, proposition de fonct
 
 **Ce que ça révèle.** Un principe formulé comme une conviction ne se déclenche pas au moment de décider. Formulé comme un test, il ne se déclenche pas davantage s'il n'a pas de **valeur par défaut** — un test sans mesure se résout par l'intuition de la personne pressée, et l'intuition penche toujours du même côté.
 
-**Quatre règles de lecture applicables à toute la charte.**
+**Cinq règles de lecture applicables à toute la charte.**
 
-1. **Un principe qui ne dit pas quoi faire en l'absence de mesure n'est pas utilisable.** Chaque test porte sa réponse par défaut, choisie du côté où se tromper coûte le moins cher.
+1. **Un principe qui ne dit pas quoi faire en l'absence de mesure n'est pas utilisable.** Chaque test porte sa réponse par défaut, choisie du côté où se tromper coûte le moins cher — **et choisie délibérément, jamais posée en passant (règle 5)**.
 2. **Quand deux règles du corpus se contredisent, la charte tranche** — y compris contre un document opérationnel plus récent. La contradiction se corrige dans les deux documents, jamais dans un seul.
 3. **Une mesure prise dans de mauvaises conditions est pire que pas de mesure.** Elle produit une conclusion fausse portée par la confiance d'un fait observé. *(journal, cas 2)* **Avant de mesurer, vérifier que les conditions rendent le résultat interprétable** — sinon attendre, et le dire.
 4. **Un principe violé une fois se documente ici, avec le cas réel.** Cette charte n'est pas une déclaration d'intention, c'est la mémoire des erreurs qu'on refuse de refaire.
+5. **Une échelle ou une règle de calibration absente se signale, elle ne s'invente pas.** Dès qu'un travail bute sur une échelle qui n'existe pas, un seuil non fixé ou une règle manquante, **s'arrêter et le dire**. *Une échelle dit ce que le produit s'autorise à affirmer — c'est une décision de produit, pas une définition technique, et elle ne se prend pas en passant.*
+
+   **Ce que la règle 1 n'autorise pas.** Un défaut au sens de la règle 1 est un défaut **décidé**. **Un défaut décidé est choisi en pesant de quel côté se tromper coûte le moins cher; un défaut posé en passant tire son autorité de sa seule existence.** Ce n'est pas la même chose, et rien ne les distinguait. Une valeur posée pour débloquer devient **la décision que personne n'a prise**, et elle sera défendue plus tard comme si elle en était une. *C'est la règle 3 appliquée aux échelles plutôt qu'aux mesures : sinon attendre, et le dire.*
+
+   **Ce qui se fait sans consultation, et qui doit se faire.** Rapporter **ce que le corpus porte déjà de comparable, et ce qui l'a produit** — l'échelle voisine, le seuil analogue, la décision qui a fixé un cas semblable. Ça donne de quoi trancher plutôt qu'une page blanche. **Un signalement sans ce relevé fait porter le travail deux fois.** L'entrée va au registre des décisions ouvertes *(section 15)*, avec son échéance.
 
 ## 1. Mission
 

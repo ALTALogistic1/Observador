@@ -94,6 +94,7 @@ redécrire. **Trancher inclut « non, et voici pourquoi ».**
 | D31 | Une empreinte du corpus, pour qu'un fichier revenu en arrière se voie | Méthode d'écriture du corpus, 9 septembre | ⬜ **au premier cas réel, pas avant** — *`verifier-corpus.py` attrape les renvois cassés et les numéros dupliqués; il ne voit PAS un document remplacé par une version antérieure, qui reste cohérent avec lui-même. Le corpus n'a plus qu'une main qui écrit, ce qui ferme la cause; une copie de travail subsiste ailleurs, ce qui laisse le risque. On ne construit pas le mécanisme d'avance — on a déjà assez de mécanismes construits avant leur défaut.* |
 | D32 | Réactiver Guichet-Emplois, ou l'écarter | Registre des sources, `docs/STATUT_RESEAU.md` | ⬜ **quand le décalage de publication passe sous la durée de vie d'une offre, mesuré en suivant dix identifiants du fichier le plus récent.** *Le connecteur est correct et testé — rien à réécrire le jour où la donnée le permet. Ce n'est ni un abandon ni une source active : un état en attente d'une mesure.* |
 | D33 | Le cerveau : le jugement, et la place vide de « comprendre » | `FALKYE-000-PAR-OU-COMMENCER.md` § Le cœur et le cerveau, spéc. 9.2bis, chantier 21 point 2bis | ⬜ **quand les TROIS existent : des dossiers réels en nombre, un taux de rejet mesuré (chantier 13), une densité de signal (chantier 9).** *Le jugement est la faculté de NE PAS DIRE — seuil de publication, confiance plafonnée, sphère qu'on n'offre pas parce qu'on ne peut pas la servir. Il n'a aucun chantier, et « comprendre », entre associer et mettre en mots, est une place laissée vide délibérément. Ce qui manque n'est pas la réponse, c'est le DÉCLENCHEUR : une place vide sans échéance devient un oubli (cas 15). Une condition plutôt qu'une date, parce qu'avant ces trois-là la discussion se ferait sur des hypothèses.* ⚠️ **Discussion de nature différente d'un chantier ordinaire** : elle porte sur la philosophie du produit autant que sur la technique — ce qu'il a le droit d'affirmer, ce qu'il doit taire, sur quoi il fonde une interprétation — et **produira des sections de corpus, pas seulement du code**. |
+| D34 | Le « tier de confiance » qu'une règle de calibration produit | Chantier 22.1, spéc. 5.4 et 8.1 | ⬜ **avant la première règle déclarée** — un champ obligatoire dont les critères n'existent pas. *Première application de la règle 5 de la charte : signalé, non inventé.* **Ce qui existe :** l'axe **Confiance** de la spéc. 8.1 porte trois valeurs — *Faible / Moyen / Élevé* — et c'est vraisemblablement la même échelle, mais **le lien n'est écrit nulle part** et **aucun critère ne dit ce qui produit l'un plutôt que l'autre**. Les trois valeurs n'apparaissent qu'une fois dans tout le corpus, à leur ligne de définition. **Ce qui manque est donc plus étroit qu'une échelle absente : ce sont les critères, et le rattachement.** *Relevé des échelles comparables et de ce qui les a produites : voir « Échelles comparables » ci-dessous.* |
 | D12 | Seuils d'alerte de dérive | Mandat chantier 2, livrable 6 | ⬜ **avant clôture du chantier 2** |
 | D17 | Seuils de quarantaine par défaut | Mandat chantier 1, livrable 6 | ⬜ *à dater* — **même forme que D12, jamais une constante enfouie** |
 | D18 | Exception canadienne pour la fouille de textes et de données | Cadre légal | ⬜ *à revalider* — si elle entre en vigueur, elle change l'analyse des sources |
@@ -167,6 +168,46 @@ coût change, **à condition de ne pas lancer commercialement avant d'avoir rég
 *Classées par ce que ça coûterait si personne ne le voyait avant les premiers clients payants.*
 
 ---
+
+## Échelles comparables du corpus — relevé pour D34
+
+*Écrit le 10 septembre 2026 au titre de la règle 5 de la charte : ce qui se fait sans consultation, c'est
+rapporter ce que le corpus porte déjà de comparable et ce qui l'a produit. **Aucune échelle n'est
+proposée ici** — la proposer serait précisément ce que la règle interdit.*
+
+**Confiance du signal — spéc. 8.1.** *Faible / Moyen / Élevé.* Question posée : « le signal est-il réel
+et fort? » **Trois valeurs nommées, aucun critère écrit**, et l'expression n'apparaît qu'à cette ligne
+dans tout le corpus. C'est l'échelle dont le chantier 22 a besoin, si le rattachement est celui qu'on
+suppose — *et ce rattachement n'est écrit nulle part.*
+
+**Pertinence — spéc. 8.1.** *A Repéré / AA Aligné / AAA Sur mesure.* **Ce qui l'a produite est la
+décision la plus instructive du corpus sur les échelles** *(journal, cas 16)* : elle était A/B/C. Le
+classement, l'ordre et les écarts sont identiques; ce qui a été retiré est **un jugement que le produit
+n'était pas en position de porter**. Dire « C » revient à dire à l'utilisateur que son opportunité est
+médiocre, alors que le moteur sait seulement qu'elle est **moins bien alignée que d'autres**. *Le C
+ajoutait une information fausse; le A la retire sans rien inventer.* **Une échelle dit ce que le produit
+s'autorise à affirmer — c'est de là que vient la règle 5.**
+
+**Confiance d'appariement — spéc. 6.3.** Échelle **numérique avec seuils réels et gestes attachés** :
+fusion automatique **au-dessus de 95**, bonifiée si la ville concorde; **entre 90 et 95**, journalisation
+comme candidat, **jamais de fusion silencieuse**; comparaison floue entre deux compagnies à numéro
+**interdite structurellement**. Ce qui l'a produite : 76 paires de doublons non reconnues, **une fusion
+erronée entre deux compagnies à numéro légalement distinctes, restaurée depuis une sauvegarde**, et
+20 candidats en attente. *Elle plafonne les deux autres axes plutôt que de s'y additionner.*
+
+**Fiabilité de la taille — spéc. 8.2.** *Mesurée / déclarée / estimée*, **jamais fusionnées en un
+chiffre**, chaque niveau portant **sa provenance et sa date**. Ce qui l'a produite : sans normalisation
+par la taille et le secteur, tout signal de volume favorise mécaniquement les grandes entreprises —
+**celles qui ne sont pas la clientèle visée**.
+
+**Seuil de publication — spéc. 8.5.** Pas une échelle mais **l'ancêtre de la règle 5**, écrit avant
+elle : *« Décision produit, à valider explicitement, **pas une constante enfouie** »*. Et sa distinction
+d'avec le curseur de sensibilité : *le seuil dit ce qui est présentable, la sensibilité dit ce que cet
+utilisateur veut voir parmi le présentable.*
+
+**Ce que ces cinq ont en commun, et qui n'est pas dans l'échelle du chantier 22.** Chacune dit **ce qui
+produit chaque niveau** ou **ce qui se passe à chaque seuil**, et quatre des cinq portent **le fait réel
+qui les a forcées**. La confiance du signal ne porte ni l'un ni l'autre.
 
 ## Faille A — Le palier d'entrée est structurellement vide
 
