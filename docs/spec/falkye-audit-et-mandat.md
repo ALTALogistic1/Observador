@@ -81,7 +81,7 @@ redécrire. **Trancher inclut « non, et voici pourquoi ».**
 | D10 | Où vivent l'historique et les quarantaines de diff | Chantier 29, chantier 2 | ✅ **Tranchée le 9 septembre** — mesurée dans le fichier miroir local, pas sur la base durable. Les copies vides distantes n'ont pas reçu la colonne. *Reste la confirmation positive par la sortie sur l'hôte.* |
 | D11 | La quarantaine : issue d'exécution ou état de santé? | Chantier 2, spéc. §5.5 | ⬜ **avant la taxonomie des états** |
 | D20 | Vérification de fusion : mesurer la dérive en production | Flux `schema`, chantier 27 | ✅ **Écartée le 9 septembre** — exigerait les identifiants de base dans les secrets du dépôt, ce qui défait la propriété de l'architecture des secrets : une chaîne compromise peut redémarrer le service, jamais lire la base. *Raisonnement complet et chemins écartés à `docs/DEPLOIEMENT.md`.* |
-| D21 | Colonnes présentes en base et absentes du modèle | `migration_colonnes.py`, point 27.9 | ⬜ **après la sortie sur l'hôte** — la chaîne n'ajoute que, donc l'écart se creuse en silence dans ce sens-là |
+| D21 | Colonnes présentes en base et absentes du modèle | `migration_colonnes.py`, point 27.9 | ⬜ **déclencheur ATTEINT le 9 septembre** — la sortie sur l'hôte existe et la dérive de colonnes est nulle. *L'outil ne regarde toujours que ce qui manque; la direction inverse reste à construire, en lecture seule et sans proposition de `DROP`.* — la chaîne n'ajoute que, donc l'écart se creuse en silence dans ce sens-là |
 | D22 | Seuil de publication — à partir de quelle case un dossier devient une opportunité présentée | Mandat chantier 21, §1 | ⬜ *à dater* — **distinct du curseur de sensibilité de l'utilisateur**, les fusionner lui retirerait la possibilité d'être plus sélectif |
 | D23 | Inventaire des libellés visibles par l'utilisateur | Mandat chantier 21, §7 | ⬜ *à dater* — six révisions et deux propositions à trancher explicitement. **Du texte destiné aux clients, pas une décision technique** |
 | D24 | Fraîcheur : signal ancien fort contre signal récent faible | Mandat chantier 21, §2 | ⬜ **avant de construire la modulation du grade** — la fraîcheur porte-t-elle sur le plus récent, le plus fort, ou l'ensemble? |
@@ -99,7 +99,7 @@ redécrire. **Trancher inclut « non, et voici pourquoi ».**
 | D18 | Exception canadienne pour la fouille de textes et de données | Cadre légal | ⬜ *à revalider* — si elle entre en vigueur, elle change l'analyse des sources |
 | D19 | Licence et fréquence du jeu ouvert de la CVMO | Recommandations sources, priorité 3 | ⬜ *à vérifier manuellement* — le site bloque l'accès automatisé |
 | D13 | Fenêtre de restauration — comportement réel | Chantier 29, point 27.9 | ⬜ **avant toute migration destructive** |
-| D14 | Le repli par sous-chaîne : borner ou retirer? | Chantier 2, instrument de coût | ⬜ **après le premier rapport de coût en régime** |
+| D14 | Le repli par sous-chaîne : borner ou retirer? | Chantier 2, instrument de coût | ⬜ **après un cycle qui RÉSOUT** — celui du 10 septembre a rendu zéro résolution sur les trois chemins, donc zéro mesure. Un cycle en régime ne résout rien : il faut du neuf (premier import REQ, trimestre neuf). *Le palier de quota reste au supérieur en attendant.* |
 | D15 | Le vide du 8 septembre — miroir absent ou appariement? | Journal cas 10, faille D | ⬜ **avant de s'en servir comme prémisse** — une commande tranche |
 
 **Trente entrées : trois tranchées, douze portant un déclencheur ou une condition de levée, quinze
@@ -646,8 +646,12 @@ Quatre conséquences retenues :
   mieux que la reprendre en boucle.*** La cause du repli voyage avec la ligne rapatriée — sans elle, une
   ligne rapatriée serait indiscernable d'une ligne écrite normalement, **or « la base était muette à ce
   moment-là » est précisément l'information.**
-- ⬜ **Refermer les deux lignes orphelines** — le rapatriement est fait, la fermeture attend le statut
-  `interrompue`.
+- ⬜ **Refermer les TROIS lignes orphelines — #14, #16, #24** — le rapatriement est fait, le statut
+  `interrompue` est construit et le seuil lit la bonne unité. *On en comptait deux : le compte était
+  incomplet, pas dépassé. Les trois sont des exécutions `eimt` en veille continue du **7 septembre**
+  (16 h 43, 20 h 31, 22 h 49 UTC), toutes avec `lance_par` et `unite` à NULL — écrites avant que ces
+  champs existent. Aucune n'est décidable par règle : on sait qu'elles n'ont pas fini, pas ce qui les
+  gouvernait. Elles relèvent de `interrompue_declaree`, avec un motif écrit.*
 - ✅ **Correction de la lecture du seuil `interrompue` livrée** *(D30)*. `lance_par` porte le nom de
   l'unité, le seuil se lit sur elle. Les lignes antérieures à ce changement restent non décidables —
   elles ne portent pas le nom de l'unité et rien ne permet de conclure quel délai les gouvernait.
@@ -656,8 +660,19 @@ Quatre conséquences retenues :
   d'observation de deux heures, normal sous 43 200 s, était refermé en `interrompue` avec un motif
   chiffré qui se lit comme vérifié. *Règle générale : un seuil déduit d'un réglage se lit sur l'instance
   qui a produit la ligne, jamais sur une constante nommée d'après une seule d'entre elles.*
-- ⬜ **Migration à dix colonnes, sur l'hôte**, après déploiement.
-- ⬜ Les autres travaux du mandat, **réordonnés : l'instrument de coût d'abord**.
+- ✅ **Migration appliquée sur l'hôte et vérifiée**, le 9 septembre, avec l'environnement chargé. *Le
+  compte qui figurait ici précède `unite` et les colonnes du chantier 2 — il n'est pas remplacé par un
+  autre : `migration_colonnes.py` le donne, et **un compte recopié est une promesse que personne ne
+  tient**.*
+- ✅ **L'instrument de coût est livré et a tourné sur l'hôte** — huit sources en succès, **zéro
+  résolution sur les trois chemins**, le repli par sous-chaîne non emprunté. ⚠️ **Il n'a donc rien
+  mesuré** : un cycle en régime vérifie que rien n'a changé, il ne résout rien. **D14 reste ouverte** et
+  le palier de quota reste au supérieur — il faut un cycle qui ingère du NEUF.
+- ✅ **La réconciliation du journal de repli fonctionne en réel** — 2 lignes lues, 2 reprises,
+  2 identifiées par empreinte (format 1), au cycle du 10 septembre. *Premier mécanisme de secours à
+  gagner son existence par les faits puis à être vérifié en régime.*
+- ⬜ Les autres travaux du mandat : la norme de volume, la taxonomie des états de santé, la fenêtre de
+  rattrapage, le tableau de bord.
 - ⬜ **Le rapport de vérification macro par source** — cadence, saisonnalité, norme calculée, état de
   santé et sa justification. *Livrable 4 du mandat, non entamé.*
 - ⚠️ **Décision qui attend Alexandre, et qui n'est listée nulle part ailleurs : les seuils d'alerte de
@@ -1449,6 +1464,23 @@ chantier 2, et **un routage qui se tromperait de moteur réussirait sur une tabl
 d'échouer.** C'est la forme exacte du motif. *Signalé le 8 septembre depuis le chantier 2, sans y toucher
 — ce n'est pas son chantier.*
 
+**⚠️ Ce que la vérification du 9 septembre a fermé, et ce qu'elle n'a pas fermé.** La dérive de colonnes
+et d'index est **nulle des deux côtés**, vérifiée sur l'hôte avec l'environnement chargé. **Les huit
+copies vides, elles, sont toujours en place** — relues le 10 septembre, toutes à zéro ligne. Leur
+suppression reste une migration destructive, bloquée sur **D13**.
+
+*`migration_colonnes.py` ne peut pas fermer ce point : il rapporte ce qui MANQUE, jamais ce qui est EN
+TROP. Aucune de ses sorties ne l'atteindra jamais, quelle que soit la base.*
+
+**La première sortie du 9 septembre était fausse, et il faut savoir pourquoi** *(journal, cas 30)*.
+Lancée depuis un shell root sans `/etc/falkye/falkye.env`, elle a répondu « Schéma à jour des deux
+côtés » **sur un fichier SQLite vide de zéro table** — le repli de `falkye/db.py` est silencieux et
+relatif au répertoire courant. La comparaison saute les tables absentes, donc zéro table présente donne
+zéro colonne manquante : **le verdict le plus rassurant est celui qu'une base vide produit.** Deux
+fichiers fantômes de zéro octet en sont restés dans `/opt/falkye/code/data/`, supprimés le 10 septembre
+avec leur répertoire. Les trois outils de schéma annoncent désormais leur cible et refusent une cible
+que personne n'a choisie.
+
 **Le remède retire plutôt qu'il ne garde** : les supprimer convertit un succès silencieux en échec
 bruyant. **Mais c'est une migration destructive, pas additive** — celle-là a besoin de la fenêtre de
 restauration, contrairement à un index qui se défait par `DROP INDEX`. **À ne pas lancer avant que la
@@ -1479,7 +1511,8 @@ modification. **Ce qui change, c'est le nombre de chemins qui font la même chos
   déplacer change donc ce qui est exclu, pas seulement ce que ça coûte. *Décision à trancher avant
   d'optimiser, sans quoi l'optimisation modifiera les résultats en silence.*
 - ⬜ Chemin d'import du miroir — deux allers-retours par ligne, mesuré.
-- ⬜ 27.2, 27.3, 27.6, 27.8, 27.10 · **27.9 — bloqué sur le test de la fenêtre de restauration**.
+- ⬜ 27.2, 27.3, 27.6, 27.8, 27.10 · **27.9 — dérive de colonnes vérifiée nulle le 9 septembre ; les
+  huit copies vides restent, bloquées sur D13**.
 
 ---
 
