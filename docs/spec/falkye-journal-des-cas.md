@@ -370,6 +370,18 @@ qu'il acceptait de juger.
 **Et l'essai depuis l'environnement de développement ne pouvait pas le révéler** — `FALKYE_DB_URL` y est
 toujours définie, donc le repli n'y existe pas. Cas 26, mot pour mot, sur une variable différente.
 
+**Suite du 10 septembre — le même défaut, dans le mécanisme construit pour l'empêcher.** Le garde-fou
+posé la veille ne lisait qu'une base sur deux : `FALKYE_DB_URL`, jamais `FALKYE_MIROIR_DB_URL`. Les
+miroirs ont leur propre variable et leur propre repli relatif, tout aussi silencieux — un outil touchant
+`diff_run_historique` ou `diff_quarantaines` rendait donc son verdict sur un fichier local vide **pendant
+que l'en-tête affichait « cible choisie »**. La forme est celle du cas ci-dessus; ce qui manquait était
+la **portée**.
+
+**La règle qui en sort, et elle vaut bien au-delà d'ici :** *un garde-fou posé sur une ressource doit
+couvrir TOUTES celles de sa catégorie, sinon il déplace le défaut au lieu de le fermer.* Deux bases dont
+une seule contrôlée — et ça vaut pareil pour deux fichiers, deux chemins, deux comptes. **Un contrôle
+partiel est pire qu'aucun** : il fait cesser de regarder ce qu'il ne couvre pas.
+
 **Les deux règles, et la seconde est celle qui empêche.** Un outil qui juge ou modifie un schéma
 **annonce sa cible en tête de sortie** — la cible lue, pas déduite; sans quoi deux verdicts opposés ne se
 distinguent pas d'un désaccord de fond. Et **un outil de migration qui crée sa propre cible ne migre

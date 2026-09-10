@@ -128,12 +128,19 @@ python -m falkye.cli notifications list
 python -m falkye.cli resume envoyer --profile-id 1 --jours 7
 ```
 
-## Plans tarifaires et paiement (spec section 9bis)
+## Plans tarifaires et paiement
 
-Trois plans — **Écho** (gratuit, sources ouvertes uniquement), **Radar** (Écho +
-sources payantes choisies par nous, paiement intégré Stripe), **Radar+** (Radar +
-clés API de l'utilisateur — mécanisme de gestion de clés délibérément différé,
-voir `docs/ARCHITECTURE.md`). Un seul portail sous-jacent : chaque source porte un
+**Ce document ne porte ni les prix ni ce que chaque palier contient** — leur
+source de vérité est `docs/spec/falkye-specifications-produit.md`, section 12.
+Un prix recopié ici serait une promesse que personne ne tient : au
+2026-09-10, ce README annonçait encore Écho « gratuit » alors que les
+spécifications le donnent à 29,99 $/mois, **jamais gratuit**, en toutes lettres
+et depuis deux documents.
+
+Ce qui reste ici, parce que c'est de l'architecture et non du prix : trois
+plans — **Écho**, **Radar** (paiement intégré Stripe), **Radar+** (clés API de
+l'utilisateur — mécanisme de gestion de clés délibérément différé, voir
+`docs/ARCHITECTURE.md`). Un seul portail sous-jacent : chaque source porte un
 `plan_minimum` dans le registre (`falkye registry sources`), appliqué par le
 moteur au moment de générer les notifications, pas à l'ingestion.
 

@@ -141,6 +141,16 @@ sautée-comptée-signalée sans jamais interrompre); **exécution au début du c
 réconciliation étant relançable sans perte; **un fichier absent et un fichier vide ne produisent pas le
 même résultat** — « je ne sais pas » contre « rien à reprendre ».
 
+**Le mécanisme est complet et éprouvé de bout en bout.** La bascule automatique referme ce qu'une règle
+peut conclure; la déclaration ferme le reste, avec un auteur et un motif exigés. Les trois premières
+lignes non décidables de l'histoire du projet ont été fermées le 10 septembre 2026 par ce chemin.
+
+*Ce qui a rendu la déclaration possible n'est pas le mécanisme mais la lecture qui l'a précédée : on a
+cru longtemps qu'il y avait deux lignes et une troisième inexpliquée. **Il y en avait trois
+identiques.** Un motif écrit sur le mauvais compte aurait été exact dans sa forme et faux dans son
+fond.*
+
+
 ### 1bis. Unifier les journaux d'exécution — ajouté après la phase 0
 
 La phase 0 a établi que trois tables décrivent la même exécution sans lien entre elles : `SourceRunLog`
