@@ -447,10 +447,14 @@ ponctuel, jamais un flux de veille.
 **Nouveau-Brunswick, Corporate Registry** — interdit explicitement les outils automatisés dans ses
 conditions. Blocage légal, pas seulement un coût.
 
-**Guichet-Emplois** — le fichier en vrac **ne contient pas le nom de l'employeur**, confirmé dans les
-données réelles et dans la documentation officielle. Sans nom d'employeur, aucune notification par
-entreprise n'est possible. Statut `à développer`, réactivable si le jeu est enrichi ou couplé à un
-agrégateur tiers. Le signal recrutement est couvert par l'EIMT positive, qui donne le nom.
+**Guichet-Emplois — en pause depuis le 7 septembre 2026, pour une raison qui n'est plus celle
+d'origine.** *État, pas verdict.* Le fichier en vrac ne porte aucun nom d'employeur — vrai, et
+**dépassé** : le connecteur va le chercher sur la page de détail de l'offre, et **cette piste
+fonctionne** (nom capturé sur une offre réelle, `robots.txt` permissif, `Crawl-delay: 5`). Ce qui bloque
+est le **décalage de publication** : le fichier paraît avec environ un mois de retard, les offres
+expirent plus vite, donc les identifiants qu'il porte sont déjà morts (HTTP 410) quand on les suit —
+15 offres Québec pour 0 signal. **Ni écartée, ni active : en attente d'un réessai qui tranchera**
+*(registre, D32)*. Le signal recrutement reste couvert par l'EIMT positive, qui donne le nom.
 
 ### 4.5bis Accès réseau — relevé du 4 septembre 2026
 
@@ -1330,7 +1334,16 @@ empêche d'atteindre depuis l'environnement infonuagique. Deux formes — résul
 fichier complet (REQ) — suivant le même principe générique.
 
 Une fois importée, la donnée entre dans la même boucle que toute source automatisée, sans traitement
-spécial. **Même rigueur de calibration** : l'import manuel contourne l'automatisation de la collecte,
+spécial.
+
+**Vrai pour le TRAITEMENT, faux pour le comptage — et c'est la confusion qui en découle qui compte.**
+Une source active en import manuel **ne tourne pas dans un cycle** : elle n'entre dans le pipeline que
+par une action explicite. Le moteur ne boucle que sur les sources actives **automatisées**. Un cycle
+rapporte donc moins de sources que le registre n'en déclare actives, et **les deux comptes sont
+justes** — ils ne comptent pas la même chose. Le 9 septembre 2026, un cycle en a traité huit là où le
+registre en donnait dix, et rien n'expliquait l'écart.
+
+**Même rigueur de calibration** : l'import manuel contourne l'automatisation de la collecte,
 jamais la calibration. Chaque entrée en import manuel porte un **lien direct vers la bonne page de
 consultation**, pas seulement vers l'accueil du site. Le registre garde trace de la méthode d'accès,
 utile pour savoir plus tard si l'automatisation en vaudrait la peine.

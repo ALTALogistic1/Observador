@@ -36,6 +36,9 @@ cerveau doit savoir faire; elles se travaillent dans les chantiers indiqués, et
 peut encore bouger. **Le jugement est la moins aboutie des cinq** — il n'a pas de chantier, et ce n'est
 pas un oubli. Ne pas y ranger des chantiers comme si le cadre était tranché.*
 
+*La condition d'ouverture de cette discussion est au registre des décisions ouvertes, **D33** — trois
+faits à réunir plutôt qu'une date, parce qu'une place vide sans déclencheur devient un oubli (cas 15).*
+
 | Facette | Ce qu'elle fait | Chantier |
 |---|---|---|
 | **Mémoire** | Avoir gardé, avant de lire. Trois signaux en deux mois ne valent pas trois en deux ans | 17 |
@@ -110,3 +113,22 @@ sur le tas.
 
 **Quand un geste technique est à poser**, donner la marche complète : où taper, la commande exacte, ce
 qu'on doit voir en retour, et quoi faire sinon.
+
+### Écrire dans le corpus — une seule main, et ce qu'elle doit dire
+
+**Le texte vient d'Alexandre; Claude Code l'écrit dans le document qui convient; Alexandre fusionne.**
+Ça vaut pour une ligne comme pour un bloc. *Hors corpus — le README du dépôt, `docs/ARCHITECTURE.md`,
+`docs/DEPLOIEMENT.md`, `docs/STATUT_RESEAU.md` — Claude Code corrige et Alexandre relit en demande de
+fusion. La frontière porte sur QUI RÉDIGE, jamais sur qui regarde.*
+
+**À l'ouverture du cerveau *(registre, D33)*, ce ne seront plus des corrections ponctuelles** mais des
+sections entières, possiblement plusieurs de suite. La méthode ne change pas; deux exigences s'y
+ajoutent, et elles ne valent que parce que la structure aura grossi.
+
+**Dire dans quel document chaque bloc doit aller** quand Alexandre ne le précise pas. Un texte rangé au
+mauvais endroit y devient introuvable, et personne ne s'en aperçoit avant d'en avoir besoin.
+
+**Signaler qu'un texte reçu contredit ce qui est déjà écrit ailleurs — AVANT de l'écrire, jamais
+par-dessus.** Écrire par-dessus produit deux formes du même contenu qui divergent, ce que le guide
+d'ingénierie interdit; et la contradiction se découvre alors au pire moment, quand quelqu'un s'appuie
+sur celle des deux qui a tort.
