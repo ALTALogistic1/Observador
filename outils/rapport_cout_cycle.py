@@ -57,16 +57,16 @@ def main(argv: list[str] | None = None) -> int:
         peremption,
         population_sans_neq,
     )
-    from falkye.db import cible_annoncee, get_db_url, sur_repli_par_defaut
+    from falkye.db import bases_sur_repli, cible_annoncee
 
     # La cible EN TÊTE, toujours. Deux outils qui ne disent pas à quelle base ils
     # parlent peuvent rendre des verdicts opposés sans que rien ne le signale —
     # c'est arrivé le 2026-09-09, dans la même session root.
     print(cible_annoncee())
-    if sur_repli_par_defaut():
+    if bases_sur_repli():
         print(
-            "\nREFUS — aucune cible n'a été choisie : FALKYE_DB_URL est absente, et "
-            f"le repli par défaut ({get_db_url()}) est relatif au répertoire courant.\n"
+            "\nREFUS — aucune cible n'a été choisie : "
+            f"{', '.join(bases_sur_repli())} absente(s), et le repli par défaut est relatif au répertoire courant.\n"
             "  Un verdict rendu sur une base vide est le plus rassurant de tous.\n"
             "  Sur l'hôte : set -a; . /etc/falkye/falkye.env; set +a",
             file=sys.stderr,

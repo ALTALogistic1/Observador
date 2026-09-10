@@ -48,12 +48,40 @@ def main(argv: list[str] | None = None) -> int:
     parseur.add_argument("--appliquer", action="store_true", help="écrire (défaut : lire)")
     args = parseur.parse_args(argv)
 
-    from falkye.db import get_session
+    from falkye.db import bases_sur_repli, cible_annoncee
     from falkye.sante_source import (
         DeclarationRefusee,
         executions_non_decidables,
         fermer_par_declaration,
     )
+
+    # LA CIBLE ET LE MODE, EN TÊTE, AVANT TOUT LE RESTE.
+    #
+    # La cible : cet outil ÉCRIT, et il était le seul des quatre à ne pas dire
+    # à quelle base — l'oubli du 2026-09-09 (journal, cas 30), un cran plus haut
+    # puisqu'ici une erreur de cible poserait un statut humain sur les mauvaises
+    # lignes.
+    #
+    # Le mode : les deux passages affichaient la MÊME liste de candidates, et
+    # seule la dernière ligne distinguait « j'ai fermé » de « je pourrais
+    # fermer ». Un lecteur pressé pouvait croire avoir appliqué. Le fait
+    # décisif se met devant, jamais en bas — même règle que la cible.
+    print(cible_annoncee())
+    print("mode  : ÉCRITURE — les lignes seront refermées" if args.appliquer
+          else "mode  : LECTURE SEULE — rien ne sera écrit")
+    if bases_sur_repli():
+        print(
+            "\nREFUS — aucune cible n'a été choisie : "
+            f"{', '.join(bases_sur_repli())} absente(s), et le repli par défaut est relatif au répertoire courant.\n"
+            "  Poser une décision humaine sur une base que personne n'a choisie serait "
+            "pire qu'un verdict faux : elle porterait un nom.\n"
+            "  Sur l'hôte : set -a; . /etc/falkye/falkye.env; set +a",
+            file=sys.stderr,
+        )
+        return 2
+    print()
+
+    from falkye.db import get_session
 
     session = get_session()
     try:
@@ -87,8 +115,8 @@ def main(argv: list[str] | None = None) -> int:
 
         if not args.appliquer:
             print(
-                "\n(lecture seule — pour refermer : --run <id> --par <nom> "
-                "--motif <phrase> --appliquer)"
+                "\nRien n'a été écrit (mode LECTURE SEULE, annoncé en tête).\n"
+                "Pour refermer : --run <id> --par <nom> --motif <phrase> --appliquer"
             )
             return 0
 

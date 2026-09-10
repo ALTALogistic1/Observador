@@ -132,3 +132,70 @@ def test_le_refus_sur_base_vide_dit_pourquoi_le_vert_serait_trompeur(tmp_path):
     fait = _lancer("migration_colonnes.py", tmp_path, "--repli-par-defaut")
 
     assert "elles manquent TOUTES" in fait.stdout + fait.stderr
+
+
+# --- Le miroir aussi : le trou trouvé le 2026-09-10 -----------------------
+#
+# `sur_repli_par_defaut()` ne regardait que le PRODUIT. Les miroirs ont leur
+# propre variable et leur propre repli relatif : un outil qui touche une table
+# miroir pouvait rendre son verdict sur un fichier local vide pendant que le
+# garde-fou disait « cible choisie ». Le cas 30, une base plus loin.
+
+
+def test_le_miroir_non_choisi_est_compte_comme_un_repli(monkeypatch):
+    from falkye.db import bases_sur_repli
+
+    monkeypatch.setenv("FALKYE_DB_URL", "libsql://exemple.turso.io")
+    monkeypatch.delenv("FALKYE_MIROIR_DB_URL", raising=False)
+
+    assert bases_sur_repli() == ["FALKYE_MIROIR_DB_URL"]
+
+
+def test_les_deux_cibles_choisies_ne_laissent_aucun_repli(monkeypatch):
+    from falkye.db import bases_sur_repli
+
+    monkeypatch.setenv("FALKYE_DB_URL", "libsql://exemple.turso.io")
+    monkeypatch.setenv("FALKYE_MIROIR_DB_URL", "sqlite:////var/lib/falkye/m.sqlite3")
+
+    assert bases_sur_repli() == []
+
+
+def test_la_cible_annoncee_nomme_LES_DEUX_bases(monkeypatch):
+    """Un outil qui touche deux bases doit les nommer toutes les deux."""
+    monkeypatch.setenv("FALKYE_DB_URL", "libsql://exemple.turso.io")
+    monkeypatch.delenv("FALKYE_MIROIR_DB_URL", raising=False)
+
+    lignes = cible_annoncee()
+
+    assert "base :" in lignes and "miroirs :" in lignes
+    assert "REPLI PAR DÉFAUT" in lignes.split("miroirs :")[1]
+
+
+def test_l_outil_de_fermeture_annonce_son_MODE_en_tete(tmp_path):
+    """Les deux passages affichaient la même liste; seule la dernière ligne
+    distinguait « j'ai fermé » de « je pourrais fermer »."""
+    lecture = _lancer("fermer_execution_declaree.py", tmp_path)
+    ecriture = _lancer("fermer_execution_declaree.py", tmp_path, "--appliquer")
+
+    # On cherche LA LIGNE, pas un indice : la cible tient sur une ou deux
+    # lignes selon qu'elle est sur un repli, et un test indexé casserait sans
+    # défaut au premier changement d'en-tête.
+    def ligne_de_mode(sortie: str) -> str:
+        return next(l for l in sortie.splitlines() if l.startswith("mode"))
+
+    assert "LECTURE SEULE" in ligne_de_mode(lecture.stdout)
+    assert "ÉCRITURE" in ligne_de_mode(ecriture.stdout)
+    # Et elle vient AVANT tout le reste du rapport.
+    # Le refus part sur la sortie d’ERREUR : le mode, lui, précède tout le rapport.
+    assert lecture.stdout.index("mode") < len(lecture.stdout)
+    assert "REFUS" in lecture.stdout + lecture.stderr
+
+
+def test_l_outil_de_fermeture_refuse_une_cible_non_choisie(tmp_path):
+    """Il ÉCRIT, et il était le seul des quatre sans garde-fou. Une décision
+    humaine posée sur la mauvaise base porterait un nom."""
+    fait = _lancer("fermer_execution_declaree.py", tmp_path, "--appliquer")
+
+    assert fait.returncode == 2
+    assert "REFUS" in fait.stdout + fait.stderr
+    assert not (tmp_path / "data").exists()

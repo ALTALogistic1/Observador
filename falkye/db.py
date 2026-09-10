@@ -58,6 +58,27 @@ def sur_repli_par_defaut(db_url: str | None = None) -> bool:
     return (db_url if db_url is not None else get_db_url()) == DEFAULT_DB_URL
 
 
+def bases_sur_repli() -> list[str]:
+    """Les bases dont PERSONNE n'a choisi la cible. Vide = tout est explicite.
+
+    **Le trou que cette fonction ferme.** `sur_repli_par_defaut()` ne regarde que
+    le PRODUIT. Les miroirs ont leur propre variable — `FALKYE_MIROIR_DB_URL` —
+    et leur propre repli relatif, tout aussi silencieux. Un outil qui touche une
+    table miroir pouvait donc rendre son verdict sur un fichier local vide alors
+    que le garde-fou disait « cible choisie » : le cas 30, une base plus loin.
+    Constaté le 2026-09-10, sur l'outil de fermeture déclarée.
+
+    *L'hôte définit les deux (voir docs/DEPLOIEMENT.md), donc exiger les deux ne
+    lui coûte rien — c'est vérifié, pas supposé.*
+    """
+    manquantes = []
+    if sur_repli_par_defaut():
+        manquantes.append("FALKYE_DB_URL")
+    if get_miroir_db_url() == DEFAULT_MIROIR_DB_URL:
+        manquantes.append("FALKYE_MIROIR_DB_URL")
+    return manquantes
+
+
 def cible_annoncee(db_url: str | None = None) -> str:
     """La cible, en une ligne lisible, sans jamais ouvrir de moteur.
 
@@ -72,7 +93,11 @@ def cible_annoncee(db_url: str | None = None) -> str:
     Le jeton n'apparaît jamais : l'URL distante n'en contient pas, il est un
     argument nommé du pilote.
     """
-    url = db_url if db_url is not None else get_db_url()
+    if db_url is None:
+        miroir = get_miroir_db_url()
+        note = "  ⚠️ REPLI PAR DÉFAUT" if miroir == DEFAULT_MIROIR_DB_URL else ""
+        return cible_annoncee(get_db_url()) + f"\nmiroirs : {miroir}{note}"
+    url = db_url
     if est_base_distante(url):
         return f"base : {url}  (distante, durable)"
     if sur_repli_par_defaut(url):
