@@ -58,6 +58,8 @@ Un fait vérifié se fait citer sous une forme raccourcie, puis sert de prémiss
 
 **Deux règles mécaniques. La preuve voyage avec le fait** — pas « le serveur est actif » mais « le serveur répond, vérifié le 5 septembre par connexion », de sorte qu'une reprise qui la perd se voit. Et **un fait sans preuve attachée ne peut pas servir de prémisse à autre chose**.
 
+**Et un chiffre repris d'un message n'est pas plus vérifié qu'une valeur complétée de mémoire.** *(constaté le 2026-09-10)* « Deux lignes orphelines » venait d'un échange, a été recopié dans un texte, accepté, puis écrit — il en fallait trois, et il a fallu relire la base pour le voir. **Ce n'est pas une forme nouvelle : c'est celle-ci appliquée à un texte déjà accepté.** Un accord sur un texte porte sur sa rédaction, jamais sur l'interdiction de vérifier ce qu'il affirme — et un chiffre qui a une source de vérité se relit à sa source, même quand il vient de la personne qui décide.
+
 **Une valeur tronquée à l'affichage ne se complète jamais de mémoire — elle se relit à la source.** *(journal, cas 29)* C'est le glissement appliqué à une VALEUR plutôt qu'à un état : une forme abrégée est visible — empreinte courte, identifiant tronqué, numéro de version, chemin abrégé — le reste est complété par déduction, et **rien ne distingue à la lecture ce qui a été vu de ce qui a été reconstruit**. Et quand une opération offre de vérifier la valeur attendue, on la lui passe : c'est le seul moment où la reconstitution se voit.
 
 **Un outil qui juge ou modifie un schéma annonce sa cible en tête de sortie, et refuse de juger une cible que personne n'a choisie.** *(journal, cas 30)* Troisième forme, après la preuve absente et la preuve périmée : **la preuve fabriquée par l'instrument qui devait la recueillir**. Un repli silencieux vers une base vide fait rendre le verdict le plus RASSURANT — rien ne manque, parce que rien n'existe. Le vert est sincère et l'outil est structurellement incapable de dire non. **Un outil de migration qui crée sa propre cible ne migre rien, il fabrique.**
@@ -67,6 +69,33 @@ Un fait vérifié se fait citer sous une forme raccourcie, puis sert de prémiss
 **Trois remèdes, du plus fort au plus faible.** *Ne pas recopier* — un état qui a une source de vérité ailleurs s'y lit, il ne se duplique pas. *Dater en tête* quand il faut le garder comme repère : « Au 1er septembre — » plutôt qu'une parenthèse au milieu de la phrase. *Et signaler le dépassement là où l'ancien état est écrit*, plutôt que de le corriger : un récit d'investigation garde sa valeur, à condition de dire qu'il a été dépassé et par quoi.
 
 **Test de relecture :** cette affirmation porte-t-elle la trace de ce qui l'a établie? Sinon, c'est une décision — et il faut le dire — ou une supposition déguisée en fait.
+
+## Quand un projet porte deux bases, une requête doit nommer son moteur
+
+**Contrainte permanente depuis le découpage du 6 septembre 2026**, et elle n'était écrite nulle part —
+elle a été trouvée en tombant dedans. Le produit vit au distant, les miroirs dans un fichier local, et
+la fabrique de sessions route **par métadonnée**. Aucun des deux moteurs n'est le défaut : une session
+qui porte deux bases ne sait pas viser.
+
+**Un `session.execute(text(...))` nu ÉCHOUE**, et voici la phrase qu'on obtient — c'est elle qu'on
+reconnaîtra, pas le principe :
+
+    sqlalchemy.exc.UnboundExecutionError:
+    Could not locate a bind configured on SQL expression or this Session
+
+**Tout outil, script ou commande qui interroge une table par du SQL brut nomme son moteur.** Par le
+mappeur du modèle, qui est la seule source de vérité sur la base à laquelle une table appartient :
+
+    connexion = session.connection(bind_arguments={"mapper": SourceRunLog.__mapper__})
+    connexion.execute(text("SELECT ... FROM source_run_logs ..."))
+
+*L'ORM n'a pas ce problème — `select(SourceRunLog)` porte son mappeur avec lui. Le SQL brut, non : c'est
+une chaîne de caractères, et une chaîne ne dit pas d'où elle vient.* Voir
+`outils/migration_chantier2_execution.py::connexion` pour l'aide déjà écrite.
+
+**Ce que l'échec a d'heureux : il est bruyant.** Le défaut symétrique — une requête qui atteindrait la
+MAUVAISE base et réussirait sur une table vide — ne dirait rien. C'est le motif du point 27.9, et c'est
+pourquoi cette erreur-ci ne mérite pas d'être contournée par un moteur par défaut.
 
 ## Un chantier n'est clos que sur l'état observable
 
