@@ -175,8 +175,9 @@ du bruit pour cette source précise. `Registry.valider_calibration()`, appelée 
 une source `actif` n'a pas cette règle documentée — le principe est donc appliqué
 en code, pas seulement respecté par convention.
 
-Les 3 sources actives de la Phase 1 avaient déjà leur règle implémentée avant cette
-mise à jour (elle est maintenant simplement rendue visible et vérifiable dans le
+Les 3 sources actives **au moment de la Phase 1** avaient déjà leur règle implémentée
+avant cette mise à jour — *compte daté, pas courant : `falkye registry sources` donne
+l'état du jour* (elle est maintenant simplement rendue visible et vérifiable dans le
 registre) :
 - **SEAO** : chaque "award" du fichier est déjà un contrat attribué, aucun filtrage
   de bruit nécessaire à ce niveau.
@@ -1929,7 +1930,9 @@ schéma comme une référence PARTIELLE — le PROCHAIN run recalcule le vrai
 diff de contenu contre ce nouveau schéma, jamais une fusion aveugle avec
 l'ancien état.
 
-### Macro-vérification (2026-09-04) — contre les 4 sources actives réelles, pas seulement l'exemple
+### Macro-vérification (2026-09-04) — contre les 4 sources actives **de cette date**, pas seulement l'exemple
+
+*Compte daté : il décrit la portée de cette vérification-là, pas le registre d'aujourd'hui — voir `falkye registry sources`.*
 
 Exécutée par un script externe jetable (jamais committé), contre une base
 SQLite JETABLE (jamais la base réelle) — les 4 connecteurs de production

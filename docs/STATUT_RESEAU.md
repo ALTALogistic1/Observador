@@ -621,6 +621,30 @@ piste elle-même) :**
 promesse d'exhaustivité — cohérent avec le principe déjà établi ailleurs dans
 le projet (couverture honnête plutôt que source retenue).
 
+> ### ⚠️ Cet état a été dépassé — `en_pause` depuis le 2026-09-07
+>
+> *Ajouté le 2026-09-10. La section ci-dessus reste telle qu'elle a été écrite
+> le 1er septembre : ce qu'elle décrit est vrai, et la piste des pages de
+> détail FONCTIONNE. Ce n'est pas elle qui a échoué.*
+>
+> **La couverture « volontairement partielle » s'est révélée nulle en
+> pratique.** Le décalage de publication du fichier en vrac — environ un mois
+> — dépasse la durée de vie d'une offre : les identifiants qu'il porte sont
+> déjà morts (HTTP 410) quand on les suit. 15 offres Québec pour 0 signal le
+> 1er septembre, 0 signal encore au cycle du 7. Une source active qui rend
+> toujours zéro est indiscernable d'une source qui n'a rien trouvé cette
+> semaine, et elle gonflait le dénominateur des sources tentées.
+>
+> **Ce n'est donc NI le nom d'employeur absent du fichier en vrac (31 août),
+> NI un échec de la piste des pages de détail (1er septembre).** C'est une
+> troisième raison, et les deux premières ne sont plus la raison courante.
+>
+> **Condition de réactivation, mesurable :** que le décalage passe sous la
+> durée de vie d'une offre, mesuré en suivant dix identifiants du fichier le
+> plus récent. Le connecteur reste correct et testé — rien à réécrire le jour
+> où la donnée le permet. Motif complet dans les `notes` de
+> `falkye/registry/sources.yaml`.
+
 ## Classements de croissance (Signal 1) : Growth 500 bloqué (Cloudflare), Globe and Mail activé (2026-09-01)
 
 Suite de la Phase 2 (Signal 1, `classement_croissance`) : les deux sources
