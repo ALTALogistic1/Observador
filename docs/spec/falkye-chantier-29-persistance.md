@@ -168,7 +168,13 @@ exécution interrompue** — la modifier sans le savoir rendrait la réconciliat
   avec le point qui manquait : `disabled` ne veut pas dire arrêté, `enable` ne gouverne que le prochain
   amorçage, **seul `is-active` répond à la question qu'on posait**.*
   **Condition retenue : après le premier rapport de coût sur l'hôte**, pour ne pas laisser des cycles
-  automatiques consommer un quota qu'on ne mesure pas encore.
+  automatiques consommer un quota qu'on ne mesure pas encore. *Le rapport du 10 septembre a tourné mais
+  n'a RIEN mesuré — zéro résolution, donc zéro coût de résolution. La condition n'est pas remplie.*
+
+  ✅ **Le réarmement est fermé.** La ligne `systemctl restart falkye-cycle.timer` est retirée de la
+  chaîne le 9 septembre, et le correctif est **vérifié sur la trace du déploiement 19** — le journal du
+  travail montre le commentaire à la place de la commande. Le minuteur est arrêté, **revérifié
+  `inactive` le 10 septembre**. *L'activation délibérée reste à faire, et sa condition ne change pas.*
 
   ⚠️ **Le 9 septembre, il était `active` de nouveau — et le mécanisme est identifié.** La chaîne de
   déploiement portait `systemctl restart falkye-cycle.timer`. **`restart` sur une unité arrêtée la
