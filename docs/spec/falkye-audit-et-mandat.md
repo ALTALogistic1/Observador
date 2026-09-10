@@ -646,12 +646,15 @@ Quatre conséquences retenues :
   mieux que la reprendre en boucle.*** La cause du repli voyage avec la ligne rapatriée — sans elle, une
   ligne rapatriée serait indiscernable d'une ligne écrite normalement, **or « la base était muette à ce
   moment-là » est précisément l'information.**
-- ⬜ **Refermer les TROIS lignes orphelines — #14, #16, #24** — le rapatriement est fait, le statut
-  `interrompue` est construit et le seuil lit la bonne unité. *On en comptait deux : le compte était
-  incomplet, pas dépassé. Les trois sont des exécutions `eimt` en veille continue du **7 septembre**
-  (16 h 43, 20 h 31, 22 h 49 UTC), toutes avec `lance_par` et `unite` à NULL — écrites avant que ces
-  champs existent. Aucune n'est décidable par règle : on sait qu'elles n'ont pas fini, pas ce qui les
-  gouvernait. Elles relèvent de `interrompue_declaree`, avec un motif écrit.*
+- ✅ **Les trois lignes orphelines sont fermées** — #14, #16, #24, le 10 septembre 2026, en
+  `interrompue_declaree`, par déclaration d'Alexandre Quevillon. *Le motif dit ce qu'on sait — trois
+  exécutions `eimt` en veille continue du 7 septembre (16 h 43, 20 h 31, 22 h 49 UTC), `lance_par` et
+  `unite` absents parce que ces champs n'existaient pas encore — et ce qu'on ne sait pas : ni le délai
+  qui les gouvernait, ni pourquoi elles n'ont pas écrit leur fin. **Aucune cause n'est affirmée.** Les
+  deux dates d'introduction des champs ont été vérifiées avant la fermeture : `lance_par` le 8 septembre
+  à 16 h 01, `unite` le 9 à 17 h 06 — dix-sept heures et deux jours après la dernière des trois.*
+  **Zéro ligne encore ouverte, relu en base.** La vérification finale vient au prochain cycle : la
+  réconciliation ne doit plus rien signaler.
 - ✅ **Correction de la lecture du seuil `interrompue` livrée** *(D30)*. `lance_par` porte le nom de
   l'unité, le seuil se lit sur elle. Les lignes antérieures à ce changement restent non décidables —
   elles ne portent pas le nom de l'unité et rien ne permet de conclure quel délai les gouvernait.
