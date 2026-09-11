@@ -54,6 +54,24 @@ def _find_unresolved_company(db_session: Session, nom_detecte: str) -> Company |
     return db_session.execute(requete_nom_exact(nom_norm)).scalar_one_or_none()
 
 
+def neq_retenu(matches: list) -> str | None:
+    """Le NEQ qu'on retient parmi des candidats, ou None si c'est ambigu.
+
+    **Séparée de son appel à dessein.** La règle — assez sûr ET assez détaché du
+    second — est ce qui décide qu'une entreprise est identifiée ou pas. Un outil
+    qui la rejouerait en la recopiant mesurerait sa propre copie : même raison
+    que `requete_nom_exact` ci-dessus, appliquée à une décision plutôt qu'à une
+    requête. *(Extraite le 2026-09-11 pour `outils/apport_ville.py`.)*
+    """
+    if not matches:
+        return None
+    top = matches[0]
+    second_score = matches[1].score if len(matches) > 1 else 0.0
+    assez_sur = top.score >= SEUIL_RESOLUTION_CONFIANTE
+    assez_detache = top.score - second_score >= SEUIL_AMBIGUITE_ECART_MIN or len(matches) == 1
+    return top.entry.neq if (assez_sur and assez_detache) else None
+
+
 def resolve_company(db_session: Session, raw: RawSignal) -> Company:
     """Trouve ou crée le Company (dossier cumulatif) correspondant à ce signal brut,
     et tente sa résolution NEQ si elle n'est pas déjà acquise."""
@@ -64,18 +82,14 @@ def resolve_company(db_session: Session, raw: RawSignal) -> Company:
     if neq is None:
         matches = req_source.resolve_neq_by_name(db_session, raw.nom_entreprise, ville=raw.ville)
         if matches:
-            top = matches[0]
-            second_score = matches[1].score if len(matches) > 1 else 0.0
-            if top.score >= SEUIL_RESOLUTION_CONFIANTE and (
-                top.score - second_score >= SEUIL_AMBIGUITE_ECART_MIN or len(matches) == 1
-            ):
-                neq = top.entry.neq
-            else:
+            neq = neq_retenu(matches)
+            if neq is None:
+                top = matches[0]
                 logger.info(
                     "Résolution NEQ ambiguë pour %r : top=%.1f, 2e=%.1f",
                     raw.nom_entreprise,
                     top.score,
-                    second_score,
+                    matches[1].score if len(matches) > 1 else 0.0,
                 )
 
     if neq is not None:
