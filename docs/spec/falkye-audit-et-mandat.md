@@ -1629,10 +1629,23 @@ d'échouer.** C'est la forme exacte du motif. *Signalé le 8 septembre depuis le
 et d'index est **nulle des deux côtés**, vérifiée sur l'hôte avec l'environnement chargé. **Les huit
 copies vides, elles, sont toujours en place** — relues le 10 septembre, toutes à zéro ligne.
 
-**Débloqué le 11 septembre 2026.** D13 est close : la fenêtre de restauration couvre l'intégralité de ce
-qui existe, donc la suppression a son filet. **L'outil est écrit —
-`outils/supprimer_copies_miroir_distantes.py`** —, il passe à blanc par défaut, et **il reste à le
-lancer sur l'hôte**.
+**✅ CLOS le 11 septembre 2026.** D13 close a donné son filet à la suppression;
+`outils/supprimer_copies_miroir_distantes.py` a été déployé puis exécuté sur l'hôte, en deux temps.
+**Passage à blanc :** cible `libsql://falkye-altalogistic.aws-us-east-1.turso.io`, `distante: oui`,
+**huit tables toutes marquées `vide`, aucune `⚠️ PEUPLÉE`**. **Application :** les huit supprimées —
+`req_etablissements`, `req_entries`, `licences_municipales_entries`, `etat_schema_source`,
+`etat_ligne_source`, `diff_run_historique`, `diff_quarantaines`, `corporations_federales_entries` —
+et le contrôle de sortie confirme qu'**aucune ne subsiste**.
+
+**Ce que ça change vraiment, et c'est plus que du ménage.** *Un routage qui se tromperait de base
+**échoue maintenant bruyamment sur une table absente**, au lieu de réussir en silence sur une table
+vide.* **Le succès silencieux est devenu impossible à cet endroit** — et c'est le seul endroit connu du
+produit où une erreur de moteur avait une issue muette. *Ce n'est pas la suppression qui vaut, c'est la
+disparition d'un cas où « ça a marché » ne voulait rien dire.*
+
+**L'outil a annoncé sa cible en tête, et c'est ce qui a rendu le geste vérifiable avant l'irréversible.**
+Le garde-fou posé le 9 septembre après la contradiction des deux outils a servi deux jours plus tard, sur
+la seule opération destructive du chantier.
 
 **Le piège propre à cette suppression, écrit dans l'outil.** *Ces huit noms désignent des reliquats sur
 une base et le schéma réel sur l'autre. Un outil qui supprime par nom, sans vérifier où il est, supprime
@@ -1689,9 +1702,9 @@ modification. **Ce qui change, c'est le nombre de chemins qui font la même chos
   déplacer change donc ce qui est exclu, pas seulement ce que ça coûte. *Décision à trancher avant
   d'optimiser, sans quoi l'optimisation modifiera les résultats en silence.*
 - ⬜ Chemin d'import du miroir — deux allers-retours par ligne, mesuré.
-- ⬜ 27.2, 27.3, 27.6, 27.8, 27.10 · **27.9 — dérive de colonnes vérifiée nulle le 9 septembre ; D13
-  close, l'outil de suppression écrit et éprouvé (`supprimer_copies_miroir_distantes.py`, 6 essais),
-  reste à le lancer sur l'hôte**.
+- ⬜ 27.2, 27.3, 27.6, 27.8, 27.10 · **✅ 27.9 CLOS le 11 septembre 2026** — dérive de colonnes nulle au
+  9 septembre, et **les huit copies vides supprimées sur l'hôte**, passage à blanc d'abord. *Un routage
+  qui se trompe de base échoue désormais sur une table absente au lieu de réussir sur une table vide.*
 
 ---
 
