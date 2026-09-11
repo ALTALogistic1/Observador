@@ -172,6 +172,25 @@ elle ne se légifère pas.**
 
 **La règle. Ce qui prouve un fait n'est pas qu'il se raconte bien, c'est qu'il ait laissé une trace ailleurs** — un commit, une ligne en base, une sortie d'exécution. **Avant de consigner un incident, nommer cet artefact; si on n'en trouve aucun, c'est peut-être qu'il n'y a pas eu d'incident.** *C'est devenu une exigence du journal des cas.*
 
+## Une procédure est une affirmation sur un état
+
+**Une marche à suivre se relit comme un mode d'emploi, et c'est ce qui la rend dangereuse.** *(constaté
+le 2026-09-11, journal, cas 32)* Elle contient pourtant une affirmation à chaque ligne : que le fichier
+est déployé, que le chemin est celui-là, que l'interpréteur existe. **Rien dans sa forme ne signale
+qu'elle suppose quoi que ce soit**, et son lecteur ne la relit pas — il l'exécute.
+
+**Le cas réel.** Une procédure en trois étapes a été remise pour l'hôte, **commençant par un chemin
+approximatif et appelant un outil qui n'y était pas** : il vivait sur une demande de fusion ouverte,
+**écrite dans le même tour que la marche**. La chaîne ne déploie qu'au `push` sur la branche par défaut.
+
+**Ce qui la sépare des occurrences voisines.** Un état présumé produit une conclusion fausse; une règle
+écrite pour un objet absent produit une autorité sans objet. **Une procédure fausse produit un geste** —
+elle est le seul des trois livrables qu'une autre personne exécute sans pouvoir le contredire.
+
+**La règle. Avant de remettre une marche, vérifier ce qu'elle suppose déjà fait, et lire les chemins dans
+la configuration plutôt que de mémoire.** *Et ne jamais écrire la procédure dans le même tour que le
+changement qui la rend possible : la fusion n'a pas eu lieu, donc l'état non plus.*
+
 ## Qui repère qu'un document est devenu faux
 
 **Repérer est une obligation, pas une courtoisie.** Un écart constaté se dit dans le tour où il est
