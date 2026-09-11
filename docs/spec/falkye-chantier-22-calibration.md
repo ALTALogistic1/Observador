@@ -22,6 +22,27 @@ même uniformité.
 
 ---
 
+## ⚠️ Un écart entre le code et la décision, à reprendre par ce chantier
+
+**Relevé le 11 septembre 2026, sans le corriger — c'est ce chantier qui porte la forme décidée.**
+`falkye/scoring.py::franchit_seuil_sensibilite` traite la **Confiance comme une valeur unique par
+signal**, alors que la spéc. 8.1 la porte depuis le 11 septembre sur le **couple type de signal ×
+sphère**. *Le code est antérieur à la décision, il n'est pas fautif; `docs/ARCHITECTURE.md` le décrit
+fidèlement.*
+
+*⚠️ **Deux fonctions portent ce nom**, une par axe : `falkye/scoring.py` pour la **Confiance**,
+`falkye/pertinence.py` pour la **Pertinence**. C'est la première qui est visée ici. Elles sont
+symétriques par construction — donc **la seconde portera la même question dès que le grade sera reconnu
+porté par le couple signal × profil** *(spéc. 8.1)*, et il vaut mieux le savoir avant d'en corriger une
+seule.*
+
+**Conséquence concrète pour le 22.1 :** le champ « tier de confiance produit » qu'une règle déclare ne
+peut pas se ranger dans la forme actuelle — **une règle produira autant de valeurs qu'elle sert de
+sphères**. Le curseur de sensibilité de l'utilisateur *(spéc. 8.6)* lit cette valeur; il faudra dire
+laquelle des valeurs du couple il compare, et ce n'est pas tranché *(registre, D34)*.
+
+---
+
 ## 22.1 — Une forme commune pour les règles de calibration
 
 **Constat.** La charte pose qu'aucune source ne s'active sans une règle qui distingue le vrai signal du
