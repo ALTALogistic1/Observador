@@ -612,6 +612,12 @@ d'un seuil; **franchissement de palier**; **répétition** sur une fenêtre; **a
 Chaque règle déclare son motif, le champ visé, son seuil, le tier de confiance produit, et ce qu'elle
 exclut explicitement comme bruit.
 
+**Le tier de confiance est porté par le couple type de signal × sphère** *(8.1)*, jamais par le signal
+seul : une même règle peut produire un signal fort pour une sphère et faible pour une autre, et une
+valeur unique mentirait à l'une des deux. **Ses critères n'existent pas encore, et c'est délibéré** —
+décider si un signal est réel et fort est l'acte de lecture que ce chantier construit, pas une
+définition à rédiger d'avance *(registre, D34)*.
+
 Exemples déjà établis : au RDPRM, distinguer une garantie d'expansion d'un refinancement de routine; au
 REQ, distinguer un nouvel établissement d'une mise à jour administrative — la toute première
 immatriculation n'est jamais un signal, une entreprise qui vient de naître n'est pas une entreprise
@@ -958,6 +964,25 @@ Ce n'est pas un défaut à corriger mais un fait qui détermine **quel type d'en
 
 Combinés en matrice, **jamais fusionnés en une moyenne**. La règle vaut pour N axes : si un quatrième
 s'impose, il s'ajoute sans que la séparation devienne négociable.
+
+**⚠️ Trois axes ne veut pas dire trois objets de même nature.** La Confiance et la Confiance
+d'appariement sont des **instruments internes** — le moteur les calcule pour décider, leur valeur n'est
+jamais affichée. La Pertinence est une **finalité présentée** — c'est le dernier mot du produit au
+client. **Les règles qui s'y appliquent ne sont pas les mêmes**, et cette section a longtemps laissé
+croire le contraire. *Découpe des trois natures : charte, section 16.*
+
+**La Confiance est portée par le couple type de signal × sphère, jamais par le signal seul.**
+*Tranché le 11 septembre 2026.* Une non-conformité au processus de francisation est un signal **fort de
+besoin** et **faible de croissance** : ce n'est pas une ambiguïté à lever, **c'est ce que le fait dit
+vraiment**, et forcer une valeur unique reviendrait à mentir à l'une des deux sphères. *Le corpus
+penchait déjà dans ce sens — la durée de pertinence obéit à la même règle (8.3) avec le même
+raisonnement, et deux propriétés du même objet ne peuvent pas obéir à des règles opposées.*
+
+**Ce que ça ne change pas.** La séparation d'avec la Pertinence reste entière. **Ce n'est pas la
+Pertinence qui déborde sur la Confiance : c'est que lire un signal, c'est déjà le lire pour
+quelqu'un.** La Confiance n'est pas une propriété du signal, c'est une propriété de **sa lecture dans
+une sphère**; la Pertinence mesure l'alignement au profil de l'utilisateur. Deux questions distinctes,
+qui ont seulement en commun de n'avoir aucune réponse hors d'une sphère.
 
 ### 8.2 Corroboration et normalisation
 

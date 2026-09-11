@@ -50,6 +50,14 @@ faits à réunir plutôt qu'une date, parce qu'une place vide sans déclencheur 
 **Le chantier 13 les corrige toutes** : le taux de rejet est la seule boucle qui confronte le moteur au
 réel plutôt qu'à des hypothèses.
 
+**⚠️ Une conséquence pour la lecture du corpus.** Entre la correspondance signal↔besoin et le grade
+présenté, **ce qui manque n'est pas toujours un trou de documentation — c'est souvent ce qui n'est pas
+encore conçu.** Le tier de confiance n'a pas de critères parce que **décider si un signal est réel et
+fort est un acte de lecture** *(chantier 22)*; le seuil de publication n'en a pas parce que **décider de
+ne pas dire est un acte de jugement** *(aucun chantier, D33)*. **Ce sont des places qui attendent leur
+facette, pas des champs mal tenus** — et on les écrit comme telles, en nommant la facette. *Règle de
+lecture n°5 de la charte; relevé complet au registre, D34.*
+
 **⚠️ Une place a été laissée vide, et c'est un choix documenté.** Entre *associer* et *mettre en mots*,
 il y a **comprendre** — la synthèse. Elle n'a pas de chantier : elle attend d'avoir de quoi se
 construire, parce qu'**inventer des motifs d'avance reproduirait l'erreur d'inventer des sphères**. *Ce

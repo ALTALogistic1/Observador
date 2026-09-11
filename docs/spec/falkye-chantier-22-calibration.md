@@ -43,6 +43,19 @@ Chaque règle déclare **son motif, le champ visé, son seuil, le tier de confia
 exclut explicitement comme bruit administratif**. **Ajouter une source devient une déclaration, pas une
 réécriture.**
 
+
+**Le tier de confiance est porté par le couple type de signal × sphère** *(spéc. 8.1, tranché le
+11 septembre 2026)*, jamais par le signal seul. Une même règle produit un signal **fort** pour une sphère
+et **faible** pour une autre — une non-conformité à la francisation est un besoin aigu et une croissance
+douteuse — et **forcer une valeur unique mentirait à l'une des deux**. *Même règle que la durée de
+pertinence du 22.2 : portée par le couple, jamais par le signal seul.*
+
+**Les critères qui produisent un niveau plutôt qu'un autre n'existent pas, et ils ne se rédigent pas
+d'avance.** Décider si un signal est réel et fort **est** l'acte de lecture que ce chantier construit :
+c'est une place qui attend cette facette, pas un champ mal documenté *(registre, D34; charte, règle 5)*.
+Le catalogue de motifs ci-dessus est ce qui les rendra formulables — **huit fiches de source portent déjà
+un tier justifié au cas par cas**, à la granularité exacte d'une règle déclarée.
+
 **Livrable de migration.** Reprendre les règles de calibration existantes des sources actives sous cette
 forme, et **rapporter celles qui n'y entrent pas — un motif manquant au catalogue est une information
 utile, pas un échec.**

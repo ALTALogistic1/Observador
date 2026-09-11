@@ -94,7 +94,7 @@ redécrire. **Trancher inclut « non, et voici pourquoi ».**
 | D31 | Une empreinte du corpus, pour qu'un fichier revenu en arrière se voie | Méthode d'écriture du corpus, 9 septembre | ⬜ **au premier cas réel, pas avant** — *`verifier-corpus.py` attrape les renvois cassés et les numéros dupliqués; il ne voit PAS un document remplacé par une version antérieure, qui reste cohérent avec lui-même. Le corpus n'a plus qu'une main qui écrit, ce qui ferme la cause; une copie de travail subsiste ailleurs, ce qui laisse le risque. On ne construit pas le mécanisme d'avance — on a déjà assez de mécanismes construits avant leur défaut.* |
 | D32 | Réactiver Guichet-Emplois, ou l'écarter | Registre des sources, `docs/STATUT_RESEAU.md` | ⬜ **quand le décalage de publication passe sous la durée de vie d'une offre, mesuré en suivant dix identifiants du fichier le plus récent.** *Le connecteur est correct et testé — rien à réécrire le jour où la donnée le permet. Ce n'est ni un abandon ni une source active : un état en attente d'une mesure.* |
 | D33 | Le cerveau : le jugement, et la place vide de « comprendre » | `FALKYE-000-PAR-OU-COMMENCER.md` § Le cœur et le cerveau, spéc. 9.2bis, chantier 21 point 2bis | ⬜ **quand les TROIS existent : des dossiers réels en nombre, un taux de rejet mesuré (chantier 13), une densité de signal (chantier 9).** *Le jugement est la faculté de NE PAS DIRE — seuil de publication, confiance plafonnée, sphère qu'on n'offre pas parce qu'on ne peut pas la servir. Il n'a aucun chantier, et « comprendre », entre associer et mettre en mots, est une place laissée vide délibérément. Ce qui manque n'est pas la réponse, c'est le DÉCLENCHEUR : une place vide sans échéance devient un oubli (cas 15). Une condition plutôt qu'une date, parce qu'avant ces trois-là la discussion se ferait sur des hypothèses.* ⚠️ **Discussion de nature différente d'un chantier ordinaire** : elle porte sur la philosophie du produit autant que sur la technique — ce qu'il a le droit d'affirmer, ce qu'il doit taire, sur quoi il fonde une interprétation — et **produira des sections de corpus, pas seulement du code**. |
-| D34 | Le « tier de confiance » qu'une règle de calibration produit | Chantier 22.1, spéc. 5.4 et 8.1 | ⬜ **avant la première règle déclarée** — un champ obligatoire dont les critères n'existent pas. *Première application de la règle 5 de la charte : signalé, non inventé.* **Ce qui existe :** l'axe **Confiance** de la spéc. 8.1 porte trois valeurs — *Faible / Moyen / Élevé* — et c'est vraisemblablement la même échelle, mais **le lien n'est écrit nulle part** et **aucun critère ne dit ce qui produit l'un plutôt que l'autre**. Les trois valeurs n'apparaissent qu'une fois dans tout le corpus, à leur ligne de définition. **Ce qui manque est donc plus étroit qu'une échelle absente : ce sont les critères, et le rattachement.** *Relevé des échelles comparables et de ce qui les a produites : voir « Échelles comparables » ci-dessous.* |
+| D34 | Le « tier de confiance » qu'une règle de calibration produit | Chantier 22.1, spéc. 5.4, 8.1 et 8.6, `falkye-sources-spheres-verifiees.md` (huit usages), charte §16 | 🟡 **partiellement tranché le 11 septembre 2026.** **(1) Le rattachement est établi :** le champ EST l'axe Confiance de la spéc. 8.1. Preuve — le champ est utilisé **huit fois** en fiches de source, toujours attaché à un *cas de lecture* et non à une source, et **chacune de ses justifications répond à la question de 8.1** — « le signal est-il réel et fort? » : *le signal est vieux*, *pas de croissance*, *la certification marque la fin du processus*. **Aucune ne porte sur la fiabilité de la règle elle-même.** *La lecture concurrente — le champ qualifierait la règle — avait déjà son emplacement : le champ `Fiabilité` des mêmes fiches, qui cohabite avec le tier depuis le début. Les deux lectures avaient chacune leur case; on cherchait une échelle qui était là.* **(2) Le porteur est tranché :** le **couple type de signal × sphère**, jamais le signal seul *(spéc. 8.1)*. **Restent ouverts, et aucun ne se tranche en passant :** *(a)* **les critères** — aucun, et **c'est une place qui attend la facette « lecture » (chantier 22)**, pas un champ à documenter; *(b)* **le libellé** — `Élevé` à la spéc. 8.1, **`fort`** dans les huit usages, et **rien n'écrit que c'est le même mot**; *(c)* **le passage d'une fiche de source à une règle déclarée** — les huit usages ont déjà la granularité exacte d'une règle *(un cas, un champ visé, un tier)*, et **personne ne l'a écrit**. *Relevé complet des sept objets gradués, par nature : voir ci-dessous.* |
 | D12 | Seuils d'alerte de dérive | Mandat chantier 2, livrable 6 | ⬜ **avant clôture du chantier 2** |
 | D17 | Seuils de quarantaine par défaut | Mandat chantier 1, livrable 6 | ⬜ *à dater* — **même forme que D12, jamais une constante enfouie** |
 | D18 | Exception canadienne pour la fouille de textes et de données | Cadre légal | ⬜ *à revalider* — si elle entre en vigueur, elle change l'analyse des sources |
@@ -169,45 +169,141 @@ coût change, **à condition de ne pas lancer commercialement avant d'avoir rég
 
 ---
 
-## Échelles comparables du corpus — relevé pour D34
+## Relevé des objets gradués du corpus — pour D34
 
-*Écrit le 10 septembre 2026 au titre de la règle 5 de la charte : ce qui se fait sans consultation, c'est
-rapporter ce que le corpus porte déjà de comparable et ce qui l'a produit. **Aucune échelle n'est
-proposée ici** — la proposer serait précisément ce que la règle interdit.*
+*Réécrit le 11 septembre 2026, après la décision du couple (spéc. 8.1) et la découpe des trois natures
+(charte, section 16). **La version du 10 septembre parlait de « cinq échelles » et les rangeait sur un
+seul plan — c'était exactement la confusion que ce relevé devait dissiper.** Aucune échelle n'est
+proposée ici : la proposer serait ce que la règle 5 interdit.*
 
-**Confiance du signal — spéc. 8.1.** *Faible / Moyen / Élevé.* Question posée : « le signal est-il réel
-et fort? » **Trois valeurs nommées, aucun critère écrit**, et l'expression n'apparaît qu'à cette ligne
-dans tout le corpus. C'est l'échelle dont le chantier 22 a besoin, si le rattachement est celui qu'on
-suppose — *et ce rattachement n'est écrit nulle part.*
+**Deux colonnes que le relevé du 10 septembre n'avait pas.** La **nature** de l'objet, parce que les
+trois n'obéissent pas aux mêmes règles. Et **ce qui le porte** — le signal seul, ou un couple : la
+question ne se posait à aucun de ces objets avant qu'on la pose au premier, **et deux d'entre eux y
+répondaient déjà sans le dire.**
 
-**Pertinence — spéc. 8.1.** *A Repéré / AA Aligné / AAA Sur mesure.* **Ce qui l'a produite est la
-décision la plus instructive du corpus sur les échelles** *(journal, cas 16)* : elle était A/B/C. Le
-classement, l'ordre et les écarts sont identiques; ce qui a été retiré est **un jugement que le produit
-n'était pas en position de porter**. Dire « C » revient à dire à l'utilisateur que son opportunité est
-médiocre, alors que le moteur sait seulement qu'elle est **moins bien alignée que d'autres**. *Le C
-ajoutait une information fausse; le A la retire sans rien inventer.* **Une échelle dit ce que le produit
-s'autorise à affirmer — c'est de là que vient la règle 5.**
+### Nature 1 — Instruments internes
 
-**Confiance d'appariement — spéc. 6.3.** Échelle **numérique avec seuils réels et gestes attachés** :
-fusion automatique **au-dessus de 95**, bonifiée si la ville concorde; **entre 90 et 95**, journalisation
-comme candidat, **jamais de fusion silencieuse**; comparaison floue entre deux compagnies à numéro
-**interdite structurellement**. Ce qui l'a produite : 76 paires de doublons non reconnues, **une fusion
-erronée entre deux compagnies à numéro légalement distinctes, restaurée depuis une sauvegarde**, et
-20 candidats en attente. *Elle plafonne les deux autres axes plutôt que de s'y additionner.*
+*Le moteur les calcule pour décider; leur valeur n'est jamais affichée.*
 
-**Fiabilité de la taille — spéc. 8.2.** *Mesurée / déclarée / estimée*, **jamais fusionnées en un
-chiffre**, chaque niveau portant **sa provenance et sa date**. Ce qui l'a produite : sans normalisation
-par la taille et le secteur, tout signal de volume favorise mécaniquement les grandes entreprises —
-**celles qui ne sont pas la clientèle visée**.
+**Tier de confiance du signal** — *spéc. 8.1 et 5.4, chantier 22.1, et **huit usages** en fiches de
+source (`falkye-sources-spheres-verifiees.md`).*
 
-**Seuil de publication — spéc. 8.5.** Pas une échelle mais **l'ancêtre de la règle 5**, écrit avant
-elle : *« Décision produit, à valider explicitement, **pas une constante enfouie** »*. Et sa distinction
-d'avec le curseur de sensibilité : *le seuil dit ce qui est présentable, la sensibilité dit ce que cet
-utilisateur veut voir parmi le présentable.*
+- **Valeurs :** `Faible / Moyen / Élevé` à la spéc. 8.1 — mais `faible / moyen / **fort**` dans les huit
+  usages réels. **Deux libellés sur trois coïncident; « Élevé » n'apparaît pas une seule fois dans le
+  document qui s'en sert.**
+- **Critères : aucun.** Les huit usages justifient chaque valeur au cas par cas — *« délais de 18 mois+,
+  le signal est vieux »*, *« remise en jeu des fournisseurs, mais pas de croissance »*, *« la
+  certification marque la fin du processus, pas le moment où l'entreprise a franchi 25 employés »* —
+  mais **aucune règle ne relie ces justifications à un niveau.**
+- **Seuil :** aucun.
+- **Fait réel qui l'a forcé :** les **1 672 signaux d'une même source portant tous la même sphère unique
+  avec la même confiance**. Le moteur de notation n'a rien à départager *(chantier 22)*.
+- **Porté par : le couple type de signal × sphère.** *Tranché le 11 septembre 2026.*
+- **Ce qui manque n'est pas une rédaction.** Décider si un signal est réel et fort **est** l'acte de
+  lecture. **Cette place attend la facette « lecture », chantier 22** — inventer les critères aujourd'hui
+  serait la décision que personne n'a prise.
 
-**Ce que ces cinq ont en commun, et qui n'est pas dans l'échelle du chantier 22.** Chacune dit **ce qui
-produit chaque niveau** ou **ce qui se passe à chaque seuil**, et quatre des cinq portent **le fait réel
-qui les a forcées**. La confiance du signal ne porte ni l'un ni l'autre.
+**Confiance d'appariement** — *spéc. 6.3.*
+
+- **Valeurs :** numériques.
+- **Critères : écrits — et c'est le seul objet du corpus dont chaque seuil porte un geste attaché.**
+- **Seuils :** **au-dessus de 95**, fusion automatique, bonifiée si la ville concorde; **entre 90 et
+  95**, journalisation comme candidat et **jamais de fusion silencieuse**; comparaison floue entre deux
+  compagnies à numéro **interdite structurellement**.
+- **Fait réel :** 76 paires de doublons non reconnues, **une fusion erronée entre deux compagnies à
+  numéro légalement distinctes, restaurée depuis une sauvegarde**, et 20 candidats en attente d'examen.
+- **Porté par : l'identité seule**, héritée du maillon le plus faible de son historique d'appariement.
+  Ni signal ni sphère — **et c'est cohérent : « est-ce la bonne entreprise? » ne dépend d'aucun besoin.**
+  *Elle plafonne les deux autres axes au lieu de s'y additionner.*
+- **Complet.** Le seul des sept.
+
+**Fiabilité de source** — *`falkye-sources-spheres-verifiees.md`, champ `Fiabilité`, six fiches.*
+
+- **Valeurs : aucune — du texte libre.** *« Organisme fédéral, données primaires. »* *« Régulateur,
+  donnée déclarée par l'émetteur sous obligation légale et sanction en cas de retard. »*
+- **Critères :** implicites mais constants d'une fiche à l'autre — nature de l'organisme, donnée primaire
+  ou reprise, existence d'une obligation légale, réserve documentée par la source elle-même.
+- **Seuil :** aucun.
+- **Fait réel : aucun.** Le champ est né de la vérification source par source, pas d'un incident.
+- **Porté par :** la source seule.
+- **⚠️ Mal rangé, et ça compte pour D34.** Ce champ **n'est pas un instrument du moteur** : il est lu par
+  un humain qui décide d'activer une source, jamais calculé ni consulté à l'exécution. **Il occupe la
+  case d'un instrument interne sans en être un.** *Son intérêt pour D34 est ailleurs : il cohabite avec
+  le tier de confiance sur les mêmes fiches depuis le début, et c'est lui qui porte « à quel point cette
+  lecture est fiable ». La deuxième lecture du champ du chantier 22 avait donc déjà son emplacement.*
+
+### Nature 2 — Données lues
+
+*Des faits sur l'entreprise, pas des jugements du produit. Elles servent de filtre.*
+
+**Fiabilité de la taille** — *spéc. 8.2.*
+
+- **Valeurs :** `mesurée / déclarée / estimée`, **jamais fusionnées en un chiffre**, chacune portant sa
+  provenance et sa date.
+- **Critères : écrits — et ce sont des provenances, pas des degrés.** Mesurée = capacité RACJ ou seuil
+  25+ de l'OQLF, à leur date; déclarée = bande d'effectifs du registre; estimée = signaux d'embauche
+  cumulés.
+- **Seuils :** les seuls chiffres — 25 employés, capacité d'accueil — **appartiennent à la source, pas à
+  FALKYE.** Le produit n'en fixe aucun.
+- **Fait réel :** sans normalisation par la taille et le secteur, **tout signal de volume favorise
+  mécaniquement les grandes entreprises — celles qui ne sont pas la clientèle visée.**
+- **Porté par :** l'entreprise seule.
+- **Remarque : cette échelle gradue la façon d'obtenir un nombre, pas l'entreprise.** C'est la seule du
+  corpus dans ce cas, et c'est ce qui la range dans la deuxième nature plutôt que dans la première.
+
+### Nature 3 — Finalités présentées
+
+*Le dernier mot du produit sur ce qu'il a lui-même décidé de montrer. Seule nature à laquelle s'applique
+la règle du jugement (charte, section 16).*
+
+**Grade de pertinence** — *spéc. 8.1 et 8.4.*
+
+- **Valeurs :** `A Repéré / AA Aligné / AAA Sur mesure`.
+- **Critères :** l'alignement au profil, **modulé** par la fraîcheur (âge du signal le plus récent,
+  relative à la durée de pertinence du couple) et la trajectoire (densité sur une fenêtre glissante).
+  *Un signal frais mais mal aligné ne devient pas AAA.*
+- **Seuil :** le **seuil de publication** (8.5) dit à partir de quelle case de la matrice un dossier est
+  présenté. Le grade lui-même n'a aucun seuil interne écrit.
+- **Fait réel : la décision la plus instructive du corpus sur les échelles** *(journal, cas 16)*. Elle
+  était `A/B/C`. Classement, ordre et écarts identiques; ce qui a été retiré est **un jugement que le
+  produit n'était pas en position de porter**. Dire « C » dit à l'utilisateur que son opportunité est
+  médiocre, alors que le moteur sait seulement qu'elle est **moins bien alignée que d'autres**. *Le C
+  ajoutait une information fausse; le A la retire sans rien inventer.*
+- **Porté par : le couple, par construction** — *« correspond-il à CE profil? »* n'a aucune réponse hors
+  d'un profil. **Le corpus ne l'a jamais écrit comme une propriété de couple**, et c'est le deuxième
+  objet qui répondait à la question sans qu'on la lui pose.
+- **Ce qui manque : rien de conceptuel.** Mais **le grade ne peut rien départager tant que les signaux
+  entrent uniformes** — ce n'est pas un défaut du grade, c'est ce que le chantier 22 débloque.
+
+### Deux objets que la découpe ne classe pas
+
+**Seuil de publication** — *spéc. 8.5.* Pas une échelle : **un point de coupe** sur la matrice. Aucun
+critère — *« Décision produit, à valider explicitement, pas une constante enfouie »*, **l'ancêtre de la
+règle 5, écrit avant elle**. Distinct du curseur de sensibilité : *le seuil dit ce qui est présentable,
+la sensibilité dit ce que cet utilisateur veut voir parmi le présentable.* **Attend la facette
+« jugement » — décider de ne pas dire — qui n'a aucun chantier et dont l'ouverture est conditionnée par
+D33.** *Seule place du corpus qui attend une facette sans chantier.*
+
+**Curseurs de sensibilité** — *spéc. 8.6.* Deux curseurs indépendants : confiance minimale, pertinence
+minimale. Ils appartiennent à l'utilisateur, pas au produit. **⚠️ Et ils touchent la découpe des trois
+natures :** le curseur de confiance minimale **expose au client l'existence d'un instrument interne** et
+lui en fait régler un seuil. *La valeur d'un signal donné n'est jamais affichée; l'axe, lui, est
+nommable.* **« Jamais affiché » vise donc la valeur, pas l'axe** — à écrire ou à corriger, pas à laisser
+implicite.
+
+### Ce que le relevé apprend, mis ensemble
+
+1. **Un seul des sept objets est complet** — la confiance d'appariement, **et c'est le seul qu'une erreur
+   réelle a forcé.** Les autres ont été forcés par un raisonnement, ou par rien.
+2. **Deux objets sont portés par un couple sans que le corpus l'écrive** : le tier de confiance, tranché
+   aujourd'hui, et le grade de pertinence, jamais posé. **La question ne se posait à aucun des deux avant
+   qu'on la pose au premier.**
+3. **Deux places attendent une facette, pas une rédaction** : le tier de confiance attend la **lecture**
+   *(chantier 22)*, le seuil de publication attend le **jugement** *(aucun chantier, D33)*. *Écrire « à
+   documenter » sur l'une ou l'autre reviendrait à combler ce qui n'est pas encore conçu.*
+4. **Un objet est mal rangé** : la fiabilité de source occupe la case d'un instrument du moteur sans en
+   être un.
+
 
 ## Faille A — Le palier d'entrée est structurellement vide
 
@@ -1279,6 +1375,9 @@ chaque nouvelle source se réinvente à partir de rien**.
 changement de valeur au-delà d'un seuil, franchissement de palier, répétition sur une fenêtre, absence
 attendue. Chaque règle déclare **son motif, le champ visé, son seuil, le tier de confiance produit, et ce
 qu'elle exclut comme bruit**. **Ajouter une source devient une déclaration, pas une réécriture.**
+
+**Le tier de confiance est porté par le couple type de signal × sphère** *(spéc. 8.1, tranché le
+11 septembre 2026)*, et **ses critères attendent cette facette plutôt qu'une rédaction** *(D34)*.
 
 *Livrable de migration : reprendre les règles existantes sous cette forme et **rapporter celles qui n'y
 entrent pas — un motif manquant au catalogue est une information utile, pas un échec**.*
