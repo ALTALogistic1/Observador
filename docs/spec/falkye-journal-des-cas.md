@@ -540,8 +540,60 @@ cause unique.** Un total l'aurait dit tout de suite; trois mesures partielles, j
 **Ce qui a fini par le voir :** le compteur de l'hébergeur, relevé **avant et après** — le seul chiffre
 de la journée qui ne dépendait d'aucune hypothèse sur l'endroit où regarder.
 
+**Épilogue mesuré — le soir du 11 septembre 2026.** Un index posé sur `signals.company_id`, un cycle
+comparable, le compteur relevé des deux côtés : **411 963 777 → 120 311 lectures. Divisé par 3 424.** La
+requête qui dominait les requêtes les plus coûteuses n'y figure plus, et celle qui la remplace lit
+**2 lignes par appel au lieu de 17 800**. *Le correctif a coûté ~17 824 écritures facturées, une fois — la
+construction de l'index, lisible dans l'écart des compteurs d'écriture.* **Le plus gros poste de la
+journée est devenu la commande de mesure elle-même**, pas le cycle.
+
+**Et une arithmétique qui soutient le « vraie et incomplète », sans le prouver.** Sur la fiche du palier
+Developer **lue le 11 septembre 2026**, le quota mensuel de lectures se compte en **milliards**. Si ce
+chiffre valait déjà le 8 septembre — *ce qu'une fiche d'aujourd'hui n'établit pas d'hier* — alors les
+~1,2 milliard de lectures des trois passages de l'EIMT ne l'épuisaient pas à eux seuls, et **il fallait
+bien un second consommateur du même ordre**. *Cohérent avec le constat, pas une preuve : c'est une lecture
+d'aujourd'hui appliquée à hier, et elle est marquée comme telle.*
+
 **La règle. Un instrument mesure ce qu'il a été construit pour mesurer; son zéro ne dit rien de ce qu'il
 ne regarde pas.** *Sa portée s'écrit à côté de sa sortie, pas dans sa documentation* — sans quoi un zéro
 se lit comme une absence de coût. **Et une mesure partielle ne ferme jamais une question de total.**
 *Précédent à imiter : `outils/schema_de_la_fusion.py`, qui annonce dans sa sortie qu'il ne sait rien de
 la dérive déjà présente en production.*
+
+
+## Cas 34 — La garde trop large, arrêtée par les tests qui existaient déjà *(guide d'ingénierie)*
+
+Le 11 septembre 2026, après la mesure, une garde a été posée sur la détection d'expansion
+inter-provinciale : **moins de deux provinces au registre actif ⇒ la passe ne s'exécute pas.** Elle était
+justifiée et mesurée — une seule source active porte une province, aucun lien ne peut exister, et
+`provenance_entreprises.py` avait confirmé **0 entreprise sur 11 556** venant des trois sources
+provinciales en veilleuse.
+
+**Elle a été posée aux DEUX points d'appel.** Le second — `evaluer_pour_company` — lit les liens d'une
+entreprise pour lui accorder un bonus de confiance. **Trois tests existants sont tombés immédiatement** :
+un lien **déjà en base** cessait de donner son bonus dès que le registre ne pouvait plus en créer de
+nouveau.
+
+**Ce que la garde confondait.** *Ne plus CRÉER et cesser de LIRE sont deux gestes différents.* Le premier
+est un non-geste démontré : rien ne peut naître, donc ne rien tenter ne retire rien. Le second retirerait
+**en silence une observation légitime déjà acquise** — et le silence est exactement la forme que ce projet
+passe son temps à fermer.
+
+**Le motif qui l'avait rendue tentante était déjà tombé.** La lecture coûtait cher parce que
+`liens_interprovinciaux.company_id_b` n'était pas indexé; l'index posé une heure plus tôt la fait lire
+deux lignes. *Ce qui restait à retirer était la PASSE, pas la lecture* — et une garde posée « tant qu'à y
+être » élargissait son emprise au-delà de ce qu'elle avait mesuré.
+
+**Pourquoi ce cas vaut d'être écrit alors que rien n'a cassé en production.** Le correctif a tenu
+**quarante minutes**, dans une seule session, et la base réelle ne porte aucun lien — l'effet aurait été
+nul. **C'est la forme qui compte** : une mesure justifie un geste précis, et le geste s'étend d'un cran
+par cohérence apparente. *La mesure couvrait un des deux points d'appel; la garde a couvert les deux.*
+
+**Ce qui l'a arrêtée n'est ni une relecture ni un raisonnement** — c'est une suite de tests écrite avant,
+pour une autre raison, qui affirmait qu'un lien en base donne un bonus. **Un test qui tombe sur un
+changement qu'on croit inoffensif est le seul mécanisme qui parle plus fort que la conviction de celui qui
+l'écrit.**
+
+**La règle. Une garde ne couvre que ce que la mesure couvrait.** *Étendre « par symétrie » à un geste
+voisin — écrire et lire, créer et consulter, calculer et afficher — demande sa propre démonstration, parce
+que le voisin a ses propres raisons d'exister.*

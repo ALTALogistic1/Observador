@@ -147,6 +147,11 @@ par résolution qui échoue en préfixe *(registre, D14)*.
 > avait été relevé requête par requête sur les trois chemins instrumentés, jamais sur le TOTAL du cycle.*
 > **Une cause suffisante n'est pas une cause unique, et seul un total permet d'en juger.** *(journal,
 > cas 33; registre, D37)*
+>
+> **Refermé le soir même.** Un index sur `signals.company_id` — la clé étrangère n'en créait aucun — et le
+> même cycle coûte **120 311 lectures**. *411 963 777 → 120 311, divisé par 3 424, mesuré au compteur des
+> deux côtés.* **Ce que la lecture de la base durable coûte n'est donc plus la résolution d'identité, ni
+> le repli par sous-chaîne : c'était un chargement de relation sans index.** *(registre, D37 et D14.)*
 
 **La distinction vaut d'être gardée : l'import est gratuit, la LECTURE DE LA BASE DURABLE est ce qui
 coûte.** Confondre les deux fait craindre le geste inoffensif et fait lancer l'autre sans compter. *Et ne
