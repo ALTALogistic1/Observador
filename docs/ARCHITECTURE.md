@@ -22,6 +22,22 @@ corpus, et de `falkye-specifications-produit.md` en particulier.
 > document montré n'est pas un document vérifié*. **La source de vérité sur ce
 > que le code fait reste le code, et sur ce que le produit décide, le corpus de
 > `docs/spec/`.**
+>
+> **Ce qui A été vérifié, le 11 septembre 2026 — et l'incertitude se resserre
+> d'autant.** Les passages sur les deux axes de score ont été confrontés aux
+> décisions des 10 et 11 septembre : ils **tiennent**, et l'un d'eux les
+> devance. La section « Score de pertinence » porte déjà *« score numérique
+> interne 0-100, quantifié en palier, **jamais affiché tel quel** »* — c'est-à-dire
+> la distinction que la spéc. 8.6 n'a formulée que le 11 septembre. Et elle porte
+> les trois libellés **Repéré / Aligné / Sur mesure**, qui vivaient donc dans le
+> dépôt avant d'être versés au corpus : *le corpus a été le dernier informé.*
+>
+> **Un écart subsiste, et il est dans le code, pas dans ce document :**
+> `franchit_seuil_sensibilite` traite la Confiance comme **une valeur par
+> signal**, alors que la spéc. 8.1 la porte depuis le 11 septembre sur le
+> **couple signal × sphère**. *Ce document décrit fidèlement un code antérieur à
+> la décision. C'est le chantier 22 qui construira la forme décidée
+> (registre, D34), pas une correction à faire ici.*
 
 ## Import manuel de documents sources (spec section 9, ajouté le 2026-08-31)
 
