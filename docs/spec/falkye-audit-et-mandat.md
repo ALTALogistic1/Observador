@@ -81,7 +81,7 @@ redécrire. **Trancher inclut « non, et voici pourquoi ».**
 | D10 | Où vivent l'historique et les quarantaines de diff | Chantier 29, chantier 2 | ✅ **Tranchée le 9 septembre** — mesurée dans le fichier miroir local, pas sur la base durable. Les copies vides distantes n'ont pas reçu la colonne. *Reste la confirmation positive par la sortie sur l'hôte.* |
 | D11 | La quarantaine : issue d'exécution ou état de santé? | Chantier 2, spéc. §5.5 | ⬜ **avant la taxonomie des états** |
 | D20 | Vérification de fusion : mesurer la dérive en production | Flux `schema`, chantier 27 | ✅ **Écartée le 9 septembre** — exigerait les identifiants de base dans les secrets du dépôt, ce qui défait la propriété de l'architecture des secrets : une chaîne compromise peut redémarrer le service, jamais lire la base. *Raisonnement complet et chemins écartés à `docs/DEPLOIEMENT.md`.* |
-| D21 | Colonnes présentes en base et absentes du modèle | `migration_colonnes.py`, point 27.9 | ⬜ **déclencheur ATTEINT le 9 septembre** — la sortie sur l'hôte existe et la dérive de colonnes est nulle. *L'outil ne regarde toujours que ce qui manque; la direction inverse reste à construire, en lecture seule et sans proposition de `DROP`.* — la chaîne n'ajoute que, donc l'écart se creuse en silence dans ce sens-là |
+| D21 | Colonnes présentes en base et absentes du modèle | `migration_colonnes.py`, point 27.9 | ⬜ **déclencheur ATTEINT le 9 septembre** — la sortie sur l'hôte existe et la dérive de colonnes est nulle. *L'outil ne regarde toujours que ce qui manque; la direction inverse reste à construire, en lecture seule et sans proposition de `DROP`.* — la chaîne n'ajoute que, donc l'écart se creuse en silence dans ce sens-là **⚠️ `supprimer_copies_miroir_distantes.py` ne ferme pas cette entrée, et c'est délibéré.** Cet outil-là supprime une liste **déclarée par les modèles**, pas une liste **déduite de l'écart**. *Un outil qui calculerait lui-même ce qui est « en trop » pour le supprimer se tromperait un jour tout seul, et il aurait l'air d'avoir raison.* **Le rapport en lecture seule de la direction inverse reste entièrement à construire.** |
 | D22 | Seuil de publication — à partir de quelle case un dossier devient une opportunité présentée | Mandat chantier 21, §1 | ⬜ *à dater* — **distinct du curseur de sensibilité de l'utilisateur**, les fusionner lui retirerait la possibilité d'être plus sélectif |
 | D23 | Inventaire des libellés visibles par l'utilisateur | Mandat chantier 21, §7 | ⬜ *à dater* — six révisions et deux propositions à trancher explicitement. **Du texte destiné aux clients, pas une décision technique** |
 | D24 | Fraîcheur : signal ancien fort contre signal récent faible | Mandat chantier 21, §2 | ⬜ **avant de construire la modulation du grade** — la fraîcheur porte-t-elle sur le plus récent, le plus fort, ou l'ensemble? |
@@ -1627,8 +1627,25 @@ d'échouer.** C'est la forme exacte du motif. *Signalé le 8 septembre depuis le
 
 **⚠️ Ce que la vérification du 9 septembre a fermé, et ce qu'elle n'a pas fermé.** La dérive de colonnes
 et d'index est **nulle des deux côtés**, vérifiée sur l'hôte avec l'environnement chargé. **Les huit
-copies vides, elles, sont toujours en place** — relues le 10 septembre, toutes à zéro ligne. Leur
-suppression reste une migration destructive, bloquée sur **D13**.
+copies vides, elles, sont toujours en place** — relues le 10 septembre, toutes à zéro ligne.
+
+**Débloqué le 11 septembre 2026.** D13 est close : la fenêtre de restauration couvre l'intégralité de ce
+qui existe, donc la suppression a son filet. **L'outil est écrit —
+`outils/supprimer_copies_miroir_distantes.py`** —, il passe à blanc par défaut, et **il reste à le
+lancer sur l'hôte**.
+
+**Le piège propre à cette suppression, écrit dans l'outil.** *Ces huit noms désignent des reliquats sur
+une base et le schéma réel sur l'autre. Un outil qui supprime par nom, sans vérifier où il est, supprime
+les deux.* `req_entries` sur la base de produit est un déchet; `req_entries` dans le fichier miroir est
+le miroir REQ complet. **Le même `DROP TABLE` est une réparation ici et une perte irréversible là** —
+c'est pourquoi l'outil n'ouvre jamais le moteur miroir, exige la table témoin `companies`, et refuse la
+cible que personne n'a choisie.
+
+**Et il ne déduit pas sa liste de ce qui est « en trop ».** Il travaille sur les tables **déclarées par
+`BaseMiroir`**, et vérifie chacune vide **dans la transaction qui la supprime** — le relevé d'avant est
+une indication, la vérification d'ici est la garantie. *Une seule table peuplée arrête tout, sans
+drapeau de contournement : elle dirait que quelque chose écrit là, donc que la prémisse de ce point est
+fausse, et les sept autres sont la trace qui permet de trouver quoi.*
 
 *`migration_colonnes.py` ne peut pas fermer ce point : il rapporte ce qui MANQUE, jamais ce qui est EN
 TROP. Aucune de ses sorties ne l'atteindra jamais, quelle que soit la base.*
@@ -1672,8 +1689,9 @@ modification. **Ce qui change, c'est le nombre de chemins qui font la même chos
   déplacer change donc ce qui est exclu, pas seulement ce que ça coûte. *Décision à trancher avant
   d'optimiser, sans quoi l'optimisation modifiera les résultats en silence.*
 - ⬜ Chemin d'import du miroir — deux allers-retours par ligne, mesuré.
-- ⬜ 27.2, 27.3, 27.6, 27.8, 27.10 · **27.9 — dérive de colonnes vérifiée nulle le 9 septembre ; les
-  huit copies vides restent, bloquées sur D13**.
+- ⬜ 27.2, 27.3, 27.6, 27.8, 27.10 · **27.9 — dérive de colonnes vérifiée nulle le 9 septembre ; D13
+  close, l'outil de suppression écrit et éprouvé (`supprimer_copies_miroir_distantes.py`, 6 essais),
+  reste à le lancer sur l'hôte**.
 
 ---
 
