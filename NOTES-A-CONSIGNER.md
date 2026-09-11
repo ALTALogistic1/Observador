@@ -146,6 +146,23 @@ attente**, et c'est le cas normal entre deux tâches.
 - **À écrire** : registre des décisions, avec la réserve. Et la fiche de chacune des deux
   sources si le relevé N6 leur donne une ligne.
 
+### N10 — `apport_ville.py` existe et attend une question qui n'est pas au plan
+- **Notée le** : 2026-09-11
+- **Destination** : registre, à la ligne du **taux d'appariement** (successeur de D15) — ou
+  une mention dans la fiche de l'outil le jour où cette question revient au plan.
+- **Constat** : l'outil rejoue la résolution **avec** la ville puis **sans**, et compare les
+  issues par la règle du moteur. Il peut donc dire, sur la population non résolue, **si une
+  ville ferait basculer la résolution** — donc si investir dans la ville *(géocodage,
+  enrichissement web)* vaut la peine. **Le rejeu est gratuit** : le miroir REQ est local.
+- **Pourquoi cette note existe** : l'outil est gardé alors qu'aucun point du plan ne
+  l'appelle. *Décision d'Alexandre le 11 septembre, contre D31 : « D31 vise ce qu'on
+  construit d'avance, pas ce qui existe déjà ».* **Sans cette note, il deviendrait un outil
+  dont plus personne ne saurait à quoi il répond** — et un outil sans question est la forme
+  lente du mécanisme construit avant son défaut.
+- **Sa limite, à reprendre avec lui** : l'attribution de la ville est **non décidable** pour
+  une entreprise déjà résolue dont la ville est identique à celle du REQ *(`_enrich_from_req`
+  la complète après coup)*.
+
 ### N9 — La méthode elle-même : le corpus s'écrit à la fin d'une tâche
 - **Notée le** : 2026-09-11
 - **Destination** : guide d'ingénierie *(la méthode d'écriture du corpus y vit déjà)*.
