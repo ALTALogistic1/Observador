@@ -124,6 +124,21 @@ autour de 7 % signale que le correctif du 6 septembre sur l'indicateur de
 dispense d'adresse n'est pas dans le code déployé — voir
 `falkye/sources/req.py::_resoudre_entreprise`.
 
+## ⚠️ L'import du miroir ne coûte RIEN au quota — et ce n'est pas lui qui l'a vidé
+
+*Écrit le 11 septembre 2026, parce que la croyance inverse avait cours et qu'elle a failli retarder un
+cycle.* Le miroir REQ va dans le fichier **local** depuis le découpage du 6 septembre, et
+`outils/import_miroir_req.py` **refuse toute cible qui ne commence pas par `sqlite:`**. Un import coûte
+donc **zéro lecture et zéro écriture facturées**, quelles que soient ses 2,7 millions d'entrées.
+
+**Ce qui a épuisé le quota le 8 septembre est un autre chemin** : un index unique sur le NEQ acceptant
+8 395 NULL, chaque résolution d'entreprise non identifiée lisant 8 395 lignes deux fois **sur la base
+durable**. L'index composite a réduit la fuite sans la fermer — le repli par sous-chaîne balaie toujours
+**8 396 lignes facturées** par résolution qui échoue en préfixe *(registre, D14)*.
+
+**La distinction vaut d'être gardée : l'import est gratuit, la RÉSOLUTION est ce qui coûte.** Confondre
+les deux fait craindre le geste inoffensif et fait lancer l'autre sans compter.
+
 ## Ce que le miroir coûte à chaque cycle
 
 **⚠️ TROIS mesures, et chacune déplace le diagnostic de la précédente.** Elles

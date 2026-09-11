@@ -312,6 +312,50 @@ non validée pendant quoi que ce soit dont la durée n'est pas bornée. Ni un ap
 réseau, ni une résolution contre le miroir, ni une boucle sur des milliers de
 lignes.
 
+## Arrêter un cycle en cours
+
+*Question posée le 11 septembre 2026, avant le premier cycle censé résoudre des entreprises : peut-on
+l'interrompre s'il consomme plus que prévu?* **Oui.**
+
+```bash
+systemctl stop falkye-cycle.service     # SIGTERM, le processus meurt tout de suite
+```
+
+`Type=oneshot`, **aucun gestionnaire de signal dans le code** : rien ne se déroule, rien ne se nettoie.
+Et rien ne se corrompt, parce que **la validation est par signal neuf** — le commentaire de
+`falkye/engine.py::ingest_source` le dit comme une intention : *« une source qui tombe à mi-chemin garde
+ce qu'elle a déjà trouvé; la déduplication par `source_ref` fait que la reprise ramasse le reste sans
+doublon »*.
+
+**Ce qui reste vrai après une interruption.** Les sources déjà terminées sont validées. Les signaux déjà
+trouvés sont gardés. La relance ne crée aucun doublon. Et le `SourceRunLog` de la source en vol reste à
+`en_cours` — **c'est exactement ce que le mécanisme d'exécution interrompue du chantier 2 détecte**, avec
+son seuil par unité. *Une interruption est visible après coup, jamais silencieuse.*
+
+**Au premier plan, `Ctrl-C` est plus propre que `systemctl stop`** : `KeyboardInterrupt` déroule la pile
+et abandonne la transaction ouverte, là où `SIGTERM` tue net. Les deux laissent le validé intact.
+
+**Et l'unité s'arrête d'elle-même à `TimeoutStartSec=5400`** — 90 minutes, pour un cycle qui en prend 29
+en régime.
+
+### ⚠️ Où l'arrêter change ce que ça coûte
+
+| Moment de l'arrêt | Ce que ça coûte |
+|---|---|
+| **Entre deux sources** | rien — la suivante n'a pas commencé |
+| **Pendant une source, avant son premier signal** | rien — l'état de diff n'est pas encore validé |
+| **Pendant une source, après son premier signal** | ⚠️ **les changements restants de cette source ne seront pas redétectés** |
+
+La troisième ligne est un défaut connu, pas une fatalité de conception : **l'état de diff est appliqué
+avant que les signaux soient produits, et le premier signal validé rend tout cet état durable.** Le
+registre le porte en décision ouverte — **D36**, avec les deux corrections possibles.
+
+**Le journal du service annonce chaque source** : c'est là qu'on voit où on en est avant d'arrêter.
+
+**Le pire cas reste la perte de détection d'UNE source sur un cycle**, rattrapable au prochain passage du
+jeu de données. *Mis en regard d'un quota vidé, l'échange est bon — mais c'est un arbitrage humain, pas
+une règle.*
+
 ## Le mandataire inverse
 
 L'application sert en clair sur `127.0.0.1:8000`. Le certificat vit devant.

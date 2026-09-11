@@ -443,3 +443,35 @@ invisible.*
 un chemin, pas une place dans l'arborescence. Ce qui se fait à la place : dire ce qui **s'appliquerait**,
 sans nommer d'objet ni créer de fichier, et attendre que le document soit dans le dépôt. *Une règle
 formulée d'avance garde sa valeur; une règle qui nomme un objet absent affirme son existence.*
+
+## Cas 32 — La marche donnée sur un état jamais vérifié *(guide d'ingénierie)*
+
+Le 11 septembre 2026, une procédure d'exploitation en trois étapes a été remise pour exécution sur
+l'hôte. **Elle commençait par `cd /opt/falkye`, et le fichier qu'elle appelait n'existait pas sur
+l'hôte.**
+
+**Deux erreurs dans le même geste, et la seconde est la grave.** Le chemin réel est `/opt/falkye/code` —
+approximation, rattrapable. Mais surtout : **l'outil était sur une demande de fusion ouverte, non
+fusionnée**, et la chaîne ne déploie qu'au `push` sur la branche par défaut. **La marche a été écrite
+dans le même tour que la demande de fusion qui la rendait possible.**
+
+**Ce qui l'a rendue invisible.** Une procédure se relit comme un mode d'emploi, pas comme une
+affirmation. Or **elle en contient une à chaque ligne** : que le fichier est là, que le chemin est
+celui-là, que l'interpréteur existe. *Rien dans sa forme ne dit qu'elle suppose quoi que ce soit.* La
+question qui l'a démasquée n'est pas venue d'une relecture — elle est venue de quelqu'un qui avait
+regardé l'hôte.
+
+**Ce que ça ajoute au motif.** *« Une valeur qu'on croit connaître tient lieu de la valeur qu'on n'a pas
+lue »* portait sur un état du système *(cas 25)*, une valeur reconstituée *(cas 29)*, un document
+*(cas 31)*, un exemple *(cas 16)*. **Ici l'objet présumé est l'état de la cible d'une procédure**, et le
+livrable fautif n'est ni une conclusion ni une écriture : **c'est une instruction que quelqu'un
+exécutera**. Les précédents produisaient une croyance fausse; celui-ci produit **un geste**.
+
+**Artefact.** `deploiement/falkye-cycle.service` porte `WorkingDirectory=/opt/falkye/code` et
+`.github/workflows/deploiement.yml` envoie vers `:/opt/falkye/code/` — la marche disait `/opt/falkye`.
+Et la demande de fusion nº 31, qui portait l'outil, a été créée dans le même tour que la marche et
+fusionnée seulement après.
+
+**La règle. Une procédure est une affirmation sur un état, et elle se vérifie comme telle avant d'être
+remise.** *Vérifier d'abord ce qui doit déjà exister — le déploiement fait, le chemin lu dans la
+configuration plutôt que de mémoire — puis l'écrire.*
