@@ -1322,6 +1322,11 @@ trancher, pas à laisser tel quel par défaut.
 | **Radar** | 89 $/mois | PME en croissance | Écho + sources payantes choisies par nous, portail à paiement intégré |
 | **Radar+** | Dès 349 $/mois — à réviser *(registre des décisions ouvertes, D4)* | Entreprises et institutions | Radar + portail ouvert, clés API du client |
 
+**⚠️ Cette table est le seul endroit du corpus où vivent les prix.** *Tranché le 11 septembre 2026
+(registre, D35).* La charte porte la structure des paliers comme principe et `strategie-et-personas.md`
+y renvoie; **ni l'une ni l'autre ne reprend un chiffre**. *Elle ne porte encore aucune date de fixation —
+c'est ce qui reste ouvert à D4.*
+
 Un seul portail à construire, avec deux couches par-dessus. Commun : connecteurs génériques,
 normalisation vers le même pipeline. Propre à Radar : paiement intégré (Stripe). Propre à Radar+ :
 gestion de clés API utilisateur, sans transaction de notre part sur la source.

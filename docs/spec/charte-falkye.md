@@ -75,11 +75,13 @@ Pas la donnée brute — d'autres y ont accès. L'avantage, c'est le moteur de c
 
 ## 5. Structure de plans
 
-| Plan | Prix | Public réel |
-|---|---|---|
-| Écho | 29,99 $/mois, **jamais gratuit** | Travailleur autonome, petite entreprise — budget serré mais qui paie |
-| Radar | 89 $/mois | PME en croissance — le choix qu'on veut voir dominer |
-| Radar+ | Dès 349 $/mois — **à réviser** *(registre des décisions ouvertes, D4)* | Grandes entreprises, institutions, cabinets multi-services |
+| Plan | Public réel |
+|---|---|
+| Écho | Travailleur autonome, petite entreprise — budget serré mais qui paie |
+| Radar | PME en croissance — le choix qu'on veut voir dominer |
+| Radar+ | Grandes entreprises, institutions, cabinets multi-services |
+
+**Trois paliers, et ce que chacun sert : c'est le principe, et c'est tout ce que la charte en porte.** ***Les prix vivent à un seul endroit — spéc. 12.1.*** *Tranché le 11 septembre 2026 (registre, D35). **Un principe ne se périme pas; un prix, oui**, et une seule des deux natures appartient au document qui tranche en cas de contradiction. Cette table était recopiée dans trois documents, et la copie d'ici était **la moins complète des trois** — elle omettait le « jamais gratuit » du palier d'entrée, l'affirmation exacte que le README avait contredite deux jours plus tôt. Règle appliquée : **une phrase qui a une source de vérité ailleurs n'a rien à faire là** (guide d'ingénierie).*
 
 Chaque fonctionnalité se justifie par un besoin réel de ce public précis, jamais par « c'est ce qu'un plan professionnel a d'habitude ».
 

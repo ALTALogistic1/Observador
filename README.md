@@ -134,8 +134,9 @@ python -m falkye.cli resume envoyer --profile-id 1 --jours 7
 source de vérité est `docs/spec/falkye-specifications-produit.md`, section 12.
 Un prix recopié ici serait une promesse que personne ne tient : au
 2026-09-10, ce README annonçait encore Écho « gratuit » alors que les
-spécifications le donnent à 29,99 $/mois, **jamais gratuit**, en toutes lettres
-et depuis deux documents.
+spécifications le donnent payant, **jamais gratuit**, en toutes lettres.
+*Le chiffre lui-même n'est pas repris ici, et ne l'est plus nulle part
+ailleurs qu'en 12.1 depuis le 2026-09-11 (registre, D35).*
 
 Ce qui reste ici, parce que c'est de l'architecture et non du prix : trois
 plans — **Écho**, **Radar** (paiement intégré Stripe), **Radar+** (clés API de

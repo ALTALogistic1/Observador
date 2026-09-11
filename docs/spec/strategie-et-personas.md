@@ -114,11 +114,15 @@ le volume de dossiers accumulés en renchérisse le coût.
 
 ## 4. Tarification
 
-| Plan | Prix | Public visé |
-|---|---|---|
-| **Écho** | 29,99 $/mois, jamais gratuit | Travailleurs autonomes, petites entreprises |
-| **Radar** | 89 $/mois | PME en croissance — le choix qu'on veut voir dominer |
-| **Radar+** | Dès 349 $/mois, à réviser *(registre des décisions ouvertes, D4)* | Entreprises, institutions, cabinets multi-services ou multi-territoires |
+**Les prix des trois paliers vivent à un seul endroit : `falkye-specifications-produit.md`, section 12.1.**
+*Ce document en a longtemps porté une copie; elle a été retirée le 11 septembre 2026 (registre, D35). Un
+prix se périme, et il ne peut pas se périmer à trois endroits à des vitesses différentes.*
+
+| Plan | Public visé |
+|---|---|
+| **Écho** | Travailleurs autonomes, petites entreprises |
+| **Radar** | PME en croissance — le choix qu'on veut voir dominer |
+| **Radar+** | Entreprises, institutions, cabinets multi-services ou multi-territoires |
 
 **Coût d'infrastructure, mesuré le 4 septembre 2026 : environ 40 à 60 $ CA par mois** — serveur, base
 distante et service d'envoi de courriel réunis. **Soit environ deux abonnés Écho pour couvrir
@@ -157,7 +161,7 @@ opportunités sans endroit pour les colliger oblige l'abonné à gérer sa prosp
 réception. La frontière entre les paliers porte donc sur **consulter et agir**, jamais sur **voir** :
 Écho collige, révise, trie et rétroagit; Radar outille l'action.
 
-**Ce que Radar conserve pour justifier le saut de 29,99 $ à 89 $** : statuts de suivi complets formant
+**Ce que Radar conserve pour justifier le saut d'Écho à Radar** *(prix en spéc. 12.1)* : statuts de suivi complets formant
 un pipeline, amorces de premier contact, carte géographique, intégration CRM, TheirStack, RDPRM,
 cadence en temps réel.
 
