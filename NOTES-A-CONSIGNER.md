@@ -134,7 +134,17 @@ attente**, et c'est le cas normal entre deux tâches.
   ville. **Une part de la question restera non décidable** : une entreprise déjà résolue
   a pu recevoir sa ville du REQ *après* coup (`_enrich_from_req`), et rien ne distingue
   alors les deux origines.
-- **À écrire après** : la mesure de provenance, la mesure d'apport, puis la décision.
+- **TRANCHÉ le 11 septembre 2026 — les deux passent en veilleuse** *(décision
+  d'Alexandre, sans attendre la mesure : elle aurait dit ce qu'elles coûtent, pas ce
+  qu'elles apportent, et le motif est la spéc. 8.2 — elles visent la mauvaise
+  population)*. **Ce qui doit être inscrit au corpus, et pas seulement au registre des
+  sources** : la réserve pesée — *le signal ne sert pas, l'enrichissement servait, et
+  c'est le signal qui a décidé* — pour qu'une prochaine session ne rouvre pas la décision
+  en invoquant l'enrichissement seul. *La réserve est déjà dans la note datée de
+  `falkye/registry/sources.yaml`, là où on la lira en voyant `en_pause`; elle reste à
+  porter au corpus.*
+- **À écrire** : registre des décisions, avec la réserve. Et la fiche de chacune des deux
+  sources si le relevé N6 leur donne une ligne.
 
 ### N9 — La méthode elle-même : le corpus s'écrit à la fin d'une tâche
 - **Notée le** : 2026-09-11
