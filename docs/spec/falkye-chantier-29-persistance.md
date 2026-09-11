@@ -199,8 +199,9 @@ exécution interrompue** — la modifier sans le savoir rendrait la réconciliat
 - ✅ **Fenêtre de restauration — testée le 10 septembre 2026, et la question s'est révélée mal posée.**
   Elle ne se mesure pas encore : **il n'y a rien à restaurer avant le 8 septembre**, date où commencent
   les données réelles du produit — le premier passage de données, tenté le 7, n'a pas abouti. La fenêtre
-  couvre donc l'intégralité de ce qui existe, et **c'est ce qui débloque le point 27.9** : la suppression
-  des huit copies vides a son filet.
+  couvre donc l'intégralité de ce qui existe, et **c'est ce qui a débloqué le point 27.9** : la
+  suppression des huit copies vides avait son filet. **✅ Faite le 11 septembre 2026** — passage à blanc
+  d'abord, puis les huit supprimées, aucune ne subsiste.
   *Trois essais : 5 septembre refusé (« pitr … is not available for the group »), 7 septembre refusé sur
   une **erreur interne du service — non concluant, ce n'est pas un verdict de fenêtre** —, 8 septembre
   accepté, base créée puis détruite.*
@@ -245,7 +246,14 @@ lui, est bien au distant. **Les deux ne peuvent pas être vrais ensemble.**
 définitivement; le chantier 29 existe pour garantir que ce qui ne se reconstitue pas survit. **Si l'état
 de diff vit hors de la base durable, cette garantie ne le couvre pas.** Et le point 27.9 s'explique alors
 de lui-même : les copies vides de `diff_run_historique` et `diff_quarantaines` sur la base distante
-seraient le résidu de l'intention décrite ici.
+étaient le résidu de l'intention décrite ici.
+
+**⚠️ Ces copies ont été supprimées le 11 septembre 2026 (point 27.9), et la question reste entière.** Ce
+qui change, c'est qu'**elle a perdu sa pièce à conviction** : on ne peut plus lire l'intention d'origine
+dans le schéma de la base distante. *Elle reste tranchable autrement — le routage est déclaré par la
+métadonnée des modèles, `falkye/db.py::get_sessionmaker` — mais le témoin matériel n'existe plus.*
+**Noté parce qu'une décision destructrice prise pour une bonne raison a quand même retiré une preuve, et
+que personne ne l'avait vu venir, moi le premier.**
 
 **Ce qui tranche : le test qui verrouille la cible de chaque table dans les deux sens**, mentionné plus
 haut. Soit il encode le placement local et ce mandat est périmé, soit il encode le distant et c'est la

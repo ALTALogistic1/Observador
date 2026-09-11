@@ -4,6 +4,19 @@ Document de suivi demandé par le README de démarrage ("Si tu découvres le
 contraire en creusant, dis-le") et par la décision produit du 2026-08-31 de valider
 le pipeline avec de vraies données, sans compromis. Mis à jour au fil des tests.
 
+> **⚠️ COMMENT LIRE CE DOCUMENT — précisé le 11 septembre 2026.**
+>
+> **C'est un journal chronologique, pas un état courant.** Chaque section vaut
+> **à sa date**, et les plus anciennes restent écrites au présent. On y lit donc
+> « les 3 sources actives » en tête, « les 4 sources actives » plus bas et
+> « les 8 sources actives » plus loin encore : **aucune n'est fausse, et aucune
+> ne dit l'état d'aujourd'hui.**
+>
+> **Le compte courant des sources actives ne se lit pas ici — il se demande au
+> produit :** `falkye registry sources`. *C'est la même règle que celle qui a
+> retiré l'inventaire du `README.md` : un compte recopié est une promesse que
+> personne ne tient.*
+
 ## Domaines requis pour les 3 sources actives + REQ
 
 L'environnement cloud (`Default`, accès réseau `Custom`) doit autoriser :

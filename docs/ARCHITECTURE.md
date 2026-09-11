@@ -3,6 +3,26 @@
 Ce document explique comment le code répond à chaque exigence structurelle du
 corpus, et de `falkye-specifications-produit.md` en particulier.
 
+> **⚠️ ÉTAT DE CE DOCUMENT — relevé le 11 septembre 2026, et il n'est pas bon.**
+>
+> **Sa dernière date interne est le 4 septembre 2026.** Or le changement
+> structurel le plus important du projet est postérieur : **le découpage en DEUX
+> bases du 6 septembre** — `Base` au distant facturé, `BaseMiroir` dans un
+> fichier local, routées par `sessionmaker(binds=…)`. Ce document le mentionne
+> **une seule fois sur ses 2 300 lignes**, et le travail d'exécution du
+> chantier 2 (`SourceRunLog`, `lance_par`, exécutions interrompues) autant.
+>
+> **Donc : tout passage qui décrit un accès à la base est à relire avant d'être
+> cru.** Il n'est pas faux partout — il n'a simplement pas été vérifié depuis, et
+> **personne ne peut dire lesquelles de ses affirmations ont survécu au
+> découpage.**
+>
+> *Ceci n'est pas une mise à jour : c'est l'aveu qu'elle n'a pas eu lieu.* Le
+> dire vaut mieux que de laisser 2 300 lignes passer pour vérifiées — *un
+> document montré n'est pas un document vérifié*. **La source de vérité sur ce
+> que le code fait reste le code, et sur ce que le produit décide, le corpus de
+> `docs/spec/`.**
+
 ## Import manuel de documents sources (spec section 9, ajouté le 2026-08-31)
 
 `falkye/manual_import.py` implémente le mécanisme générique demandé :

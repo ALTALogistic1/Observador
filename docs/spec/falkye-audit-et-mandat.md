@@ -1628,7 +1628,9 @@ d'échouer.** C'est la forme exacte du motif. *Signalé le 8 septembre depuis le
 
 **⚠️ Ce que la vérification du 9 septembre a fermé, et ce qu'elle n'a pas fermé.** La dérive de colonnes
 et d'index est **nulle des deux côtés**, vérifiée sur l'hôte avec l'environnement chargé. **Les huit
-copies vides, elles, sont toujours en place** — relues le 10 septembre, toutes à zéro ligne.
+copies vides, elles, étaient encore en place à cette date** — relues le 10 septembre, toutes à zéro
+ligne. *Phrase corrigée le 11 septembre : elle disait « sont toujours en place » et est restée telle
+quelle une journée après la suppression, à deux lignes du bloc qui annonce la clôture.*
 
 **✅ CLOS le 11 septembre 2026.** D13 close a donné son filet à la suppression;
 `outils/supprimer_copies_miroir_distantes.py` a été déployé puis exécuté sur l'hôte, en deux temps.
