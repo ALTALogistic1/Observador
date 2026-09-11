@@ -118,7 +118,7 @@ le volume de dossiers accumulés en renchérisse le coût.
 |---|---|---|
 | **Écho** | 29,99 $/mois, jamais gratuit | Travailleurs autonomes, petites entreprises |
 | **Radar** | 89 $/mois | PME en croissance — le choix qu'on veut voir dominer |
-| **Radar+** | Dès 349 $/mois, à réviser | Entreprises, institutions, cabinets multi-services ou multi-territoires |
+| **Radar+** | Dès 349 $/mois, à réviser *(registre des décisions ouvertes, D4)* | Entreprises, institutions, cabinets multi-services ou multi-territoires |
 
 **Coût d'infrastructure, mesuré le 4 septembre 2026 : environ 40 à 60 $ CA par mois** — serveur, base
 distante et service d'envoi de courriel réunis. **Soit environ deux abonnés Écho pour couvrir

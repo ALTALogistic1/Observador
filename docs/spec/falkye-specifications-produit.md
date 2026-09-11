@@ -973,10 +973,10 @@ Ce n'est pas un défaut à corriger mais un fait qui détermine **quel type d'en
 
 **C'est la section 16 de la charte portée aux mots plutôt qu'aux seules lettres.** Les trois disent
 quelque chose de **positif**, **l'ordre ne fait aucun doute**, et **aucun ne dénigre le bas de
-l'échelle** — *le plus court n'est pas mauvais, il est simplement moins*. Le passage de `A/B/C` à
-`A/AA/AAA` avait retiré le jugement que portait la lettre *(journal, cas 16)*; **ces libellés font le
-reste du travail — une gradation qui s'explique entièrement sans qu'aucun de ses niveaux ait à
-s'excuser.**
+l'échelle** — *le plus court n'est pas mauvais, il est simplement moins*. **Ces libellés ne découlent
+d'aucun incident : la règle existait avant eux, et ils en sont la démonstration** — une gradation qui
+s'explique entièrement **sans qu'aucun de ses niveaux ait à s'excuser**. *Le corpus a longtemps
+attribué cette forme à un passage de `A/B/C` à `A/AA/AAA` qui n'a jamais eu lieu (journal, cas 16).*
 
 Combinés en matrice, **jamais fusionnés en une moyenne**. La règle vaut pour N axes : si un quatrième
 s'impose, il s'ajoute sans que la séparation devienne négociable.
@@ -1320,7 +1320,7 @@ trancher, pas à laisser tel quel par défaut.
 |---|---|---|---|
 | **Écho** | 29,99 $/mois, jamais gratuit | Travailleur autonome | Sources gratuites, plus toute source de couverture |
 | **Radar** | 89 $/mois | PME en croissance | Écho + sources payantes choisies par nous, portail à paiement intégré |
-| **Radar+** | Dès 349 $/mois — à réviser | Entreprises et institutions | Radar + portail ouvert, clés API du client |
+| **Radar+** | Dès 349 $/mois — à réviser *(registre des décisions ouvertes, D4)* | Entreprises et institutions | Radar + portail ouvert, clés API du client |
 
 Un seul portail à construire, avec deux couches par-dessus. Commun : connecteurs génériques,
 normalisation vers le même pipeline. Propre à Radar : paiement intégré (Stripe). Propre à Radar+ :
