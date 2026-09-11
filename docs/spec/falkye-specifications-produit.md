@@ -276,6 +276,7 @@ Chaque source, active ou non, existe comme entrée structurée avec le même gab
 | **robots.txt** | Statut du domaine hôte |
 | **Attribution** | Obligation, et lien vers la page de crédits |
 | **Vérification légale** | Date, et échéance de revalidation |
+| **Fiabilité** | Nature de l'organisme, donnée primaire ou reprise, obligation légale d'exactitude, réserve documentée par la source. **Lue à l'activation, jamais par le moteur** *(`falkye-cadre-legal.md`)* |
 
 Activer ou désactiver une source est une action de configuration, sans toucher au moteur. Le moteur
 boucle sur les sources actives, quel qu'en soit le nombre.
@@ -611,6 +612,12 @@ d'un seuil; **franchissement de palier**; **répétition** sur une fenêtre; **a
 
 Chaque règle déclare son motif, le champ visé, son seuil, le tier de confiance produit, et ce qu'elle
 exclut explicitement comme bruit.
+
+**Le tier de confiance est porté par le couple type de signal × sphère** *(8.1)*, jamais par le signal
+seul : une même règle peut produire un signal fort pour une sphère et faible pour une autre, et une
+valeur unique mentirait à l'une des deux. **Ses critères n'existent pas encore, et c'est délibéré** —
+décider si un signal est réel et fort est l'acte de lecture que ce chantier construit, pas une
+définition à rédiger d'avance *(registre, D34)*.
 
 Exemples déjà établis : au RDPRM, distinguer une garantie d'expansion d'un refinancement de routine; au
 REQ, distinguer un nouvel établissement d'une mise à jour administrative — la toute première
@@ -959,6 +966,36 @@ Ce n'est pas un défaut à corriger mais un fait qui détermine **quel type d'en
 Combinés en matrice, **jamais fusionnés en une moyenne**. La règle vaut pour N axes : si un quatrième
 s'impose, il s'ajoute sans que la séparation devienne négociable.
 
+**⚠️ Trois axes ne veut pas dire trois objets de même nature.** La Confiance et la Confiance
+d'appariement sont des **instruments internes** — le moteur les calcule pour décider, leur valeur n'est
+jamais affichée. La Pertinence est une **finalité présentée** — c'est le dernier mot du produit au
+client. **Les règles qui s'y appliquent ne sont pas les mêmes**, et cette section a longtemps laissé
+croire le contraire. *Découpe des trois natures : charte, section 16.*
+
+**Les deux premiers axes sont portés par un couple, jamais par le signal seul — et pas par le même
+couple.** *Tranché le 11 septembre 2026. La question ne se posait à aucun des deux avant qu'on la pose
+au premier.*
+
+- **La Confiance est portée par le couple type de signal × sphère.** Une non-conformité au processus de
+  francisation est un signal **fort de besoin** et **faible de croissance** : ce n'est pas une ambiguïté
+  à lever, **c'est ce que le fait dit vraiment**, et forcer une valeur unique reviendrait à mentir à
+  l'une des deux sphères.
+- **La Pertinence est portée par le couple signal × profil.** Elle l'était depuis toujours, **par
+  construction** — *« correspond-il à CE profil? »* n'a aucune réponse hors d'un profil — **et le corpus
+  ne l'avait jamais écrit.** Le grade se lisait comme une propriété du dossier; c'est une propriété de
+  **sa rencontre avec un abonné**.
+
+**Que les deux couples soient différents est ce qui garde les axes séparés.** Un même signal porte
+autant de valeurs de Confiance qu'il sert de sphères, et autant de grades que de profils déclarant ces
+sphères. *Le corpus penchait déjà dans ce sens — la durée de pertinence obéit à la même règle (8.3) avec
+le même raisonnement, et deux propriétés du même objet ne peuvent pas obéir à des règles opposées.*
+
+**Ce que ça ne change pas.** La séparation d'avec la Pertinence reste entière. **Ce n'est pas la
+Pertinence qui déborde sur la Confiance : c'est que lire un signal, c'est déjà le lire pour
+quelqu'un.** La Confiance n'est pas une propriété du signal, c'est une propriété de **sa lecture dans
+une sphère**; la Pertinence mesure l'alignement au profil de l'utilisateur. Deux questions distinctes,
+qui ont seulement en commun de n'avoir aucune réponse hors d'une sphère.
+
 ### 8.2 Corroboration et normalisation
 
 La corroboration multi-signaux monte la confiance. Elle suppose deux observations **indépendantes** et
@@ -1015,6 +1052,15 @@ possibilité d'être plus sélectif que le défaut.
 Deux curseurs indépendants, à ne pas confondre entre eux ni avec la cadence : un pour la confiance
 minimale, un pour la pertinence minimale. La cadence, elle, ne dit pas ce qui mérite d'être signalé mais
 quand le lot part.
+
+**Le curseur de confiance n'expose pas l'instrument, et la question revient assez souvent pour mériter
+sa réponse ici.** La Confiance est un **instrument interne** *(8.1; charte, section 16)* : sa valeur pour
+un signal donné n'est jamais affichée, et le curseur ne la montre pas. **Il permet de relever la barre
+au-dessus de ce que le produit a déjà jugé présentable** — *le seuil dit ce qui est présentable, la
+sensibilité dit ce que cet utilisateur veut voir parmi le présentable (8.5)*. **« Jamais affiché » vise
+la valeur, pas l'axe :** l'axe est nommable à l'utilisateur comme réglage sans qu'aucune valeur ne lui
+soit montrée, et **les fusionner enlèverait à l'utilisateur la possibilité d'être plus sélectif que le
+défaut**.
 
 ---
 
