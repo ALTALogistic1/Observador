@@ -226,11 +226,16 @@ source (`falkye-sources-spheres-verifiees.md`).*
 - **Seuil :** aucun.
 - **Fait réel : aucun.** Le champ est né de la vérification source par source, pas d'un incident.
 - **Porté par :** la source seule.
-- **⚠️ Mal rangé, et ça compte pour D34.** Ce champ **n'est pas un instrument du moteur** : il est lu par
-  un humain qui décide d'activer une source, jamais calculé ni consulté à l'exécution. **Il occupe la
-  case d'un instrument interne sans en être un.** *Son intérêt pour D34 est ailleurs : il cohabite avec
-  le tier de confiance sur les mêmes fiches depuis le début, et c'est lui qui porte « à quel point cette
-  lecture est fiable ». La deuxième lecture du champ du chantier 22 avait donc déjà son emplacement.*
+- **✅ Placé le 11 septembre 2026 — case du gabarit d'activation** *(`falkye-cadre-legal.md`; repris au
+  gabarit du registre, spéc. 4.1)*. **Il n'était pas mal rangé : il n'avait jamais été rangé** — aucune
+  définition, aucune section, aucune règle ne l'avait placé. Il est né du travail de vérification légale,
+  quelqu'un notant pourquoi il faisait confiance à une source **en l'activant**. Même geste et même moment
+  que le canal, la variante de licence et l'attribution.
+- **⚠️ Réserve écrite avec le placement : il ne devient jamais un instrument que le moteur lit.** Le tier
+  de confiance dit si un signal est réel et fort, cas par cas; la fiabilité de source dit **si on
+  active**. *Les deux ne se combinent pas.* **Son intérêt pour D34 reste entier :** il cohabite avec le
+  tier sur les mêmes fiches depuis le début, et c'est lui qui porte « à quel point cette lecture est
+  fiable » — **la deuxième lecture du champ du chantier 22 avait donc déjà son emplacement.**
 
 ### Nature 2 — Données lues
 
@@ -248,8 +253,12 @@ source (`falkye-sources-spheres-verifiees.md`).*
 - **Fait réel :** sans normalisation par la taille et le secteur, **tout signal de volume favorise
   mécaniquement les grandes entreprises — celles qui ne sont pas la clientèle visée.**
 - **Porté par :** l'entreprise seule.
-- **Remarque : cette échelle gradue la façon d'obtenir un nombre, pas l'entreprise.** C'est la seule du
-  corpus dans ce cas, et c'est ce qui la range dans la deuxième nature plutôt que dans la première.
+- **Remarque : qu'elle gradue la façon d'obtenir un nombre plutôt que l'entreprise est exactement ce
+  qu'elle doit faire**, et ce n'est pas un cas à part. C'est **l'application locale d'un principe que le
+  corpus applique partout** — *une mesure, une estimation et une absence ne se confondent jamais en un
+  chiffre dont on ne sait plus d'où il vient*. **Même règle que les trois issues d'exécution (5.5), les
+  trois dimensions de statut (9.7) et les trois axes eux-mêmes (8.1).** Sa raison est d'ailleurs **une
+  mesure, pas un raisonnement**, ce qui la distingue de la plupart des autres objets de ce relevé.
 
 ### Nature 3 — Finalités présentées
 
@@ -269,9 +278,11 @@ la règle du jugement (charte, section 16).*
   produit n'était pas en position de porter**. Dire « C » dit à l'utilisateur que son opportunité est
   médiocre, alors que le moteur sait seulement qu'elle est **moins bien alignée que d'autres**. *Le C
   ajoutait une information fausse; le A la retire sans rien inventer.*
-- **Porté par : le couple, par construction** — *« correspond-il à CE profil? »* n'a aucune réponse hors
-  d'un profil. **Le corpus ne l'a jamais écrit comme une propriété de couple**, et c'est le deuxième
-  objet qui répondait à la question sans qu'on la lui pose.
+- **Porté par : le couple signal × profil, par construction** — *« correspond-il à CE profil? »* n'a
+  aucune réponse hors d'un profil. **Le corpus ne l'avait jamais écrit**, et c'est le deuxième objet qui
+  répondait à la question sans qu'on la lui pose. *Écrit à la spéc. 8.1 le 11 septembre 2026, en même
+  temps que la Confiance — et le fait que les deux couples soient **différents** est ce qui garde les
+  axes séparés.*
 - **Ce qui manque : rien de conceptuel.** Mais **le grade ne peut rien départager tant que les signaux
   entrent uniformes** — ce n'est pas un défaut du grade, c'est ce que le chantier 22 débloque.
 
@@ -285,24 +296,30 @@ la sensibilité dit ce que cet utilisateur veut voir parmi le présentable.* **A
 D33.** *Seule place du corpus qui attend une facette sans chantier.*
 
 **Curseurs de sensibilité** — *spéc. 8.6.* Deux curseurs indépendants : confiance minimale, pertinence
-minimale. Ils appartiennent à l'utilisateur, pas au produit. **⚠️ Et ils touchent la découpe des trois
-natures :** le curseur de confiance minimale **expose au client l'existence d'un instrument interne** et
-lui en fait régler un seuil. *La valeur d'un signal donné n'est jamais affichée; l'axe, lui, est
-nommable.* **« Jamais affiché » vise donc la valeur, pas l'axe** — à écrire ou à corriger, pas à laisser
-implicite.
+minimale. Ils appartiennent à l'utilisateur, pas au produit. **✅ La tension avec la découpe est levée, et
+rien n'a eu à changer :** le curseur **n'expose pas l'instrument**, il permet de **relever la barre
+au-dessus de ce que le produit a déjà jugé présentable** — *le seuil dit ce qui est présentable, la
+sensibilité dit ce que cet utilisateur veut voir parmi le présentable (8.5), et les fusionner enlèverait
+à l'utilisateur la possibilité d'être plus sélectif que le défaut.* **« Jamais affiché » vise la valeur,
+pas l'axe** — écrit en 8.6 pour que la question ne se rouvre pas à chaque relecture.
 
 ### Ce que le relevé apprend, mis ensemble
 
 1. **Un seul des sept objets est complet** — la confiance d'appariement, **et c'est le seul qu'une erreur
-   réelle a forcé.** Les autres ont été forcés par un raisonnement, ou par rien.
-2. **Deux objets sont portés par un couple sans que le corpus l'écrive** : le tier de confiance, tranché
-   aujourd'hui, et le grade de pertinence, jamais posé. **La question ne se posait à aucun des deux avant
-   qu'on la pose au premier.**
+   réelle a forcé.** Les six autres ont été posés par raisonnement, ou par rien, et aucun n'est complet.
+   **Un raisonnement donne l'axe; seul un incident donne le seuil.** *Écrit en règle de lecture à la
+   charte, règle 4 — avec son corollaire de méthode : un objet qu'aucun incident n'a forcé se relit comme
+   incomplet par défaut, même quand il a l'air fini.*
+2. **Deux objets étaient portés par un couple sans que le corpus l'écrive** : le tier de confiance
+   *(signal × sphère)* et le grade de pertinence *(signal × profil)*. **La question ne se posait à aucun
+   des deux avant qu'on la pose au premier.** *Les deux sont écrits ensemble à la spéc. 8.1 — et c'est la
+   différence des deux couples qui garde les axes séparés.*
 3. **Deux places attendent une facette, pas une rédaction** : le tier de confiance attend la **lecture**
    *(chantier 22)*, le seuil de publication attend le **jugement** *(aucun chantier, D33)*. *Écrire « à
-   documenter » sur l'une ou l'autre reviendrait à combler ce qui n'est pas encore conçu.*
-4. **Un objet est mal rangé** : la fiabilité de source occupe la case d'un instrument du moteur sans en
-   être un.
+   documenter » sur l'une ou l'autre reviendrait à combler ce qui n'est pas encore conçu.* **C'est le seul
+   des quatre constats qui reste ouvert**, et il ne se ferme pas par écriture.
+4. **Un objet n'avait jamais été rangé** — et non mal rangé : la fiabilité de source. **Placée le
+   11 septembre 2026 comme case du gabarit d'activation**, avec la réserve qui la garde hors du moteur.
 
 
 ## Faille A — Le palier d'entrée est structurellement vide
