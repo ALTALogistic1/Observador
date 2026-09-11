@@ -42,10 +42,18 @@ deux jours, ce qui est en soi l'information : l'estimation initiale était fauss
 deux.* Il a été forcé le
 8 septembre au matin par **l'épuisement du quota de lectures** — un index unique sur le NEQ acceptant
 8 395 NULL, chaque résolution d'entreprise non identifiée lisait 8 395 lignes deux fois. L'index
-composite `ix_companies_neq_nom_normalise` a réduit la fuite sans la fermer : le repli par sous-chaîne
-balaie toujours 8 396 lignes **sur la base durable, donc facturées**. **Le quota de lectures est le
-chiffre qui manque à ce document**, et la décision de redescendre attend la ventilation du coût livrée au
-chantier 2. **Elle mène au Developer, pas au palier gratuit** *(registre, D14)*.
+composite `ix_companies_neq_nom_normalise` a réduit cette fuite-là sans la fermer : le repli par
+sous-chaîne balaie toujours 8 396 lignes **sur la base durable, donc facturées**.
+
+**⚠️ Le chiffre qui manquait à ce document existe depuis le 11 septembre 2026, et il ferme la question
+dans l'autre sens.** Un cycle ordinaire, huit sources en succès, **411 963 777 lectures** au compteur de
+l'hébergeur — relevé avant et après, donc une mesure. **Le palier ne redescend pas** *(registre, D38)* :
+ce n'est plus un report prudent, c'est un non motivé. *Et la cause n'est ni l'index unique ni le repli par
+sous-chaîne — ce cycle-là n'a résolu aucune entreprise : c'est le chargement des signaux par entreprise,
+sur une colonne sans index (registre, D37; journal, cas 33).* **Le diagnostic du 8 septembre était vrai
+et incomplet**, et la ventilation du chantier 2 ne pouvait pas le montrer : elle ne compte que les trois
+chemins de résolution. **La seule mesure d'un total est le compteur de l'hébergeur.** *Le jour où le
+palier redescendra, il mènera au Developer, pas au palier gratuit.*
 
 ### Le découpage produit / miroirs
 

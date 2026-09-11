@@ -256,7 +256,7 @@ du cas 10.
 cas 26)* L'environnement de développement porte des états que rien d'autre ne porte; un essai n'y prouve
 un chemin d'exécution que si l'environnement réel a été reproduit **sur le point précis en cause**.
 
-## Deux règles nées de l'exploitation
+## Trois règles nées de l'exploitation
 
 **Un mécanisme automatique ne doit pas interrompre le travail; un geste humain mal formé, si.** Une
 réconciliation que son fichier d'entrée peut tuer est inutile le jour où on en a besoin — elle saute,
@@ -268,3 +268,20 @@ valeur : un territoire calme où la source a répondu vaut `0`, une exécution t
 Même règle qu'un fichier vide contre un fichier introuvable — « rien à reprendre » et « je ne sais pas »
 sortent différemment — et que le troisième des quatre états ci-dessus. **Un partiel comparé à une norme
 se lit comme une chute.**
+
+**Un instrument mesure ce qu'il a été construit pour mesurer; son zéro ne dit rien de ce qu'il ne regarde
+pas.** *(journal, cas 33)* **Sa portée s'écrit à côté de sa sortie** — en tête ou en pied, avec les
+chiffres — *et pas seulement dans sa documentation, que personne ne relit au moment de lire un résultat.*
+Sans elle, un zéro se lit comme une absence de coût.
+
+**C'est le VOISIN de la règle ci-dessus, et il faut les tenir séparées.** Là, l'instrument n'avait rien à
+dire — absence de mesure contre mesure nulle. **Ici il a mesuré, exactement, et ailleurs** : le rapport de
+coût a rendu trois zéros justes pour un cycle qui avait lu 412 millions de lignes par un chemin qu'il ne
+compte pas. *Ni faux, ni muet : exact sur un périmètre plus étroit que celui qu'on lui prêtait.* **Le
+défaut n'est pas dans l'instrument, il est dans ce qu'on a laissé croire qu'il couvrait.**
+
+**Et une mesure partielle ne ferme jamais une question de total.** Trois chemins relevés un par un ne
+disent pas ce qu'un cycle a coûté; un seul chiffre global le dit — d'où *relever le compteur de
+l'hébergeur AVANT et APRÈS*, le seul qui ne dépende d'aucune hypothèse sur l'endroit où regarder. **Une
+cause suffisante n'est pas une cause unique** : c'est ce raccourci qui a laissé trois jours à un
+consommateur du même ordre de grandeur que celui qu'on venait de corriger.

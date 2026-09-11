@@ -131,13 +131,26 @@ cycle.* Le miroir REQ va dans le fichier **local** depuis le découpage du 6 sep
 `outils/import_miroir_req.py` **refuse toute cible qui ne commence pas par `sqlite:`**. Un import coûte
 donc **zéro lecture et zéro écriture facturées**, quelles que soient ses 2,7 millions d'entrées.
 
-**Ce qui a épuisé le quota le 8 septembre est un autre chemin** : un index unique sur le NEQ acceptant
-8 395 NULL, chaque résolution d'entreprise non identifiée lisant 8 395 lignes deux fois **sur la base
-durable**. L'index composite a réduit la fuite sans la fermer — le repli par sous-chaîne balaie toujours
-**8 396 lignes facturées** par résolution qui échoue en préfixe *(registre, D14)*.
+**Ce qui a épuisé le quota le 8 septembre passe par la base durable, pas par le miroir** : un index
+unique sur le NEQ acceptant 8 395 NULL, chaque résolution d'entreprise non identifiée lisant 8 395 lignes
+deux fois. Mesuré, suffisant à lui seul — 23 142 signaux neufs à ~16 800 lignes. L'index composite a
+réduit cette fuite-là sans la fermer : le repli par sous-chaîne balaie toujours **8 396 lignes facturées**
+par résolution qui échoue en préfixe *(registre, D14)*.
 
-**La distinction vaut d'être gardée : l'import est gratuit, la RÉSOLUTION est ce qui coûte.** Confondre
-les deux fait craindre le geste inoffensif et fait lancer l'autre sans compter.
+> **⚠️ Ce diagnostic était vrai et INCOMPLET — dépassé le 11 septembre 2026.** Il nommait une cause
+> suffisante et la question s'est refermée dessus. **Un second consommateur, du même ordre de grandeur,
+> tournait le même jour et n'a jamais été mesuré** : le chargement des signaux d'une entreprise
+> (`signals.company_id`, **sans index**), appelé une fois par entreprise dans deux balayages complets de
+> `companies`. Mesuré au compteur de l'hébergeur le 11 septembre : **411 963 777 lectures pour un cycle
+> qui n'a résolu AUCUNE entreprise** — donc zéro par le chemin ci-dessus. Le code en cause est antérieur
+> au 8 septembre. *Ce qui a rendu l'écart invisible n'est pas une erreur de raisonnement : `rows_read`
+> avait été relevé requête par requête sur les trois chemins instrumentés, jamais sur le TOTAL du cycle.*
+> **Une cause suffisante n'est pas une cause unique, et seul un total permet d'en juger.** *(journal,
+> cas 33; registre, D37)*
+
+**La distinction vaut d'être gardée : l'import est gratuit, la LECTURE DE LA BASE DURABLE est ce qui
+coûte.** Confondre les deux fait craindre le geste inoffensif et fait lancer l'autre sans compter. *Et ne
+pas la rétrécir à la seule résolution d'identité : c'est l'erreur que le 11 septembre a corrigée.*
 
 ## Ce que le miroir coûte à chaque cycle
 

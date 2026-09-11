@@ -226,6 +226,14 @@ facturée » est faux dans les deux sens.
 **Et un instrument manquait.** On mesurait la durée, la mémoire, les écritures — jamais les lectures.
 **Un cycle peut être rapide, léger, huit sources sur huit en succès, et avoir consommé le mois.**
 
+> **⚠️ Ce cas est vrai et il a été DÉPASSÉ le 11 septembre 2026 — voir le cas 33.** Tout ce qui est
+> au-dessus tient : l'index unique, les 8 395 NULL, les deux lectures par résolution, la mesure. **Ce qui
+> ne tient pas est la fermeture de la question** : cette cause était suffisante, elle n'était pas unique.
+> Un second consommateur du même ordre — le chargement des signaux par entreprise, sur une colonne sans
+> index — tournait le même jour et n'a été mesuré que trois jours plus tard, au compteur de l'hébergeur.
+> *L'instrument qui manquait a bien été construit; il ne regarde que les trois chemins de résolution, ce
+> que sa sortie ne disait pas.*
+
 ## Cas 24 — Le déclenchement dont la base ne pouvait pas garder la trace *(charte, section 17)*
 
 Le même jour, un déclenchement de cycle à 14 h 17 UTC est tombé **pendant le blocage du quota**. Il n'a
@@ -475,3 +483,65 @@ fusionnée seulement après.
 **La règle. Une procédure est une affirmation sur un état, et elle se vérifie comme telle avant d'être
 remise.** *Vérifier d'abord ce qui doit déjà exister — le déploiement fait, le chemin lu dans la
 configuration plutôt que de mémoire — puis l'écrire.*
+
+## Cas 33 — L'instrument juste dont la portée était plus étroite qu'on croyait *(guide d'ingénierie)*
+
+Le 11 septembre 2026, un cycle `--sans-livraison` a tourné 28 min 23 s sur l'hôte, huit sources en
+succès. **Le rapport de coût a rendu zéro sur les trois chemins de résolution, `~0` ligne dérivée, « le
+repli par sous-chaîne n'a pas été emprunté ».** Le compteur de l'hébergeur, relevé avant et après le même
+cycle, a rendu **411 963 777 lectures**.
+
+**L'instrument ne mentait pas.** Il compte les trois chemins de résolution d'identité, il les compte
+exactement, et aucun n'a été emprunté — il n'y avait rien de neuf à résoudre. **Le consommateur était
+hors de sa portée**, et rien dans sa sortie ne le disait.
+
+**La cause, relevée dans les requêtes les plus coûteuses de l'hébergeur :** un chargement des signaux
+d'une entreprise, **une requête par entreprise**, sur `signals.company_id` **qui ne porte aucun index** —
+donc un balayage complet de la table à chaque appel. Appelé une fois par entreprise dans **deux**
+balayages complets de `companies` : la détection d'expansion inter-provinciale, puis la génération des
+notifications.
+
+**Artefact — compteur de l'hébergeur, encadrant le cycle :**
+
+```
+avant : 2 142 022 521 lectures — 2 237 266 écritures
+après : 2 553 986 298 lectures — 2 237 294 écritures
+```
+
+**Artefact — requêtes les plus coûteuses, même intervalle :**
+
+```
+SELECT signals.id, signals.company_id, … FROM signals WHERE ? = signals.company_id
+    Average Rows Read : 17 800   Count : 23 100   Avg time : 2,78 ms
+SELECT … FROM companies (sans filtre)               11 600 lignes  ×2
+```
+
+23 100 × 17 800 ≈ 411 millions — **l'écart mesuré au compteur, à moins d'un pour cent.** Et
+23 100 ≈ 2 × 11 550 : une lecture des signaux par entreprise, dans chacun des deux balayages.
+
+**Ce que ce cas ajoute aux précédents, et c'est une forme neuve.** Le cas 30 portait sur **une preuve
+fabriquée par l'instrument qui devait la recueillir** — l'outil jugeait une base vide et son vert était
+structurellement incapable de dire non. Ici **l'instrument est juste, sa sortie est exacte, et il n'a
+aucun défaut à corriger** : *sa portée est simplement plus étroite que ce que sa sortie laissait croire.*
+Un zéro exact sur le mauvais périmètre.
+
+**Et ce n'est pas « l'absence de mesure n'est pas une mesure nulle » non plus** *(guide d'ingénierie)*.
+Ce zéro-là n'est ni un `NULL` ni une exécution manquante : **c'est une vraie mesure, de quelque chose
+d'autre.** La règle voisine ne l'attrapait pas.
+
+**Ce que ça a coûté de plus, et qui est le vrai prix.** Le diagnostic du 8 septembre avait attribué
+l'épuisement du quota à l'index unique sur le NEQ — **mesuré, réel, suffisant à lui seul**, et la question
+s'est refermée là-dessus. Ce second consommateur tournait le même jour, du même ordre de grandeur, et
+**n'a jamais été mesuré** : le code est antérieur au 8 septembre. *Ce qui a rendu l'écart invisible n'est
+pas une erreur de raisonnement — c'est que `rows_read` avait été relevé requête par requête, sur les
+trois chemins qu'on soupçonnait, jamais sur le TOTAL du cycle.* **Une cause suffisante n'est pas une
+cause unique.** Un total l'aurait dit tout de suite; trois mesures partielles, jamais.
+
+**Ce qui a fini par le voir :** le compteur de l'hébergeur, relevé **avant et après** — le seul chiffre
+de la journée qui ne dépendait d'aucune hypothèse sur l'endroit où regarder.
+
+**La règle. Un instrument mesure ce qu'il a été construit pour mesurer; son zéro ne dit rien de ce qu'il
+ne regarde pas.** *Sa portée s'écrit à côté de sa sortie, pas dans sa documentation* — sans quoi un zéro
+se lit comme une absence de coût. **Et une mesure partielle ne ferme jamais une question de total.**
+*Précédent à imiter : `outils/schema_de_la_fusion.py`, qui annonce dans sa sortie qu'il ne sait rien de
+la dérive déjà présente en production.*
