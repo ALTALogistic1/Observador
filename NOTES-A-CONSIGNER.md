@@ -90,8 +90,19 @@ attente**, et c'est le cas normal entre deux tâches.
   signal détecté**. Une source peut remplir l'un sans l'autre.
 - **À écrire après** : la décision d'Alexandre sur les deux palmarès.
 
-### N7 — La portée de `detecter_expansions`
+### N7 — La portée de `detecter_expansions`, et le fait qui la décide
 - **Destination** : registre (décision de portée) + le mécanisme retenu.
+- **Constat, lu le 11 septembre 2026** : **une seule source active porte un
+  `province_code` — `req` (qc)**; les trois autres qui en portent (`ns`, `bc`, `on`)
+  sont `en_pause`. Or `detecter_expansions` ne retient un candidat que s'il a *une
+  province QUI DIFFÈRE*. **Avec une seule province au registre actif, la passe ne peut
+  produire aucun lien — et elle paie quand même un balayage complet de `companies` plus
+  un chargement de signaux par entreprise**, soit la moitié du coût mesuré.
+- **La nuance qui décide du mécanisme** : `_provinces_pour_company` lit le
+  `province_code` du registre **sans regarder le statut** de la source. Des signaux
+  historiques venus des trois sources mises en veilleuse donneraient donc encore des
+  provinces. *Savoir s'il en existe est une lecture, pas une hypothèse — et
+  `provenance_entreprises.py` la rend dans le même passage.*
 - **À écrire après** : la décision d'Alexandre.
 
 ### N8 — Globe and Mail Top Growing et Deloitte Fast 50
