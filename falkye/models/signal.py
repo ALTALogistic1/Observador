@@ -14,7 +14,16 @@ class Signal(Base):
     __tablename__ = "signals"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    # `index=True` — et il n'est PAS décoratif. Une clé étrangère ne crée aucun
+    # index en SQLite : sans lui, charger les signaux d'UNE entreprise balaie
+    # toute la table. Mesuré sur la base réelle le 2026-09-11 : 17 800 lignes
+    # lues par appel, 23 100 appels en un cycle, 411 963 777 lectures facturées
+    # pour un cycle qui n'avait résolu aucune entreprise (journal, cas 33).
+    # `create_all` ne pose pas un index sur une table qui existe déjà — voir
+    # outils/migration_index_chargement.py pour la base en service.
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id"), nullable=False, index=True
+    )
 
     source_id: Mapped[str] = mapped_column(String(64), nullable=False)        # voir registry/sources.yaml
     signal_type_id: Mapped[str] = mapped_column(String(64), nullable=False)   # voir registry/signal_types.yaml
