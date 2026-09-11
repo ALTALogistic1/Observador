@@ -162,6 +162,16 @@ l'objet non lu est **un document**, et le geste fautif n'est pas une lecture pr�
 fondée dessus**. C'est la règle 5 de la charte appliquée aux documents : **une source absente se signale,
 elle ne se légifère pas.**
 
+## Un exemple montré n'est pas un fait survenu
+
+**Un exemple consigné comme un fait est plus solide qu'un fait.** *(constaté le 2026-09-11, journal, cas 16)* Il a été **construit pour illustrer**, donc il illustre parfaitement, donc **rien ne vient jamais le mettre en défaut**. Un vrai incident est encombrant : il a des détails qui ne servent à rien, des circonstances qui compliquent la leçon, parfois une cause qu'on n'a jamais élucidée. **Un exemple n'a que ce qu'il faut.** C'est exactement ce qui le rend impossible à repérer une fois écrit au passé.
+
+**Le cas réel.** Un exemple donné en conversation pour expliquer un principe a été consigné au journal des cas comme un incident survenu. **Quatre écrits s'y sont appuyés — dont la charte, qui tranche en cas de contradiction — pendant quatre jours**, et il a fallu que la personne qui avait donné l'exemple s'en souvienne pour que ça se voie.
+
+**Ce qui le sépare du motif voisin.** *Un document montré n'est pas un document versé* porte sur un objet **qu'on n'a pas lu**; ici l'objet a été lu, parfaitement compris, et **rangé dans la mauvaise catégorie**. Un exemple pédagogique et un incident **se racontent avec la même grammaire** — un avant, un après, une leçon — et rien ne les distingue une fois qu'ils sont écrits.
+
+**La règle. Ce qui prouve un fait n'est pas qu'il se raconte bien, c'est qu'il ait laissé une trace ailleurs** — un commit, une ligne en base, une sortie d'exécution. **Avant de consigner un incident, nommer cet artefact; si on n'en trouve aucun, c'est peut-être qu'il n'y a pas eu d'incident.** *C'est devenu une exigence du journal des cas.*
+
 ## Qui repère qu'un document est devenu faux
 
 **Repérer est une obligation, pas une courtoisie.** Un écart constaté se dit dans le tour où il est

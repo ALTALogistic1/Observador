@@ -4,6 +4,12 @@
 
 **À quoi ça sert.** Une règle se lit et s'applique; un cas se cherche. Quand un motif semble se répéter, c'est ici qu'on vérifie s'il s'est déjà produit et sous quelle forme.
 
+**Chaque cas nomme ce qui le prouve.** *Exigence posée le 11 septembre 2026.* Un commit, une ligne en base, une sortie d'exécution, une capture — **l'artefact qui existerait encore si personne ne se souvenait du cas**. Un cas qui n'en a aucun **porte la mention qu'il n'en a pas** : c'est une information sur sa solidité, pas un défaut à cacher.
+
+**Ce qui l'a produite.** Le cas 16 racontait un incident qui n'a jamais eu lieu, et il a tenu lieu de précédent à quatre écrits pendant quatre jours. **Rien ne le distinguait des autres à la lecture** — un exemple pédagogique et un incident se racontent avec la même grammaire. *Un artefact nommé l'aurait rendu visible sans qu'on le cherche : il n'y en avait aucun à nommer.*
+
+**L'exigence ne vaut que pour les cas à venir, et ce paragraphe est la mention des autres.** Les cas antérieurs au 11 septembre 2026 ont été écrits sans elle et **aucun ne porte d'artefact**. On ne reconstitue pas ce que personne n'a noté, et les réécrire de mémoire fabriquerait exactement le genre de preuve que cette exigence sert à empêcher. **Et rien ici ne dit que ces cas-là sont sains** : la vérification a été tentée le 11 septembre, **elle ne discrimine pas** — le test repère les cas sans chiffre vérifiable, et il remonte le cas 1 et le cas 17, qui sont parfaitement réels. *Mieux vaut le savoir que de croire qu'une passe l'a vérifié.*
+
 **Chaque cas porte entre parenthèses la règle qu'il justifie et l'endroit où elle vit** — une section de la charte, le guide d'ingénierie, ou le cadre légal. *Les règles de vérification ont quitté la section 11 de la charte pour le guide le 7 septembre 2026, et les renvois ont suivi le 8.*
 
 ---
@@ -120,11 +126,21 @@ Une décision budgétaire réelle, portant sur un angle mort documenté depuis l
 
 Elle n'avait été ni rejetée ni reportée — **elle était simplement restée sans réponse, et rien ne la faisait revenir.**
 
-## Cas 16 — De A/B/C à A/AA/AAA *(charte, section 16)*
+## Cas 16 — L'exemple donné en conversation, consigné comme un fait *(charte, section 16; guide d'ingénierie)*
 
-L'échelle de pertinence était A/B/C; elle est devenue A/AA/AAA. Le classement, l'ordre et les écarts sont identiques, et aucune information n'a été perdue.
+**⚠️ Ce cas portait autre chose jusqu'au 11 septembre 2026, et ce qu'il portait n'a jamais eu lieu.** Il décrivait un passage de l'échelle de pertinence de `A/B/C` à `A/AA/AAA`. **Le produit n'a jamais eu de gradation `A/B/C`** — ni en service, ni implémentée, ni retenue puis écartée. C'était **un exemple donné en conversation** pour expliquer un principe : il faut des termes positifs pour tout ce que le client voit. **La règle existait avant l'exemple; elle n'en découle pas.**
 
-Ce qui a été retiré, c'est **un jugement que le produit n'était pas en position de porter**. Dire « C » revient à dire à l'utilisateur que son opportunité est médiocre, alors que le moteur sait seulement qu'elle est **moins bien alignée que d'autres**. Le C ajoutait une information fausse; le A la retire sans rien inventer.
+**Ce que la consignation a produit.** La charte y a appuyé sa section 16 comme **cas d'origine**; les spécifications 8.1 y ont rattaché la justification des trois libellés; le relevé des objets gradués en a fait **le fait réel** qui avait forcé le grade de pertinence; et la section 16 elle-même s'en servait pour illustrer qu'une échelle emprunte le jugement de sa convention. **Quatre écrits ont pris appui sur un précédent qui n'existait pas**, et le plus ancien le faisait depuis la création de ce journal, le 7 septembre.
+
+**Le mécanisme.** Ce journal ne consigne que des incidents réels — son en-tête le dit : *« la charte garde les règles; ce document garde les incidents qui les ont produites »*. Or **un exemple pédagogique et un incident se racontent avec la même grammaire** : un avant, un après, une leçon. Une fois écrits, rien ne les sépare à la lecture. **Et un exemple consigné comme un fait est plus solide qu'un fait** : il a été construit pour illustrer, donc il illustre parfaitement, donc rien ne vient jamais le mettre en défaut. *Un vrai incident laisse des traces ailleurs — du code, une base, un journal d'exécution. Celui-ci n'en avait aucune, et personne ne les a cherchées.*
+
+**Ce que ça ajoute au cas 31, écrit le même jour.** Là, un **document** montré avait été traité comme versé. Ici, un **exemple** montré a été traité comme survenu. *Un document montré n'est pas un document versé; un exemple montré n'est pas un fait survenu.* **Même famille, deux objets** — et dans les deux cas le geste fautif n'est pas une lecture présumée, c'est **une écriture fondée dessus**.
+
+**Pourquoi le numéro reste occupé.** Retirer le cas renumérote tout ce qui suit et casse chaque renvoi du corpus; le laisser vide fait aboutir les renvois existants sur rien. **Il porte donc désormais sa propre falsification**, et les cinq renvois qui pointaient vers lui apprennent en y arrivant pourquoi ils ne tiennent plus.
+
+**Artefact.** `git log -S"A/B/C" --all -- '*.py'` **ne rend aucun commit** : aucune échelle de ce nom n'est jamais entrée dans le code, ni pour y être retirée ensuite. *C'est la vérification d'une seconde qui n'a pas été faite pendant quatre jours — et c'est elle qui a fait poser l'exigence d'artefact en tête de ce journal.*
+
+**Ce qui a été corrigé avec.** La section 16 de la charte **assume d'être un principe sans cas d'origine** — la règle 4 appliquée à elle-même. Les spécifications 8.1 attribuent les trois libellés à la règle plutôt qu'à un changement d'échelle. Et au relevé des objets gradués, le grade de pertinence passe de « forcé par une décision » à **« forcé par rien »** : c'est la correction qui a le plus changé la lecture du relevé.
 
 ## Cas 17 — Le REQ non commercial *(cadre légal)*
 
@@ -411,6 +427,8 @@ n'est repéré par personne quand il vieillit* reste vrai, et ne dit rien sur l'
 geste fautif n'est pas une lecture présumée : **c'est une écriture fondée dessus**. Un état présumé produit
 une conclusion fausse; une règle écrite pour un objet absent **produit une autorité sans objet**, et elle
 survit plus longtemps parce que rien ne la contredit.
+
+**Artefact.** Le commit **`c633c1e`** ajoute à `docs/spec/charte-falkye.md` la clause qui nommait le chemin du document; le commit **`d4cda09`** la retire. *`git log -S"presentation-commerciale" -- docs/spec/charte-falkye.md` rend les deux, et rien d'autre : le fichier n'a jamais existé.*
 
 **La règle 5 s'applique aux documents autant qu'aux échelles, et elle a été enfreinte quatre tours après
 avoir été écrite.** *Une source absente se signale, elle ne se légifère pas.*
