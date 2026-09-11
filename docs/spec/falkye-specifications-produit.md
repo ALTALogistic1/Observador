@@ -963,6 +963,21 @@ Ce n'est pas un défaut à corriger mais un fait qui détermine **quel type d'en
 **Pertinence** — correspond-il à CE profil? A Repéré / AA Aligné / AAA Sur mesure.
 **Confiance d'appariement** — est-il rattaché à la bonne entreprise? Plafonne les deux autres.
 
+**Les trois grades de Pertinence, dans les mots où ils se disent au client.**
+
+| Grade | Libellé | Ce qu'il dit |
+|---|---|---|
+| **A** | Repéré | Un signal pertinent pour votre secteur |
+| **AA** | Aligné | Correspond directement à ce que vous cherchez |
+| **AAA** | Sur mesure | La correspondance la plus précise possible |
+
+**C'est la section 16 de la charte portée aux mots plutôt qu'aux seules lettres.** Les trois disent
+quelque chose de **positif**, **l'ordre ne fait aucun doute**, et **aucun ne dénigre le bas de
+l'échelle** — *le plus court n'est pas mauvais, il est simplement moins*. Le passage de `A/B/C` à
+`A/AA/AAA` avait retiré le jugement que portait la lettre *(journal, cas 16)*; **ces libellés font le
+reste du travail — une gradation qui s'explique entièrement sans qu'aucun de ses niveaux ait à
+s'excuser.**
+
 Combinés en matrice, **jamais fusionnés en une moyenne**. La règle vaut pour N axes : si un quatrième
 s'impose, il s'ajoute sans que la séparation devienne négociable.
 

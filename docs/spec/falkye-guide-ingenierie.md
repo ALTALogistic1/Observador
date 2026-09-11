@@ -138,6 +138,30 @@ Un test qui ferait mentir un document moins vaut moins que le retrait de ce qu'i
 Et il ne doit jamais exiger plus que la cohérence : **nommer une chose sans la déclarer active reste
 légitime** — un test qui l'interdirait forcerait à retirer une information vraie pour passer au vert.
 
+## Un document montré n'est pas un document versé
+
+**Le corpus ne légifère que sur ce qu'il contient.** *(constaté le 2026-09-11)* Un document a été
+mentionné en conversation — existant, décrit, avec trois de ses affirmations citées. Il a suffi de cette
+mention pour qu'il soit traité comme une source à venir : sa place dans l'arborescence tranchée, son
+chemin écrit, et **une clause de portée ajoutée à la charte qui le nommait**. Il n'a jamais été versé, et
+il ne devait pas l'être.
+
+**Trois états qu'on confond parce que rien ne les sépare à la lecture :** un document **mentionné**, un
+document **promis**, un document **versé**. Seul le troisième se lit, se vérifie et se corrige. **Les deux
+premiers n'existent pas pour le dépôt** — et une règle écrite pour eux prend l'autorité du document qui
+la porte tout en n'ayant aucun objet.
+
+**La règle. Rien ne s'écrit au corpus sur la foi d'un document qu'on n'a pas lu** — pas une clause, pas un
+chemin, pas une place dans l'arborescence. Ce qui se fait à la place : **dire ce qui s'appliquerait, sans
+nommer d'objet et sans créer de fichier**, et attendre que le document soit dans le dépôt. *Une règle
+formulée d'avance garde sa valeur; une règle qui nomme un objet absent affirme son existence.*
+
+**Ce que ça ajoute au motif connu.** *« Une valeur qu'on croit connaître tient lieu de la valeur qu'on n'a
+pas lue »* portait sur des états du système, puis sur des valeurs reconstituées *(cas 25, 29, 30)*. Ici
+l'objet non lu est **un document**, et le geste fautif n'est pas une lecture présumée mais **une écriture
+fondée dessus**. C'est la règle 5 de la charte appliquée aux documents : **une source absente se signale,
+elle ne se légifère pas.**
+
 ## Qui repère qu'un document est devenu faux
 
 **Repérer est une obligation, pas une courtoisie.** Un écart constaté se dit dans le tour où il est

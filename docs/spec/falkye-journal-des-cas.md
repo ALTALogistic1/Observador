@@ -388,3 +388,40 @@ distinguent pas d'un désaccord de fond. Et **un outil de migration qui crée sa
 rien, il fabrique** : il refuse de tourner sur un repli que personne n'a choisi, et refuse de rendre un
 verdict vert sur une base où sa table témoin est absente. *Un verdict rendu sur une base vide est le plus
 rassurant de tous.*
+
+## Cas 31 — Le document montré pris pour un document versé *(guide d'ingénierie)*
+
+Le 11 septembre 2026, un document commercial a été mentionné en conversation — existant, décrit, trois de
+ses affirmations citées. **Il n'a jamais été versé au dépôt, et il ne devait pas l'être** : il n'était pas
+une source, il portait des états périmés, et il avait été évoqué pour une raison sans rapport avec le
+corpus.
+
+**Ce qui a été fait sur la seule foi de cette mention.** Sa place dans l'arborescence tranchée, son chemin
+écrit, trois règles rédigées pour lui, et **une clause de portée ajoutée à la charte qui le nommait** — la
+charte, le document qui tranche en cas de contradiction. Le corpus a donc affirmé l'existence d'un
+document que personne n'avait lu.
+
+**Ce qui a rendu le glissement invisible.** Rien ne distingue, à la lecture d'une conversation, un
+document **mentionné** d'un document **promis** d'un document **versé**. Les trois se nomment pareil. Et
+le raisonnement sur sa place était juste — c'est ce qui l'a rendu convaincant : *un document hors du dépôt
+n'est repéré par personne quand il vieillit* reste vrai, et ne dit rien sur l'existence de celui-là.
+
+**Ce que ça ajoute aux occurrences précédentes.** Le motif portait sur un **état du système** présumé
+*(cas 25)*, puis sur une **valeur reconstituée** *(cas 29)*. Ici l'objet non lu est **un document**, et le
+geste fautif n'est pas une lecture présumée : **c'est une écriture fondée dessus**. Un état présumé produit
+une conclusion fausse; une règle écrite pour un objet absent **produit une autorité sans objet**, et elle
+survit plus longtemps parce que rien ne la contredit.
+
+**La règle 5 s'applique aux documents autant qu'aux échelles, et elle a été enfreinte quatre tours après
+avoir été écrite.** *Une source absente se signale, elle ne se légifère pas.*
+
+**Ce qui a limité les dégâts, et ce n'est pas la vigilance.** Aucun fichier n'a été créé : le chemin n'a
+été qu'écrit, jamais ouvert. **Et l'écart a été rapporté par la personne qui avait mentionné le document,
+pas repérée par le corpus** — aucun mécanisme du dépôt ne peut voir qu'une règle parle d'un objet qui
+n'existe pas. *Le vérificateur ne contrôle que les renvois internes; un chemin hors `docs/spec/` lui est
+invisible.*
+
+**La règle.** **Rien ne s'écrit au corpus sur la foi d'un document qu'on n'a pas lu** — pas une clause, pas
+un chemin, pas une place dans l'arborescence. Ce qui se fait à la place : dire ce qui **s'appliquerait**,
+sans nommer d'objet ni créer de fichier, et attendre que le document soit dans le dépôt. *Une règle
+formulée d'avance garde sa valeur; une règle qui nomme un objet absent affirme son existence.*
