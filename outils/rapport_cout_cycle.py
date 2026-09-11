@@ -10,6 +10,15 @@
 même fonction de la population sans NEQ **du moment où le rapport est lu**. Le
 tilde est là pour qu'on ne puisse pas la citer plus tard comme une mesure.
 
+**⚠️ Ce rapport ne couvre QUE les trois chemins de résolution d'identité.** Tout
+le reste du cycle — le chargement des signaux d'une entreprise, la génération des
+notifications, l'enrichissement, les écritures — n'a pas de compteur et
+n'apparaît nulle part ici. **Un zéro sur les trois chemins n'est donc pas un
+cycle sans lectures** : le 2026-09-11, ce rapport affichait zéro pendant que le
+compteur de l'hébergeur avançait de 411 963 777 lectures. La portée est imprimée
+en pied de sortie, pas seulement dans cette docstring — voir `PORTEE` dans
+`falkye/cout_lectures.py`.
+
 Le vrai `rows_read` n'est pas accessible ici : le pilote libSQL qu'utilise
 SQLAlchemy ne l'expose pas, seul le protocole Hrana le rend. Le jour où la
 colonne `nb_lignes_lues_base` sera renseignée, elle s'affichera à côté de la
@@ -52,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from falkye.cout_lectures import (
         AVERTISSEMENT_DERIVATION,
+        PORTEE,
         PROVENANCE,
         lignes_lues_derivees,
         peremption,
@@ -105,6 +115,7 @@ def main(argv: list[str] | None = None) -> int:
         if not lignes:
             print(f"Aucune exécution depuis {depuis:%Y-%m-%d %H:%M} — rien à rapporter.")
             print("(« aucune exécution » n'est pas « aucun coût » : c'est une absence de mesure.)")
+            print(f"\n{PORTEE}")
             return 0
 
         population = population_sans_neq(session)
@@ -112,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
 
         print(f"population sans NEQ au moment de la lecture : {population}")
         print(f"prix mesurés le {PROVENANCE.mesure_le} — {PROVENANCE.methode}")
+        print("portée : les trois chemins de résolution SEULEMENT — détail en pied de sortie")
         if perime:
             print(f"\n⚠ TABLE DE PRIX PÉRIMÉE\n  {perime}")
             print("  Les COMPTES ci-dessous restent exacts; la dérivation est suspendue.")
@@ -143,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
             for nom, _ in CHEMINS_COLONNES:
                 print(f"{totaux[nom]:>16}{'—':>18}", end="")
             print("\n\nDérivation suspendue : reprendre la table de prix.")
+            print(f"\n{PORTEE}")
             return 3
 
         derivees_totales = lignes_lues_derivees(totaux, population)
@@ -162,7 +175,21 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("le repli par sous-chaîne n'a pas été emprunté.")
 
+        if not sum(totaux.values()):
+            # Le cas qui a fait écrire la portée : trois zéros exacts, et un
+            # cycle qui avait quand même lu 412 millions de lignes. Sans cette
+            # phrase, la sortie la plus rassurante est celle qui couvre le
+            # moins. Voir le journal des cas.
+            print(
+                "\n⚠ AUCUN des trois chemins n'a été emprunté — ce n'est PAS "
+                "« ce cycle n'a rien lu ».\n"
+                "  Ce rapport ne compte que ces trois chemins-là. Le total "
+                "réel du cycle se lit\n"
+                "  au compteur de l'hébergeur, relevé avant et après."
+            )
+
         print(f"\n{AVERTISSEMENT_DERIVATION}")
+        print(f"\n{PORTEE}")
         return 0
     finally:
         session.close()

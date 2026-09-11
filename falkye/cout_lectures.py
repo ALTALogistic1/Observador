@@ -180,6 +180,40 @@ PRIX: dict[str, PrixChemin] = {
 #: mesure du coût réel — c'est contre lui que cette estimation se valide, sur un
 #: cycle complet en régime. Si les deux divergent de plus d'un ordre de
 #: grandeur, c'est l'estimation qui a tort.
+#: **Ce que cet instrument REGARDE, et ce qu'il ne regarde pas.** À afficher avec
+#: toute sortie qui en vient, jamais seulement ici.
+#:
+#: **Écrit le 2026-09-11, sur un zéro qui valait 412 millions de lectures.** Le
+#: cycle de ce jour-là a rendu zéro sur les trois chemins — exact, préfixe,
+#: sous-chaîne — pendant que le compteur de l'hébergeur avançait de
+#: 411 963 777 lectures sur le même intervalle. L'instrument ne mentait pas : il
+#: comptait exactement ce qu'il avait été construit pour compter. Le
+#: consommateur — le chargement des signaux d'une entreprise, une requête par
+#: entreprise, sur une colonne sans index — est HORS de sa portée, et rien dans
+#: sa sortie ne le disait.
+#:
+#: **Un instrument mesure ce qu'il a été construit pour mesurer; son zéro ne dit
+#: rien de ce qu'il ne regarde pas.** Sans sa portée écrite à côté de sa sortie,
+#: ce zéro se lit comme une absence de coût — ce qu'il n'est pas.
+PORTEE = (
+    "PORTÉE DE CET INSTRUMENT — à lire avec tout chiffre ci-dessus.\n"
+    "  Compté : les TROIS chemins de résolution d'identité (exact, préfixe, "
+    "sous-chaîne),\n"
+    "           incrémentés au point d'appel, par exécution de source.\n"
+    "  NON compté : tout le reste du cycle — chargement des signaux par "
+    "entreprise,\n"
+    "           génération des notifications, enrichissement, écritures. Ces "
+    "chemins-là\n"
+    "           n'ont PAS de compteur, et leur coût n'apparaît nulle part ici.\n"
+    "  Donc : un zéro sur les trois chemins n'est pas un cycle sans lectures. "
+    "La seule\n"
+    "           mesure du total est le compteur de l'hébergeur, relevé AVANT et "
+    "APRÈS.\n"
+    "  (2026-09-11 : zéro ici, 411 963 777 lectures au compteur, pour le même "
+    "cycle.)"
+)
+
+
 AVERTISSEMENT_DERIVATION = (
     "Les colonnes « lignes ~ » sont une ESTIMATION dérivée d'un compte exact, "
     "jamais un `rows_read`. Elles ne suffisent pas à décider d'un palier de "
