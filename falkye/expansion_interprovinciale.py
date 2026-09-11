@@ -169,6 +169,24 @@ class EvaluationExpansion:
     texte_hedge: str | None  # None si aucun lien — toujours hedgé, jamais un fait
 
 
+def requete_liens_pour_company(company_id: int):
+    """Les liens d'UNE entreprise, des deux côtés de la paire.
+
+    Séparée de son exécution pour que l'outil qui vérifie son plan vérifie la
+    VRAIE requête — même règle que `requete_nom_exact` (falkye/resolution.py).
+    Un plan mesuré sur une requête réécrite à côté ne prouve rien de celle que
+    le moteur envoie.
+
+    **Le OU est ce qui rend le plan fragile.** SQLite ne sait l'optimiser que si
+    les DEUX côtés sont indexables : `company_id_a` l'est par la contrainte
+    unique de la paire, `company_id_b` ne l'était pas avant le 2026-09-11.
+    """
+    return select(LienInterprovincial).where(
+        (LienInterprovincial.company_id_a == company_id)
+        | (LienInterprovincial.company_id_b == company_id)
+    )
+
+
 def evaluer_pour_company(db_session: Session, company: Company) -> EvaluationExpansion:
     """Bonus de confiance (mise à l'échelle linéaire entre SEUIL_RAPPROCHEMENT,
     score 80 -> bonus 0, et 100 -> bonus BONUS_MAX, jamais davantage — voir
@@ -176,16 +194,7 @@ def evaluer_pour_company(db_session: Session, company: Company) -> EvaluationExp
     `company`, à partir du lien le plus fort s'il y en a plusieurs. Ne
     vérifie PAS le plan du profil — voir docstring du module, le gating est
     la responsabilité de l'appelant (falkye/engine.py)."""
-    liens = (
-        db_session.execute(
-            select(LienInterprovincial).where(
-                (LienInterprovincial.company_id_a == company.id)
-                | (LienInterprovincial.company_id_b == company.id)
-            )
-        )
-        .scalars()
-        .all()
-    )
+    liens = db_session.execute(requete_liens_pour_company(company.id)).scalars().all()
     if not liens:
         return EvaluationExpansion(bonus=0.0, texte_hedge=None)
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Float, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from falkye.models.base import Base, utcnow
@@ -24,6 +24,16 @@ class LienInterprovincial(Base):
     __tablename__ = "liens_interprovinciaux"
     __table_args__ = (
         UniqueConstraint("company_id_a", "company_id_b", name="uq_lien_interprovincial_paire"),
+        # **La contrainte unique ci-dessus ne couvre qu'une moitié.** SQLite lui
+        # crée un index, dont `company_id_a` est la colonne DE TÊTE : une
+        # recherche sur `company_id_a` en profite, une recherche sur
+        # `company_id_b` jamais. Or `evaluer_pour_company` interroge les deux
+        # dans un OU, une fois par entreprise — sans cet index-ci, SQLite ne
+        # peut pas unir deux recherches et balaie la table.
+        # *Même défaut que `signals.company_id`, trouvé en le cherchant
+        # (2026-09-11). Invisible aujourd'hui parce que la table est petite,
+        # et elle ne le restera pas.*
+        Index("ix_liens_interprovinciaux_company_id_b", "company_id_b"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
