@@ -191,6 +191,25 @@ elle est le seul des trois livrables qu'une autre personne exécute sans pouvoir
 la configuration plutôt que de mémoire.** *Et ne jamais écrire la procédure dans le même tour que le
 changement qui la rend possible : la fusion n'a pas eu lieu, donc l'état non plus.*
 
+## Le code peut déjà porter la décision qu'on croit prendre
+
+**Le motif habituel est qu'un document vieillit pendant que le code avance. Celui-ci est l'inverse, et il
+se voit moins.** *(constaté le 2026-09-11.)* Trois décisions écrites au corpus les 10 et 11 septembre
+**existaient déjà dans le code, dans les mêmes mots, depuis des jours** : les libellés *Repéré / Aligné /
+Sur mesure*, et la distinction entre un score interne et le palier affiché — *« score numérique interne,
+quantifié en palier, jamais affiché tel quel »*, écrit à `docs/ARCHITECTURE.md` bien avant que la
+spéc. 8.6 la formule. **Le corpus a été le dernier informé.**
+
+**Ce que ça a failli coûter.** Les libellés ont été versés au corpus **comme s'ils étaient neufs**. Ils
+concordaient — par chance. **S'ils avaient différé d'un mot, le corpus et le code se seraient contredits
+sans que personne ne le voie**, chacun ayant l'air d'avoir raison chez lui, et l'écart serait apparu bien
+plus tard, sur un libellé montré à un client.
+
+**La règle. Avant d'écrire une décision de produit au corpus, chercher si le code y répond déjà.** S'il
+répond : le corpus **enregistre** cette réponse, ou il la **remplace explicitement** — jamais il ne
+décide dans l'ignorance de ce qui tourne. *Une décision prise deux fois séparément n'est pas une décision
+confirmée, c'est une divergence en attente.*
+
 ## Qui repère qu'un document est devenu faux
 
 **Repérer est une obligation, pas une courtoisie.** Un écart constaté se dit dans le tour où il est
