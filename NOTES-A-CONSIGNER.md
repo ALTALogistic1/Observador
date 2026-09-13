@@ -116,6 +116,8 @@ attente**, et c'est le cas normal entre deux tâches.
   la taille », spéc. 8.2)* : *« déclarée = bande d'effectifs du registre »*. **La provenance est
   écrite comme un critère disponible; aucune source ne la fournit, et le miroir ne la stocke
   pas.**
+- **Destination relevée le 13 septembre** *(Alexandre)* : **journal des cas, comme forme
+  neuve** — pas seulement une ligne de registre.
 - **Le nom de l'écart, à inscrire tel quel : une règle qui nomme une donnée que personne ne
   possède se lit comme une règle appliquée.** *Rien ne la distingue, à la lecture, d'une règle
   qui tourne — elle a une valeur, une provenance, une place dans une taxonomie.*
@@ -177,7 +179,7 @@ attente**, et c'est le cas normal entre deux tâches.
 
 ### N10 — La stratégie du portrait : la direction retenue pour le cerveau
 - **Notée le** : 2026-09-13
-- **Destination, décidée après lecture** *(à confirmer par Alexandre)* : **découpée par nature,
+- **Destination — CONFIRMÉE par Alexandre le 13 septembre** : **découpée par nature,
   comme D35 l'a fait pour les prix — pas un document neuf.**
   - **Charte, section 9** *(la frontière du non déterministe)* : le principe, les trois couches,
     la frontière entre lecture et portrait, le découpage déterministe/non déterministe. **Parce
@@ -254,3 +256,106 @@ attente**, et c'est le cas normal entre deux tâches.
   libre, donc **matière pour le langage et l'association**, pas pour une règle. *Et l'association
   est le seul endroit où le produit affirme ce que les sources ne disent pas — donc elle attend
   que le lien champ ↔ sphère soit écrit et vérifiable.*
+
+### N17 — Le portrait à deux blocs — décision prise
+- **Notée le** : 2026-09-13
+- **Destination** : charte section 9 *(avec la stratégie, N10)* pour la forme; **mandat du
+  chantier 21** pour ce qu'elle impose au langage.
+- **Décision d'Alexandre** : le portrait porte **deux blocs distincts, et la séparation est
+  visible pour l'utilisateur**. Le premier **énumère la situation sans rien inventer** — nom,
+  raison d'être, **adresse**, faits datés. Le second s'ouvre par *« Pour un [profil], cette
+  situation peut représenter… »*.
+- **Le « peut représenter » est la marque du non déterministe** : le produit n'affirme pas que
+  l'entreprise a ce besoin, il dit ce que la situation **peut** signifier. **Chaque élément du
+  second bloc remonte à un fait du premier.**
+- **Seul le second change d'un utilisateur à l'autre : un portrait, plusieurs lectures.**
+- ⚠️ **Conséquence pour le chantier 21** : le langage doit produire **deux registres, pas un** —
+  *et le second est la partie que l'utilisateur lira en premier.*
+
+### N18 — L'adresse est une exigence de SORTIE, pas une option
+- **Notée le** : 2026-09-13
+- **Destination** : spéc. *(ce qu'un portrait doit porter)* et mandat du chantier 21.
+- **Un portrait sans adresse n'est pas actionnable**, pour tout type de prospect.
+- **D'où elle vient, et ce qui arrive quand elle manque** : le REQ ne la donne **que si
+  l'entreprise est résolue**; l'EIMT en capte une et **la jette**; le SEAO en porte une à 99,9 %
+  **qu'il ne captait pas jusqu'au 13 septembre**. *Même cause que le gain partiel sur
+  l'appariement, même correctif.*
+
+### N19 — Un motif absent du 22 : la concentration de sources DIFFÉRENTES
+- **Notée le** : 2026-09-13
+- **Destination** : mandat du chantier 22 *(22.1)*.
+- **Le 22.1 porte « répétition sur fenêtre », mais pour un MÊME type de signal.** Les simulations
+  ont produit **six faits de cinq sources en quatre-vingts jours**, et **deux recours à l'EIMT en
+  onze semaines**. **La concentration est le fait, pas chaque élément.**
+
+### N20 — Le motif « absence attendue » existe sans aucun seuil
+- **Notée le** : 2026-09-13
+- **Destination** : mandat du chantier 22, avec sa dépendance.
+- **Il a servi dans trois simulations sur cinq** — *aucun mandat touchant X à ce jour* — **et à
+  chaque fois sans savoir combien de temps d'absence signifie quelque chose.**
+- ⚠️ **Dépendance à inscrire** : le **22 peut DÉCLARER le motif, il ne peut pas le CALIBRER sans
+  le 17**.
+
+### N21 — Deux comparaisons que le produit capte et ne fait jamais
+- **Notée le** : 2026-09-13
+- **Destination** : mandat du chantier 22.
+- **La ville du signal contre l'adresse de l'entreprise** — *dans la simulation de la MRC, toute
+  la lecture repose là-dessus.* Les deux valeurs existent; aucune règle ne les compare.
+- **L'ancienneté d'une adresse** — *« même adresse depuis 2011, établie depuis 1998 »*.
+- ⚠️ **Réponse, vérifiée dans le code le 13 septembre : le produit ne porte NI l'une NI
+  l'autre.** Le connecteur REQ ne lit que deux dates — `DAT_MAJ_INDEX_NOM` et
+  `DAT_INIT_NOM_ASSUJ` *(qui sert à trier les noms)*. **Aucune date d'immatriculation, aucune
+  date d'établissement.** *Si `Entreprise.csv` en porte une, elle est simplement non lue —
+  `inspect_zip` le dirait sur l'hôte.* **Et « même adresse depuis 2011 » n'est pas dérivable** :
+  l'état de diff ne connaît l'adresse que depuis le premier import — au mieux *« inchangée
+  depuis qu'on regarde »*.
+
+### N22 — Un cas d'usage que les cinq facettes n'ont jamais prévu : RETENIR
+- **Notée le** : 2026-09-13
+- **Destination** : registre, entrée neuve.
+- **Un utilisateur peut chercher à retenir plutôt qu'à vendre.** *Une MRC veut savoir qu'une
+  entreprise de son territoire grandit ailleurs.* **Le corpus prévoit ce public; les cinq
+  facettes ont toutes été pensées pour un fournisseur.**
+- ⚠️ **Et le grade aussi** : *« Sur mesure » ne veut pas dire la même chose quand on veut
+  EMPÊCHER quelque chose.*
+
+### N23 — Ce que cinq simulations de portrait confirment
+- **Notée le** : 2026-09-13
+- **Destination** : audit *(Partie 0 — l'ordre par coût d'attente)* et registre.
+- **Aucune source nouvelle n'a manqué.** Les cinq portraits ont tenu avec l'existant plus l'OQLF,
+  le RACJ, le CIPO et les permis de Montréal — **tous déjà au catalogue**. *Ce qui manquait :
+  l'appariement, le secteur promu, et des lectures qui n'existent pas.*
+- **Le secteur du REQ a porté une association dans CHAQUE simulation** — *la seule qui ne vient
+  d'aucun signal : elle vient de ce que l'entreprise EST.*
+- **Les établissements du REQ ont porté trois lectures**, et le relevé dit qu'ils n'atteignent
+  jamais le dossier.
+- ⚠️ **L'OQLF a porté deux simulations, pour deux raisons distinctes** — le NEQ sans appariement,
+  et le seuil de 25+ daté. **Cinquième dans l'ordre du catalogue à cause de D5; les simulations
+  suggèrent qu'elle devrait être première.** *À trancher, pas à faire.*
+
+### N24 — L'erreur du RDPRM, et la règle qu'elle rend visible
+- **Notée le** : 2026-09-13
+- **Destination** : charte section 9 *(avec la stratégie)* ou mandat du chantier 21 — **là où on
+  conçoit un portrait**, pas seulement là où on décrit une source.
+- **Erreur d'Alexandre, notée comme telle** : le RDPRM a servi dans une simulation. *Il ne pouvait
+  pas y être — import manuel, payant à l'unité : il n'apparaît que si quelqu'un cherche DÉJÀ
+  cette entreprise. Or c'est le portrait qui devait la révéler.*
+- **La règle : une source d'enrichissement à la demande ne peut jamais figurer dans le portrait
+  qui la découvre.** *Le corpus la porte déjà avec son mécanisme 2 — ce qui a manqué n'est pas la
+  règle, c'est sa présence là où le geste se fait.*
+
+### N25 — La mesure du SEAO sur un fichier réel, 13 septembre 2026
+- **Notée le** : 2026-09-13
+- **Destination** : fiche de source du SEAO et mandat du chantier 22.
+- **`hebdo_20260831_20260906.json`, 4 750 releases, 4 127 attributions** : classification
+  **93,6 %** *(schéma **UNSPSC**, **1 242 codes distincts en une semaine**, 1 866 avec les
+  additionnelles)*; `buyer.id` **100 %**; **ville du fournisseur 87,7 %**, adresse 99,9 %;
+  `items[].description` 93,6 %; **`tender.description` 0,0 %**; statuts : 4 125 `active`,
+  **2 `cancelled`**.
+- **Deux corrections que la mesure impose** : la classification est portée par **l'ITEM**, jamais
+  par le tender; et **le champ capté sous le nom `description_tender` ne contenait rien, dans
+  100 % des cas**.
+- **Et le registre demandait déjà ce qui manquait** : `sources.yaml:seao` déclare
+  `adresse_entreprise_adjudicataire` et `secteur_nature_contrat`. **Ce n'était pas une exigence
+  neuve, c'était une exigence non tenue.** *Forme voisine de N5 : le registre savait, le
+  connecteur non.*
