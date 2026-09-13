@@ -434,7 +434,7 @@ sources:
   - id: deloitte_fast50
     nom: "Deloitte Technology Fast 50 (Canada/Québec)"
     signal_associe: [classement_croissance]
-    statut: actif
+    statut: en_pause  # MISE EN VEILLEUSE — voir note datée ci-dessous
     blocage_type: null
     methode_acces: scraping
     champs_pertinents: [nom_entreprise, taux_croissance, rang, categorie, annee_publication, region_ville]
@@ -462,6 +462,26 @@ sources:
       ce PDF (contrairement à l'estimation initiale) — résolus via le REQ ou
       l'enrichissement web comme les autres sources qui ne les fournissent pas
       directement (spec section 7, "principe de complétude").
+
+      MISE EN VEILLEUSE le 2026-09-11 (décision d'Alexandre) : **la source vise la
+      mauvaise population.** Spéc. 8.2 — sans normalisation, tout signal de volume
+      favorise mécaniquement les grandes entreprises. Un palmarès national liste des
+      entreprises qui ont FINI de croître, pas la clientèle du produit. Plus
+      ordonnancée, plus maintenue, aucun correctif prévu. Code, tests et état accumulé
+      restent en place pour une reprise sans run de référence si la portée change.
+
+      ⚠️ CE QUI A ÉTÉ PESÉ, et qui ne doit pas rouvrir la décision tout seul. Cette
+      source est l'une des QUATRE seulement qui portent la VILLE jusqu'au dossier
+      (relevé du 2026-09-11 sur les huit sources ingérées). Or la ville vaut +5 au score
+      de résolution NEQ et sert de départage entre deux entrées du REQ — c'est-à-dire
+      qu'elle agissait sur le TAUX D'APPARIEMENT, le mur qui reste après D15. Elle
+      enrichissait donc le dossier mieux que le SEAO, qui est au cœur du produit.
+      **Les deux rôles d'une source — le signal qu'elle produit, et ce qu'elle ajoute au
+      dossier une fois le signal détecté — pointaient ici en sens CONTRAIRE.** Le signal
+      ne sert pas, l'enrichissement servait, **et c'est le signal qui a décidé.** Ce qui
+      a déjà été apporté reste en base; ce qu'on perd est l'enrichissement FUTUR, sur une
+      population qu'on ne sert pas. *Rouvrir en invoquant l'enrichissement seul serait
+      rejouer un argument déjà pesé et écarté.*
 
   - id: growth500
     nom: "Growth 500 (anciennement Croissance 500/PROFIT, Canadian Business)"
@@ -495,7 +515,7 @@ sources:
   - id: rob_top_growing
     nom: "Globe and Mail Report on Business — Top Growing Companies"
     signal_associe: [classement_croissance]
-    statut: actif
+    statut: en_pause  # MISE EN VEILLEUSE — voir note datée ci-dessous
     blocage_type: null
     methode_acces: scraping
     champs_pertinents: [nom_entreprise, secteur, taux_croissance, rang, annee_publication, region_ville, revenu, nombre_employes]
@@ -532,6 +552,26 @@ sources:
       falkye/sources/rob_top_growing.py:_parse_ville_region ; laissé à None
       plutôt que deviné, résolu via le REQ comme les autres champs absents (spec
       section 7, "principe de complétude").
+
+      MISE EN VEILLEUSE le 2026-09-11 (décision d'Alexandre) : **la source vise la
+      mauvaise population.** Spéc. 8.2 — sans normalisation, tout signal de volume
+      favorise mécaniquement les grandes entreprises. Un palmarès national liste des
+      entreprises qui ont FINI de croître, pas la clientèle du produit. Plus
+      ordonnancée, plus maintenue, aucun correctif prévu. Code, tests et état accumulé
+      restent en place pour une reprise sans run de référence si la portée change.
+
+      ⚠️ CE QUI A ÉTÉ PESÉ, et qui ne doit pas rouvrir la décision tout seul. Cette
+      source est l'une des QUATRE seulement qui portent la VILLE jusqu'au dossier
+      (relevé du 2026-09-11 sur les huit sources ingérées). Or la ville vaut +5 au score
+      de résolution NEQ et sert de départage entre deux entrées du REQ — c'est-à-dire
+      qu'elle agissait sur le TAUX D'APPARIEMENT, le mur qui reste après D15. Elle
+      enrichissait donc le dossier mieux que le SEAO, qui est au cœur du produit.
+      **Les deux rôles d'une source — le signal qu'elle produit, et ce qu'elle ajoute au
+      dossier une fois le signal détecté — pointaient ici en sens CONTRAIRE.** Le signal
+      ne sert pas, l'enrichissement servait, **et c'est le signal qui a décidé.** Ce qui
+      a déjà été apporté reste en base; ce qu'on perd est l'enrichissement FUTUR, sur une
+      population qu'on ne sert pas. *Rouvrir en invoquant l'enrichissement seul serait
+      rejouer un argument déjà pesé et écarté.*
 
   - id: inc5000
     nom: "Inc. 5000 (US)"

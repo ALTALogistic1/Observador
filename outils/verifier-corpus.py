@@ -26,6 +26,8 @@ c'est une relecture humaine qui l'attrape, pas lui.
 """
 import re, glob, sys, pathlib
 
+RACINE = pathlib.Path(__file__).resolve().parents[1]
+
 #: Rappelée sous CHAQUE passage, y compris celui qui ne trouve rien. Une
 #: vérification qui ne nomme pas sa limite finit par être lue comme couvrant
 #: plus qu'elle ne couvre — et celle-ci a une limite qui a déjà mordu.
@@ -67,8 +69,16 @@ for f, t in textes.items():
         if cas_journal and m.group(1) not in cas_journal:
             problemes.append(f"{f} → journal, cas {m.group(1)} (inexistant)")
     for m in re.finditer(r"`([\w\-\.]+\.md)`", t):
-        if m.group(1) not in fichiers:
-            problemes.append(f"{f} → `{m.group(1)}` (fichier absent du répertoire)")
+        # Un renvoi HORS corpus est légitime — le corpus cite `README.md`,
+        # `docs/DEPLOIEMENT.md`, le tampon `NOTES-A-CONSIGNER.md`. Ce qui serait
+        # une faute est un renvoi vers un fichier qui n'existe NULLE PART :
+        # d'où les trois emplacements connus, plutôt qu'un seul répertoire.
+        # *Ajouté le 2026-09-11, sur un faux positif : le guide d'ingénierie
+        # citait le tampon, qui vit à la racine et pas dans le corpus.*
+        if m.group(1) not in fichiers and not any(
+            (RACINE / dossier / m.group(1)).exists() for dossier in ("", "docs")
+        ):
+            problemes.append(f"{f} → `{m.group(1)}` (fichier introuvable, ici comme à la racine)")
 
 vus = set()
 for p in problemes:
@@ -93,7 +103,7 @@ print(f"\n⚠️ {LIMITE}")
 #
 # Ce que ça fait à la place : rendre l'oubli VISIBLE à chaque demande de
 # fusion. Le tampon reste le garde-fou; ceci n'en est que le rappel.
-TAMPON = pathlib.Path(__file__).resolve().parents[1] / "NOTES-A-CONSIGNER.md"
+TAMPON = RACINE / "NOTES-A-CONSIGNER.md"
 if TAMPON.exists():
     texte_tampon = TAMPON.read_text(encoding="utf-8")
     titres = re.findall(r"^### (N\d+) — (.+)$", texte_tampon, re.M)

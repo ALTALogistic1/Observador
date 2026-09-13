@@ -256,7 +256,7 @@ du cas 10.
 cas 26)* L'environnement de développement porte des états que rien d'autre ne porte; un essai n'y prouve
 un chemin d'exécution que si l'environnement réel a été reproduit **sur le point précis en cause**.
 
-## Trois règles nées de l'exploitation
+## Quatre règles nées de l'exploitation
 
 **Un mécanisme automatique ne doit pas interrompre le travail; un geste humain mal formé, si.** Une
 réconciliation que son fichier d'entrée peut tuer est inutile le jour où on en a besoin — elle saute,
@@ -285,3 +285,36 @@ disent pas ce qu'un cycle a coûté; un seul chiffre global le dit — d'où *re
 l'hébergeur AVANT et APRÈS*, le seul qui ne dépende d'aucune hypothèse sur l'endroit où regarder. **Une
 cause suffisante n'est pas une cause unique** : c'est ce raccourci qui a laissé trois jours à un
 consommateur du même ordre de grandeur que celui qu'on venait de corriger.
+
+**Le corpus s'écrit à la FIN d'une tâche, pas pendant — et ce qui doit y finir se dépose au fur et à
+mesure dans un tampon du dépôt.** *(Méthode arrêtée le 11 septembre 2026, tenue sur le point 1 du plan.)*
+**Deux raisons, et la première est une question de justesse, pas d'économie** : une entrée écrite **avec
+le résultat en main** est plus juste qu'une entrée écrite avant. *Le cas 33 en est la démonstration — il a
+été écrit le matin, avant la mesure du soir; son épilogue porte le chiffre qui en change la portée, et
+D14 comme D37 auraient été écrites autrement à midi.* La seconde : une demande de fusion au lieu de cinq
+allège un transport qui se porte à la main.
+
+**Sa condition est non négociable, et c'est elle qui décide si la méthode tient** : la mise à jour de fin
+de tâche porte **l'ensemble** des points, jamais ce dont on se souvient. *Une note différée qui se perd
+est pire qu'une entrée écrite trop tôt — c'est le cas 15.* **D'où le tampon** — `NOTES-A-CONSIGNER.md`, à
+la racine, hors corpus : chaque note s'y inscrit **datée, au moment où elle est prise**, le fichier se vide
+en écrivant la mise à jour, et **une note oubliée se voit parce que le fichier n'est pas vide**. Même
+principe que le journal de repli : *un endroit où ce qui risque de se perdre atterrit avant d'être
+traité.*
+
+**Le rappel est un AFFICHAGE, jamais un blocage**, et ce choix mérite d'être gardé avec son motif.
+`verifier-corpus.py` imprime sous chaque passage le nombre de notes en attente et la date de la plus
+ancienne — *une note sans date est comptée et signalée, jamais sautée.* **La version bloquante a été
+écartée parce qu'elle aurait dû reconnaître une « fin de tâche », ce qui n'est lisible nulle part dans
+l'arbre** : il aurait fallu une déclaration, donc une sortie nommée — **et toute sortie nommée finit
+utilisée par réflexe.** *Un garde-fou qu'on peut contourner d'un mot rassure sans couvrir, ce qui est pire
+que pas de garde-fou du tout.*
+
+**L'exception : ce qui risque d'abîmer le produit s'écrit tout de suite.** Même test que pour un écart
+hors plan.
+
+**Une garde ne couvre que ce que la mesure couvrait.** *(journal, cas 34)* Étendre un correctif « par
+symétrie » à un geste voisin — écrire et lire, créer et consulter, calculer et afficher — **demande sa
+propre démonstration**, parce que le voisin a ses propres raisons d'exister. *Une mesure justifie un geste
+précis; la cohérence apparente le fait glisser d'un cran, et le cran de trop retire en silence quelque
+chose de légitime.*

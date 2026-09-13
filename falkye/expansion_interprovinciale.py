@@ -58,6 +58,7 @@ utile après l'activation initiale ou l'ajout d'une nouvelle source
 provinciale)."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from rapidfuzz import fuzz, process
@@ -67,6 +68,8 @@ from sqlalchemy.orm import Session
 from falkye.models.company import Company
 from falkye.models.expansion_interprovinciale import LienInterprovincial
 from falkye.registry.loader import Registry
+
+logger = logging.getLogger(__name__)
 
 SEUIL_RAPPROCHEMENT = 80.0
 BONUS_MAX = 15.0
@@ -91,6 +94,42 @@ def _provinces_pour_company(company: Company, registry: Registry) -> set[str]:
     return provinces
 
 
+def provinces_au_registre_actif(registry: Registry) -> set[str]:
+    """Les provinces que les sources ACTIVES du registre peuvent faire apparaître.
+
+    Lue au registre, jamais déclarée à côté : c'est la décision de portée du
+    2026-09-04 — *tout ce qui touche un territoire hors Québec est en veilleuse* —
+    exprimée par l'état des sources plutôt que recopiée en second endroit.
+    """
+    # `sources_actives()` plutôt qu'une comparaison `statut == "actif"` recopiée
+    # ici : le registre porte déjà le prédicat (`est_actif`), et deux définitions
+    # de « actif » finiraient par diverger. **Elle inclut les sources en import
+    # manuel — c'est voulu** : le REQ n'est pas ingéré par le cycle, mais ses
+    # signaux sont en base et portent bien une province.
+    return {s.province_code for s in registry.sources_actives() if s.province_code}
+
+
+def expansion_possible(registry: Registry) -> bool:
+    """Faux quand AUCUN lien ne peut exister, donc quand la passe est inutile.
+
+    **Un candidat n'est retenu que s'il porte une province QUI DIFFÈRE** (voir
+    `detecter_expansions`). Avec moins de deux provinces au registre actif,
+    l'ensemble des candidats est vide pour toute entreprise, sans exception :
+    la passe rendrait zéro lien après avoir balayé `companies` en entier et
+    chargé les signaux de chaque entreprise.
+
+    **Mesuré le 2026-09-11, avant de poser cette garde** : une seule source
+    active porte un `province_code` (`req`, qc) et aucune entreprise de la base
+    ne vient des trois sources provinciales mises en veilleuse — *0 sur 11 556,
+    lu par `outils/provenance_entreprises.py`*. La garde est donc un NON-GESTE
+    démontré, pas un changement de comportement déguisé en optimisation.
+
+    **Et elle se lève d'elle-même** : le jour où une source d'une autre province
+    repasse `actif`, la passe reprend sans qu'on ait à se souvenir d'elle.
+    """
+    return len(provinces_au_registre_actif(registry)) >= 2
+
+
 def detecter_expansions(
     db_session: Session, registry: Registry, companies: list[Company] | None = None
 ) -> list[LienInterprovincial]:
@@ -99,6 +138,14 @@ def detecter_expansions(
     voir `falkye scan detecter-expansions`) contre le reste du dossier
     cumulatif. Idempotent : ne recrée jamais un lien déjà enregistré pour la
     même paire (company_id_a, company_id_b)."""
+    if not expansion_possible(registry):
+        # Dit une fois au journal : une passe qui ne s'exécute pas doit se voir,
+        # sinon elle devient une absence que personne ne sait expliquer.
+        logger.info(
+            "Expansion inter-provinciale : passe ignorée — moins de deux provinces "
+            "au registre actif, aucun lien ne peut exister."
+        )
+        return []
     tous = db_session.execute(select(Company)).scalars().all()
     provinces_par_company = {c.id: _provinces_pour_company(c, registry) for c in tous}
 
@@ -194,6 +241,17 @@ def evaluer_pour_company(db_session: Session, company: Company) -> EvaluationExp
     `company`, à partir du lien le plus fort s'il y en a plusieurs. Ne
     vérifie PAS le plan du profil — voir docstring du module, le gating est
     la responsabilité de l'appelant (falkye/engine.py)."""
+    # **PAS de garde de registre ici, et c'est une décision.** Elle y a été posée
+    # puis retirée le 2026-09-11, parce que trois tests l'ont attrapée : un lien
+    # DÉJÀ EN BASE cessait de donner son bonus dès que le registre ne pouvait
+    # plus en créer de nouveau. *Ne plus créer et cesser de lire sont deux
+    # gestes différents* — le premier est un non-geste démontré, le second
+    # retirerait en silence une observation légitime déjà acquise.
+    #
+    # Et le motif du coût est tombé de lui-même : depuis `ix_liens_
+    # interprovinciaux_company_id_b`, cette requête lit deux lignes par appel au
+    # lieu de balayer la table. *Ce qui restait à retirer était la PASSE, pas la
+    # lecture.*
     liens = db_session.execute(requete_liens_pour_company(company.id)).scalars().all()
     if not liens:
         return EvaluationExpansion(bonus=0.0, texte_hedge=None)
