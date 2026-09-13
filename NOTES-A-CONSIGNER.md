@@ -56,6 +56,12 @@ attente**, et c'est le cas normal entre deux tâches.
   fournisseur** *(`award.suppliers[].name` → `RawSignal.nom_entreprise`)*. **Le donneur
   d'ouvrage n'existe comme entité nulle part** — son nom vit dans `Signal.champs`, lu
   seulement par le message de premier contact.
+- **✏️ CORRIGÉ le 13 septembre, avant écriture** *(Alexandre)* : **« le donneur d'ouvrage est
+  exploitable maintenant » est FAUX**, et la phrase a été écrite en croyant qu'il existait dans
+  le produit. **Le faire exister est un changement de modèle, pas un réglage.** *Les deux
+  prospects attendent donc chacun quelque chose : le fournisseur attend l'appariement, le
+  donneur attend d'exister.* **C'est la méthode qui a rattrapé ça** — la note n'était pas
+  encore au corpus.
 
 ### N2 — Relevé champ par champ du SEAO, et trois champs qui expliquent l'uniformité
 - **Notée le** : 2026-09-13
@@ -106,6 +112,18 @@ attente**, et c'est le cas normal entre deux tâches.
   systématique »*.
 - **Conséquence directe** : la condition « disproportion par rapport à la bande d'effectifs »
   **n'est pas calculable aujourd'hui**, même pour une entreprise résolue.
+- ⚠️ **ET LE CORPUS L'INVOQUE COMME SI ELLE L'ÉTAIT** *(relevé des objets gradués, « Fiabilité de
+  la taille », spéc. 8.2)* : *« déclarée = bande d'effectifs du registre »*. **La provenance est
+  écrite comme un critère disponible; aucune source ne la fournit, et le miroir ne la stocke
+  pas.**
+- **Le nom de l'écart, à inscrire tel quel : une règle qui nomme une donnée que personne ne
+  possède se lit comme une règle appliquée.** *Rien ne la distingue, à la lecture, d'une règle
+  qui tourne — elle a une valeur, une provenance, une place dans une taxonomie.*
+- **Et le mécanisme qui l'a cachée est l'inverse de l'habituel** : **le code SAVAIT et le corpus
+  non.** `scoring.py::_score_appel_offres` porte l'aveu depuis toujours — *« faute d'estimation
+  fiable… tant qu'aucune source ne donne un effectif de façon systématique »* — mais un aveu dans
+  un commentaire ne voyage pas. **Les cas précédents allaient du corpus vers le code qui
+  dérivait; celui-ci va du code vers le corpus qui ne l'a jamais su.**
 
 ### N6 — Les établissements du REQ n'atteignent pas le dossier
 - **Notée le** : 2026-09-13
@@ -156,3 +174,83 @@ attente**, et c'est le cas normal entre deux tâches.
   n'est ni retenue ni écartée. *Ne pas y toucher avant instruction.*
 - **Régie du bâtiment du Québec** — les catégories de licence disent **ce qu'un entrepreneur
   est autorisé à exécuter**. **Registre foncier.** **Gazette officielle du Québec.**
+
+### N10 — La stratégie du portrait : la direction retenue pour le cerveau
+- **Notée le** : 2026-09-13
+- **Destination, décidée après lecture** *(à confirmer par Alexandre)* : **découpée par nature,
+  comme D35 l'a fait pour les prix — pas un document neuf.**
+  - **Charte, section 9** *(la frontière du non déterministe)* : le principe, les trois couches,
+    la frontière entre lecture et portrait, le découpage déterministe/non déterministe. **Parce
+    que la règle y est DÉJÀ** — la charte porte le test mot pour mot : *« si la sortie ne peut
+    pas être reconstruite à partir de la structure de faits qui l'a produite, elle est fausse »*.
+    *La stratégie ne pose pas un principe neuf : elle donne sa structure à celui-là. L'écrire
+    ailleurs créerait une seconde source de vérité pour la même règle.*
+  - **Spécification 8.x** : la correction de ce que le grade mesure — *la distance entre ce que
+    les faits établissent et ce que CET utilisateur peut servir*, et la règle A / AA / AAA.
+    **Parce que le grade y vit déjà**, et que c'est un état de mécanisme, pas un principe :
+    le chantier 22 le raffinera.
+  - **Registre** : la question ouverte — *une association peut-elle à elle seule faire monter le
+    grade?* **Inclinaison d'Alexandre : non.** *Inscrite comme inclinaison, pas comme décision.*
+  - **Registre, D33** *(le cerveau)* : les trois choses que la stratégie révèle — le jugement est
+    la facette qui travaille le plus et n'a aucun chantier; la mémoire produit le grade *(sans
+    elle le portrait dit qu'il s'est passé quelque chose, avec elle il dit pourquoi c'est
+    maintenant)*; l'association est **le seul endroit où le produit affirme ce que les sources ne
+    disent pas**.
+- **Et le mandat du chantier 22 y RENVOIE plutôt que de la redécrire.**
+
+### N11 — L'appariement n'est plus un chantier parmi d'autres
+- **Notée le** : 2026-09-13
+- **Destination** : registre *(près de D15)* et Partie 0 de l'audit — l'ordre par coût d'attente.
+- **Constat, dicté par Alexandre et appuyé par le relevé** : sans NEQ — **pas de secteur**, donc
+  pas de raison d'être dans le portrait; **pas de dossier stable**, donc pas de mémoire; **pas de
+  croisement**, donc pas d'association. *Les trois facettes du cerveau dépendent d'un même
+  verrou.*
+
+### N12 — Un signal que personne ne produit, et que le NEQ débloquerait
+- **Notée le** : 2026-09-13
+- **Destination** : spéc. section 7 *(types de signaux)* ou mandat du chantier 22.
+- **Constat** : *un entrepreneur en construction qui décroche un contrat de construction fait son
+  métier; le même qui décroche un contrat d'une autre nature élargit son activité.* **Ça demande
+  le secteur du fournisseur ET l'objet du contrat.** *On a les deux dans les données — le secteur
+  par le REQ, l'objet par la classification du SEAO — et ni l'un ni l'autre dans le produit.*
+
+### N13 — La classification du SEAO : ce qu'il faut mesurer avant tout code
+- **Notée le** : 2026-09-13
+- **Destination** : registre *(la correspondance code → sphère est une décision de produit,
+  à prendre avec Alexandre)* et mandat du chantier 22.
+- ⚠️ **La mesure préalable NE PEUT PAS se prendre sur notre base** : le champ n'ayant jamais été
+  lu, il n'est nulle part en base. *Il faut relire un fichier SEAO à la source (CKAN) pour savoir
+  quels codes existent et à quelle fréquence — donc zéro lecture facturée, mais un accès réseau.*
+  **Et le 93 % ne peut pas être confirmé par nos données, seulement par la source.**
+- ⚠️ **Le passé ne l'aura pas** : `champs` est écrit à l'ingestion et la déduplication par
+  `source_ref` fait qu'un avis déjà vu ne repasse pas. **La classification n'existerait que pour
+  les signaux ingérés APRÈS le changement**, sauf migration qui relit les fichiers source et
+  complète par `source_ref`.
+- **Le garde-fou, à reprendre mot pour mot** : un contrat de construction ne doit pas ouvrir d'un
+  coup la construction, l'assurance, le cautionnement, l'équipement et l'entretien. *Un signal qui
+  sert cinq sphères sans discriminer n'en sert aucune.* **La classification DISTINGUE les signaux
+  entre eux; elle ne multiplie pas les correspondances d'un même signal.**
+
+### N14 — Le donneur d'ouvrage comme entité — décision ouverte
+- **Notée le** : 2026-09-13
+- **Destination** : registre, entrée neuve, **rattachée à D27/D28/D29 et à la faille C**.
+- **Ce qu'il faudrait pour la trancher** : un registre officiel des entités publiques *(D27)*, une
+  règle de classement avec réponse par défaut *(D28)*, l'identifiant qui fait foi *(D29)* — et
+  **une identité interne distincte du NEQ**, qui est exactement ce que le chantier 3+4 construit.
+  *C'est le même changement de modèle : le produit n'a qu'une sorte d'entité, pivotée sur le NEQ.*
+
+### N15 — La bande d'effectifs : le blocage est une autorisation
+- **Notée le** : 2026-09-13
+- **Destination** : `falkye-recommandations-sources.md`, et registre *(D5 — autorisation OQLF)*.
+- **Constat** : aucune source active ne fournit d'effectif. **L'OQLF confirmerait un seuil de
+  25+ employés, daté, par un organisme public** — la spéc. 8.2 le classe déjà en taille
+  *mesurée*. **Son blocage n'est ni technique ni budgétaire : c'est une demande d'autorisation au
+  gouvernement du Québec** *(D5)*.
+
+### N16 — La description des besoins du SEAO — à noter, pas à faire
+- **Notée le** : 2026-09-13
+- **Destination** : mandat du chantier 22, en matière disponible.
+- **Constat** : captée, jamais ouverte. **Elle ne se traite pas comme la classification** : texte
+  libre, donc **matière pour le langage et l'association**, pas pour une règle. *Et l'association
+  est le seul endroit où le produit affirme ce que les sources ne disent pas — donc elle attend
+  que le lien champ ↔ sphère soit écrit et vérifiable.*
