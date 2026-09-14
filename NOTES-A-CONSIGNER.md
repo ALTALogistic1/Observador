@@ -35,5 +35,47 @@ attente**, et c'est le cas normal entre deux tâches.
 
 ---
 
+## Tâche en cours — le premier cycle automatique avec livraison
+
+### N1 — La borne de 500 rend le rattrapage du silence IMPOSSIBLE au-delà de 500
+- **Notée le** : 2026-09-14
+- **Destination** : `falkye/sources/fraicheur_datastore.py` *(la réserve, à côté de celle sur `_id`)*,
+  fiches de source, et registre si la borne devient une décision.
+- ✏️ **Ceci CORRIGE un avertissement que j'ai donné à Alexandre le 14 septembre au soir**, et qu'il a
+  dit retenir pour lire le cycle du 15 : *« les deux connecteurs fédéraux vont marcher jusqu'à leur
+  borne, `PAGES_MAX` × `TAILLE_PAGE` = 20 000 ; ni la durée ni le coût ne se comparent au régime ».*
+  **C'est faux.** Les deux connecteurs passent `limite=self.limit`, et `limit` vaut **500** par défaut.
+  *Le parcours `return` dès 500 enregistrements rendus* — **donc une seule page, et un cycle proche du
+  régime.**
+- ⚠️ **Et l'interaction des deux bornes produit un effet que je n'avais pas vu en les posant.**
+  `ARRET_APRES_CONNUS = 200` s'évalue sur des références **consécutives** déjà connues. Donc :
+  *cycle 1* — la base ne connaît presque rien, **500 rendus, arrêt sur la limite**. *Cycle 2* — le
+  parcours repart du plus récent, croise les 500 d'hier, **s'arrête après 200 connues consécutives**,
+  et **n'atteint jamais le 501ᵉ**.
+- **Conséquence, à écrire telle quelle : le connecteur suit correctement ce qui est PUBLIÉ à partir de
+  maintenant, et n'ira jamais chercher l'arriéré au-delà des 500 premiers.** *Le silence des semaines
+  passées n'est pas rattrapé — il est abandonné en silence.*
+- **Ce n'est pas forcément un défaut** — *un contrat de six mois n'est plus un signal de croissance,
+  c'est le même raisonnement que la fenêtre de 30 jours du SEAO.* **Mais ce n'est pas une décision non
+  plus : c'est un effet de bord de deux bornes posées séparément.** *À trancher, pas à corriger d'ici.*
+
+### N2 — `contrats_federaux` n'est restreint au Québec à AUCUN étage
+- **Notée le** : 2026-09-14
+- **Destination** : fiche de source des contrats fédéraux, et registre *(à côté de D41)*.
+- **Vérifié dans le code, trois étages, trois fois rien** : *(a)* le connecteur n'envoie **aucun
+  `filters`** au datastore — il interroge les **1 313 621** contrats de tout le Canada; *(b)* il ne pose
+  **jamais `region`** sur le `RawSignal`, et `appartient(None, …)` **retient** par principe; *(c)* le
+  registre ne déclare **aucun `territoire`** pour cette source.
+- **Comparer avec `subventions_federales`, qui fait l'inverse au même étage** : `province="QC"` par
+  défaut, filtre envoyé à l'API *(`recipient_province`)*, et `region=rec.get("recipient_province")` posé
+  sur le signal. *Deux connecteurs fédéraux écrits pour le même portefeuille, deux comportements
+  territoriaux opposés, et rien ne le dit.*
+- ⚠️ **Conséquence immédiate** : le profil n'ayant aucun territoire déclaré, **rien n'écarte une
+  entreprise hors Québec** sur cette source. *Le produit est déclaré « foyer Québec » en Phase 1.*
+- **Et le champ pour le faire existe et n'est pas capté** : `vendor_postal_code`, relevé par la sonde
+  le 14 septembre. *La troisième colonne l'avait déjà trouvé.*
+
+---
+
 *Vide — les soixante-quatre notes des 13 et 14 septembre 2026 ont été portées au corpus
 le 14 septembre. C'est le cas normal entre deux tâches.*
