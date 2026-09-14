@@ -555,3 +555,140 @@ considérer comme une piste de recherche, pas comme un candidat.
 
 La question de savoir si un signal de croissance annonce vraiment un besoin de service ne se répond pas
 en ajoutant des sources. Elle se répond avec de vrais utilisateurs et le taux de rejet.
+
+---
+
+# Fiches de source — relevés mesurés des 13 et 14 septembre 2026
+
+*Tout ce qui suit est **mesuré sur des fichiers et des API réels**, jamais déduit d'un standard ni recopié
+d'une documentation. Les dates font partie des faits.*
+
+## SEAO — ce que le fichier porte vraiment
+
+**Mesuré le 13 septembre 2026 sur `hebdo_20260831_20260906.json`** *(4 750 releases, 4 127 attributions)* :
+
+```
+items[].classification             93,6 %   schéma UNSPSC, 1 242 codes distincts EN UNE SEMAINE
+items[].additionalClassifications   29,3 %
+items[].description                 93,6 %
+buyer.id                           100,0 %
+tender.description                   0,0 %   ← JAMAIS présent
+fournisseur retrouvé dans parties  100,0 %
+  … avec une adresse                99,9 %
+  … avec une VILLE (locality)       87,7 %
+award.status                       4 125 active, 2 cancelled
+```
+
+**Deux corrections que cette mesure impose.** *(a)* **La classification est portée par l'ITEM, jamais par
+le tender** — `tender.classification` n'existe pas dans le vrai fichier. *(b)* **`tender.description` est
+TOUJOURS vide** : la description des besoins est `items[].description`. *Le champ capté jusque-là sous le
+nom `description_tender` ne contenait donc rien, dans 100 % des cas.*
+
+⚠️ **Et le registre demandait déjà ce qui manquait.** `sources.yaml:seao` déclare
+`adresse_entreprise_adjudicataire` et `secteur_nature_contrat` parmi les champs pertinents; le connecteur
+n'en livrait aucun des deux. **Ce n'était pas une exigence neuve : c'était une exigence non tenue.**
+*Même forme que la bande d'effectifs — le registre savait, le connecteur non.*
+
+### ⚠️ Un fichier « hebdomadaire » du SEAO n'est PAS une semaine de contrats
+
+**Mesuré le 14 septembre 2026 sur 7 fichiers hebdomadaires réels, 24 997 attributions** — âge à la fin de
+la semaine du fichier :
+
+```
+datées de la semaine du fichier     2 355    9,4 %
+≤ 30 jours                          4 859   19,4 %
+31–90 jours                         1 822    7,3 %
+91–365 jours                        5 629   22,5 %
+plus d'un an                       12 687   50,8 %
+```
+
+**Le SEAO republie en continu des attributions anciennes** — la plus vieille remonte à 2015 et au-delà,
+**et l'une est datée de l'an 1**. *(Aberration non traitée : une date d'an 1 est antérieure à `since` et
+se fait écarter par la fenêtre. Elle compterait le jour où la fenêtre s'élargirait.)*
+
+**Le nom d'un fichier décrit sa PUBLICATION, jamais son contenu.** *Un connecteur qui traite un fichier
+hebdomadaire comme une semaine de données se trompe de 90 % sans rien afficher.* **L'axe de fraîcheur du
+SEAO est la date d'ATTRIBUTION, pas la date de fichier** — le contraire de ce qui vaut pour les deux
+sources fédérales.
+
+**Conséquence sur la couverture, mesurée le 14 septembre** : le produit retient **environ 6 %** de ce que
+le SEAO publie sur la période. *Ni le filtre territorial ni les noms vides n'y sont pour quoi que ce soit
+— les deux sont à zéro. C'est la fenêtre de 30 jours, et écarter est majoritairement juste.* **Le seul
+rang discutable est 31–90 jours, environ 260 attributions par semaine** *(journal des cas, n° 40)*.
+
+**Et 2 280 signaux du passé ont été complétés le 14 septembre** *(`outils/reprise_champs_seao.py`, huit
+lots)* : *la déduplication par `source_ref` fait qu'un avis déjà vu ne repasse jamais — sans reprise, les
+signaux antérieurs seraient restés sans classification pour toujours.*
+
+## REQ — ce que l'archive porte et que le connecteur ne lit pas
+
+**Lu le 14 septembre 2026 par plages HTTP sur l'archive réelle, sans la télécharger** — en-têtes des six
+CSV, puis mesure sur les 60 000 premières lignes *(échantillon **NON aléatoire** : le fichier est ordonné
+par NEQ, donc les vieilles entreprises sont sur-représentées)*.
+
+**`Entreprise.csv` porte, tous remplis à 100 % sur l'échantillon :**
+
+- **`COD_INTVAL_EMPLO_QUE`** — *le code d'intervalle d'employés au Québec*, décodé par `DomaineValeur.csv`
+  en **quinze valeurs** *(A = 1 à 5 … L = plus de 5 000, N/P = non déclaré, O = aucun)*. **~47 % portent
+  une bande exploitable.** *(journal des cas, n° 38.)*
+- **`DAT_IMMAT`** — *la date d'immatriculation : « établie depuis 1998 » devient disponible.*
+- **`DAT_CONSTI`.**
+- **`DESC_ACT_ECON_ASSUJ2`** — *un **second** secteur d'activité, présent sur **15,2 %**.*
+- **`IND_FAIL`** *(faillite)* et **`DAT_CESS_PREVU`** *(cessation prévue)*.
+
+**Le connecteur n'en lit AUCUN** : il ne prend que `DAT_MAJ_INDEX_NOM`, le statut, le nom, l'adresse et un
+secteur.
+
+⚠️ **Ce que ça change pour la mémoire, et ce que ça ne change pas** : *oui, l'ancienneté de l'ENTREPRISE
+devient disponible.* **Mais « même adresse depuis 2011 » reste indérivable** — l'état de diff ne connaît
+l'adresse que depuis le premier import. *Au mieux : « inchangée depuis qu'on regarde ».*
+
+⚠️ **Et la région n'arrive JAMAIS par le REQ** : `REQEntry.region` est écrit à `None`, faute de région
+administrative dans le vrai schéma.
+
+## Subventions fédérales et contrats fédéraux — l'axe de fraîcheur
+
+*Bascule du 14 septembre 2026. Détail des trois causes au journal des cas, n° 37.*
+
+**Les deux connecteurs parcourent désormais le datastore par ORDRE DE PUBLICATION** (`_id desc`) et
+s'arrêtent après **200 références consécutives déjà connues**. **`since` ne filtre plus l'ingestion : c'est
+la déduplication qui borne le travail.**
+
+⚠️ **La réserve, et elle est dans le module autant qu'ici.** `_id` est **un artefact du datastore, pas une
+donnée publiée**. *Le tri croissant rend des ententes de 2021, donc la table **paraît** complétée en fin
+plutôt que reconstruite — mais c'est une inférence sur leur processus, pas une garantie.* **Si la ressource
+était rechargée en entier, l'ordre changerait sans prévenir.** *D'où le filet : un parcours qui va au bout
+sans jamais rien reconnaître **se journalise**, parce que c'est le symptôme d'un `_id` qui a cessé de
+suivre la publication — pas d'une source prolifique.*
+
+**Aucun champ ne porte la date de publication.** *`amendment_date` est remplie à **27,8 %** sur les
+enregistrements récemment publiés — mesuré avec tri, après qu'une première mesure sans tri eut rendu 0,2 %.*
+**27,8 % ne fait pas un axe de fraîcheur.**
+
+**Deux dates futures écartées, et la source les réfute elle-même** :
+
+| | `contract_date` | `contract_period_start` | `reporting_period` |
+|---|---|---|---|
+| Real Time Networks | 2026-**12-01** | 2026-**01-12** | 2025-2026-**Q3** |
+| ThinkOn | 2026-09-26 | 2026-02-01 | 2025-2026-**Q4** |
+
+*Le premier a le jour et le mois transposés. Et **un rapport trimestriel ne peut pas décrire un contrat
+attribué après la fin du trimestre**.* **On ne corrige pas la source** : un contrat réellement à venir
+entrera le jour où elle le date correctement.
+
+**Et `economic_object_code` est capté depuis le 14 septembre** — *100 % de remplissage, 47 valeurs
+distinctes : l'équivalent fédéral de l'UNSPSC du SEAO, présent depuis toujours et lu par personne.*
+**Capté, pas interprété** *(registre, D48)*.
+
+## Permis de construction de Laval — ⏸️ en veilleuse, source arrêtée
+
+**`last_modified` du CSV : 2026-03-31**, sur les trois ressources (CSV, JSON, XML). **Près de six mois sans
+publication.** *Le connecteur balayait 172 168 lignes à chaque cycle pour ne rien trouver, et le cycle
+l'inscrivait en succès.*
+
+**Vérifié contre l'hypothèse du déménagement, précédent du Globe and Mail oblige** : **les 130 jeux de la
+Ville de Laval ont été balayés**, aucun jeu de permis successeur, aucune mention de remplacement. *Le
+portail est vivant — un autre jeu a été mis à jour le jour même.* **Ce n'est pas un déménagement : c'est ce
+jeu-là qui a cessé.**
+
+**Le connecteur est juste et reste en place**, code, tests et état accumulé conservés.

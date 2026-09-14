@@ -289,3 +289,82 @@ la référence pour tout libellé futur.
 
 ---
 
+
+---
+
+## Ce que la stratégie du portrait impose au langage — 13 et 14 septembre 2026
+
+*La stratégie elle-même vit à la charte, section 9. Ici : ce qu'elle exige du 21.*
+
+### Deux registres, pas un — et le second est celui qu'on lira en premier
+
+**Le portrait porte deux blocs distincts, et la séparation est VISIBLE pour l'utilisateur.** Le premier
+**énumère la situation sans rien inventer** — nom, raison d'être, **adresse**, faits datés. Le second
+s'ouvre par *« Pour un [profil], cette situation peut représenter… »*.
+
+**Le « peut représenter » est la marque du non déterministe** : le produit n'affirme pas que l'entreprise
+a ce besoin, il dit ce que la situation **peut** signifier. **Chaque élément du second bloc remonte à un
+fait du premier.** *Seul le second change d'un utilisateur à l'autre : un portrait, plusieurs lectures.*
+
+⚠️ **Conséquence directe pour ce chantier : le langage doit produire DEUX registres.** *Et le second est
+la partie que l'utilisateur lira en premier.*
+
+### Les réserves se formulent par l'action qu'elles appellent
+
+**Une réserve échoue à la première question du jugement** *(elle ne porte aucun fait)* **mais réussit à la
+deuxième** — *« rien n'indique si elle est déjà couverte » est très pertinent pour un courtier.* **Donc
+elle n'est pas supprimée, elle est REFORMULÉE EN ACTION.**
+
+Pas *« on ignore si elle est couverte »* — **« à valider avant l'appel »**. *Même information,
+conditionnel préservé, action nommée.* **La charte porte déjà la forme; c'est ici qu'elle se fait.**
+
+### L'adresse est une exigence de SORTIE, pas une option
+
+**Un portrait sans adresse n'est pas actionnable, pour tout type de prospect.**
+
+*D'où elle vient, et ce qui arrive quand elle manque* : le REQ ne la donne **que si l'entreprise est
+résolue**; l'EIMT en capte une et **la jette**; le SEAO en porte une à **99,9 %** qu'il ne captait pas
+jusqu'au 13 septembre. **Même cause que le gain partiel sur l'appariement, même correctif.**
+
+### L'amorce de premier contact — un brouillon, jamais un message prêt
+
+**Décision d'Alexandre, 14 septembre 2026.** Présentée comme **un brouillon à modifier**, jamais comme un
+message prêt à envoyer.
+
+**La raison est du côté du risque** : *un message rédigé par le produit **engage l'utilisateur en son
+nom**, et une amorce maladroite lui coûte le prospect — **sans que le produit le sache jamais**.* **Le
+brouillon déplace la responsabilité là où elle doit être.**
+
+**Ce n'est pas une section du portrait** — *c'est un geste, pas une lecture.* ⚠️ **Et elle est DÉJÀ promise
+au palier Radar** : c'est une contrainte à poser sur quelque chose de vendu, pas sur une idée.
+
+### Le portrait visuel — le premier bloc seulement
+
+**Rendre le PREMIER bloc visuel** : des pictogrammes avec leur chiffre — *effectif, établissements,
+capacité, montant.*
+
+**La règle qui le gouverne est celle du produit : on affirme des faits.** Un visuel **n'affiche qu'un
+champ que le produit POSSÈDE, avec sa source et sa date**.
+
+**Une fourchette est un fait quand elle vient d'une source** — *« 26 à 49 » du REQ, un seuil OQLF, une
+capacité RACJ, un montant.* **Elle n'en est pas un quand le produit la calcule.**
+
+**Quand la donnée manque, l'icône ne s'affiche pas.** *Pas de point d'interrogation, pas de « non
+disponible » — rien.* **Remplir l'espace avec du vide affirme qu'on a cherché.**
+
+⚠️ **Un visuel ne peut pas être au conditionnel** — *c'est ce qui en fait la bonne forme pour le premier
+bloc, et ce qui l'EXCLUT du second.*
+
+✏️ **Et la vérification du 14 septembre change ce paragraphe** : avec la bande d'effectifs du REQ, **le
+visuel ne serait plus pauvre**. *Première fois qu'une vérification AJOUTE au produit au lieu d'en
+retirer.*
+
+### ⚠️ Une source d'enrichissement à la demande ne peut jamais figurer dans le portrait qui la découvre
+
+**Erreur relevée par Alexandre sur sa propre simulation, notée comme telle.** Le RDPRM a servi dans un
+portrait. *Il ne pouvait pas y être — import manuel, payant à l'unité : il n'apparaît que si quelqu'un
+cherche DÉJÀ cette entreprise. Or c'est le portrait qui devait la révéler.*
+
+**Le corpus portait déjà la règle avec son mécanisme 2. Ce qui a manqué n'est pas la règle — c'est sa
+présence là où le geste se fait.** *D'où sa place ici, dans le chantier qui conçoit un portrait, et pas
+seulement là où on décrit une source.*

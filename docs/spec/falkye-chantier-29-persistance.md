@@ -14,10 +14,20 @@ contradiction. Le récit de l'incident fondateur est au journal des cas, n° 14.
 > `falkye-audit-et-mandat.md` : **D1** la résidence des données; **D10** où vivent l'historique et les
 > quarantaines de diff; **D13** le comportement réel de la fenêtre de restauration.
 
-**🟡 En cours. Trois gestes restent, et une question ouverte.** *L'infrastructure est vérifiée avec ses
-preuves; l'activation du minuteur, le test de la fenêtre de restauration et la liste blanche de
-l'hébergeur ne le sont pas — voir « Ce qui reste ». Ne pas résumer ce chantier par « tout est vérifié
-sauf le minuteur » : c'est faux depuis le 8 septembre, et c'est le motif que ce document documente.*
+**✅ TERMINÉ le 14 septembre 2026.** *Dernier geste : l'activation délibérée du minuteur, à 14 h 43 min 56 s,
+horodatage rafraîchi, premier déclenchement automatique annoncé pour le mardi 15 septembre à 8 h 04 min 57 s
+(`RandomizedDelaySec=300` appliqué au créneau de 8 h).*
+
+**Ce que « terminé » veut dire ici, et ce qu'il ne veut pas dire.** Les trois gestes qui restaient sont
+posés : le minuteur est actif, la fenêtre de restauration a été testée, et la condition de coût est
+remplie — **120 311 lectures par cycle contre 411 963 777**, mesurées au compteur de l'hébergeur des deux
+côtés du correctif *(registre D37; journal, cas 33)*. **Mais deux choses restent ouvertes et ne se
+referment pas en fermant le chantier** : le rattrapage de `Persistent=true` n'a jamais été observé
+*(voir ci-dessous — ce qui a été établi n'est pas ce qu'on cherchait à établir)*, et la fenêtre de
+restauration n'a toujours pas de durée mesurée.
+
+*Ne pas résumer ce chantier par « tout est vérifié » : ce serait exactement la phrase que ce document
+existe pour empêcher.*
 
 ### La contrainte qui a décidé de tout
 
@@ -202,7 +212,31 @@ exécution interrompue** — la modifier sans le savoir rendrait la réconciliat
   est retirée le 9 septembre; l'activation redevient un geste, jamais un effet de bord. *La permission
   `sudo` correspondante subsiste sur l'hôte, inutilisée — à retirer au prochain passage en root.*
 
-  ⚠️ **`Persistent=true` est le danger réel, et il n'est PAS testé.** Il rattrape un créneau manqué
+  ✅ **ACTIVÉ le 14 septembre 2026 à 14 h 43 min 56 s**, après lecture du fichier d'horodatage
+  *(`2026-09-08 10:17:57 -0400`, postérieur au créneau du mardi 8 h — donc aucun créneau en retard)*.
+  `systemctl list-timers` annonce le prochain déclenchement le **mardi 15 septembre à 8 h 04 min 57 s**.
+  *La condition de coût était remplie depuis le soir du 11 septembre; c'est la lecture de l'horodatage,
+  pas la condition, qui a décidé du MOMENT.*
+
+  ⚠️ **`Persistent=true` — ce qui a été établi le 14 septembre, et ce qui ne l'a PAS été.** Le rattrapage
+  a été mis à l'essai avec un filet *(ci-dessous)* : sept minutes après le démarrage du minuteur, le
+  journal ne portait que le démarrage lui-même — **aucune tentative sur le service, aucun échec sur le
+  filet.** **Ce qui est établi : avec un horodatage à jour, activer le minuteur ne déclenche rien.**
+  **Ce qui ne l'est PAS : le rattrapage lui-même.** *Il aurait fallu un créneau réellement manqué, et il
+  n'y en avait aucun — l'essai a donc vérifié le cas favorable, pas le mécanisme.* **Qui lira ceci ne
+  doit pas croire la question refermée.** *Le jour où l'on voudra la fermer, il faudra arrêter le
+  minuteur, laisser passer un mardi 8 h, puis le redémarrer avec le filet posé.*
+
+  ✅ **Et le filet existe, alors que ce document le déclarait impossible.** Le paragraphe suivant a été
+  écrit le 9 septembre et disait que vérifier le rattrapage revenait à provoquer l'envoi qu'on cherche à
+  empêcher. **C'est faux : masquer le service ne le permet pas — l'unité est un fichier réel dans
+  `/etc/systemd/system/`, et `mask` refuse d'écraser un fichier — mais une SURCHARGE le permet**, et une
+  surcharge est lue quelle que soit la nature du fichier principal. *Procédure vérifiée et posée à
+  `docs/DEPLOIEMENT.md`, « Éprouver un déclenchement sans livrer ».* **L'intestabilité était une
+  propriété du montage d'essai, pas du mécanisme.**
+
+  ⚠️ **Le texte d'origine, conservé parce qu'il porte le danger** — `Persistent=true` **n'était PAS testé**
+  au moment où il a été écrit. Il rattrape un créneau manqué
   **immédiatement au démarrage du minuteur**. Tant que la ligne existait, un déploiement survenant après
   un mardi 8 h passé sans que le minuteur ait tourné ne réarmait pas seulement : **il déclenchait un
   cycle AVEC LIVRAISON sur-le-champ** — un courriel à un vrai destinataire, déclenché par une fusion,

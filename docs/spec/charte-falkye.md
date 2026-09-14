@@ -124,6 +124,79 @@ Le motif se répète : **une règle écrite pour un palier, puis appliquée méc
   - **Proposer, jamais appliquer.** Un mécanisme peut proposer un seuil ou une pondération; l'activation reste humaine. **Un paramètre qui s'ajuste seul dérive** — un seuil de quarantaine finit par ne plus rien attraper, un score par valider ses propres erreurs.
   - **Le ML classique n'est pas synonyme d'opacité.** Une régression logistique ou un arbre peu profond sont lisibles et restent admissibles pour **proposer** un ajustement une fois assez de rejets accumulés.
 
+### 6bis. La stratégie du portrait — la structure de la frontière ci-dessus
+
+*Écrite le 13 septembre 2026, puis complétée le 14. **Elle est ici et non dans un document neuf**, parce
+que la règle qu'elle structure est celle de la section 6 — le test de reconstitution. L'écrire ailleurs
+créerait une seconde source de vérité pour la même règle. Le mandat du chantier 22 y RENVOIE.*
+
+**Trois couches, et elles disent D'OÙ VIENT ce qui est dit** : le **fait**, la **lecture**, l'**assemblage**.
+*Un fait est affirmé. Une lecture est ce que le produit conclut d'un ou plusieurs faits. Un assemblage est
+le portrait rendu.*
+
+**Dans la couche « lectures », une distinction structurelle — ce qu'une lecture CONSOMME.** *Ce qu'un fait
+dit seul · ce que le dossier dit · ce que le croisement dit.*
+
+⚠️ **Ce qui rend cette distinction structurelle et non cosmétique : une lecture qui consomme
+l'HISTORIQUE est bornée par « depuis quand on regarde ». Une lecture qui consomme un FAIT ne l'est pas.**
+*Les deux ne sont donc pas soumises aux mêmes conditions de véracité — ce n'est pas une question de
+présentation, c'est une question de ce qu'une lecture a le DROIT d'affirmer.*
+
+**Pourquoi la mémoire découpe la deuxième couche plutôt que d'en ajouter une quatrième** : les trois
+couches disent d'où vient ce qui est dit; celle-ci dit ce qu'une lecture consomme. *Y ajouter un étage
+ferait croire que la mémoire vient après l'assemblage, alors qu'elle le précède.*
+
+**La borne, à écrire une fois et à citer partout où l'affirmation apparaît : « inchangée depuis qu'on
+regarde » n'est pas « inchangée depuis 2011 ».** *Elle s'applique à la mémoire et au portrait de tendance
+(registre, D46).*
+
+#### La forme : deux blocs, et la séparation est visible
+
+**Décision d'Alexandre, 13 septembre 2026.** Le premier bloc **énumère la situation sans rien inventer**
+— nom, raison d'être, **adresse**, faits datés. Le second s'ouvre par *« Pour un [profil], cette situation
+peut représenter… »*.
+
+**Le « peut représenter » est la marque du non déterministe.** *Chaque élément du second bloc remonte à un
+fait du premier.* **Seul le second change d'un utilisateur à l'autre : un portrait, plusieurs lectures.**
+
+**Le principe qui gouverne les deux : le produit affirme des faits; pour tout le reste, il parle au
+conditionnel.** *Ce n'est pas une précaution de style — c'est une frontière VISIBLE dans le portrait.*
+**C'est ce qui rend la forme à deux blocs meilleure qu'un texte unique nuancé.**
+
+#### Le jugement pose TROIS questions, et il y a trois natures de refus
+
+*C'est la facette qui travaille le plus, et elle n'a aucun chantier (registre, D33).*
+
+1. **Est-ce que je peux soutenir ça?** — une lecture porte les faits qu'elle consomme; **une absence ne
+   porte rien.**
+2. **Est-ce que ça enrichit le portrait pour CET utilisateur?** — filtre ce qui est soutenu mais hors sujet.
+3. **Est-ce que ce qui reste suffit à déranger quelqu'un?** — le seuil de publication, **déjà en 8.5**.
+
+**Trois natures de refus** : *ce que je ne peux pas dire · ce qui ne sert pas · ce qui ne vaut pas un
+dérangement.*
+
+⚠️ **Une conséquence contre-intuitive, sur les réserves.** Une réserve **échoue à la première question**
+*(elle ne porte aucun fait)* **mais réussit à la deuxième** — *« rien n'indique si elle est déjà couverte »
+est très pertinent pour un courtier.* **Donc elle n'est pas supprimée : elle est REFORMULÉE EN ACTION.**
+Pas *« on ignore si elle est couverte »* — **« à valider avant l'appel »**. *Même information, conditionnel
+préservé, action nommée. C'est du langage, donc le chantier 21.*
+
+#### ⚠️ Une source d'enrichissement à la demande ne peut jamais figurer dans le portrait qui la découvre
+
+*Le RDPRM est un import manuel payant à l'unité : il n'apparaît que si quelqu'un cherche **déjà** cette
+entreprise. Or c'est le portrait qui devait la révéler.* **La règle existait avec son mécanisme 2; ce qui
+manquait, c'est sa présence là où le geste se fait.**
+
+#### Ce que la stratégie révèle sur les trois facettes du cerveau *(D33)*
+
+- **Le jugement est la facette qui travaille le plus, et elle n'a aucun chantier.**
+- **La mémoire produit le grade** — *sans elle, le portrait dit qu'il s'est passé quelque chose; avec elle,
+  il dit pourquoi c'est maintenant.*
+- **L'association est le seul endroit où le produit affirme ce que les sources ne disent pas.**
+
+**Et une question ouverte, inscrite comme inclinaison et non comme décision** *(registre)* : *une
+association peut-elle à elle seule faire monter le grade?* **Inclinaison d'Alexandre : non.**
+
 ## 7. Grille de décision pour une nouvelle fonctionnalité
 
 1. **Est-ce que ça découle du croisement de signaux**, ou est-ce un ajout générique qu'on trouverait identique ailleurs?

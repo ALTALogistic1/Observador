@@ -132,3 +132,85 @@ pour un autre.
 3. La durée de pertinence **s'applique identiquement dans les trois paliers**.
 4. Une source dont la règle déclarée ne discrimine pas — même sphère pour tous ses signaux — **est
    signalée comme telle au rapport de migration**, plutôt que d'être acceptée en silence.
+
+---
+
+## Ce que le relevé et neuf simulations ajoutent au 22 — 13 et 14 septembre 2026
+
+*La stratégie du portrait vit à la charte, section 9; ce document y RENVOIE plutôt que de la redécrire.*
+
+### 22.1 — Deux motifs de plus, et l'un des deux se fait
+
+**Le sixième motif : la concentration de sources DIFFÉRENTES.** *Le 22.1 porte « répétition sur fenêtre »,
+mais pour un MÊME type de signal.* Les simulations ont produit **six faits de cinq sources en
+quatre-vingts jours**, et **deux recours à l'EIMT en onze semaines**. **La concentration est le fait, pas
+chaque élément.**
+
+- **Condition** : *N signaux d'au moins M sources distinctes dans une fenêtre de P jours.* **Les trois
+  valeurs reviennent à Alexandre.**
+- ⚠️ **La condition doit exiger que les signaux CONVERGENT vers une même sphère** — *sinon on signale
+  l'agitation, pas le besoin.* **Et la garde a SERVI** : dans la neuvième simulation — *quatre signaux,
+  trois sources distinctes, quarante-cinq jours, convergents vers la capacité opérationnelle* — **sans
+  elle, c'était de l'agitation.** *La garde posée avec le motif n'était donc pas une précaution
+  théorique.*
+- ⚠️ **Le revers, pris en connaissance de cause et à écrire AVEC le motif** : *une entreprise bien couverte
+  paraîtra plus active qu'une entreprise mal couverte.* **Exiger des sources DISTINCTES neutralise en
+  partie le biais — en partie seulement.**
+
+**Le silence après un pic : on n'y touche pas, et le motif de l'abstention s'écrit avec.** *Le calibrer
+maintenant confondrait une entreprise qui se tait et une source qui a cessé de livrer.* **C'est le motif
+le plus dangereux du catalogue : il affirme quelque chose de faux SANS JAMAIS SE CONTREDIRE.** *Une
+lecture qui ne peut pas être démentie par les faits n'a pas de garde-fou.* **Sa condition de levée : que
+la santé de source soit branchée sur les lectures** *(chantier 2)*.
+
+### « Absence attendue » — une lecture disponible et inutilisable
+
+**Le motif existe au 22.1; sa calibration appartient au 17; et le 17 est parmi les derniers du plan.**
+
+**Il a servi dans quatre simulations sur neuf, et le jugement l'a écarté chaque fois qu'il a été
+honnête** — *aucun signal de recrutement depuis cinquante-cinq jours ne dit rien de fiable sans seuil;
+aucun nouveau contrat depuis septembre peut être un ralentissement ou rien.*
+
+⚠️ **Une lecture disponible et inutilisable est pire qu'une lecture absente : elle a l'air d'un outil.**
+*À lire ici, à l'endroit où le 22 rencontre le motif — pas dans une note de dépendance en fin de
+document.*
+
+### La matière disponible et jamais lue
+
+**La classification normalisée du SEAO — c'est l'antidote à l'uniformité des sphères, et elle était
+là.** *Mesuré le 13 septembre sur `hebdo_20260831_20260906.json` : **93,6 %** des avis, schéma **UNSPSC**,
+**1 242 codes distincts en une semaine**.* **Captée depuis le 14 septembre, interprétée par personne** —
+la correspondance code → sphère est une décision de produit *(registre, D48)*.
+
+**La description des besoins — à noter, pas à faire.** *Captée, jamais ouverte.* **Elle ne se traite pas
+comme la classification** : texte libre, donc **matière pour le langage et l'association**, pas pour une
+règle. *Et l'association est le seul endroit où le produit affirme ce que les sources ne disent pas —
+elle attend que le lien champ ↔ sphère soit écrit et vérifiable.*
+
+**Un signal que personne ne produit, et que le NEQ débloquerait.** *Un entrepreneur en construction qui
+décroche un contrat de construction fait son métier; le même qui décroche un contrat d'une autre nature
+**élargit son activité**.* **Ça demande le secteur du fournisseur ET l'objet du contrat.** *On a les deux
+dans les données — le secteur par le REQ, l'objet par la classification du SEAO — et ni l'un ni l'autre
+dans le produit.*
+
+**Deux comparaisons que le produit capte et ne fait jamais.** *(a)* **La ville du signal contre l'adresse
+de l'entreprise** — *dans la simulation de la MRC, toute la lecture repose là-dessus; les deux valeurs
+existent, aucune règle ne les compare.* *(b)* **L'ancienneté d'une adresse** — *« même adresse depuis
+2011, établie depuis 1998 »*. ⚠️ **Vérifié dans le code le 13 septembre : le produit ne porte NI l'une NI
+l'autre.** Le connecteur REQ ne lit que `DAT_MAJ_INDEX_NOM` et `DAT_INIT_NOM_ASSUJ`. ✏️ **Corrigé pour
+moitié le 14 septembre** : l'archive REQ porte **`DAT_IMMAT`** et **`DAT_CONSTI`**, remplies à 100 % sur
+l'échantillon — *« établie depuis 1998 » devient disponible.* **Mais « même adresse depuis 2011 » reste
+indérivable** : l'état de diff ne connaît l'adresse que depuis le premier import — au mieux *« inchangée
+depuis qu'on regarde »*.
+
+### La disproportion devient calculable — et c'est neuf
+
+**La bande d'effectifs du REQ ouvre une lecture qui n'existait dans aucune simulation antérieure** : *un
+contrat de 1,8 M$ pour une entreprise déclarée à **26-49 employés**.* *(journal, cas 38.)*
+
+**Et un franchissement de bande est un FAIT, pas une interprétation** — *D → E affiché avec ses deux
+valeurs, parce que les deux bornes viennent de la source.*
+
+⚠️ **C'est la moitié « fournisseur » de D43 qui se débloque** : *le fournisseur retenu est un prospect
+conditionnel — un contrat crée des besoins **seulement quand il sort de l'ordinaire pour lui**. La
+condition exigeait la bande d'effectifs; elle existe.* **Il lui manque encore l'appariement.**
