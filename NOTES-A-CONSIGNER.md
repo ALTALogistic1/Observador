@@ -141,6 +141,23 @@ attente**, et c'est le cas normal entre deux tâches.
 - **Ce que les noms montrent à la lecture** : `AER RIANTA INTL.` *(abréviation)*, `agileDSS`
   *(concaténation)*, `ALTEN Canada Inc.` *(filiale d'un groupe étranger)*. **Des écarts de forme qui
   placent le score flou dans les années 80 — sous le seuil de 92.**
+- ✏️ **Mesuré à l'échelle le 14 septembre, sur `2026Q1` entier — 2 707 employeurs québécois
+  DISTINCTS**, et l'hypothèse de l'enseigne tombe définitivement :
+
+      forme juridique en fin (inc., ltée…)   74,9 %
+      abréviation pointée dans le nom        45,4 %
+      accents                                26,2 %
+      tout en MAJUSCULES                     12,0 %
+      dénomination numérique (9xxx-xxxx)     10,4 %
+      « o/a » ou « / »                        0,3 %
+
+  *Fermes, PME, CIUSSS, filiales de groupes étrangers — des **raisons sociales**.* **0,3 % portent la
+  marque d'un nom d'usage.**
+- ✅ **Et le filtre territorial de l'EIMT FONCTIONNE — vérifié, contrairement aux contrats fédéraux.**
+  *Le fichier est fédéral et **65,3 % de ses lignes sont hors Québec** (Ontario 30,0 %,
+  Colombie-Britannique 16,8 %, Alberta 10,3 %…). Mais le connecteur promeut `region=province`, le
+  registre déclare `territoire: ['Québec']`, et `appartient` reconnaît « Quebec ».* **Les 65,3 %
+  n'entrent jamais.** *Le module `territoire.py` a été écrit pour ce fichier précis — il tient.*
 - ⚠️ **Le mur change donc de nature : ce n'est pas un problème de PONT, c'est un problème de SEUIL.**
   *58 % des échecs ont des candidats récupérés qui n'atteignent pas 92.* **La mesure qui manque est la
   distribution des meilleurs scores entre 80 et 92** — elle dirait ce qu'un second critère récupérerait.
@@ -180,6 +197,30 @@ attente**, et c'est le cas normal entre deux tâches.
   mise en marché — souvent parce qu'elle est seule à pouvoir le faire.* **Le second est un signal de
   position, le premier un signal de conquête.**
 - **Le corpus n'en parle nulle part.** *Non construit, non tranché.*
+
+### N9 — Le connecteur EIMT lit les quatre derniers trimestres, sur un ordre que personne ne garantit
+- **Notée le** : 2026-09-14
+- **Destination** : fiche de source de l'EIMT. *Constat, pas défaut — mais la réserve est la même que
+  celle de `fraicheur_datastore`.*
+- **Vérifié** : `cibles = resources[:1] if since is None else resources[:4]`. **Et le portail rend bien
+  les ressources du plus récent au plus ancien** — `2026Q1`, `2025Q4`, `2025Q3`, `2025Q2`. *Le
+  connecteur lit donc un an de trimestres, ce qu'il annonce.*
+- ⚠️ **Mais cet ordre est une propriété de la RÉPONSE du portail, pas une garantie que le connecteur
+  demande.** *Il ne trie pas. Le jour où le catalogue rend ses ressources dans un autre ordre, le
+  connecteur lirait des trimestres de 2015 **sans jamais échouer** — même forme que la réserve sur
+  `_id desc`, et même forme que Laval.*
+- *Un tri explicite par trimestre coûterait trois lignes. Non corrigé.*
+
+### N10 — L'adresse du REQ inscrite au registre est morte, et la vraie est derrière Cloudflare
+- **Notée le** : 2026-09-14
+- **Destination** : `docs/STATUT_RESEAU.md`, à côté de l'analyse du 31 août.
+- **L'adresse `donneesquebec.ca/.../download/jeudonneesouvertes.zip` rend 404.** *Elle est périmée.*
+- **La vraie, lue sur la fiche du jeu par l'API CKAN, est
+  `registreentreprises.gouv.qc.ca/.../FichierDonneesOuvertes.aspx`** — et elle rend **403** depuis
+  l'environnement de développement. *Exactement ce que le corpus documente depuis le 31 août : une règle
+  Cloudflare visant les plages infonuagiques partagées.*
+- **Conséquence pratique : l'archive du REQ ne peut être obtenue que depuis un navigateur.** *C'est ce
+  qui fait de `req` une source `import_manuel`, et ça ne change pas.*
 
 ---
 
