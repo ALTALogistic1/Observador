@@ -6,13 +6,33 @@ Données ouvertes CKAN (donneesquebec.ca), fichiers JSON hebdomadaires/mensuels
 l'Open Contracting Data Standard (OCDS) depuis mars 2021 — releases contenant des
 "awards" (contrats attribués), chacun avec un ou plusieurs fournisseurs (adjudicataires).
 
-IMPORTANT — schéma JSON non encore confirmé en pratique (accès réseau bloqué au
-moment de l'écriture, voir docs/STATUT_RESEAU.md) : le parsing ci-dessous suit la
-structure OCDS standard documentée publiquement (release.awards[].suppliers,
-release.awards[].value, release.buyer / release.parties[role=buyer]). Si le fichier
-réel diverge, `_extraire_awards` lève une erreur explicite plutôt que de produire des
-signaux silencieusement incorrects — premier réflexe après déblocage réseau : lancer
-sur un seul fichier récent et ajuster ici si besoin.
+**STRUCTURE RÉELLE CONFIRMÉE le 2026-09-13**, sur `hebdo_20260831_20260906.json`
+(4 750 releases, 4 127 attributions) téléchargé depuis Données Québec. Ce qui suit
+est mesuré sur ce fichier, pas déduit du standard :
+
+    items[].classification            93,6 %   schéma UNSPSC, 1 242 codes distincts
+    items[].additionalClassifications 29,3 %
+    items[].description               93,6 %
+    buyer.id                         100,0 %
+    tender.description                 0,0 %   <-- jamais présent
+    fournisseur retrouvé dans parties  100,0 % (4 127/4 127)
+      … avec une adresse                99,9 %
+      … avec une VILLE (locality)       87,7 %
+    award.status                      4 125 `active`, 2 `cancelled`
+
+**Deux corrections que cette mesure impose.** *(a)* La classification est portée par
+**l'ITEM**, jamais par le tender — `tender.classification` n'existe pas dans le vrai
+fichier. *(b)* `tender.description` est TOUJOURS vide : la description sommaire des
+besoins est `items[].description`. Le champ capté jusqu'ici sous le nom
+`description_tender` ne contenait donc rien, dans 100 % des cas.
+
+**Et le registre demandait déjà ce qui manquait.** `registry/sources.yaml:seao`
+déclare `adresse_entreprise_adjudicataire` et `secteur_nature_contrat` parmi les
+champs pertinents — le connecteur n'en livrait aucun des deux. *Ce n'est pas une
+exigence neuve : c'est une exigence non tenue.*
+
+Si un fichier futur diverge, `_extraire_awards` lève une erreur explicite plutôt que
+de produire des signaux silencieusement incorrects.
 """
 from __future__ import annotations
 
@@ -65,6 +85,67 @@ def _buyer_name(release: dict) -> str | None:
     return None
 
 
+def _classifications(release: dict) -> list[dict]:
+    """Les classifications normalisées de l'avis — TOUTES, sans en élire une.
+
+    **Portées par `items[].classification`, jamais par le tender** *(mesuré le
+    2026-09-13 : `tender.classification` n'existe pas dans le vrai fichier)*. Une
+    release peut porter plusieurs items, donc plusieurs codes.
+
+    **Aucun « code principal » n'est désigné ici, et c'est délibéré.** Élire un code
+    parmi plusieurs serait déjà une interprétation, et la correspondance
+    code → sphère est une décision de produit qui n'est pas prise *(charte, règle 5)*.
+    Le connecteur livre ce que la source dit; la règle viendra au chantier 22.
+    """
+    vues: list[dict] = []
+    for item in (release.get("tender") or {}).get("items") or []:
+        for classification in [item.get("classification")] + list(
+            item.get("additionalClassifications") or []
+        ):
+            if not classification or not classification.get("id"):
+                continue
+            entree = {
+                "scheme": classification.get("scheme"),
+                "code": classification.get("id"),
+                "libelle": classification.get("description"),
+            }
+            if entree not in vues:
+                vues.append(entree)
+    return vues
+
+
+def _descriptions_besoins(release: dict) -> list[str]:
+    """La description sommaire des besoins — `items[].description`.
+
+    *Le champ `tender.description` capté jusqu'au 2026-09-13 était vide dans 100 %
+    des releases mesurées : ce n'est pas là qu'elle vit.*
+    """
+    return [
+        item["description"]
+        for item in ((release.get("tender") or {}).get("items") or [])
+        if item.get("description")
+    ]
+
+
+def _partie_du_fournisseur(release: dict, supplier: dict) -> dict:
+    """La fiche `parties` du fournisseur, retrouvée par son `id`.
+
+    **C'est là que vit son adresse** — le bloc `suppliers[]` ne porte qu'un nom et un
+    identifiant. Mesuré le 2026-09-13 : les 4 127 fournisseurs de la semaine sont tous
+    retrouvés, 99,9 % portent une adresse et **87,7 % une ville**.
+
+    *Le registre déclare `adresse_entreprise_adjudicataire` depuis toujours; le
+    connecteur ne la livrait pas.*
+    """
+    identifiant = supplier.get("id")
+    if not identifiant:
+        return {}
+    for partie in release.get("parties") or []:
+        if partie.get("id") == identifiant:
+            return partie
+    return {}
+
+
 def _extraire_awards(data) -> Iterator[tuple[dict, dict]]:
     """Retourne des paires (release, award) pour chaque contrat attribué trouvé."""
     if isinstance(data, dict) and "releases" in data:
@@ -114,6 +195,9 @@ class SEAOConnector(SourceConnector):
 
                     value = award.get("value") or {}
                     montant = value.get("amount")
+                    adresse_fournisseur = (
+                        _partie_du_fournisseur(release, supplier).get("address") or {}
+                    )
 
                     yield RawSignal(
                         signal_type_id="appel_offres",
@@ -122,13 +206,42 @@ class SEAOConnector(SourceConnector):
                         source_ref=f"seao:{release.get('ocid', release.get('id', ''))}:{award.get('id', '')}",
                         valeur_associee=float(montant) if montant is not None else None,
                         titre_ou_description=(release.get("tender") or {}).get("title"),
+                        # ⚠️ `ville`/`adresse` NE SONT PAS encore promues au RawSignal,
+                        # et c'est une décision d'ordre, pas un oubli : promouvoir la
+                        # ville change le chemin de RÉSOLUTION (+5 au score, départage
+                        # entre deux entrées du REQ), et cette bascule attend la mesure
+                        # de `outils/apport_ville.py` — décision d'Alexandre du
+                        # 2026-09-13, « lance-le avant de toucher à quoi que ce soit ».
+                        # Le champ est capté ici pour que la mesure porte sur du réel;
+                        # la promotion tient en deux lignes le jour où elle est décidée.
                         champs={
                             "donneur_ordre": _buyer_name(release),
+                            # 100 % des releases mesurées en portent un. Le donneur
+                            # d'ouvrage n'est pas une entité du produit (registre) —
+                            # son identifiant est capté pour le jour où il le sera.
+                            "donneur_ordre_id": (release.get("buyer") or {}).get("id"),
                             "valeur_contrat": montant,
                             "devise": value.get("currency"),
                             "date_attribution": award.get("date"),
                             "statut_attribution": award.get("status"),
-                            "description_tender": (release.get("tender") or {}).get("description"),
+                            # `secteur_nature_contrat` et `adresse_entreprise_
+                            # adjudicataire` sont les noms DÉCLARÉS au registre
+                            # (sources.yaml:seao.champs_pertinents) — repris tels
+                            # quels plutôt que renommés ici, pour qu'un champ déclaré
+                            # et un champ livré portent le même nom.
+                            "secteur_nature_contrat": _classifications(release),
+                            "adresse_entreprise_adjudicataire": {
+                                "adresse": adresse_fournisseur.get("streetAddress"),
+                                "ville": adresse_fournisseur.get("locality"),
+                                "region": adresse_fournisseur.get("region"),
+                                "code_postal": adresse_fournisseur.get("postalCode"),
+                            }
+                            if adresse_fournisseur
+                            else None,
+                            # Remplace `description_tender`, vide dans 100 % des
+                            # releases mesurées : la description des besoins est
+                            # portée par les items.
+                            "description_besoins": _descriptions_besoins(release),
                         },
                     )
 

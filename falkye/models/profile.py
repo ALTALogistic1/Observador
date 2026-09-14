@@ -158,6 +158,26 @@ class Profile(Base):
         implémentée par le moteur en Phase 1)."""
         return [b for b in self.besoins if b.type_besoin == "offre"]
 
+    def raison_incomplet(self) -> str | None:
+        """Ce qui manque à ce profil pour être servable — None s'il est complet.
+
+        **La règle vit ICI et nulle part ailleurs**, parce qu'elle est lue à trois
+        endroits qui ne doivent pas en avoir chacun leur version : à la création
+        *(le geste humain, qui doit le dire)*, à l'inventaire *(`profile list`)*,
+        et au cycle *(le mécanisme automatique, qui ne doit pas s'interrompre mais
+        doit laisser une trace)*.
+
+        *Décision d'Alexandre, 2026-09-14 : « un profil incomplet ne doit pas
+        exister ». Le défaut n'était pas que le moteur l'ignore — c'est qu'on
+        l'ait laissé entrer, puis qu'on n'en dise rien.*
+        """
+        if not self.besoins_fournisseur():
+            return (
+                "aucun besoin de type « offre » déclaré — le cycle ne peut rien "
+                "produire pour ce profil (falkye profile add-need)"
+            )
+        return None
+
 
 class ProfileNeed(Base):
     """Une paire sphère de besoin + usage précis (section 4 : "plusieurs paires

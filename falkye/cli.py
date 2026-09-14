@@ -537,6 +537,15 @@ def profile_create(
         session.add(p)
         session.commit()
         click.echo(f"Profil créé : id={p.id}")
+        raison = p.raison_incomplet()
+        if raison:
+            # **Bruyant, et sur la sortie d'erreur.** Un profil créé sans besoin
+            # ne produira rien, et rien ne le dirait ensuite : c'est le geste
+            # humain mal formé que la charte veut voir échouer, pas un mécanisme
+            # automatique qu'il faudrait laisser passer. *Le profil EXISTE quand
+            # même — l'ajout d'un besoin est une seconde commande — mais il
+            # existe en étant SIGNALÉ, jamais en silence.*
+            click.echo(f"  ⚠ INCOMPLET — {raison}", err=True)
     finally:
         session.close()
 
@@ -633,6 +642,11 @@ def profile_list():
                     else ""
                 )
             )
+            # L'inventaire dit ce qui manque : un profil incomplet ne doit pas
+            # pouvoir se lire comme un profil ordinaire (règle au modèle).
+            raison = p.raison_incomplet()
+            if raison:
+                click.echo(f"    ⚠ INCOMPLET — {raison}")
             for n in p.besoins:
                 spheres_txt = ", ".join(
                     f"{l.sphere_id}({l.poids:.0f})" for l in sorted(n.spheres_liees, key=lambda l: -l.poids)

@@ -27,6 +27,8 @@ from falkye.enrichment import enrichir_entreprise
 from falkye.matching import MatchResult, match_profile, spheres_probables
 from falkye.motif import motif_avec_mots_cles
 from falkye.models.base import en_utc
+from falkye.exploitation import journaliser
+from falkye.models.journal_exploitation import EvenementExploitation
 from falkye.models.company import Company, StatutVerification
 from falkye.models.notification import (
     ModeUsage,
@@ -771,8 +773,19 @@ def generer_notifications(
     registry = registry or get_registry()
     notifications = []
     for profile in profiles:
-        if not profile.besoins_fournisseur():
-            continue  # mécanique fournisseur uniquement en Phase 1 (spec section 4/9)
+        raison = profile.raison_incomplet()
+        if raison:
+            # **Le `continue` NU d'avant était le défaut**, pas le saut lui-même :
+            # un mécanisme automatique ne doit pas interrompre le travail des
+            # autres profils, mais il ne doit pas non plus se taire. Un abonné
+            # pouvait ne jamais rien recevoir sans que rien ne l'explique.
+            # *(charte §17; décision du 2026-09-14.)*
+            journaliser(
+                EvenementExploitation.PROFIL_INCOMPLET,
+                f"profil #{profile.id} ignoré — {raison}",
+                db_session=db_session,
+            )
+            continue
         companies = db_session.execute(select(Company)).scalars().all()
         for company in companies:
             notif = _traiter_entreprise_pour_profil(db_session, company, profile, mode, registry)
