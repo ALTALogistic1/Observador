@@ -533,8 +533,66 @@ attente**, et c'est le cas normal entre deux tâches.
   déclaré **se signale** — bruyamment à la création et à l'inventaire *(le geste humain)*, et **par
   une ligne d'exploitation `PROFIL_INCOMPLET` au cycle** *(le mécanisme automatique, qui saute sans
   s'arrêter mais ne se tait plus)*. **La règle vit au modèle, lue par les trois appelants.**
+- ✏️ **Précision d'Alexandre le 14 septembre — le correctif couvre le chemin ADMINISTRATIF, et
+  ce n'était pas de lui qu'il parlait.** *`profile create` puis `add-need` : là, le profil vide est
+  nécessaire, le correctif tient, et le silence devait y être nommé de toute façon.* **Mais le jour
+  où un utilisateur s'inscrit LUI-MÊME, il remplit un formulaire, pas deux commandes** — et là, les
+  **champs obligatoires empêchent l'enregistrement** : *pas de sauvegarde sans au moins un besoin
+  déclaré.* **Le profil incomplet n'existe jamais.**
+- ⚠️ **Destination de cette moitié-là : le chantier 25, le premier jour d'un abonné.** *C'est là que
+  le formulaire se conçoit, et **la contrainte doit être écrite avant que quelqu'un construise
+  l'interface** — après, elle coûterait une migration de profils déjà entrés.*
 - **Ce qui reste ouvert, et c'est la vraie question** : **ce qu'un profil peut DÉCLARER.**
   `TypeProfil` ne connaît que `fournisseur`, `client`, `les_deux` — *et « client » reste
   commercial.* **Une MRC, une chambre de commerce, un chercheur d'emploi n'y entrent pas.**
   *`ProfileNeed.type_besoin` admet déjà autre chose qu'« offre » : l'axe existe, le moteur ne
   l'implémente pas.*
+
+### N38 — Une suite doit être consultable avec ce qu'elle prolonge
+- **Notée le** : 2026-09-14
+- **Destination** : **mandat du chantier 23**, là où la livraison se conçoit — pas au 21.
+- **Constat de simulation** : *le portrait de suite est **plus court** que le premier, et c'est
+  normal — il ne redit pas ce qui est connu.* **Mais ça veut dire qu'il n'est lisible qu'AVEC le
+  premier.**
+- **Un utilisateur qui aurait supprimé la notification de septembre recevrait un texte incomplet.**
+  *Ce n'est pas un défaut du portrait : c'est une exigence sur la LIVRAISON.*
+- **Et elle rejoint l'exigence déjà notée en N34** : une seconde notification doit dire qu'elle est
+  la suite — **et maintenant, la rendre atteignable.**
+
+### N39 — La mémoire est une section à part, et elle porte une contrainte que les autres n'ont pas
+- **Notée le** : 2026-09-14
+- **Destination** : **charte section 9, DANS la stratégie du portrait** — *jugement rendu le
+  14 septembre : ça mérite d'être écrit, et à l'intérieur de la couche « lectures », pas à côté.*
+- **La structure qui est apparue en simulation** : *ce qu'un fait dit seul · ce que le dossier dit ·
+  ce que le croisement dit.*
+- **La distinction est réelle, pas cosmétique, et voici ce qui la rend structurelle : une lecture
+  qui consomme l'HISTORIQUE est bornée par « depuis quand on regarde ». Une lecture qui consomme un
+  FAIT ne l'est pas.** *Donc les deux ne sont pas soumises aux mêmes conditions de véracité — ce
+  n'est pas une question de présentation, c'est une question de ce qu'une lecture a le droit
+  d'affirmer.*
+- **Pourquoi dans la couche « lectures » et non comme une quatrième couche** : les trois couches
+  disent *d'où vient* ce qui est dit — fait, lecture, assemblage. Celle-ci dit **ce qu'une lecture
+  consomme**, donc elle découpe la deuxième couche plutôt que de s'ajouter aux trois. *Y ajouter un
+  étage ferait croire que la mémoire vient après l'assemblage, alors qu'elle le précède.*
+- **Elle porte la même borne que le portrait de tendance** *(N28)* : **« inchangée depuis qu'on
+  regarde » n'est pas « inchangée depuis 2011 ».** *Une seule contrainte, deux endroits où elle
+  s'applique — à écrire une fois, citée deux fois.*
+
+### N40 — Ce que les huitième et neuvième simulations confirment
+- **Notée le** : 2026-09-14
+- **Destination** : registre *(la bande d'effectifs, N5)* et mandat du chantier 22 *(les motifs)*.
+- **La DISPROPORTION est calculable pour la première fois** — *un contrat de 1,8 M$ pour une
+  entreprise déclarée à 26-49 employés.* **Cette lecture n'existait dans aucune simulation
+  antérieure : c'est la bande du REQ qui l'ouvre.** *Confirmation par l'usage de ce que la
+  vérification du 14 septembre a trouvé.*
+- **Le motif de concentration porte une lecture que rien d'autre ne porte** — *quatre signaux,
+  trois sources distinctes, quarante-cinq jours, convergents vers la capacité opérationnelle.*
+  ⚠️ **Et la condition de convergence A SERVI : sans elle, c'était de l'agitation.** *La garde
+  posée avec le motif n'était donc pas une précaution théorique.*
+- **Le retour du dossier fonctionne, et sa forme tient** : *suite du 4 septembre, puis ce qui a
+  changé depuis.* **Le franchissement de bande D → E affiché avec ses deux valeurs** — *un
+  franchissement est un fait, pas une interprétation, parce que les deux bornes viennent de la
+  source.*
+- **Et le motif d'absence a été écarté par le jugement, comme décidé** — *aucun nouveau contrat
+  depuis septembre peut être un ralentissement ou rien.* **La première question du jugement a fait
+  son travail sur un cas réel.**
