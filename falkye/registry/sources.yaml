@@ -645,7 +645,7 @@ sources:
   - id: permis_construction_laval
     nom: "Permis de construction — Ville de Laval"
     signal_associe: [registre_corporatif]
-    statut: actif
+    statut: en_pause  # MISE EN VEILLEUSE — voir note datée ci-dessous
     blocage_type: null
     methode_acces: donnees_ouvertes
     champs_pertinents: [nom_demandeur, adresse_travaux, nature_travaux, valeur_permis, date_emission]
@@ -685,6 +685,29 @@ sources:
       confirmée le 2026-03-31, pas en continu) — un scan à fenêtre courte
       (30-60 jours) peut légitimement retourner 0 nouveau signal entre deux
       republications, même catégorie de constat que subventions_federales.
+
+      MISE EN VEILLEUSE le 2026-09-14 (décision d'Alexandre) : **la source a cessé de
+      publier, et ce n'est pas un déménagement — vérifié.** Le jeu
+      `permis-de-construction` de Données Québec est figé au **2026-03-31** sur ses
+      trois ressources (CSV, JSON, XML). Les **130 jeux de la Ville de Laval** ont été
+      balayés le même jour : aucun jeu de permis successeur, aucune mention de
+      remplacement. Et le portail est vivant — `offres-d-emploi` mis à jour le
+      2026-09-14, `chantiers-routiers` le 2026-09-10. **C'est ce jeu-là qui a cessé,
+      pas le publicateur.**
+
+      ⚠️ POURQUOI LA VÉRIFICATION A ÉTÉ FAITE AVANT DE CONCLURE. Un portail refondu
+      publie un nouveau jeu sous un nouvel identifiant et laisse l'ancien figé — le
+      connecteur lirait alors indéfiniment un fichier mort, sans erreur. **Le corpus
+      porte le précédent : le Globe and Mail avait été déclaré abandonné, puis retrouvé
+      à une autre adresse.** Ici la vérification a CONFIRMÉ la mort plutôt que de
+      l'infirmer — *et une vérification qui confirme n'est pas une vérification
+      inutile : sans elle, on écartait une source peut-être seulement déplacée.*
+
+      Le connecteur est JUSTE et reste en place : ses dix-neuf colonnes ont été
+      inspectées le 2026-09-01, il lit les bons champs. Code, tests et état accumulé
+      conservés — reprise sans run de référence le jour où la Ville republie.
+      **Ce qu'elle coûtait en attendant : un balayage de 172 168 lignes à chaque
+      cycle, 2,9 s, pour zéro signal — inscrit en succès.**
 
   - id: quebec_emploi
     nom: "Québec emploi (anciennement Placement en ligne)"

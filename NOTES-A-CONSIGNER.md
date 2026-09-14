@@ -804,3 +804,58 @@ attente**, et c'est le cas normal entre deux tâches.
   l'arrête tôt. *Borne proposée : s'arrêter après K refs consécutives déjà connues — bornée, et
   vérifiable.* **Sans borne, un balayage complet du Québec = 237 178 enregistrements à 500 par
   appel, soit ~475 appels : gratuit en quota, pas en temps.**
+
+### N51 — Les deux dates futures sont des erreurs, et la source le prouve elle-même
+- **Notée le** : 2026-09-14
+- **Destination** : fiche de source des contrats fédéraux, et **journal des cas** si la
+  méthode mérite un cas — *réfuter une donnée par les AUTRES champs du même
+  enregistrement.*
+- **Question d'Alexandre** : *une aberration se filtre, un contrat futur est un signal.*
+  **Réponse : les deux sont des erreurs de saisie, et ce n'est pas un jugement de
+  vraisemblance — la source se contredit.**
+- **Le contrat daté du `2026-12-01`** porte `contract_period_start = 2026-01-12` — *le jour et
+  le mois transposés* — et `reporting_period = 2025-2026-Q3`. **Le contrat du `2026-09-26`**
+  porte `contract_period_start = 2026-02-01` et un rapport de **Q4 2025-2026**.
+- ⚠️ **Un rapport trimestriel ne peut pas décrire un contrat attribué APRÈS la fin du
+  trimestre.** *La réfutation ne vient donc pas de nous : elle vient de deux autres champs du
+  même enregistrement.*
+- **Ce qui est fait** : la date future écarte le signal, avec sa raison au journal. *On ne
+  corrige pas la source — un contrat réellement à venir entrerait le jour où elle le date
+  correctement; une aberration, jamais.*
+- **Ce qui reste possible et n'est pas fait** : le test plus fort — *`contract_date` postérieure
+  à la fin de son propre `reporting_period`*. Il attraperait des erreurs qui ne sont pas dans
+  le futur. **Noté, pas construit** : il demande d'analyser un libellé de trimestre.
+
+### N52 — Un outil de mesure déclare sa PROVENANCE, pas seulement son résultat
+- **Notée le** : 2026-09-14
+- **Destination** : **guide d'ingénierie**, avec la portée du rapport de coût — *même famille,
+  et c'est Alexandre qui l'a rangée là.*
+- **Le cas** : la sonde de source rendait, sans tri, **les enregistrements les plus ANCIENS** du
+  datastore. *29 champs remplis au lieu de 35; `recipient_type` absent des vieilles lignes;
+  `amendment_date` mesurée à 0,2 % au lieu de 27,8 %.* **Le résultat était vrai — sur un
+  échantillon qui n'était pas celui qu'on croyait examiner.**
+- **La règle : une mesure qui ne dit pas d'où vient son échantillon se lit comme une mesure de
+  l'ensemble.** *Rien, dans « 0,2 % », ne disait « sur les plus vieux enregistrements ».*
+- **Le correctif est de la même forme que la portée** : la sonde trie désormais sur `_id desc`
+  **et l'écrit dans sa ligne de provenance**. *La portée dit ce qu'un instrument ne regarde pas;
+  la provenance dit d'où il a regardé. Les deux se lisent avec le chiffre, pas dans la
+  docstring.*
+- ⚠️ **Et le chemin importe autant que le résultat** : *la conclusion sur l'axe de fraîcheur
+  tenait, mais elle tenait par chance.* **Ce qui l'a attrapée est la comparaison avec une mesure
+  antérieure** — deux mesures du même objet qui divergent sont un fait, même quand la conclusion
+  ne bouge pas.
+
+### N53 — Deux référentiels sectoriels normalisés, aucun lu
+- **Notée le** : 2026-09-14
+- **Destination** : registre, **avec la correspondance code → sphère** — *c'est la même décision
+  de produit, sur deux référentiels différents.*
+- **SEAO : `items[].classification`, schéma UNSPSC, 93,6 % des avis, 1 242 codes distincts en une
+  semaine.** **Contrats fédéraux : `economic_object_code`, 100 % de remplissage, 47 valeurs
+  distinctes.** *Deux sources sur six portent un code sectoriel normalisé, et **aucune n'était
+  lue**.*
+- **Les deux sont maintenant CAPTÉS** *(`secteur_nature_contrat` et `objet_economique`)*, et
+  **aucun n'est interprété** : la correspondance code → sphère reste une décision de produit,
+  à prendre avec Alexandre, sur **deux tables de correspondance** et non une.
+- ⚠️ **Et ils ne sont pas commensurables** : *47 valeurs contre 1 242.* **Un référentiel à 47
+  entrées discrimine grossièrement; un à 1 242 discrimine finement mais demande un regroupement.**
+  *La même décision, deux formes de travail.*
