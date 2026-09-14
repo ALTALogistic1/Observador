@@ -183,3 +183,173 @@ bandes exploitables, **dans un fichier déjà téléchargé et déjà importé**
 *Et deux simulations de portrait sur neuf reposaient sur elle, pour deux raisons distinctes — le NEQ sans
 appariement, et le seuil de 25+ daté.* **Le catalogue la classe cinquième à cause de D5; les simulations
 suggèrent qu'elle devrait être première. À trancher, pas à faire.**
+
+---
+
+# Six sources instruites le 14 septembre 2026 — cinq écartées, une ouverte
+
+*Demandées par Alexandre. **Chaque refus porte sa raison**, pour qu'aucune ne soit reproposée comme
+neuve dans trois mois. Le gabarit d'activation est celui de `falkye-cadre-legal.md` : le canal, la
+variante de licence lue sur la fiche du jeu, la clause d'indexation, le fichier d'exclusion des robots,
+l'attribution, la fiabilité — **plus la case ajoutée depuis : qu'est-ce qu'elle débloque que rien
+d'autre ne débloque?***
+
+⚠️ **PORTÉE DE CETTE INSTRUCTION, à lire avant de s'y fier.** *Le réseau sortant de l'environnement de
+développement **bloque les six domaines**. Aucune page de conditions d'utilisation, aucun
+`robots.txt`, aucune grille tarifaire n'a été lue à la source.* **Les refus ci-dessous ne reposent donc
+JAMAIS sur une clause contractuelle** — ils reposent sur le **canal** et sur ce que la source **ajoute**,
+deux cases du gabarit qui se tranchent avant la licence. *Les cases « licence », « indexation » et
+« robots » restent **NON VÉRIFIÉES** pour les cinq écartées; elles n'ont pas eu besoin de l'être.*
+
+## ❌ Prospecto Québec — ce n'est pas une source
+
+**Firme de prospection téléphonique B2B et de rédaction de soumissions.** Elle **répond** aux appels
+d'offres pour ses clients, sur le SEAO et AchatsCanada. **Elle ne publie aucune donnée.**
+
+*Refus au premier obstacle : il n'y a pas de matière à ingérer. Le nom a pu tromper — « Prospecto »
+évoque la prospection, qui est notre métier, pas la nôtre de données.*
+
+## ❌ MERX — agrégateur commercial, et rien que le SEAO n'ait déjà
+
+**Plateforme pancanadienne d'appels d'offres publics**, abonnements payants par paliers (local,
+régional, national), **conditions à accepter à l'inscription**.
+
+**Ce qu'elle porte : ce que les donneurs d'ordre publient déjà ailleurs.** *Pour le Québec, c'est le
+SEAO — que le produit ingère à la source. Pour le fédéral, c'est AchatsCanada — que le produit ingère
+aussi (`contrats_federaux`).* **Une couche de republication payante entre nous et deux sources qu'on a
+déjà en données ouvertes.**
+
+*Refus : n'ajoute rien, et ajoute un contrat.*
+
+## ❌ J360 — même forme, plus large
+
+**Veille d'appels d'offres publics et privés, internationale** — « plus de 250 000 marchés par mois ».
+Abonnement.
+
+*Refus, identique à MERX : republication. L'étendue internationale ne sert pas un produit dont la
+portée est le Québec (Phase 1), et les marchés publics québécois y arrivent par le SEAO.*
+
+## ❌ Elenco — porte bien autre chose, et c'est justement pourquoi c'est fermé
+
+**Réseau B2B privé** : un entrepreneur général y invite ses sous-traitants à soumissionner, en un clic,
+et suit les réponses. Répertoire annoncé de **32 000 entreprises en construction au Québec**.
+Abonnement dont le palier est fixé par le nombre d'appels d'offres diffusés ou d'entreprises invitées.
+
+⚠️ **Elle porte réellement ce que le SEAO n'a pas** — des appels d'offres **privés**, et une relation
+entre donneur d'ordre et sous-traitants. **Et c'est exactement ce qui la ferme :** *un appel d'offres
+privé lancé par un entrepreneur général à ses sous-traitants **n'est pas une donnée publique**. L'ingérer
+serait capter l'activité commerciale de tiers qui ne l'ont publiée nulle part.* **Le canal décide, et le
+canal est privé** *(cadre légal : « le canal de diffusion détermine le statut légal, pas l'organisme »)*.
+
+*Et son répertoire de 32 000 entreprises est **l'actif commercial de l'entreprise**, pas un registre.*
+
+**Refus sur le canal, pas sur le contrat** — la distinction compte : *même si ses conditions
+l'autorisaient, la nature des données ne le permettrait pas.*
+
+## ❌ L'Indicateur (`indicateur.net`) — la plus proche de passer, et le refus tient en un mot
+
+**Abonnement à des listes de projets de construction et immobiliers au Québec, publics ET privés,
+livrées toutes les deux semaines**, présentées comme **« exclusives »** aux abonnés.
+
+⚠️ **Elle porte ce qui manque le plus au produit : le projet PRIVÉ en amont**, avant tout appel
+d'offres. *C'est la même promesse que les programmes d'immobilisations municipaux — savoir avant.*
+
+**Le mot qui ferme : « exclusives ».** *C'est un **produit d'information vendu**, et la valeur EST la
+liste. Une compilation vendue sous exclusivité est le cas type où les conditions d'utilisation visent
+l'ingestion — et « on n'affiche rien » n'est pas une défense contre une clause contractuelle (cadre
+légal, règle sans exception).*
+
+**Et c'est une source SECONDAIRE** : elle compile ce que des promoteurs et des municipalités font
+ailleurs. *Le réflexe obligatoire du cadre légal s'applique — chercher la donnée primaire plutôt que le
+compilateur.*
+
+*Refus. **Mais le vide qu'elle occupe reste ouvert et non couvert** : aucune source ouverte ne porte le
+projet privé en amont. À rapprocher des programmes d'immobilisations municipaux, ci-dessus.*
+
+## ⚠️ BSDQ — la seule qui ne se ferme pas, et elle n'est PAS instruite
+
+**Bureau des soumissions déposées du Québec.** *Organisme privé sans but lucratif, mandataire des parties
+signataires d'une convention; propriété de l'**ACQ**, de la **CMEQ** et de la **CMMTQ**.* **~40 000
+soumissions par an sur ~4 500 projets.**
+
+**Ce qu'il porte et que rien d'autre ne porte : la RELATION général ↔ spécialisé.** *Qui a soumissionné à
+qui, sur quel projet. Le SEAO ne la montre à aucun étage — il s'arrête à l'adjudicataire.* **C'est
+l'étage sous le SEAO.**
+
+**Deux outils à instruire, et ils ne posent pas la même question.**
+
+- **Le Babillard de projets** — *« permet à tout intéressé d'effectuer une recherche pour consulter la
+  liste des projets inscrits au BSDQ, qu'ils soient en cours ou fermés »*. **Formulé comme public.**
+- **La Boussole** — *villes et spécialités assujetties par région, guides de dépôt, **entrepreneurs
+  engagés**, projets ouverts*; elle donne accès **au répertoire des entrepreneurs engagés, par
+  spécialité**.
+
+✏️ **La réserve d'Alexandre — « accès réservé aux signataires, avec tarification » — est à moitié
+levée, et il faut lire la moitié qui reste.** *L'**engagement** est bien obligatoire des deux côtés pour
+**transmettre ou recevoir** une soumission, il exige une **licence RBQ valide**, et la **cotisation
+annuelle est de 114,98 $** — un montant qui n'est pas une barrière. **Mais l'engagement gouverne le
+SERVICE de transmission, pas nécessairement la CONSULTATION du babillard.*** **Les deux ne sont pas la
+même porte, et c'est le point exact à vérifier.**
+
+⚠️ **NON VÉRIFIÉ, et à faire avant toute décision** *(le domaine est bloqué depuis l'environnement de
+développement)* :
+
+1. **Le babillard et la Boussole sont-ils consultables sans compte?** — l'ouvrir en navigation privée.
+2. **Les conditions d'utilisation du site** — et **spécifiquement une clause visant l'indexation ou
+   l'automatisation**. *Un organisme qui vend l'accès à un service a toutes les raisons d'en avoir une.*
+3. **`bsdq.org/robots.txt`** — *un blocage technique est un refus à ne pas contourner.*
+4. **Aucune mention de licence nulle part** — *et l'absence de licence, c'est le régime par défaut : la
+   réservation totale. Ce n'est pas un silence favorable.*
+
+**Fiabilité : bonne, et pour une raison structurelle.** *Le BSDQ est le dépositaire des soumissions
+elles-mêmes, sous un Code de soumission contractuel. La donnée n'est pas déclarée après coup — elle est
+le document.*
+
+### ✅ Et la moitié « annuaire » a une source OUVERTE, vérifiée, que le corpus n'avait jamais instruite
+
+**Réflexe obligatoire du cadre légal appliqué : chercher s'il existe une version « données ouvertes » du
+même registre.**
+
+**`Liste des licences actives de la Régie du bâtiment du Québec`** — Données Québec, **licence
+Attribution (CC-BY 4.0)** *(lue sur la fiche du jeu, `licencesactives`)*, organisation **Régie du
+bâtiment du Québec**, **mise à jour le 14 septembre 2026 à 07 h 00**, **datastore interrogeable** — donc
+joignable par le client CKAN que le produit utilise déjà.
+
+**Mesuré le 14 septembre 2026 : 927 041 licences actives, 24 champs.** *Remplissage sur 1 000
+enregistrements, tri `_id desc` — provenance déclarée :*
+
+```
+NEQ                       98,7 %      ← le pivot du produit, donné par la source
+Nom de l'intervenant      92,1 %
+Categorie                 79,4 %      ← « Generale » / « Specialisee »
+Sous-categories          100,0 %      ← codées; un PDF « Documentation » accompagne le jeu
+Adresse                   92,1 %
+Municipalite              99,0 %
+Region administrative     93,2 %
+Statut juridique         100,0 %      ← Personne morale / physique / Autorite publique / Corporation
+Date de delivrance       100,0 %
+```
+
+**Ce que ça débloque, et ce n'est pas mince :**
+
+- **La QUALIFICATION général ↔ spécialisé, pour tout le Québec** — *ce n'est pas la relation du BSDQ,
+  c'est le rang de chacun. **Les deux moitiés de la demande se séparent proprement : la qualification
+  est ouverte, la relation ne l'est pas.***
+- **Un annuaire sectoriel par sous-catégorie**, là où le REQ ne donne qu'un secteur large.
+- ⚠️ **Le NEQ, à 98,7 %, avec le nom** — *c'est une table nom → NEQ pour **tout entrepreneur en
+  construction du Québec**, sur le mur de D15.*
+- **`Statut juridique`, rempli à 100 %** — *matière directe pour **D28**, la règle de classement
+  public/privé, qui attendait exactement ça.*
+- **Adresse et région** — *l'adresse est une exigence de SORTIE (spéc. 9bis).*
+
+**Fiabilité : la plus haute du gabarit.** *Registre d'un régulateur; la licence est obligatoire par loi
+pour quiconque exécute ou fait exécuter des travaux de construction, et la liste est celle des licences
+**actives**.*
+
+**Statut : instruite, non retenue — la décision appartient à Alexandre.** *Elle était au corpus depuis le
+13 septembre à l'état « jamais instruite »; elle ne l'est plus.* **Rien n'est construit.**
+
+⚠️ **Deux réserves à porter avec elle si elle est retenue.** *(a)* **927 041 lignes** — *l'ordre de
+grandeur du REQ, donc un miroir et un moteur de diff, pas un connecteur d'événements.* *(b)* **les
+sous-catégories sont des CODES** — *comme la bande d'effectifs du REQ, elles demandent un décodeur, et
+le jeu porte un PDF de documentation qui n'a pas été lu.*
