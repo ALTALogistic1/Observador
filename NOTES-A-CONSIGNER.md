@@ -645,3 +645,24 @@ attente**, et c'est le cas normal entre deux tâches.
   ce qui ne dépend de rien; ce qui attend est ce qui a besoin d'usage réel.*
 - **Et la réserve du mandat vaut d'être reprise au moment de trancher** : *le 12 ne créera pas de
   signal là où il n'y en a pas — il révèle des signaux captés mais mal attribués.*
+
+### N44 — Le générateur d'inventaire est livré, et ce qu'il apprend déjà
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 12 *(livrable 1 — le marquer LIVRÉ, avec sa forme)*.
+- **`outils/inventaire_champs.py`** : les sources actives sont lues **au registre**, les champs
+  **dans l'arbre syntaxique** du connecteur, le remplissage **en base**. *Sept connecteurs, une
+  quarantaine de champs déclarés.*
+- **Ce que l'arbre évite, et ce n'est pas théorique** : une expression régulière sur `"clé":`
+  attrapait les dictionnaires VOISINS — `colonnes`, `exemple`, `taille_decompressee_octets` de
+  l'inspection de zip du REQ — **et le 12 aurait cru disposer d'une matière qui n'existe pas.**
+  *Elle manquait aussi un champ réel d'`investissement_quebec`.* **Un test le verrouille.**
+- **Trois écarts nommés par la sortie**, et chacun veut dire autre chose : *déclaré jamais rempli*
+  **(le connecteur écrit une clé que la source ne porte pas)**, *rempli non déclaré* **(une
+  expansion `**` ou un chemin oublié)**, *déclaré non ingéré* **(absence de mesure, pas champ
+  mort)*.
+- ⚠️ **Le REQ porte des clés DYNAMIQUES** *(`**etab`, `**chgt`)* : **sa liste déclarée est
+  incomplète par nature**, l'outil le signale plutôt que de rendre une liste qu'on croirait
+  complète. *C'est la source la plus riche, et c'est celle dont le code dit le moins.*
+- **Et l'outil n'attribue AUCUNE sphère** — le diagnostic à rebours est le livrable 2, il exige la
+  réfutation du livrable 5, opérationnelle seulement avec le 13. *Proposer un lien ici produirait
+  exactement ce que la règle de réfutation existe pour empêcher.*
