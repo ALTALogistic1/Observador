@@ -716,3 +716,91 @@ attente**, et c'est le cas normal entre deux tâches.
   dans le code, mais séparément.* **Les sources grattées ne rendront jamais une liste de champs**,
   seulement ce que le connecteur a su extraire : pour celles-là, la troisième colonne est vide par
   nature, et doit le dire.
+
+### N47 — Trois sources muettes, trois causes, et `last_modified` les départage
+- **Notée le** : 2026-09-14
+- **Destination** : **mandat du chantier 2** *(santé de source)*, fiches de source, et **journal
+  des cas, avec le cas 21**.
+- **`subventions_federales`** — *source vivante, connecteur juste* : **237 178 enregistrements
+  québécois**, les treize champs demandés existent tous. **L'axe de fraîcheur est faux** : le
+  connecteur filtre sur `agreement_start_date`, le début de l'entente. *Plus récente pour le
+  Québec : 2026-08-01; fenêtre au 2026-08-15 ⇒ `return` au premier enregistrement.* **Les 768
+  entreprises viennent des premiers cycles, quand la fenêtre tombait encore dans les données.**
+- **`permis_construction_laval`** — *connecteur juste, source ARRÊTÉE, et vérifié contre
+  l'hypothèse du déménagement* : **les 130 jeux de la Ville de Laval ont été balayés**, aucun jeu
+  de permis successeur, aucune mention de remplacement. *Le portail est vivant — un autre jeu a été
+  mis à jour le jour même — et `permis-de-construction` est figé au **2026-03-31** sur ses trois
+  ressources (CSV, JSON, XML).* **Ce n'est pas un déménagement : c'est ce jeu-là qui a cessé.**
+- **`contrats_federaux`** — *troisième cause* : la ressource est **mise à jour le jour même**
+  *(`last_modified` du 14 septembre, 06 h 50)*, 1 313 621 contrats, aucun champ manquant. **Mais le
+  tri par `contract_date desc` met en tête DEUX dates FUTURES — `2026-12-01`, `2026-09-26` — qui
+  passent la fenêtre et produisent les deux seuls signaux; la troisième ligne, `2026-07-23`, arrête
+  tout.** *Sur les 60 premiers : 2 futurs, **0 dans la fenêtre**, 58 plus anciens. Les deux signaux
+  en base sont exactement les deux valeurs aberrantes de la source.*
+- ⚠️ **CE QUE LES TROIS DÉMONTRENT ENSEMBLE, et c'est l'argument du chantier 2** : *un défaut chez
+  nous, une source arrêtée, et un tri empoisonné* **produisent la même trace — zéro ou presque, un
+  succès, quelques secondes.** **Il a fallu aller au portail pour savoir laquelle on regardait.**
+- **Et le fait qui les départage existe, gratuit, et n'est lu par personne : le `last_modified` de
+  la ressource.** *Laval : 2026-03-31. Fédéral : aujourd'hui 06 h 50.* **Un compte de signaux à
+  zéro a trois causes; une date de publication figée n'en a qu'une.**
+
+### N48 — La condition permanente : le produit vit de sources qu'il ne contrôle pas
+- **Notée le** : 2026-09-14
+- **Destination** : **mandat du chantier 2**, en tête — *c'est le cadre du chantier, pas un de ses
+  livrables.* **Ne pas construire.**
+- **Constat d'Alexandre, et il est plus large que Laval** : *le produit vit de sources qu'il ne
+  contrôle pas, dans un monde où les portails se refont constamment. Un jeu renommé, un identifiant
+  changé, une adresse déplacée — et **le connecteur lit indéfiniment un fichier figé, sans jamais
+  échouer**.*
+- **Ce n'est pas un incident, c'est une CONDITION PERMANENTE.** *Chaque source du portefeuille est
+  à une refonte de devenir muette de la même façon, et le produit ne saurait pas laquelle.*
+- **Ce que ça demande, et qui n'est pas la santé de source telle qu'écrite** : **savoir quand une
+  source a cessé de BOUGER.** *Une date de dernière publication qui ne change plus depuis des mois
+  est un **fait vérifiable** — plus fiable qu'un compte de signaux à zéro, qui a trois causes
+  (N47).* **Mesuré le 14 septembre : la distinction fonctionne sur les trois cas réels.**
+- **Précédent du corpus à citer** : *le Globe and Mail avait été déclaré abandonné, puis retrouvé à
+  une autre adresse.* **D'où la règle de vérification : chercher un successeur AVANT de conclure à
+  une mort** — appliquée à Laval le 14 septembre, et elle a confirmé la mort plutôt que de
+  l'infirmer. *Une vérification qui confirme n'est pas une vérification inutile.*
+
+### N49 — La troisième colonne est construite, et elle trouve un second UNSPSC
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 12 *(livrable 1)*, et **22** pour ce qu'elle trouve.
+- **`outils/sonde_source.py`** : les champs REMPLIS à la source, confrontés à ceux que le
+  connecteur demande *(les `.get()` littéraux, lus dans l'arbre)*.
+- **Ce qu'elle trouve sur `contrats_federaux` : 43 champs remplis, 10 lus.** Et parmi les non lus,
+  **`economic_object_code` — 100 % de remplissage, 47 valeurs distinctes** : *un code d'objet
+  économique normalisé, c'est-à-dire **l'équivalent fédéral de l'UNSPSC du SEAO**, présent depuis
+  toujours et lu par personne.* Plus `number_of_bids` *(le nombre de soumissionnaires — une mesure
+  de concurrence)*, `vendor_postal_code`, `delivery_date`, `solicitation_procedure`.
+- **Sur `subventions_federales` : 35 champs remplis, 15 lus** — dont `recipient_type` à 83 %
+  *(D28)*, `recipient_postal_code` à 89 %, `prog_purpose_fr` et `expected_results_fr` à ~90 %.
+- ⚠️ **Un défaut de MA sonde, trouvé en la comparant à ma mesure de la veille, et corrigé** : sans
+  tri, le datastore rend les enregistrements **les plus anciens**. *L'échantillon par défaut portait
+  29 champs remplis contre 35 sur les récents — `recipient_type` n'existait pas dans les vieilles
+  lignes.* **Une sonde qui échantillonne le passé sous-estime ce que la source porte aujourd'hui,
+  et rien dans sa sortie ne le disait.** Elle trie désormais sur `_id desc` et l'écrit dans sa
+  provenance.
+- **✏️ Et ça corrige un chiffre que j'avais donné** : `amendment_date` n'est pas remplie à 0,2 %
+  mais à **27,8 %** sur les enregistrements récemment publiés. *La conclusion tient — 27,8 % ne fait
+  pas un axe de fraîcheur — mais le chiffre était faux, et il venait du même défaut
+  d'échantillonnage.*
+
+### N50 — L'axe de fraîcheur : `_id desc` plutôt qu'une date d'entente
+- **Notée le** : 2026-09-14
+- **Destination** : fiches de source *(subventions et contrats fédéraux)*, et registre si la
+  bascule se décide.
+- **Mesuré le 14 septembre** : trié par `_id desc`, le datastore rend les lignes **les plus
+  récemment publiées**, et leurs dates d'entente sont de mai-juin 2026. **C'est exactement le
+  décalage : de nouvelles publications portent des dates plus anciennes.** *L'ordre d'insertion EST
+  l'axe de fraîcheur que la source ne publie pas comme champ.*
+- ⚠️ **La réserve à écrire avec** : `_id` est un artefact du datastore, pas une donnée publiée. *Le
+  tri croissant rend des ententes de 2021, donc la table paraît **ajoutée en fin**, pas
+  reconstruite — mais c'est une inférence sur leur processus de chargement, pas une garantie
+  documentée.* **Si la ressource était un jour rechargée en entier, l'ordre changerait sans
+  prévenir.**
+- **Ce que la bascule coûte en contrepartie** *(question d'Alexandre)* : le connecteur devra
+  **parcourir plus d'enregistrements pour trouver ce qu'il n'a pas vu**, puisque plus rien ne
+  l'arrête tôt. *Borne proposée : s'arrêter après K refs consécutives déjà connues — bornée, et
+  vérifiable.* **Sans borne, un balayage complet du Québec = 237 178 enregistrements à 500 par
+  appel, soit ~475 appels : gratuit en quota, pas en temps.**
