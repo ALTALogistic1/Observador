@@ -859,3 +859,87 @@ attente**, et c'est le cas normal entre deux tâches.
 - ⚠️ **Et ils ne sont pas commensurables** : *47 valeurs contre 1 242.* **Un référentiel à 47
   entrées discrimine grossièrement; un à 1 242 discrimine finement mais demande un regroupement.**
   *La même décision, deux formes de travail.*
+
+### N54 — Le SEAO : 6 % retenus, et c'est la fenêtre seule
+- **Notée le** : 2026-09-14
+- **Destination** : registre (`seao`) + guide d'ingénierie pour la règle de méthode.
+- **Les trois causes supposées ne se valent pas — deux sont à ZÉRO.** *Mesuré sur 7 fichiers
+  hebdomadaires réels, 24 997 attributions.*
+  - **Noms vides : 0.** 23 977 attributions distinctes sur la fenêtre août–septembre, **toutes**
+    portent au moins un fournisseur nommé; **aucun** `award` sans fournisseur.
+  - **Filtre territorial : structurellement inerte pour cette source, deux fois.** *(a)* `seao`
+    ne déclare aucun `territoire` au registre — `region: Québec` est du texte libre, explicitement
+    distinct du filtre *(`registry/loader.py`)*. *(b)* Le connecteur ne pose jamais `region` sur le
+    `RawSignal`, et `appartient(None, …)` **retient** par principe.
+  - **La fenêtre : la totalité.** `since = maintenant − 30 jours` *(`engine.py:804`,
+    `lookback_days=30`)*, et le connecteur écarte toute attribution antérieure.
+- **Ce que le rang d'âge dit, et c'est lui qui tranche « voulu » de « matière perdue » :**
+
+      ≤ 30 j      4 859   19,4 %   ← retenu
+      31–90 j     1 822    7,3 %   ← le seul rang discutable, ~260/semaine
+      91–365 j    5 629   22,5 %
+      > 365 j    12 687   50,8 %   ← la moitié d'un fichier a plus d'un an
+
+- **Donc : écarter est majoritairement JUSTE** — la moitié de chaque fichier porte des contrats
+  de plus d'un an, qui ne sont plus des signaux de croissance. *Le seul arbitrage réel est la
+  bande 31–90 jours.*
+
+### N55 — Un fichier « hebdomadaire » du SEAO n'est pas une semaine de contrats
+- **Notée le** : 2026-09-14
+- **Destination** : registre (`seao`, notes) — *c'est un fait sur la source, pas sur nous.*
+- **9,4 % seulement des attributions d'un fichier `hebdo_AAAAMMJJ_AAAAMMJJ` sont datées de sa
+  propre semaine.** Mesuré sur 7 fichiers : 2 355 sur 24 997. Le reste remonte jusqu'en 2015,
+  et au-delà.
+- **Le nom d'un fichier décrit sa PUBLICATION, jamais son contenu.** *Un connecteur qui traite un
+  fichier hebdomadaire comme une semaine de données se trompe de 90 % sans rien afficher.*
+- **Conséquence pour la fraîcheur** : le SEAO republie en continu des attributions anciennes;
+  l'axe de fraîcheur y est la date d'attribution, pas la date de fichier. *Le contraire de ce qui
+  vient d'être réglé pour les deux sources fédérales.*
+
+### N56 — Un outil qui énumère des causes doit vérifier qu'elles peuvent s'appliquer
+- **Notée le** : 2026-09-14
+- **Destination** : guide d'ingénierie — *même famille que la portée et la provenance.*
+- `outils/reprise_champs_seao.py` écrit, en pied et en docstring, qu'une attribution sans signal
+  veut dire *« hors fenêtre, filtre territorial, nom vide »*. **Deux des trois sont impossibles
+  pour cette source**, et la mesure les met à zéro.
+- **Une énumération de causes se lit comme une répartition plausible.** Nommer une cause qui ne
+  peut pas s'appliquer oriente la lecture vers une explication fausse — ici, vers « c'est voulu,
+  c'est le filtre territorial ». *Le coût n'est pas le mot de trop : c'est la décision qu'il
+  aurait pu emporter.*
+
+### N57 — D36 : la portée réelle est d'UNE source sur sept, et rien ne s'avance pour les six autres
+- **Notée le** : 2026-09-14
+- **Destination** : registre, entrée D36.
+- **Le mécanisme de D36 exige le moteur de diff** — c'est `_appliquer_diff` qui écrit l'état avant
+  les signaux. Or **une seule source active est `type_ingestion: instantane` : `req`.** Les six
+  autres sont `evenement` et ne passent jamais par le moteur de diff.
+- **Et pour ces six, `since` n'est pas un état qui avance** : `maintenant − 30 jours`, recalculé à
+  chaque cycle *(`engine.py:804`)*, **jamais dérivé de la dernière réussite**. Une interruption ne
+  fait donc rien avancer, et le cycle suivant relit la même fenêtre.
+- **Les deux connecteurs fédéraux sont allés plus loin depuis le 14 septembre** : ils dédupliquent
+  contre les **références en base**, pas contre un état. *Une référence non écrite est, par
+  construction, inconnue au passage suivant — donc réémise.*
+- ⚠️ **Ce qui n'a PAS changé, et c'est le point qui décidait :** avec livraison, une détection
+  perdue devient une **affirmation au client**. *Aucune des trois nouveautés n'y touche.*
+
+### N58 — `Persistent=true` est testable sans livrer, en masquant le service
+- **Notée le** : 2026-09-14
+- **Destination** : `docs/DEPLOIEMENT.md`, section « le danger réel, et il n'est PAS testé ».
+- La section affirme que vérifier le rattrapage **consiste à provoquer l'envoi qu'on cherche à
+  empêcher**, et l'inscrit comme risque documenté non traité. **Ce n'est plus vrai.**
+- **`systemctl mask falkye-cycle.service` rend le démarrage impossible sans rien changer au
+  minuteur.** Si `Persistent=true` rattrape, systemd *tente* de démarrer une unité masquée :
+  l'échec est journalisé, **et rien ne part**. Le comportement devient observable, réversible,
+  et sans destinataire.
+- *Un risque déclaré intestable mérite d'être réexaminé : l'intestabilité est une propriété du
+  montage d'essai, pas du mécanisme.*
+
+### N59 — Une attribution datée de l'an 1 dans un fichier SEAO
+- **Notée le** : 2026-09-14
+- **Destination** : registre (`seao`), à côté des dates futures des contrats fédéraux.
+- Sur `hebdo_20260907_20260913.json`, la plus ancienne date d'attribution tombe en **l'an 1**.
+  *Même famille que les deux dates futures réfutées la veille : une aberration de saisie que la
+  source ne signale pas.*
+- **Non traitée, et délibérément** : elle n'a aucun effet aujourd'hui — une date d'an 1 est
+  antérieure à `since` et se fait écarter par la fenêtre. *Elle compterait le jour où la fenêtre
+  s'élargirait.*
