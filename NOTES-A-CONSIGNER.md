@@ -533,8 +533,136 @@ attente**, et c'est le cas normal entre deux tâches.
   déclaré **se signale** — bruyamment à la création et à l'inventaire *(le geste humain)*, et **par
   une ligne d'exploitation `PROFIL_INCOMPLET` au cycle** *(le mécanisme automatique, qui saute sans
   s'arrêter mais ne se tait plus)*. **La règle vit au modèle, lue par les trois appelants.**
+- ✏️ **Précision d'Alexandre le 14 septembre — le correctif couvre le chemin ADMINISTRATIF, et
+  ce n'était pas de lui qu'il parlait.** *`profile create` puis `add-need` : là, le profil vide est
+  nécessaire, le correctif tient, et le silence devait y être nommé de toute façon.* **Mais le jour
+  où un utilisateur s'inscrit LUI-MÊME, il remplit un formulaire, pas deux commandes** — et là, les
+  **champs obligatoires empêchent l'enregistrement** : *pas de sauvegarde sans au moins un besoin
+  déclaré.* **Le profil incomplet n'existe jamais.**
+- ⚠️ **Destination de cette moitié-là : le chantier 25, le premier jour d'un abonné.** *C'est là que
+  le formulaire se conçoit, et **la contrainte doit être écrite avant que quelqu'un construise
+  l'interface** — après, elle coûterait une migration de profils déjà entrés.*
 - **Ce qui reste ouvert, et c'est la vraie question** : **ce qu'un profil peut DÉCLARER.**
   `TypeProfil` ne connaît que `fournisseur`, `client`, `les_deux` — *et « client » reste
   commercial.* **Une MRC, une chambre de commerce, un chercheur d'emploi n'y entrent pas.**
   *`ProfileNeed.type_besoin` admet déjà autre chose qu'« offre » : l'axe existe, le moteur ne
   l'implémente pas.*
+
+### N38 — Une suite doit être consultable avec ce qu'elle prolonge
+- **Notée le** : 2026-09-14
+- **Destination** : **mandat du chantier 23**, là où la livraison se conçoit — pas au 21.
+- **Constat de simulation** : *le portrait de suite est **plus court** que le premier, et c'est
+  normal — il ne redit pas ce qui est connu.* **Mais ça veut dire qu'il n'est lisible qu'AVEC le
+  premier.**
+- **Un utilisateur qui aurait supprimé la notification de septembre recevrait un texte incomplet.**
+  *Ce n'est pas un défaut du portrait : c'est une exigence sur la LIVRAISON.*
+- **Et elle rejoint l'exigence déjà notée en N34** : une seconde notification doit dire qu'elle est
+  la suite — **et maintenant, la rendre atteignable.**
+
+### N39 — La mémoire est une section à part, et elle porte une contrainte que les autres n'ont pas
+- **Notée le** : 2026-09-14
+- **Destination** : **charte section 9, DANS la stratégie du portrait** — *jugement rendu le
+  14 septembre : ça mérite d'être écrit, et à l'intérieur de la couche « lectures », pas à côté.*
+- **La structure qui est apparue en simulation** : *ce qu'un fait dit seul · ce que le dossier dit ·
+  ce que le croisement dit.*
+- **La distinction est réelle, pas cosmétique, et voici ce qui la rend structurelle : une lecture
+  qui consomme l'HISTORIQUE est bornée par « depuis quand on regarde ». Une lecture qui consomme un
+  FAIT ne l'est pas.** *Donc les deux ne sont pas soumises aux mêmes conditions de véracité — ce
+  n'est pas une question de présentation, c'est une question de ce qu'une lecture a le droit
+  d'affirmer.*
+- **Pourquoi dans la couche « lectures » et non comme une quatrième couche** : les trois couches
+  disent *d'où vient* ce qui est dit — fait, lecture, assemblage. Celle-ci dit **ce qu'une lecture
+  consomme**, donc elle découpe la deuxième couche plutôt que de s'ajouter aux trois. *Y ajouter un
+  étage ferait croire que la mémoire vient après l'assemblage, alors qu'elle le précède.*
+- **Elle porte la même borne que le portrait de tendance** *(N28)* : **« inchangée depuis qu'on
+  regarde » n'est pas « inchangée depuis 2011 ».** *Une seule contrainte, deux endroits où elle
+  s'applique — à écrire une fois, citée deux fois.*
+
+### N40 — Ce que les huitième et neuvième simulations confirment
+- **Notée le** : 2026-09-14
+- **Destination** : registre *(la bande d'effectifs, N5)* et mandat du chantier 22 *(les motifs)*.
+- **La DISPROPORTION est calculable pour la première fois** — *un contrat de 1,8 M$ pour une
+  entreprise déclarée à 26-49 employés.* **Cette lecture n'existait dans aucune simulation
+  antérieure : c'est la bande du REQ qui l'ouvre.** *Confirmation par l'usage de ce que la
+  vérification du 14 septembre a trouvé.*
+- **Le motif de concentration porte une lecture que rien d'autre ne porte** — *quatre signaux,
+  trois sources distinctes, quarante-cinq jours, convergents vers la capacité opérationnelle.*
+  ⚠️ **Et la condition de convergence A SERVI : sans elle, c'était de l'agitation.** *La garde
+  posée avec le motif n'était donc pas une précaution théorique.*
+- **Le retour du dossier fonctionne, et sa forme tient** : *suite du 4 septembre, puis ce qui a
+  changé depuis.* **Le franchissement de bande D → E affiché avec ses deux valeurs** — *un
+  franchissement est un fait, pas une interprétation, parce que les deux bornes viennent de la
+  source.*
+- **Et le motif d'absence a été écarté par le jugement, comme décidé** — *aucun nouveau contrat
+  depuis septembre peut être un ralentissement ou rien.* **La première question du jugement a fait
+  son travail sur un cas réel.**
+
+### N41 — Le relevé du matin est le préalable du 12, et il n'est pas assez PROFOND
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 12 *(livrable 1 — « l'inventaire de champs par source active,
+  approuvé mais jamais livré »)*, et audit.
+- ⚠️ **Le manque n'est pas six sources, c'est une profondeur.** *Le relevé du 13 septembre a
+  inventorié ce que chaque source **PROMEUT AU DOSSIER** — le second rôle. Le 12 a besoin de ce que
+  chaque source **CAPTE**, `champs` compris.* **Sur le SEAO, les deux ensembles ne se recoupent
+  presque pas** : promu au dossier = **rien**; capté = **quinze clés**.
+- **Et c'est précisément là que vit la démonstration de l'audit** : *l'assurance est déclarée sans
+  source alors que **six champs déjà captés portent son déclencheur**.* **Ces six-là sont dans
+  `champs`, pas dans ce qui atteint le dossier** — donc invisibles au relevé du 13.
+- **Il faut donc refaire les huit en profondeur, pas compléter six en surface.**
+
+### N42 — L'inventaire du 12 doit être GÉNÉRÉ, et porter deux colonnes
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 12, livrable 1 — **la forme du livrable, pas seulement son
+  contenu**.
+- **Généré depuis le code, jamais écrit à la main** : *un connecteur a changé aujourd'hui même; une
+  liste de champs recopiée serait fausse au premier commit suivant.* **C'est la règle du corpus
+  contre les copies, appliquée à un inventaire.**
+- ⚠️ **Deux colonnes, et la seconde est celle que la journée a payée pour apprendre** : *(a)* **ce
+  que le code DÉCLARE capter**, *(b)* **le taux de remplissage RÉEL**. **Un inventaire tiré du code
+  seul aurait listé `description_tender` comme un champ disponible pour la règle d'assurance — et
+  il était vide dans 100 % des cas.** *Un champ déclaré n'est pas un champ rempli, et le 12
+  construirait ses liens sur du vide sans s'en apercevoir.*
+- **Et ça rend le livrable 4 du 12 possible** *(normaliser le texte libre déjà capté)* : la
+  normalisation a besoin de savoir **quels champs sont du texte libre et combien de valeurs
+  distinctes ils portent** — deux choses que seule la mesure donne.
+
+### N43 — Le 12 remonte, mais c'est son PRÉALABLE qui remonte, pas le chantier
+- **Notée le** : 2026-09-14
+- **Destination** : audit, Partie 0 *(l'ordre par coût d'attente)* — **avis rendu, décision
+  d'Alexandre**.
+- **Pour le préalable, tout de suite** : *(1)* l'audit dit que le 12 **« peut se mener en parallèle
+  du socle — le seul chantier qui peut avancer pendant que le reste se répare »**; *(2)* son
+  préalable est **à moitié fait**; *(3)* il **sert déjà un autre point du plan** — la correspondance
+  code → sphère du SEAO, qui attend la même matière; *(4)* il **ne dépend pas de l'appariement**,
+  donc il n'est pas derrière le verrou.
+- ⚠️ **Contre, pour le RESTE du 12, et c'est le corpus qui le dit** : le livrable 5 — *la règle de
+  réfutation, « la partie non négociable »* — exige que **chaque lien se teste contre l'historique
+  réel**, et l'audit précise que c'est le **chantier 13** qui rend ce garde-fou *« opérationnel
+  plutôt que théorique »*, par le taux de rejet. **Or le taux de rejet demande des utilisateurs qui
+  rejettent**, et les cycles récents produisent zéro notification. *Sans lui, le 12 propose des liens
+  et n'a rien pour les réfuter — exactement ce que sa propre règle interdit.*
+- **Donc : remonter le livrable 1, laisser les livrables 2, 3 et 5 où ils sont.** *Ce qui remonte est
+  ce qui ne dépend de rien; ce qui attend est ce qui a besoin d'usage réel.*
+- **Et la réserve du mandat vaut d'être reprise au moment de trancher** : *le 12 ne créera pas de
+  signal là où il n'y en a pas — il révèle des signaux captés mais mal attribués.*
+
+### N44 — Le générateur d'inventaire est livré, et ce qu'il apprend déjà
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 12 *(livrable 1 — le marquer LIVRÉ, avec sa forme)*.
+- **`outils/inventaire_champs.py`** : les sources actives sont lues **au registre**, les champs
+  **dans l'arbre syntaxique** du connecteur, le remplissage **en base**. *Sept connecteurs, une
+  quarantaine de champs déclarés.*
+- **Ce que l'arbre évite, et ce n'est pas théorique** : une expression régulière sur `"clé":`
+  attrapait les dictionnaires VOISINS — `colonnes`, `exemple`, `taille_decompressee_octets` de
+  l'inspection de zip du REQ — **et le 12 aurait cru disposer d'une matière qui n'existe pas.**
+  *Elle manquait aussi un champ réel d'`investissement_quebec`.* **Un test le verrouille.**
+- **Trois écarts nommés par la sortie**, et chacun veut dire autre chose : *déclaré jamais rempli*
+  **(le connecteur écrit une clé que la source ne porte pas)**, *rempli non déclaré* **(une
+  expansion `**` ou un chemin oublié)**, *déclaré non ingéré* **(absence de mesure, pas champ
+  mort)*.
+- ⚠️ **Le REQ porte des clés DYNAMIQUES** *(`**etab`, `**chgt`)* : **sa liste déclarée est
+  incomplète par nature**, l'outil le signale plutôt que de rendre une liste qu'on croirait
+  complète. *C'est la source la plus riche, et c'est celle dont le code dit le moins.*
+- **Et l'outil n'attribue AUCUNE sphère** — le diagnostic à rebours est le livrable 2, il exige la
+  réfutation du livrable 5, opérationnelle seulement avec le 13. *Proposer un lien ici produirait
+  exactement ce que la règle de réfutation existe pour empêcher.*
