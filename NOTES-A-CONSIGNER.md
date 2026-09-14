@@ -445,3 +445,96 @@ attente**, et c'est le cas normal entre deux tâches.
 - **Le motif existe au 22.1, sa calibration appartient au 17, et le 17 est parmi les derniers du
   plan.** *Une lecture disponible et inutilisable est pire qu'une lecture absente : elle a l'air
   d'un outil.*
+
+### N31 — Le jugement pose TROIS questions, et trois natures de refus
+- **Notée le** : 2026-09-14
+- **Destination** : charte section 9 *(avec la stratégie du portrait)* et **D33** *(le cerveau —
+  le jugement est la facette qui travaille le plus et n'a aucun chantier)*.
+- **Les trois** : *(1)* **Est-ce que je peux soutenir ça?** — une lecture porte les faits qu'elle
+  consomme; **une absence ne porte rien.** *(2)* **Est-ce que ça enrichit le portrait pour CET
+  utilisateur?** — filtre ce qui est soutenu mais hors sujet. *(3)* **Est-ce que ce qui reste
+  suffit à déranger quelqu'un?** — le seuil de publication, **déjà en 8.5**.
+- **Trois natures de refus** : *ce que je ne peux pas dire, ce qui ne sert pas, ce qui ne vaut pas
+  un dérangement.*
+- **Le principe qui les gouverne** : **le produit affirme des faits; pour tout le reste, il parle
+  au conditionnel.** *Ce n'est pas une précaution de style — c'est une frontière VISIBLE dans le
+  portrait : le premier bloc affirme, le second est au conditionnel.* **C'est ce qui rend la forme
+  à deux blocs meilleure qu'un texte unique nuancé.**
+- ⚠️ **Conséquence pour les réserves, et elle est contre-intuitive** : une réserve **échoue à la
+  première question** *(elle ne porte aucun fait)* **mais réussit à la deuxième** — *« rien
+  n'indique si elle est déjà couverte » est très pertinent pour un courtier.* **Donc elle n'est
+  pas supprimée, elle est REFORMULÉE EN ACTION.** *La charte porte déjà la forme : une réserve se
+  formule par l'action qu'elle appelle.* Pas *« on ignore si elle est couverte »* — **« à valider
+  avant l'appel »**. *Même information, conditionnel préservé, action nommée.* **C'est du langage,
+  donc le 21.**
+
+### N32 — Le sixième motif du 22.1 : la concentration de sources DIFFÉRENTES
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 22 *(22.1)*. **Le premier des deux motifs SE FAIT.**
+- **Condition** : *N signaux d'au moins M sources distinctes dans une fenêtre de P jours.* **Les
+  trois valeurs reviennent à Alexandre.**
+- ⚠️ **Et la condition doit exiger que les signaux CONVERGENT vers une même sphère** — *sinon on
+  signale l'agitation, pas le besoin.*
+- ⚠️ **Le revers, pris en connaissance de cause et à écrire AVEC le motif** : *une entreprise bien
+  couverte paraîtra plus active qu'une entreprise mal couverte.* **Exiger des sources DISTINCTES
+  neutralise en partie le biais** — en partie seulement.
+
+### N33 — Le silence après un pic : on n'y touche pas, et le motif de l'abstention
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 22, avec le motif écrit.
+- **Le calibrer maintenant confondrait une entreprise qui se tait et une source qui a cessé de
+  livrer.**
+- **C'est le motif le plus dangereux du catalogue : il affirme quelque chose de faux SANS JAMAIS SE
+  CONTREDIRE.** *Une lecture qui ne peut pas être démentie par les faits n'a pas de garde-fou.*
+- **Sa condition de levée** : que **la santé de source soit branchée sur les lectures**.
+
+### N34 — Le même dossier revient — conséquence jamais tirée
+- **Notée le** : 2026-09-14
+- **Destination** : registre *(à trancher)*, et **touche le chantier 23**.
+- **Conséquence de la durée de pertinence PAR COUPLE** : *si un signal est frais pour une sphère et
+  périmé pour une autre au même instant, **le dossier est déjà destiné à revenir**.*
+- **À trancher** : seconde notification, ou mise à jour du dossier existant?
+- **Une exigence qui lève le revers, quelle que soit l'issue** : **une seconde notification doit
+  dire qu'elle est la suite.**
+
+### N35 — L'amorce de premier contact : un brouillon, jamais un message prêt
+- **Notée le** : 2026-09-14
+- **Destination** : spéc. *(palier Radar)* et mandat du chantier 21.
+- **Décision d'Alexandre** : présentée comme **un brouillon à modifier**, jamais comme un message
+  prêt à envoyer.
+- **La raison, et elle est du côté du risque** : *un message rédigé par le produit **engage
+  l'utilisateur en son nom**, et une amorce maladroite lui coûte le prospect — **sans que le
+  produit le sache jamais**.* **Le brouillon déplace la responsabilité là où elle doit être.**
+- **Ce n'est pas une section du portrait** — *c'est un geste, pas une lecture.*
+- ⚠️ **Et elle est DÉJÀ promise au palier Radar** : c'est donc une contrainte à poser sur quelque
+  chose de vendu, pas sur une idée.
+
+### N36 — Le portrait visuel — pour le 21
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 21.
+- **Rendre le PREMIER bloc visuel** : des pictogrammes avec leur chiffre — *effectif,
+  établissements, capacité, montant.*
+- **La règle qui le gouverne est celle du produit : on affirme des faits.** Un visuel **n'affiche
+  qu'un champ que le produit POSSÈDE, avec sa source et sa date**.
+- **Une fourchette est un fait quand elle vient d'une source** — *« 26 à 49 » du REQ, un seuil
+  OQLF, une capacité RACJ, un montant.* **Elle n'en est pas un quand le produit la calcule.**
+- **Quand la donnée manque, l'icône ne s'affiche pas.** *Pas de point d'interrogation, pas de « non
+  disponible » — rien.* **Remplir l'espace avec du vide affirme qu'on a cherché.**
+- ⚠️ **Un visuel ne peut pas être au conditionnel** — *c'est ce qui en fait la bonne forme pour le
+  premier bloc, et ce qui l'EXCLUT du second.*
+- **Et la vérification du 14 septembre change ce paragraphe** : avec la bande d'effectifs du REQ,
+  **le visuel ne serait plus pauvre**. *Première fois qu'une vérification AJOUTE au produit au lieu
+  d'en retirer.*
+
+### N37 — Les profils : le défaut est corrigé, la décision reste ouverte
+- **Notée le** : 2026-09-14
+- **Destination** : registre *(la décision)*, et journal des cas si la forme mérite un cas.
+- **Corrigé dans le code le 14 septembre** *(demande de fusion nº 39)* : un profil sans besoin
+  déclaré **se signale** — bruyamment à la création et à l'inventaire *(le geste humain)*, et **par
+  une ligne d'exploitation `PROFIL_INCOMPLET` au cycle** *(le mécanisme automatique, qui saute sans
+  s'arrêter mais ne se tait plus)*. **La règle vit au modèle, lue par les trois appelants.**
+- **Ce qui reste ouvert, et c'est la vraie question** : **ce qu'un profil peut DÉCLARER.**
+  `TypeProfil` ne connaît que `fournisseur`, `client`, `les_deux` — *et « client » reste
+  commercial.* **Une MRC, une chambre de commerce, un chercheur d'emploi n'y entrent pas.**
+  *`ProfileNeed.type_besoin` admet déjà autre chose qu'« offre » : l'axe existe, le moteur ne
+  l'implémente pas.*
