@@ -222,6 +222,22 @@ attente**, et c'est le cas normal entre deux tâches.
 - **Conséquence pratique : l'archive du REQ ne peut être obtenue que depuis un navigateur.** *C'est ce
   qui fait de `req` une source `import_manuel`, et ça ne change pas.*
 
+### N11 — Une correction qui s'annule en vérifiant vaut autant qu'une correction qui tient
+- **Notée le** : 2026-09-14. **Formulation d'Alexandre, reprise telle quelle.**
+- **Destination** : guide d'ingénierie — *à côté de « un instrument déclare sa provenance ».*
+- **Deux fois le même jour, une hypothèse défendable a été vérifiée avant d'être rapportée, et elle est
+  tombée.** *(1)* Le filtre territorial de l'EIMT : **65,3 % du fichier est hors Québec**, et tout
+  indiquait le même défaut que les contrats fédéraux — *vérifié aux trois étages, il tient.* *(2)*
+  L'ordre des ressources de l'EIMT : `resources[:4]` sans tri, tout indiquait une lecture de vieux
+  trimestres — *vérifié au portail, il rend bien du plus récent au plus ancien.*
+- **Dans les deux cas, le défaut rapporté aurait été faux, et il aurait coûté du travail réel** : une
+  garde territoriale de plus sur une source déjà filtrée, un tri de plus sur un ordre déjà bon.
+- **La règle. Le travail de vérification ne se juge pas à ce qu'il trouve.** *Une hypothèse écartée par
+  la mesure a exactement la même valeur qu'un défaut confirmé — elle retire une fausse piste du plan.*
+  ⚠️ **Et le contraire est le vrai danger : rapporter l'hypothèse sans la vérifier, parce qu'elle
+  ressemble à un motif déjà vu.** *Trois fois aujourd'hui le motif « un ordre qu'on n'a pas demandé » est
+  apparu — `_id desc`, Laval, les ressources de l'EIMT. **Deux étaient réels, un ne l'était pas.***
+
 ---
 
 *Vide — les soixante-quatre notes des 13 et 14 septembre 2026 ont été portées au corpus

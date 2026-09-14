@@ -1,5 +1,6 @@
 """Le diagnostic d'appariement — les fonctions pures, sans base."""
 from outils.diagnostic_appariement import (
+    formes_du_nom,
     classer_difference,
     est_numero,
     mots_significatifs,
@@ -49,3 +50,32 @@ def test_les_mots_presents_mais_pas_en_tete_sont_distingues():
 def test_un_voisin_aux_mots_distincts_suggere_une_enseigne():
     motif = classer_difference("toiture bergeron", ["bergeron transport"])
     assert "enseigne" in motif
+
+
+def test_les_formes_dun_nom_ne_sexcluent_pas():
+    """« 9164-4187 Quebec Inc » est à la fois numérique et porteur d'une forme juridique."""
+    formes = formes_du_nom("9164-4187 Quebec Inc")
+    assert "dénomination numérique" in formes
+    assert "forme juridique en fin" in formes
+
+
+def test_une_abreviation_pointee_est_relevee():
+    assert "abréviation pointée" in formes_du_nom("F.M. Resto Design inc.")
+
+
+def test_les_accents_sont_releves_sur_le_nom_BRUT():
+    """La normalisation les retire — la forme se lit avant elle."""
+    assert "accents" in formes_du_nom("Agropur coopérative")
+    assert "accents" not in formes_du_nom("Agropur cooperative")
+
+
+def test_un_nom_tout_en_majuscules_est_releve():
+    assert "tout en MAJUSCULES" in formes_du_nom("LE POTAGER GRANDMONT")
+
+
+def test_un_nom_dun_seul_mot_est_releve():
+    assert "un seul mot" in formes_du_nom("agileDSS")
+
+
+def test_un_nom_sans_particularite_le_dit():
+    assert formes_du_nom("Patates Orleans") == {"(aucune forme relevée)"}
