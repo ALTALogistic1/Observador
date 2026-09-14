@@ -126,6 +126,118 @@ attente**, et c'est le cas normal entre deux tâches.
   30 jours. *La mesure se prend sur les fichiers source, sur plusieurs années, et elle est gratuite.*
 - **Ne pas construire.** *Noté comme mesure possible, pas comme travail engagé.*
 
+### N5 — L'EIMT fait 74,5 % du mur, et ses noms sont des RAISONS SOCIALES
+- **Notée le** : 2026-09-14
+- **Destination** : registre (D15), fiche de source de l'EIMT, mandat des chantiers 3 et 4.
+- **Mesuré sur l'hôte** : des 8 395 entreprises sans NEQ, **6 258 sont EXCLUSIVES à l'EIMT (74,5 %)**.
+  *Les deux palmarès en veilleuse, soupçonnés, pèsent 4,8 % à eux deux.* **La source qui fabrique 75 %
+  de la base fabrique 75 % du mur.**
+- ⚠️ **Et l'hypothèse de l'enseigne est FAUSSE.** *Mesuré sur le fichier réel `2026Q1`, 3 054 employeurs
+  québécois, en empruntant les fonctions du connecteur :* **75,2 % portent une forme juridique en fin de
+  nom** *(inc., ltée…)*, et les premiers de la liste sont des **sociétés à dénomination numérique**
+  — `9164-4187 Quebec Inc`. **Ce sont des raisons sociales, pas des noms d'usage.**
+- **Donc le second nom du REQ ne réglera PAS les trois quarts du problème.** *Il reste utile ailleurs;
+  il ne s'applique pas ici.*
+- **Ce que les noms montrent à la lecture** : `AER RIANTA INTL.` *(abréviation)*, `agileDSS`
+  *(concaténation)*, `ALTEN Canada Inc.` *(filiale d'un groupe étranger)*. **Des écarts de forme qui
+  placent le score flou dans les années 80 — sous le seuil de 92.**
+- ✏️ **Mesuré à l'échelle le 14 septembre, sur `2026Q1` entier — 2 707 employeurs québécois
+  DISTINCTS**, et l'hypothèse de l'enseigne tombe définitivement :
+
+      forme juridique en fin (inc., ltée…)   74,9 %
+      abréviation pointée dans le nom        45,4 %
+      accents                                26,2 %
+      tout en MAJUSCULES                     12,0 %
+      dénomination numérique (9xxx-xxxx)     10,4 %
+      « o/a » ou « / »                        0,3 %
+
+  *Fermes, PME, CIUSSS, filiales de groupes étrangers — des **raisons sociales**.* **0,3 % portent la
+  marque d'un nom d'usage.**
+- ✅ **Et le filtre territorial de l'EIMT FONCTIONNE — vérifié, contrairement aux contrats fédéraux.**
+  *Le fichier est fédéral et **65,3 % de ses lignes sont hors Québec** (Ontario 30,0 %,
+  Colombie-Britannique 16,8 %, Alberta 10,3 %…). Mais le connecteur promeut `region=province`, le
+  registre déclare `territoire: ['Québec']`, et `appartient` reconnaît « Quebec ».* **Les 65,3 %
+  n'entrent jamais.** *Le module `territoire.py` a été écrit pour ce fichier précis — il tient.*
+- ⚠️ **Le mur change donc de nature : ce n'est pas un problème de PONT, c'est un problème de SEUIL.**
+  *58 % des échecs ont des candidats récupérés qui n'atteignent pas 92.* **La mesure qui manque est la
+  distribution des meilleurs scores entre 80 et 92** — elle dirait ce qu'un second critère récupérerait.
+
+### N6 — Rien ne réessaie de résoudre une entreprise qui ne reçoit plus de signal
+- **Notée le** : 2026-09-14
+- **Destination** : registre, **D15** — *c'est un mécanisme manquant, pas une explication.*
+- **Vérifié dans le code** : `resolve_company` n'a que **deux points d'appel** — `engine.py` à
+  l'ingestion d'un signal brut, et `manual_import.py`. **Aucune passe de re-résolution n'existe.**
+- **Conséquence** : *une entreprise non résolue n'est réessayée que si un NOUVEAU signal la concerne.*
+  **Si la source se tait, elle reste non résolue pour toujours — même quand le miroir a changé depuis.**
+- **Mesuré** : les **313 « résolubles maintenant »** ont toutes été détectées le **6 septembre entre
+  19 h 21 et 19 h 31**; le miroir REQ a été importé le **8 septembre à 17 h 02**. *Elles précèdent
+  l'import de deux jours, aucun signal ne les a revisitées depuis.* **Le rejeu ne contredit donc pas la
+  production — il révèle que la production ne repasse jamais.**
+- *Le correctif évident — une passe de re-résolution après chaque import de miroir — n'est ni construit
+  ni décidé.*
+
+### N7 — Le chemin CSV de l'EIMT ne saute pas la ligne de titre
+- **Notée le** : 2026-09-14
+- **Destination** : fiche de source de l'EIMT. **Défaut latent, non corrigé.**
+- `_read_xlsx` appelle `_find_header_row`, qui saute la première ligne — *un TITRE fusionné qui contient
+  le mot « employeurs »*. **`_read_csv` ne l'appelle pas** : il passe le fichier à `csv.DictReader`
+  et prend la première ligne pour l'en-tête.
+- **Vérifié sur un fichier CSV réel du même jeu : la première ligne EST le titre.** *Le chemin CSV
+  lèverait donc sur `resolve_columns`, ou pire, résoudrait mal.*
+- ⚠️ **Il n'est jamais emprunté aujourd'hui** — le connecteur demande le XLSX d'abord. **Il le serait le
+  jour où le diffuseur cesse de publier en XLSX**, c'est-à-dire exactement quand personne ne regarde.
+
+### N8 — `Directed Contract` : un contrat de gré à gré n'est pas un contrat remporté
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 22, avec les motifs · registre D48.
+- **Mesuré sur les avis d'attribution de CanadaBuys** : `Directed Contract` = **456** occurrences sur
+  les 3 661 avis dont le champ est rempli.
+- **Pour un utilisateur, ce n'est pas le même fait.** *Un contrat remporté en concurrence dit que
+  l'entreprise a soumissionné et gagné; un contrat de gré à gré dit que l'acheteur l'a choisie sans
+  mise en marché — souvent parce qu'elle est seule à pouvoir le faire.* **Le second est un signal de
+  position, le premier un signal de conquête.**
+- **Le corpus n'en parle nulle part.** *Non construit, non tranché.*
+
+### N9 — Le connecteur EIMT lit les quatre derniers trimestres, sur un ordre que personne ne garantit
+- **Notée le** : 2026-09-14
+- **Destination** : fiche de source de l'EIMT. *Constat, pas défaut — mais la réserve est la même que
+  celle de `fraicheur_datastore`.*
+- **Vérifié** : `cibles = resources[:1] if since is None else resources[:4]`. **Et le portail rend bien
+  les ressources du plus récent au plus ancien** — `2026Q1`, `2025Q4`, `2025Q3`, `2025Q2`. *Le
+  connecteur lit donc un an de trimestres, ce qu'il annonce.*
+- ⚠️ **Mais cet ordre est une propriété de la RÉPONSE du portail, pas une garantie que le connecteur
+  demande.** *Il ne trie pas. Le jour où le catalogue rend ses ressources dans un autre ordre, le
+  connecteur lirait des trimestres de 2015 **sans jamais échouer** — même forme que la réserve sur
+  `_id desc`, et même forme que Laval.*
+- *Un tri explicite par trimestre coûterait trois lignes. Non corrigé.*
+
+### N10 — L'adresse du REQ inscrite au registre est morte, et la vraie est derrière Cloudflare
+- **Notée le** : 2026-09-14
+- **Destination** : `docs/STATUT_RESEAU.md`, à côté de l'analyse du 31 août.
+- **L'adresse `donneesquebec.ca/.../download/jeudonneesouvertes.zip` rend 404.** *Elle est périmée.*
+- **La vraie, lue sur la fiche du jeu par l'API CKAN, est
+  `registreentreprises.gouv.qc.ca/.../FichierDonneesOuvertes.aspx`** — et elle rend **403** depuis
+  l'environnement de développement. *Exactement ce que le corpus documente depuis le 31 août : une règle
+  Cloudflare visant les plages infonuagiques partagées.*
+- **Conséquence pratique : l'archive du REQ ne peut être obtenue que depuis un navigateur.** *C'est ce
+  qui fait de `req` une source `import_manuel`, et ça ne change pas.*
+
+### N11 — Une correction qui s'annule en vérifiant vaut autant qu'une correction qui tient
+- **Notée le** : 2026-09-14. **Formulation d'Alexandre, reprise telle quelle.**
+- **Destination** : guide d'ingénierie — *à côté de « un instrument déclare sa provenance ».*
+- **Deux fois le même jour, une hypothèse défendable a été vérifiée avant d'être rapportée, et elle est
+  tombée.** *(1)* Le filtre territorial de l'EIMT : **65,3 % du fichier est hors Québec**, et tout
+  indiquait le même défaut que les contrats fédéraux — *vérifié aux trois étages, il tient.* *(2)*
+  L'ordre des ressources de l'EIMT : `resources[:4]` sans tri, tout indiquait une lecture de vieux
+  trimestres — *vérifié au portail, il rend bien du plus récent au plus ancien.*
+- **Dans les deux cas, le défaut rapporté aurait été faux, et il aurait coûté du travail réel** : une
+  garde territoriale de plus sur une source déjà filtrée, un tri de plus sur un ordre déjà bon.
+- **La règle. Le travail de vérification ne se juge pas à ce qu'il trouve.** *Une hypothèse écartée par
+  la mesure a exactement la même valeur qu'un défaut confirmé — elle retire une fausse piste du plan.*
+  ⚠️ **Et le contraire est le vrai danger : rapporter l'hypothèse sans la vérifier, parce qu'elle
+  ressemble à un motif déjà vu.** *Trois fois aujourd'hui le motif « un ordre qu'on n'a pas demandé » est
+  apparu — `_id desc`, Laval, les ressources de l'EIMT. **Deux étaient réels, un ne l'était pas.***
+
 ---
 
 *Vide — les soixante-quatre notes des 13 et 14 septembre 2026 ont été portées au corpus

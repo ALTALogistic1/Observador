@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import re
 from collections import Counter
 
 #: Les mots de tête qui ne portent aucune information distinctive. Une chaîne qui
@@ -102,6 +103,45 @@ def classer_difference(nom_norm: str, voisins: list[str]) -> str:
     return "nom voisin trouvé, mots distincts — enseigne, filiale ou coentreprise probable"
 
 
+#: Les formes qu'un nom peut porter. **Elles ne s'excluent pas** : un nom peut être
+#: à la fois numérique et pointé. *Mesurées sur l'EIMT le 2026-09-14 : 74,9 % de
+#: formes juridiques, 45,4 % d'abréviations pointées, 10,4 % de dénominations
+#: numériques.*
+_FORME_FIN = re.compile(
+    r"\b(inc|ltee|ltd|limitee|limited|senc|sencrl|srl|corp|corporation|enr|cie|co)\b\.?\s*$", re.I
+)
+_ABREV_POINTEE = re.compile(r"\b[A-Za-z]{2,5}\.")
+_ACCENT = set("éèêëàâäçôöûüùïî")
+
+
+def formes_du_nom(nom: str) -> set[str]:
+    """Les formes que porte ce nom — pour croiser le score avec la GRAPHIE.
+
+    *La question qu'elles servent : un nom avec forme juridique score-t-il autrement
+    qu'un nom sans? Une dénomination numérique?* **Si le score dépend de la graphie,
+    le levier est la normalisation. S'il n'en dépend pas, c'est le seuil.**
+    """
+    from falkye.sources.column_mapping import normaliser
+
+    nom_norm = normaliser(nom)
+    formes = set()
+    if _FORME_FIN.search(nom):
+        formes.add("forme juridique en fin")
+    if _ABREV_POINTEE.search(nom):
+        formes.add("abréviation pointée")
+    if est_numero(nom_norm):
+        formes.add("dénomination numérique")
+    if any(c in nom for c in _ACCENT):
+        formes.add("accents")
+    if nom.isupper():
+        formes.add("tout en MAJUSCULES")
+    if len(nom_norm.split()) == 1:
+        formes.add("un seul mot")
+    if not formes:
+        formes.add("(aucune forme relevée)")
+    return formes
+
+
 def voisins_par_mot_long(db_session, nom_norm: str, limite: int = 5) -> list[str]:
     """Ce que le miroir porte autour du mot le plus long du nom détecté.
 
@@ -121,6 +161,62 @@ def voisins_par_mot_long(db_session, nom_norm: str, limite: int = 5) -> list[str
             select(REQEntry).where(REQEntry.nom_normalise.contains(mots[0])).limit(limite)
         ).scalars().all()
     ]
+
+
+def histogramme(scores: list[float], par_forme: dict[str, list[float]],
+                sans_candidat: int, seuil: float) -> None:
+    """La distribution du MEILLEUR score, et ce qu'elle dit du levier.
+
+    **La question qu'elle tranche** *(Alexandre, 2026-09-14)* : *si la masse est entre
+    85 et 91, le seuil est le seul levier; si elle est sous 70, c'est la
+    normalisation.*
+
+    ⚠️ **Ce que la colonne « récupérées » ne dit PAS, et c'est la réserve la plus
+    importante de cet outil.** *Elle compte les entreprises qu'un seuil abaissé
+    ferait passer. **Elle ne dit rien de combien d'entre elles seraient appariées au
+    MAUVAIS NEQ.*** Le seuil de 92 existe pour préférer « non vérifié » à « NEQ
+    possiblement erroné » *(spéc. section 6)*. **Une baisse de seuil s'évalue sur un
+    échantillon vérifié à la main, jamais sur ce tableau.**
+    """
+    bornes = [0, 60, 65, 70, 75, 80, 85, 90, 92, 95, 100.01]
+    libelles = ["< 60", "60-64", "65-69", "70-74", "75-79", "80-84",
+                "85-89", "90-91", "92-94", "95-100"]
+    compte = [0] * (len(bornes) - 1)
+    for s in scores:
+        for i in range(len(bornes) - 1):
+            if bornes[i] <= s < bornes[i + 1]:
+                compte[i] += 1
+                break
+    total = len(scores) + sans_candidat
+    print("\n" + "=" * 78)
+    print("DISTRIBUTION DU MEILLEUR SCORE — et ce qu'un seuil plus bas récupérerait")
+    print("=" * 78)
+    print(f"\n{'tranche':>10}{'entreprises':>13}{'part':>8}   {'récupérées si seuil ici':>24}")
+    cumul_haut = 0
+    for i in range(len(compte) - 1, -1, -1):
+        cumul_haut += compte[i]
+        recup = cumul_haut if bornes[i] < seuil else 0
+        marque = "  ← seuil actuel" if bornes[i] == 92 else ""
+        print(f"{libelles[i]:>10}{compte[i]:>13}{100*compte[i]/max(total,1):>7.1f}%"
+              f"{(str(recup) if recup else '—'):>25}{marque}")
+    print(f"{'(aucun cand.)':>10}{sans_candidat:>13}{100*sans_candidat/max(total,1):>6.1f}%{'—':>25}")
+    print("\n⚠️ « récupérées » = celles qu'un seuil abaissé À CETTE TRANCHE ferait passer.")
+    print("   Cette colonne NE DIT RIEN du nombre qui seraient appariées au MAUVAIS NEQ.")
+    print("   Le seuil de 92 existe pour préférer « non vérifié » à « NEQ erroné ».")
+
+    print("\n" + "=" * 78)
+    print("LE SCORE DÉPEND-IL DE LA GRAPHIE?")
+    print("=" * 78)
+    print(f"\n{'forme du nom':<28}{'n':>7}{'médiane':>10}{'85-91':>9}{'≥ 92':>8}")
+    for forme, liste in sorted(par_forme.items(), key=lambda kv: -len(kv[1])):
+        liste = sorted(liste)
+        med = liste[len(liste) // 2]
+        entre = sum(1 for s in liste if 85 <= s < 92)
+        haut = sum(1 for s in liste if s >= 92)
+        print(f"{forme:<28}{len(liste):>7}{med:>10.1f}{100*entre/len(liste):>8.1f}%{100*haut/len(liste):>7.1f}%")
+    print("\n   Les formes NE S'EXCLUENT PAS — un nom compte dans chacune qu'il porte.")
+    print("   Une médiane franchement plus basse sur une forme désigne la normalisation;")
+    print("   des médianes voisines désignent le seuil.")
 
 
 def ventilation_non_resolues(db_session, ids: list[int]) -> None:
@@ -172,6 +268,8 @@ def main(argv: list[str] | None = None) -> int:
     parseur.add_argument("--toutes", action="store_true", help="toutes les non résolues (défaut : un échantillon)")
     parseur.add_argument("--echantillon", type=int, default=ECHANTILLON_DEFAUT)
     parseur.add_argument("--exemples", type=int, default=10, help="sans-candidat détaillés (défaut 10)")
+    parseur.add_argument("--histogramme", action="store_true",
+                         help="distribution du meilleur score, par tranches de 5 — et croisée avec la graphie")
     parseur.add_argument("--sans-ville", action="store_true",
                          help="rejouer SANS le bonus de ville (+5) — teste si les « résolubles » en dépendent")
     args = parseur.parse_args(argv)
@@ -228,6 +326,8 @@ def main(argv: list[str] | None = None) -> int:
         familles = Counter()
         differences = Counter()
         dates_resolubles: list = []
+        scores: list[float] = []
+        par_forme: dict[str, list[float]] = {}
         sans_candidat: list[tuple[str, str, list[str]]] = []
         for company in entreprises:
             nom = company.nom_detecte or ""
@@ -252,6 +352,9 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             top = matches[0].score
             second = matches[1].score if len(matches) > 1 else 0.0
+            scores.append(top)
+            for forme in formes_du_nom(nom):
+                par_forme.setdefault(forme, []).append(top)
             if top < SEUIL_RESOLUTION_CONFIANTE:
                 familles[f"candidats trop FAIBLES (top < {SEUIL_RESOLUTION_CONFIANTE:.0f})"] += 1
             elif top - second < SEUIL_AMBIGUITE_ECART_MIN and len(matches) > 1:
@@ -287,6 +390,10 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"       miroir · {v[:64]}")
                 if not voisins:
                     print("       miroir · (rien)")
+
+        if args.histogramme and scores:
+            histogramme(scores, par_forme, familles.get("aucun candidat RÉCUPÉRÉ", 0),
+                        SEUIL_RESOLUTION_CONFIANTE)
 
         if dates_resolubles:
             dates_resolubles.sort()
