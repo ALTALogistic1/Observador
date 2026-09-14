@@ -666,3 +666,53 @@ attente**, et c'est le cas normal entre deux tâches.
 - **Et l'outil n'attribue AUCUNE sphère** — le diagnostic à rebours est le livrable 2, il exige la
   réfutation du livrable 5, opérationnelle seulement avec le 13. *Proposer un lien ici produirait
   exactement ce que la règle de réfutation existe pour empêcher.*
+
+### N45 — Deux sources muettes, deux causes opposées, un seul symptôme
+- **Notée le** : 2026-09-14
+- **Destination** : fiches de source, **mandat du chantier 2** *(santé de source)*, et journal des
+  cas — *la forme mérite peut-être un cas.*
+- **`subventions_federales` — la source est VIVANTE et le connecteur lit les bons champs.**
+  *Vérifié contre l'API réelle : **237 178 enregistrements pour le Québec**, et les treize champs
+  que le connecteur demande existent tous.* **Le défaut est l'AXE DE FRAÎCHEUR** : il filtre et
+  trie sur `agreement_start_date` — *le début de l'entente*, pas sa publication. **La plus récente
+  date de début pour le Québec est le 2026-08-01**; avec une fenêtre de 30 jours *(`since` au
+  2026-08-15)*, le connecteur **`return` dès le PREMIER enregistrement**. *Elle avait produit
+  768 entreprises parce que les premiers cycles tombaient encore dans la fenêtre.* **Rien n'a
+  changé — ni la source, ni le code : c'est la fenêtre qui a dépassé les données.**
+- ⚠️ **Et le correctif n'est pas « prendre une meilleure date » : il n'y en a pas.** *Mesuré :
+  `amendment_date` est remplie à **0,2 %**.* **Aucun champ ne porte la date de publication.** Le
+  seul repère de « neuf pour nous » est **ce qu'on n'a pas déjà ingéré** — donc la déduplication
+  par `source_ref`, que le moteur fait déjà, avec un tri sur l'ordre d'insertion (`_id`) plutôt
+  que sur la date d'entente. *À trancher.*
+- **`permis_construction_laval` — le connecteur est juste, c'est LA SOURCE qui s'est arrêtée.**
+  *Vérifié au portail : `last_modified` du CSV = **2026-03-31**, et le jeu couvre jusqu'à cette
+  date.* **Près de six mois sans publication.** Le connecteur balaie 172 168 lignes à chaque cycle
+  pour ne rien trouver, et **le cycle l'inscrit en succès**.
+- ⚠️ **Ce que les deux ensemble démontrent, et c'est le vrai constat** : *un défaut à nous* et *une
+  source morte* **produisent exactement la même trace — zéro signal, un succès, quelques
+  secondes.** **Le produit ne sait pas les distinguer.** *C'est le cas 21 du journal, et c'est
+  l'argument le plus concret qu'on ait pour la santé de source du chantier 2.*
+
+### N46 — La troisième colonne : ce que la source porte et que personne ne demande
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 12 *(livrable 1 — la forme de l'inventaire)*, et registre
+  pour ce que la mesure a déjà trouvé.
+- **Démontrée sur une source, en une commande** : `subventions_federales` porte **39 champs**, le
+  connecteur en lit **13**. *Mesuré sur 500 enregistrements québécois réels.*
+- **Ce qu'on laisse sur la table, et trois de ces champs touchent des décisions ouvertes** :
+  **`recipient_type`** — *100 %, sept valeurs normalisées* : une typologie de bénéficiaire, matière
+  directe pour **D28** *(la règle de classement public/privé)*. **`recipient_operating_name`** —
+  *14 %* : le nom d'USAGE à côté du nom légal, **un second nom à apparier contre le REQ**, donc le
+  mur de D15. **`recipient_business_number`** — *31 %* : un identifiant fédéral, matière pour
+  **D29**. Et **`recipient_postal_code`** à 96,8 %, alors que **l'adresse est une exigence de
+  sortie** *(N18)*. Plus `prog_purpose_fr` et `expected_results_fr`, remplis à 100 %, qui décrivent
+  le but et les résultats attendus — matière pour le 12 et le 21.
+- **Une honnêteté à garder** : `naics_identifier` — le code sectoriel normalisé, celui qu'on
+  espérerait — **n'est rempli qu'à 10 %**. *Rien à voir avec l'UNSPSC du SEAO à 93,6 %. La
+  troisième colonne sert justement à ne pas confondre « le champ existe » et « le champ est
+  rempli ».*
+- **Ce que la colonne coûte, et ce qu'elle ne couvrira pas** : elle demande **une stratégie d'accès
+  par source** — API datastore, CSV en vrac, archive zip, page grattée. *Les quatre existent déjà
+  dans le code, mais séparément.* **Les sources grattées ne rendront jamais une liste de champs**,
+  seulement ce que le connecteur a su extraire : pour celles-là, la troisième colonne est vide par
+  nature, et doit le dire.
