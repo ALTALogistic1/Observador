@@ -126,6 +126,61 @@ attente**, et c'est le cas normal entre deux tâches.
   30 jours. *La mesure se prend sur les fichiers source, sur plusieurs années, et elle est gratuite.*
 - **Ne pas construire.** *Noté comme mesure possible, pas comme travail engagé.*
 
+### N5 — L'EIMT fait 74,5 % du mur, et ses noms sont des RAISONS SOCIALES
+- **Notée le** : 2026-09-14
+- **Destination** : registre (D15), fiche de source de l'EIMT, mandat des chantiers 3 et 4.
+- **Mesuré sur l'hôte** : des 8 395 entreprises sans NEQ, **6 258 sont EXCLUSIVES à l'EIMT (74,5 %)**.
+  *Les deux palmarès en veilleuse, soupçonnés, pèsent 4,8 % à eux deux.* **La source qui fabrique 75 %
+  de la base fabrique 75 % du mur.**
+- ⚠️ **Et l'hypothèse de l'enseigne est FAUSSE.** *Mesuré sur le fichier réel `2026Q1`, 3 054 employeurs
+  québécois, en empruntant les fonctions du connecteur :* **75,2 % portent une forme juridique en fin de
+  nom** *(inc., ltée…)*, et les premiers de la liste sont des **sociétés à dénomination numérique**
+  — `9164-4187 Quebec Inc`. **Ce sont des raisons sociales, pas des noms d'usage.**
+- **Donc le second nom du REQ ne réglera PAS les trois quarts du problème.** *Il reste utile ailleurs;
+  il ne s'applique pas ici.*
+- **Ce que les noms montrent à la lecture** : `AER RIANTA INTL.` *(abréviation)*, `agileDSS`
+  *(concaténation)*, `ALTEN Canada Inc.` *(filiale d'un groupe étranger)*. **Des écarts de forme qui
+  placent le score flou dans les années 80 — sous le seuil de 92.**
+- ⚠️ **Le mur change donc de nature : ce n'est pas un problème de PONT, c'est un problème de SEUIL.**
+  *58 % des échecs ont des candidats récupérés qui n'atteignent pas 92.* **La mesure qui manque est la
+  distribution des meilleurs scores entre 80 et 92** — elle dirait ce qu'un second critère récupérerait.
+
+### N6 — Rien ne réessaie de résoudre une entreprise qui ne reçoit plus de signal
+- **Notée le** : 2026-09-14
+- **Destination** : registre, **D15** — *c'est un mécanisme manquant, pas une explication.*
+- **Vérifié dans le code** : `resolve_company` n'a que **deux points d'appel** — `engine.py` à
+  l'ingestion d'un signal brut, et `manual_import.py`. **Aucune passe de re-résolution n'existe.**
+- **Conséquence** : *une entreprise non résolue n'est réessayée que si un NOUVEAU signal la concerne.*
+  **Si la source se tait, elle reste non résolue pour toujours — même quand le miroir a changé depuis.**
+- **Mesuré** : les **313 « résolubles maintenant »** ont toutes été détectées le **6 septembre entre
+  19 h 21 et 19 h 31**; le miroir REQ a été importé le **8 septembre à 17 h 02**. *Elles précèdent
+  l'import de deux jours, aucun signal ne les a revisitées depuis.* **Le rejeu ne contredit donc pas la
+  production — il révèle que la production ne repasse jamais.**
+- *Le correctif évident — une passe de re-résolution après chaque import de miroir — n'est ni construit
+  ni décidé.*
+
+### N7 — Le chemin CSV de l'EIMT ne saute pas la ligne de titre
+- **Notée le** : 2026-09-14
+- **Destination** : fiche de source de l'EIMT. **Défaut latent, non corrigé.**
+- `_read_xlsx` appelle `_find_header_row`, qui saute la première ligne — *un TITRE fusionné qui contient
+  le mot « employeurs »*. **`_read_csv` ne l'appelle pas** : il passe le fichier à `csv.DictReader`
+  et prend la première ligne pour l'en-tête.
+- **Vérifié sur un fichier CSV réel du même jeu : la première ligne EST le titre.** *Le chemin CSV
+  lèverait donc sur `resolve_columns`, ou pire, résoudrait mal.*
+- ⚠️ **Il n'est jamais emprunté aujourd'hui** — le connecteur demande le XLSX d'abord. **Il le serait le
+  jour où le diffuseur cesse de publier en XLSX**, c'est-à-dire exactement quand personne ne regarde.
+
+### N8 — `Directed Contract` : un contrat de gré à gré n'est pas un contrat remporté
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 22, avec les motifs · registre D48.
+- **Mesuré sur les avis d'attribution de CanadaBuys** : `Directed Contract` = **456** occurrences sur
+  les 3 661 avis dont le champ est rempli.
+- **Pour un utilisateur, ce n'est pas le même fait.** *Un contrat remporté en concurrence dit que
+  l'entreprise a soumissionné et gagné; un contrat de gré à gré dit que l'acheteur l'a choisie sans
+  mise en marché — souvent parce qu'elle est seule à pouvoir le faire.* **Le second est un signal de
+  position, le premier un signal de conquête.**
+- **Le corpus n'en parle nulle part.** *Non construit, non tranché.*
+
 ---
 
 *Vide — les soixante-quatre notes des 13 et 14 septembre 2026 ont été portées au corpus
