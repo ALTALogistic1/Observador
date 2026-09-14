@@ -71,6 +71,29 @@ def tronquer(code: str, chiffres: int) -> str | None:
     return nu[:chiffres]
 
 
+def profondeur_unspsc(code: str) -> int | None:
+    """Combien de paliers un code RENSEIGNE réellement, de 1 à 4 — ou None s'il n'a
+    pas huit chiffres.
+
+    **UNSPSC se lit par paires** : segment · famille · classe · commodité. Une paire à
+    `00` n'est pas une valeur, c'est une position laissée vide par le classificateur.
+    *`72000000` ne dit que son segment; `81100000` s'arrête à la famille.*
+
+    **Pourquoi ce compte décide quelque chose** : pour toute occurrence dont la
+    profondeur est déjà ≤ 2, **agréger à la famille ne perd RIEN** — la source n'avait
+    rien écrit de plus fin. *La troncature ne coûte que sur le reste.*
+    """
+    nu = "".join(c for c in code if c.isdigit())
+    if len(nu) != 8:
+        return None
+    paires = [nu[i:i + 2] for i in range(0, 8, 2)]
+    profondeur = 0
+    for rang, paire in enumerate(paires, start=1):
+        if paire != "00":
+            profondeur = rang
+    return profondeur
+
+
 def classifications_des_signaux(db_session) -> tuple[list[tuple[str, str | None, str | None]], int, int]:
     """(entrées, nb_signaux, nb_signaux_sans_classification).
 
@@ -95,6 +118,28 @@ def classifications_des_signaux(db_session) -> tuple[list[tuple[str, str | None,
                 continue
             entrees.append((str(entree["code"]), entree.get("libelle"), entree.get("scheme")))
     return entrees, len(signaux), sans
+
+
+def _tableau_agrege(compte: Counter, membres: dict[str, Counter], total: int,
+                    limite: int | None, nb_libelles: int) -> None:
+    """Le palier agrégé, **avec les libellés des codes à huit chiffres qu'il regroupe**.
+
+    *Un préfixe n'a pas de libellé : la source n'en donne qu'au code entier. Sans ces
+    libellés, une table se nommerait sur des numéros nus — illisible et invérifiable.*
+    """
+    cumul = 0
+    for rang, (prefixe, n) in enumerate(compte.most_common(), start=1):
+        cumul += n
+        if limite is not None and rang > limite:
+            continue
+        print(f"\n{prefixe:>8}  {n:>7}  {100*n/total:>5.1f}%  cumul {100*cumul/total:>5.1f}%")
+        for libelle, k in membres.get(prefixe, Counter()).most_common(nb_libelles):
+            print(f"{'':>10}· {k:>5}  {libelle[:62]}")
+        restants = len(membres.get(prefixe, Counter())) - nb_libelles
+        if restants > 0:
+            print(f"{'':>10}  … et {restants} autre(s) libellé(s) dans cette entrée")
+    if limite is not None and len(compte) > limite:
+        print(f"\n{'…':>8}  et {len(compte) - limite} entrée(s) de plus — `--tous` pour les voir")
 
 
 def _tableau(compte: Counter, libelles: dict[str, str], total: int, limite: int | None) -> None:
@@ -127,6 +172,8 @@ def main(argv: list[str] | None = None) -> int:
     parseur.add_argument("--palier", type=int, choices=sorted(PALIERS), default=8,
                          help="chiffres conservés : 8 commodité (défaut), 6 classe, 4 famille, 2 segment")
     parseur.add_argument("--tous", action="store_true", help="afficher tous les codes, pas seulement les 40 premiers")
+    parseur.add_argument("--libelles", type=int, default=4, metavar="N",
+                         help="libellés les plus fréquents affichés sous chaque entrée agrégée (défaut 4)")
     parseur.add_argument("--csv", metavar="CHEMIN", help="écrire le tableau complet en CSV (n'écrit RIEN en base)")
     args = parseur.parse_args(argv)
 
@@ -188,6 +235,27 @@ def main(argv: list[str] | None = None) -> int:
         print(f"   ⚠️ {len(divergents)} code(s) portent PLUSIEURS libellés distincts — le plus fréquent est affiché.")
 
     print("\n" + "=" * 78)
+    print("À QUELLE PROFONDEUR LA SOURCE CLASSE-T-ELLE DÉJÀ?")
+    print("=" * 78)
+    profondeurs = Counter()
+    for code, _, _ in entrees:
+        profondeurs[profondeur_unspsc(code)] += 1
+    noms = {1: "segment seul (………00000000)", 2: "jusqu'à la famille",
+            3: "jusqu'à la classe", 4: "commodité complète", None: "code sans huit chiffres"}
+    cumul_large = 0
+    for niveau in (1, 2, 3, 4, None):
+        n = profondeurs.get(niveau, 0)
+        if not n:
+            continue
+        if niveau in (1, 2):
+            cumul_large += n
+        print(f"   {noms[niveau]:32} {n:>6}  {100*n/len(entrees):>5.1f} %")
+    print(f"\n   déjà classé au palier FAMILLE ou plus large : {cumul_large}"
+          f"  ({100*cumul_large/len(entrees):.1f} %)")
+    print("   → pour cette part, agréger à la famille ne perd RIEN : la source")
+    print("     n'avait rien écrit de plus fin. La troncature ne coûte que sur le reste.")
+
+    print("\n" + "=" * 78)
     print("CE QUE CHAQUE PALIER COÛTERAIT À ÉCRIRE — c'est la question de la forme")
     print("=" * 78)
     print(f"\n{'palier':>18}  {'codes':>7}  {'codes pour ' + str(int(PART_DE_REFERENCE)) + ' %':>16}  {'tronqués':>9}")
@@ -211,29 +279,43 @@ def main(argv: list[str] | None = None) -> int:
     # Le tableau détaillé, au palier demandé.
     agrege = Counter()
     libelles: dict[str, str] = {}
+    membres: dict[str, Counter] = {}
     for code, _, _ in entrees:
         prefixe = tronquer(code, args.palier) if args.palier != 8 else code
         if prefixe is None:
             continue
         agrege[prefixe] += 1
-        if args.palier == 8 and code in par_code_libelles:
-            libelles[code] = par_code_libelles[code].most_common(1)[0][0]
+        if code in par_code_libelles:
+            libelle = par_code_libelles[code].most_common(1)[0][0]
+            if args.palier == 8:
+                libelles[code] = libelle
+            else:
+                membres.setdefault(prefixe, Counter())[libelle] += 1
     total_agrege = sum(agrege.values())
     print("\n" + "=" * 78)
-    print(f"DISTRIBUTION AU PALIER « {PALIERS[args.palier]} » ({args.palier} chiffres)"
-          + ("" if args.palier == 8 else " — libellés indisponibles : un préfixe n'en porte pas"))
+    print(f"DISTRIBUTION AU PALIER « {PALIERS[args.palier]} » ({args.palier} chiffres)")
     print("=" * 78)
-    _tableau(agrege, libelles, total_agrege, None if args.tous else 40)
+    if args.palier == 8:
+        _tableau(agrege, libelles, total_agrege, None if args.tous else 40)
+    else:
+        print("\nUn préfixe n'a PAS de libellé — la source n'en donne qu'au code entier.")
+        print(f"Sous chaque entrée : les {args.libelles} libellés les plus fréquents qu'elle")
+        print("regroupe, pour qu'elle se nomme sur ce qu'elle porte et non sur son numéro.")
+        _tableau_agrege(agrege, membres, total_agrege, None if args.tous else 40, args.libelles)
 
     if args.csv:
         cumul = 0
         with open(args.csv, "w", newline="", encoding="utf-8") as f:
             ecrivain = csv.writer(f)
-            ecrivain.writerow(["code", "occurrences", "part_pct", "cumul_pct", "libelle"])
+            ecrivain.writerow(["code", "occurrences", "part_pct", "cumul_pct", "libelle",
+                               "libelles_regroupes"])
             for code, n in agrege.most_common():
                 cumul += n
+                regroupes = " | ".join(
+                    f"{lib} ({k})" for lib, k in membres.get(code, Counter()).most_common(args.libelles)
+                )
                 ecrivain.writerow([code, n, round(100*n/total_agrege, 3), round(100*cumul/total_agrege, 3),
-                                   libelles.get(code, "")])
+                                   libelles.get(code, ""), regroupes])
         print(f"\nécrit : {args.csv}  (aucune écriture en base)")
 
     print("\n⚠️ Cet outil n'attribue AUCUNE sphère et n'en propose aucune.")

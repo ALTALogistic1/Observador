@@ -43,6 +43,31 @@ Au Québec, le même fait peut être librement exploitable s'il sort par un port
 
 **⚠️ Réserve à ne pas perdre : elle ne devient jamais un instrument que le moteur lit.** Le tier de confiance dit, cas par cas, **si un signal est réel et fort** *(spéc. 8.1)*; la fiabilité de source dit **si on active**. **Les deux ne se combinent pas et ne se comparent pas.** Deux objets qui disent « à quel point on peut se fier » sans qu'on sache lequel gouverne est le motif qui revient le plus souvent dans ce corpus — *même faute que fusionner trois issues d'exécution en un booléen, trois dimensions de statut en une liste, ou trois niveaux de fiabilité de taille en un chiffre.*
 
+## Un troisième motif de refus, qui ne dépend ni du droit d'auteur ni du contrat : la NATURE des données
+
+*Écrit le 14 septembre 2026, en instruisant six sources. Il manquait au cadre, et il ferme plus vite que
+les deux autres.*
+
+**Une source peut être fermée parce que ce qu'elle porte n'a jamais été publié par personne.** Ni le
+droit d'auteur ni les conditions d'utilisation n'entrent en jeu : *la donnée n'est pas publique, point.*
+
+**Le cas qui l'a montré.** Un réseau B2B québécois où un entrepreneur général invite ses sous-traitants
+à soumissionner porte réellement ce que le SEAO n'a pas — des appels d'offres **privés**, et la relation
+entre un donneur d'ordre et ses sous-traitants. **Et c'est exactement ce qui le ferme :** *un appel
+d'offres privé lancé par une entreprise à ses fournisseurs n'est pas une donnée publique. L'ingérer
+serait capter l'activité commerciale de tiers qui ne l'ont diffusée nulle part.*
+
+**La formule à garder : refus sur le CANAL, pas sur le contrat.** *Même si les conditions d'utilisation
+l'autorisaient, la nature des données ne le permettrait pas.* **Ce motif se teste AVANT la licence** — il
+évite d'instruire une source qui ne pouvait pas passer.
+
+⚠️ **Et son symétrique, sur les compilations vendues.** Une source qui vend un abonnement à des listes
+présentées comme **« exclusives »** est le cas type où les conditions d'utilisation visent l'ingestion :
+*la valeur du produit EST la liste.* **Rappel de la règle sans exception : « on n'affiche rien » est une
+défense contre une réclamation en droit d'auteur, jamais contre une clause contractuelle.** *Et une
+compilation est une source SECONDAIRE — le réflexe obligatoire s'applique d'abord : chercher la donnée
+primaire plutôt que le compilateur.*
+
 **Voie légitime avant d'abandonner un signal :** une demande d'accès à l'information produit un fichier structuré gratuitement, et sa diffusion au registre public règle en partie la question du canal. Socle ponctuel, jamais un flux de veille.
 
 **Point ouvert à revalider :** une exception au droit d'auteur pour la fouille de textes et de données a été mise en consultation au Canada. Si elle est en vigueur, elle change l'analyse ci-dessus.
