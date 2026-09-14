@@ -85,6 +85,19 @@ def _buyer_name(release: dict) -> str | None:
     return None
 
 
+def source_ref_pour(release: dict, award: dict) -> str:
+    """La clé de déduplication d'une attribution — **séparée pour être empruntée**.
+
+    `outils/reprise_champs_seao.py` doit retrouver en base le signal qui correspond
+    à une attribution du fichier. **S'il recalculait la clé de son côté, il
+    apparierait sa propre copie** : une divergence d'un caractère ne raterait pas
+    quelques signaux, elle les raterait TOUS, et le rapport dirait « aucun signal
+    trouvé » au lieu de « la clé a changé ». *Même règle que `requete_nom_exact` et
+    `neq_retenu` : une fonction du moteur s'emprunte, jamais ne se recopie.*
+    """
+    return f"seao:{release.get('ocid', release.get('id', ''))}:{award.get('id', '')}"
+
+
 def _classifications(release: dict) -> list[dict]:
     """Les classifications normalisées de l'avis — TOUTES, sans en élire une.
 
@@ -203,7 +216,7 @@ class SEAOConnector(SourceConnector):
                         signal_type_id="appel_offres",
                         nom_entreprise=nom,
                         detected_at=date_attribution or datetime.now(timezone.utc),
-                        source_ref=f"seao:{release.get('ocid', release.get('id', ''))}:{award.get('id', '')}",
+                        source_ref=source_ref_pour(release, award),
                         valeur_associee=float(montant) if montant is not None else None,
                         titre_ou_description=(release.get("tender") or {}).get("title"),
                         # ⚠️ `ville`/`adresse` NE SONT PAS encore promues au RawSignal,

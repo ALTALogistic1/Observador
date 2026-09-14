@@ -19,6 +19,7 @@ from dateutil import parser as dateutil_parser
 
 from falkye.sources.base import RawSignal, SourceConnector
 from falkye.sources.ckan_client import OPEN_CANADA_BASE, CKANClient
+from falkye.sources.fraicheur_datastore import parcourir_par_publication
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,16 @@ def _parse_float(raw) -> float | None:
         return None
 
 
+def source_ref_pour(rec: dict) -> str:
+    """La clé de déduplication d'un contrat — **un seul endroit**.
+
+    Elle identifie le signal à l'ingestion ET dit au parcours par publication ce qu'on
+    a déjà vu. Écrite deux fois, une divergence d'un caractère ferait tout reparcourir
+    à chaque cycle sans jamais rien reconnaître.
+    """
+    return f"contrats_federaux:{rec.get('reference_number')}"
+
+
 def _find_resource_id(client: CKANClient) -> str:
     resources = client.resources(CONTRATS_PACKAGE_ID, format_filter="CSV")
     for r in resources:
@@ -69,60 +80,78 @@ class ContratsFederauxConnector(SourceConnector):
             logger.warning("Contrats fédéraux: %s", exc)
             return
 
-        page_size = min(500, self.limit) if self.limit else 500
-        offset = 0
-        n = 0
+        # **L'axe de fraîcheur n'est PAS la date du contrat** — bascule du 2026-09-14,
+        # et cette source-ci est le cas qui l'a démontré le plus nettement.
+        #
+        # Le tri par `contract_date desc` mettait en tête DEUX dates FUTURES —
+        # 2026-12-01 et 2026-09-26 — qui passaient la fenêtre et produisaient les deux
+        # SEULS signaux de la source; la troisième ligne, datée du 2026-07-23,
+        # déclenchait le `return`. Sur les soixante premiers enregistrements du tri :
+        # deux futurs, ZÉRO dans la fenêtre de trente jours, cinquante-huit plus
+        # anciens. Les deux signaux en base étaient exactement les deux valeurs
+        # aberrantes de la source.
+        #
+        # Voir falkye/sources/fraicheur_datastore.py pour l'axe retenu et sa réserve.
+        for rec in parcourir_par_publication(
+            client,
+            resource_id,
+            source_id="contrats_federaux",
+            db_session=db_session,
+            construire_ref=source_ref_pour,
+            limite=self.limit,
+        ):
+            nom = (rec.get("vendor_name") or "").strip()
+            if not nom:
+                continue
 
-        while True:
-            result = client.datastore_search(
-                resource_id,
-                sort="contract_date desc",
-                limit=page_size,
-                offset=offset,
+            date_contrat = _parse_date(rec.get("contract_date"))
+            # **Une date de contrat postérieure à aujourd'hui est une erreur de
+            # saisie, et la source le prouve elle-même.** Vérifié le 2026-09-14 sur
+            # les deux cas réels : celui daté du 2026-12-01 porte
+            # `contract_period_start = 2026-01-12` (le jour et le mois transposés) et
+            # `reporting_period = 2025-2026-Q3`; celui du 2026-09-26 porte
+            # `contract_period_start = 2026-02-01` et un rapport de Q4 2025-2026. **Un
+            # rapport trimestriel ne peut pas décrire un contrat attribué après la fin
+            # du trimestre.**
+            #
+            # On ne corrige pas la date — on refuse d'en faire un signal. *Un contrat
+            # réellement à venir entrerait le jour où la source le date correctement;
+            # une aberration, jamais.*
+            if date_contrat and date_contrat > datetime.now(timezone.utc):
+                logger.info(
+                    "Contrats fédéraux : contrat daté du futur (%s, période débutant "
+                    "le %s) — écarté comme erreur de saisie.",
+                    rec.get("contract_date"), rec.get("contract_period_start"),
+                )
+                continue
+
+            # Valeur finale = valeur d'origine + modifications (si connues),
+            # sinon la valeur de contrat rapportée directement.
+            valeur = _parse_float(rec.get("contract_value")) or _parse_float(
+                rec.get("original_value")
             )
-            records = result.get("records", [])
-            if not records:
-                break
 
-            for rec in records:
-                if self.limit is not None and n >= self.limit:
-                    return
-                n += 1
-
-                nom = (rec.get("vendor_name") or "").strip()
-                if not nom:
-                    continue
-
-                date_contrat = _parse_date(rec.get("contract_date"))
-                if since and date_contrat and date_contrat < since:
-                    return  # trié par date décroissante : tout le reste est plus vieux
-
-                # Valeur finale = valeur d'origine + modifications (si connues),
-                # sinon la valeur de contrat rapportée directement.
-                valeur = _parse_float(rec.get("contract_value")) or _parse_float(
-                    rec.get("original_value")
-                )
-
-                yield RawSignal(
-                    signal_type_id="appel_offres",
-                    nom_entreprise=nom,
-                    detected_at=date_contrat or datetime.now(timezone.utc),
-                    source_ref=f"contrats_federaux:{rec.get('reference_number')}",
-                    valeur_associee=valeur,
-                    titre_ou_description=rec.get("description_fr") or rec.get("description_en"),
-                    champs={
-                        "donneur_ordre": rec.get("buyer_name") or rec.get("owner_org_title"),
-                        "ministere": rec.get("owner_org_title"),
-                        "valeur_contrat": valeur,
-                        "valeur_originale": _parse_float(rec.get("original_value")),
-                        "date_attribution": rec.get("contract_date"),
-                        "code_bien_service": rec.get("commodity_code"),
-                    },
-                )
-
-            offset += page_size
-            if len(records) < page_size:
-                break
+            yield RawSignal(
+                signal_type_id="appel_offres",
+                nom_entreprise=nom,
+                detected_at=date_contrat or datetime.now(timezone.utc),
+                source_ref=source_ref_pour(rec),
+                valeur_associee=valeur,
+                titre_ou_description=rec.get("description_fr") or rec.get("description_en"),
+                champs={
+                    "donneur_ordre": rec.get("buyer_name") or rec.get("owner_org_title"),
+                    "ministere": rec.get("owner_org_title"),
+                    "valeur_contrat": valeur,
+                    "valeur_originale": _parse_float(rec.get("original_value")),
+                    "date_attribution": rec.get("contract_date"),
+                    "code_bien_service": rec.get("commodity_code"),
+                    # Le code d'objet économique — 100 % de remplissage, 47 valeurs
+                    # distinctes (mesuré le 2026-09-14) : l'équivalent fédéral de la
+                    # classification normalisée du SEAO, capté ici pour que la
+                    # correspondance code → sphère ait sa matière (registre).
+                    "objet_economique": rec.get("economic_object_code"),
+                },
+            )
 
 
 CONNECTOR_CLASS = ContratsFederauxConnector

@@ -23,6 +23,7 @@ from dateutil import parser as dateutil_parser
 
 from falkye.sources.base import RawSignal, SourceConnector
 from falkye.sources.ckan_client import OPEN_CANADA_BASE, CKANClient
+from falkye.sources.fraicheur_datastore import parcourir_par_publication
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,17 @@ def _parse_float(raw) -> float | None:
         return float(str(raw).replace(",", "").strip())
     except ValueError:
         return None
+
+
+def source_ref_pour(rec: dict) -> str:
+    """La clé de déduplication d'une entente — **un seul endroit**.
+
+    Elle sert désormais à deux choses : identifier le signal à l'ingestion, et dire au
+    parcours par publication ce qu'on a DÉJÀ vu *(falkye/sources/fraicheur_datastore.py)*.
+    **Écrite deux fois, une divergence d'un caractère ferait tout reparcourir à chaque
+    cycle sans jamais rien reconnaître** — et le connecteur paraîtrait simplement lent.
+    """
+    return f"subventions_federales:{rec.get('ref_number')}:{rec.get('amendment_number')}"
 
 
 def _find_resource_id(client: CKANClient) -> str:
@@ -79,61 +91,64 @@ class SubventionsFederalesConnector(SourceConnector):
             return
 
         filters = {"recipient_province": self.province} if self.province else None
-        page_size = min(500, self.limit) if self.limit else 500
-        offset = 0
-        n = 0
 
-        while True:
-            result = client.datastore_search(
-                resource_id,
-                filters=filters,
-                sort="agreement_start_date desc",
-                limit=page_size,
-                offset=offset,
-            )
-            records = result.get("records", [])
-            if not records:
-                break
+        # **L'axe de fraîcheur n'est PAS la date d'entente** — bascule du 2026-09-14.
+        # La divulgation proactive publie des ententes commencées des mois plus tôt :
+        # la plus récente date de début québécoise était le 2026-08-01, et une fenêtre
+        # de 30 jours faisait sortir le connecteur au PREMIER enregistrement. Zéro
+        # signal, trois secondes, un succès. Voir falkye/sources/fraicheur_datastore.py
+        # pour l'axe retenu et sa réserve.
+        #
+        # `since` n'est donc plus un filtre d'ingestion. Il reste le paramètre du
+        # cycle, et c'est la DÉDUPLICATION qui borne le travail.
+        for rec in parcourir_par_publication(
+            client,
+            resource_id,
+            source_id="subventions_federales",
+            db_session=db_session,
+            construire_ref=source_ref_pour,
+            filters=filters,
+            limite=self.limit,
+        ):
+            nom = (rec.get("recipient_legal_name") or "").strip()
+            if not nom:
+                continue
 
-            for rec in records:
-                if self.limit is not None and n >= self.limit:
-                    return
-                n += 1
-
-                nom = (rec.get("recipient_legal_name") or "").strip()
-                if not nom:
-                    continue
-
-                date_signature = _parse_date(rec.get("agreement_start_date"))
-                if since and date_signature and date_signature < since:
-                    return  # trié par date décroissante : tout le reste est plus vieux
-
-                montant = _parse_float(rec.get("agreement_value"))
-                titre = rec.get("agreement_title_fr") or rec.get("agreement_title_en")
-                programme = rec.get("prog_name_fr") or rec.get("prog_name_en")
-
-                yield RawSignal(
-                    signal_type_id="financement_expansion",
-                    nom_entreprise=nom,
-                    detected_at=date_signature or datetime.now(timezone.utc),
-                    source_ref=f"subventions_federales:{rec.get('ref_number')}:{rec.get('amendment_number')}",
-                    ville=rec.get("recipient_city"),
-                    region=rec.get("recipient_province"),
-                    valeur_associee=montant,
-                    titre_ou_description=titre or programme,
-                    champs={
-                        "nature_bien": programme,  # réutilisé par le scoring (nature du programme)
-                        "programme": programme,
-                        "ministere": rec.get("owner_org_title"),
-                        "description": rec.get("description_fr") or rec.get("description_en"),
-                        "type_entente": rec.get("agreement_type"),  # G=subvention, C=contribution, O=autre
-                        "date_signature": rec.get("agreement_start_date"),
-                    },
+            date_signature = _parse_date(rec.get("agreement_start_date"))
+            # Une date d'entente POSTÉRIEURE à aujourd'hui contredit la source
+            # elle-même — deux cas réels ont été démontés champ par champ chez les
+            # contrats fédéraux le 2026-09-14, `reporting_period` et
+            # `contract_period_start` contredisant tous deux la date annoncée. On ne
+            # corrige pas la source : on refuse d'en faire un signal, et l'entente
+            # entrera le jour où elle se corrigera.
+            if date_signature and date_signature > datetime.now(timezone.utc):
+                logger.info(
+                    "Subventions fédérales : entente datée du futur (%s) — écartée.",
+                    rec.get("agreement_start_date"),
                 )
+                continue
 
-            offset += page_size
-            if len(records) < page_size:
-                break
+            montant = _parse_float(rec.get("agreement_value"))
+            titre = rec.get("agreement_title_fr") or rec.get("agreement_title_en")
+            programme = rec.get("prog_name_fr") or rec.get("prog_name_en")
 
+            yield RawSignal(
+                signal_type_id="financement_expansion",
+                nom_entreprise=nom,
+                detected_at=date_signature or datetime.now(timezone.utc),
+                source_ref=source_ref_pour(rec),
+                ville=rec.get("recipient_city"),
+                region=rec.get("recipient_province"),
+                valeur_associee=montant,
+                titre_ou_description=titre or programme,
+                champs={
+                    "nature_bien": programme,  # réutilisé par le scoring (nature du programme)
+                    "programme": programme,
+                    "ministere": rec.get("owner_org_title"),
+                    "description": rec.get("description_fr") or rec.get("description_en"),
+                    "type_entente": rec.get("agreement_type"),  # G=subvention, C=contribution, O=autre
+                    "date_signature": rec.get("agreement_start_date"),
+                },
+            )
 
 CONNECTOR_CLASS = SubventionsFederalesConnector
