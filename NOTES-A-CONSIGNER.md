@@ -596,3 +596,52 @@ attente**, et c'est le cas normal entre deux tâches.
 - **Et le motif d'absence a été écarté par le jugement, comme décidé** — *aucun nouveau contrat
   depuis septembre peut être un ralentissement ou rien.* **La première question du jugement a fait
   son travail sur un cas réel.**
+
+### N41 — Le relevé du matin est le préalable du 12, et il n'est pas assez PROFOND
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 12 *(livrable 1 — « l'inventaire de champs par source active,
+  approuvé mais jamais livré »)*, et audit.
+- ⚠️ **Le manque n'est pas six sources, c'est une profondeur.** *Le relevé du 13 septembre a
+  inventorié ce que chaque source **PROMEUT AU DOSSIER** — le second rôle. Le 12 a besoin de ce que
+  chaque source **CAPTE**, `champs` compris.* **Sur le SEAO, les deux ensembles ne se recoupent
+  presque pas** : promu au dossier = **rien**; capté = **quinze clés**.
+- **Et c'est précisément là que vit la démonstration de l'audit** : *l'assurance est déclarée sans
+  source alors que **six champs déjà captés portent son déclencheur**.* **Ces six-là sont dans
+  `champs`, pas dans ce qui atteint le dossier** — donc invisibles au relevé du 13.
+- **Il faut donc refaire les huit en profondeur, pas compléter six en surface.**
+
+### N42 — L'inventaire du 12 doit être GÉNÉRÉ, et porter deux colonnes
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 12, livrable 1 — **la forme du livrable, pas seulement son
+  contenu**.
+- **Généré depuis le code, jamais écrit à la main** : *un connecteur a changé aujourd'hui même; une
+  liste de champs recopiée serait fausse au premier commit suivant.* **C'est la règle du corpus
+  contre les copies, appliquée à un inventaire.**
+- ⚠️ **Deux colonnes, et la seconde est celle que la journée a payée pour apprendre** : *(a)* **ce
+  que le code DÉCLARE capter**, *(b)* **le taux de remplissage RÉEL**. **Un inventaire tiré du code
+  seul aurait listé `description_tender` comme un champ disponible pour la règle d'assurance — et
+  il était vide dans 100 % des cas.** *Un champ déclaré n'est pas un champ rempli, et le 12
+  construirait ses liens sur du vide sans s'en apercevoir.*
+- **Et ça rend le livrable 4 du 12 possible** *(normaliser le texte libre déjà capté)* : la
+  normalisation a besoin de savoir **quels champs sont du texte libre et combien de valeurs
+  distinctes ils portent** — deux choses que seule la mesure donne.
+
+### N43 — Le 12 remonte, mais c'est son PRÉALABLE qui remonte, pas le chantier
+- **Notée le** : 2026-09-14
+- **Destination** : audit, Partie 0 *(l'ordre par coût d'attente)* — **avis rendu, décision
+  d'Alexandre**.
+- **Pour le préalable, tout de suite** : *(1)* l'audit dit que le 12 **« peut se mener en parallèle
+  du socle — le seul chantier qui peut avancer pendant que le reste se répare »**; *(2)* son
+  préalable est **à moitié fait**; *(3)* il **sert déjà un autre point du plan** — la correspondance
+  code → sphère du SEAO, qui attend la même matière; *(4)* il **ne dépend pas de l'appariement**,
+  donc il n'est pas derrière le verrou.
+- ⚠️ **Contre, pour le RESTE du 12, et c'est le corpus qui le dit** : le livrable 5 — *la règle de
+  réfutation, « la partie non négociable »* — exige que **chaque lien se teste contre l'historique
+  réel**, et l'audit précise que c'est le **chantier 13** qui rend ce garde-fou *« opérationnel
+  plutôt que théorique »*, par le taux de rejet. **Or le taux de rejet demande des utilisateurs qui
+  rejettent**, et les cycles récents produisent zéro notification. *Sans lui, le 12 propose des liens
+  et n'a rien pour les réfuter — exactement ce que sa propre règle interdit.*
+- **Donc : remonter le livrable 1, laisser les livrables 2, 3 et 5 où ils sont.** *Ce qui remonte est
+  ce qui ne dépend de rien; ce qui attend est ce qui a besoin d'usage réel.*
+- **Et la réserve du mandat vaut d'être reprise au moment de trancher** : *le 12 ne créera pas de
+  signal là où il n'y en a pas — il révèle des signaux captés mais mal attribués.*
