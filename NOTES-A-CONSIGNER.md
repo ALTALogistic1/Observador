@@ -943,3 +943,39 @@ attente**, et c'est le cas normal entre deux tâches.
 - **Non traitée, et délibérément** : elle n'a aucun effet aujourd'hui — une date d'an 1 est
   antérieure à `since` et se fait écarter par la fenêtre. *Elle compterait le jour où la fenêtre
   s'élargirait.*
+
+### N60 — Un filet qui échoue au premier geste laisse l'essai se poursuivre sans protection
+- **Notée le** : 2026-09-14
+- **Destination** : guide d'ingénierie + journal des cas.
+- **Le fait.** `systemctl mask falkye-cycle.service` a **refusé** — *« File
+  '/etc/systemd/system/falkye-cycle.service' already exists »* : `mask` pose un lien vers
+  `/dev/null` et ne peut pas écraser un fichier réel, or la chaîne de déploiement installe
+  l'unité comme un vrai fichier. **La commande suivante, `systemctl start falkye-cycle.timer`,
+  a réussi.** L'essai a tourné six minutes durant sans le filet qu'il supposait.
+- **Ce qui l'a rendu invisible : rien n'a échoué bruyamment.** Un refus (`mask`), puis un succès
+  (`start`). *Deux commandes indépendantes tapées à la suite ne forment pas une procédure* —
+  il n'y a aucun point où l'échec de la première empêche la seconde.
+- **Et le refus était lui-même informatif** : il disait que l'unité est un fichier réel, un fait
+  que la procédure n'avait jamais établi. *Un message d'erreur exact, lu comme du bruit.*
+- **La règle. Un filet n'est pas posé par la commande qui le pose — il est posé quand son EFFET
+  est observé.** La vérification lit l'état effectif de la cible
+  *(`systemctl show -p ExecStart …`)*, jamais le code de retour de la commande. **Et l'étape
+  protégée doit être structurellement inaccessible tant que la vérification n'a pas répondu** :
+  un script qui s'arrête, pas une consigne de vigilance.
+- *Parenté avec la règle d'exploitation du projet — « un mécanisme automatique ne doit pas
+  interrompre le travail; un geste humain mal formé, si ». Ici le geste était mal formé, et rien
+  n'a interrompu.*
+
+### N61 — `FALKYE_DIFF_ARCHIVE_DIR` n'est posé dans aucune des deux unités
+- **Notée le** : 2026-09-14
+- **Destination** : `docs/DEPLOIEMENT.md` — *à vérifier avant de conclure, pas à corriger d'ici.*
+- `ARCHIVE_DIR` vaut par défaut le chemin **relatif** `./cache/diff_archive`
+  *(`diff_engine.py:87`)*, qui se résout sous `WorkingDirectory=/opt/falkye/code` — **en lecture
+  seule sous `ProtectSystem=strict`**. **C'est exactement la forme du défaut du cache CKAN**,
+  mesuré le 2026-09-07 : `OSError: [Errno 30] Read-only file system: 'cache'`.
+- Le cache CKAN a été réglé par `CacheDirectory=` + `FALKYE_CACHE_DIR`; **l'archive de diff porte
+  une variable DISTINCTE, `FALKYE_DIFF_ARCHIVE_DIR`, qui n'est posée dans aucune des deux
+  unités.** Elle peut l'être dans `/etc/falkye/falkye.env`, invisible d'ici.
+- ⚠️ **Non affirmé, à lire sur l'hôte** : `systemctl show -p Environment falkye-cycle.service`
+  et l'existence de l'archive. *Si elle n'est pas posée, le REQ échoue à archiver à chaque
+  cycle — et c'est la source dont dépend D36.*
