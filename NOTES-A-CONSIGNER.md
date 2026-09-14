@@ -121,11 +121,28 @@ attente**, et c'est le cas normal entre deux tâches.
 - **Le nom de l'écart, à inscrire tel quel : une règle qui nomme une donnée que personne ne
   possède se lit comme une règle appliquée.** *Rien ne la distingue, à la lecture, d'une règle
   qui tourne — elle a une valeur, une provenance, une place dans une taxonomie.*
-- **Et le mécanisme qui l'a cachée est l'inverse de l'habituel** : **le code SAVAIT et le corpus
-  non.** `scoring.py::_score_appel_offres` porte l'aveu depuis toujours — *« faute d'estimation
-  fiable… tant qu'aucune source ne donne un effectif de façon systématique »* — mais un aveu dans
-  un commentaire ne voyage pas. **Les cas précédents allaient du corpus vers le code qui
-  dérivait; celui-ci va du code vers le corpus qui ne l'a jamais su.**
+- ⚠️⚠️ **CORRIGÉ LE 14 SEPTEMBRE, ET C'EST LA NOTE ELLE-MÊME QUI ÉTAIT FAUSSE.** *Lu dans
+  l'archive REQ réelle (`req-data-2026-09-02`), en-tête d'`Entreprise.csv` :* **`COD_INTVAL_EMPLO_QUE`
+  — le code d'intervalle d'employés au Québec — EXISTE**, décodé par `DomaineValeur.csv` en quinze
+  valeurs : *A = 1 à 5, B = 6 à 10, C = 11 à 25, D = 26 à 49, E = 50 à 99, F = 100 à 249, G = 250 à
+  499, H, I, J, K, L = plus de 5 000, **N/P = non déclaré, O = aucun***.
+- **Mesuré sur les 60 000 premières lignes** *(échantillon NON aléatoire — le fichier est ordonné
+  par NEQ, donc les vieilles entreprises sont sur-représentées)* : **le champ est rempli à 100 %**,
+  et **~47 % portent une bande exploitable** (A à L); ~47 % disent « Aucun », ~7 % « Non déclaré ».
+- **Donc « aucune source ne fournit la bande d'effectifs » est FAUX.** Le REQ la fournit, pour
+  toute entreprise immatriculée, **gratuitement, dans un fichier déjà téléchargé et déjà importé**.
+  *Ce qui manque est une colonne au miroir et une lecture, pas une source ni une autorisation.*
+- **✏️ L'écart change donc de nature, et de nom.** Le corpus disait *« déclarée = bande d'effectifs
+  du registre »* : **il avait raison sur la source et tort sur le produit.** Ce n'est pas une règle
+  qui nomme une donnée que personne ne possède — **c'est une règle juste dont personne n'a vérifié
+  qu'elle était branchée.**
+- ⚠️ **Et l'aveu du code, que cette note citait hier comme le témoin fiable, est lui-même faux** :
+  `_score_appel_offres` justifie ses paliers absolus *« tant qu'aucune source ne donne un effectif
+  de façon systématique »* — **la source en donne un depuis toujours.** *La confession du code
+  n'était pas un savoir : c'était une croyance non vérifiée, écrite avec l'autorité d'un constat.*
+  **C'est ça, la forme neuve à écrire au journal** — pas « le code savait et le corpus non », mais
+  **un commentaire de code qui affirme une absence que personne n'est allé vérifier, et que tout le
+  monde lit ensuite comme une mesure.**
 
 ### N6 — Les établissements du REQ n'atteignent pas le dossier
 - **Notée le** : 2026-09-13
@@ -359,3 +376,72 @@ attente**, et c'est le cas normal entre deux tâches.
   `adresse_entreprise_adjudicataire` et `secteur_nature_contrat`. **Ce n'était pas une exigence
   neuve, c'était une exigence non tenue.** *Forme voisine de N5 : le registre savait, le
   connecteur non.*
+
+### N26 — Ce que l'archive REQ porte et que le produit ne lit pas
+- **Notée le** : 2026-09-14
+- **Destination** : fiche de source du REQ, mandat du chantier 22, et registre.
+- **Lu par plages HTTP sur l'archive réelle, sans la télécharger** — en-têtes des six CSV.
+  `Entreprise.csv` porte, **tous remplis à 100 % sur l'échantillon de 60 000 lignes** :
+  **`DAT_IMMAT`** *(date d'immatriculation — « établie depuis 1998 » devient disponible)*,
+  **`DAT_CONSTI`**, **`COD_INTVAL_EMPLO_QUE`** *(voir N5)*. Et **`DESC_ACT_ECON_ASSUJ2`** — un
+  **second** secteur d'activité, présent sur 15,2 %. `IND_FAIL` *(faillite)* et `DAT_CESS_PREVU`
+  *(cessation prévue)* existent aussi.
+- **Le connecteur n'en lit AUCUN** : il ne prend que `DAT_MAJ_INDEX_NOM`, le statut, le nom,
+  l'adresse et un secteur.
+- ⚠️ **Ce que ça change pour la mémoire** *(question d'Alexandre)* : oui, la date
+  d'immatriculation existe. **Mais « même adresse depuis 2011 » reste indérivable** — c'est
+  l'ancienneté de l'ENTREPRISE qui devient disponible, pas celle de son adresse.
+
+### N27 — Le profil n'accueille aucun des trois publics non commerciaux
+- **Notée le** : 2026-09-14
+- **Destination** : registre *(avec N22)* et spéc. section 4.
+- **Vérifié dans le code** : `TypeProfil` ne connaît que **`fournisseur`, `client`, `les_deux`** —
+  *et « client » reste commercial : quelqu'un qui achète.* Un besoin est une paire **sphère +
+  usage**; **un chercheur d'emploi n'a pas de sphère à servir, il a un métier.**
+- ⚠️ **Et le mode de défaillance est le pire possible** : `generer_notifications` fait
+  `if not profile.besoins_fournisseur(): continue` — **un profil sans besoin de type « offre » ne
+  produit rien, en silence**, sans erreur ni trace. *C'est le silence que la charte §17 nomme comme
+  le mode de défaillance principal, dans le chemin même qui sert les profils.*
+- `ProfileNeed.type_besoin` admet déjà une autre valeur que « offre » — **l'axe existe, le moteur
+  ne l'implémente pas.**
+
+### N28 — Le portrait de tendance — décision prise
+- **Notée le** : 2026-09-14
+- **Destination** : spéc. *(un troisième mode, à côté de la veille et de la recherche ponctuelle)*,
+  et charte section 9 avec la stratégie du portrait pour la contrainte de forme.
+- **Décision d'Alexandre** : consulter un prospect déjà connu et **engendrer un portrait sur les
+  douze derniers mois**. **Un objet distinct, pas une variante** — *le portrait d'opportunité décrit
+  une situation au présent, le portrait de tendance décrit un mouvement sur un an.*
+- **Aucun grade.** *Le grade mesure la distance entre les faits et ce que l'utilisateur peut servir
+  MAINTENANT; A/AA/AAA ne s'applique qu'au présent.*
+- **Même structure, même contrainte de forme, et le second bloc reste** — *« pour un [profil], cette
+  évolution peut représenter… »*.
+- **Douze mois, une seule fenêtre, non paramétrable. Paliers Radar et Radar+** — *c'est une
+  fonctionnalité, pas une source, donc le seuil ne reproduit pas la faille du portefeuille.*
+- ⚠️ **Et la limite « depuis qu'on regarde » est une contrainte de ce mode, pas un détail** : *un
+  portrait sur douze mois d'un produit qui observe depuis six est TRONQUÉ, et il doit le dire.*
+  **À formuler partout où l'affirmation apparaîtra : « inchangée depuis qu'on regarde » n'est pas
+  « inchangée depuis 2011 ».**
+
+### N29 — Le produit ne sait dire aucun NIVEAU — question ouverte
+- **Notée le** : 2026-09-14
+- **Destination** : registre, entrée neuve, **rattachée au portrait de tendance (N28)**.
+- **La question, non tranchée** : *le produit peut-il dire qu'une entreprise est en élan, stable, ou
+  moribonde avec un sursaut récent?* **C'est ce qu'Alexandre voudrait, et le produit n'a pas de quoi
+  le faire.**
+- **Ce qui manque, nommé** : **un indicateur de NIVEAU.** *Les signaux disent des ÉVÉNEMENTS, jamais
+  un niveau.* **Deux exceptions** : le montant des contrats, et le champ capacité du RACJ.
+- **C'est le même vide que la bande d'effectifs** — *et la bande d'effectifs vient d'en sortir
+  (N5) : le REQ en porte une, ce qui donne au moins un niveau de TAILLE, à défaut d'un niveau
+  d'activité.*
+
+### N30 — « Absence attendue » : une lecture disponible et inutilisable
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 22, **à l'endroit où le 22 rencontrera le motif** — pas dans
+  une note de dépendance en fin de document.
+- **Il a servi dans quatre simulations sur sept, et le jugement l'a écarté chaque fois qu'il a été
+  honnête** : *aucun signal de recrutement depuis cinquante-cinq jours ne dit rien de fiable sans
+  seuil.*
+- **Le motif existe au 22.1, sa calibration appartient au 17, et le 17 est parmi les derniers du
+  plan.** *Une lecture disponible et inutilisable est pire qu'une lecture absente : elle a l'air
+  d'un outil.*
