@@ -81,6 +81,51 @@ attente**, et c'est le cas normal entre deux tâches.
   proportion hors Québec de cette source devient inobservable sans la retirer à nouveau. *Corriger tout
   de suite aurait effacé la mesure en même temps que le défaut.*
 
+### N3 — Ce que le donneur d'ouvrage absent coûte à un utilisateur précis
+- **Notée le** : 2026-09-14
+- **Destination** : registre, **D43** — *l'entrée disait que le donneur n'existe pas; elle n'avait aucun
+  exemple de ce que ça coûte.* Et chantier 21 pour la conséquence sur le portrait.
+- **Deux cas d'usage d'Alexandre, sur le MÊME fait — un mandat d'architecture attribué par une
+  municipalité.**
+  - **Un fournisseur de mobilier de bureau.** *Le prospect est la firme d'architectes — l'entité que le
+    produit sait créer.* **Trois faits convergent : le volume, la nature du mandat, l'embauche.** *Un
+    contrat seul ne dirait rien; une embauche seule non plus.* **Ça marche de bout en bout aujourd'hui.**
+  - **Un entrepreneur général.** *Le même mandat lui apprend qu'une municipalité prépare un chantier,
+    des mois avant l'appel d'offres — la promesse du produit prise à la lettre.* **Mais son prospect est
+    la MUNICIPALITÉ, et elle n'existe pas comme entité.**
+- ⚠️ **Et ce n'est pas une dégradation gracieuse — c'est un portrait qui pointe la mauvaise porte.**
+  *Alexandre estimait que « le grade le refléterait, A plutôt que AA ». La spéc. 8.x dit que le grade
+  répond à « **correspond-il à CE profil?** » — A = « un signal pertinent pour votre secteur ».* **C'est
+  exact, et ça ne dit rien du fait que l'entreprise NOMMÉE dans le portrait n'est pas le prospect.**
+  **Le grade note la force d'un signal sur un prospect; il n'a aucun moyen d'exprimer « bon fait,
+  mauvaise entité ».** *L'utilisateur fait la transposition lui-même, et rien dans le produit ne lui dit
+  qu'il doit la faire.*
+- **Ce que les deux cas ajoutent à la forme de la table** *(D48)* : **le code dit aussi LEQUEL des deux
+  prospects le signal concerne.** *Mobilier → le fournisseur qui vient de gagner. Entrepreneur → le
+  donneur qui prépare.* **Même signal, même code, deux prospects selon la sphère du lecteur.** *Donc la
+  table n'est pas code → sphère : elle est **(code, rôle) → sphère**.*
+- **Et le premier cas valide 7quater sur un usage réel** : *un code de services professionnels et un code
+  de construction ne disent pas les mêmes besoins **parce qu'ils disent où le travail se fait** — dans des
+  bureaux, ou sur un chantier.*
+
+### N4 — Le mandat d'architecture comme signal précoce : le délai est MESURABLE, pas à affirmer
+- **Notée le** : 2026-09-14
+- **Destination** : mandat du chantier 22 *(un motif, avec sa calibration)*, et registre D48.
+- **La lecture, et c'est peut-être la première réellement neuve que le code apporte** : *un mandat
+  d'architecture annonce un chantier. Avant la classification, on ne pouvait pas le distinguer d'un
+  contrat quelconque.*
+- ⚠️ **« Six à dix-huit mois » est une estimation, pas une mesure** *(un chiffre recopié est une promesse
+  que personne ne tient)*. **Et le délai est mesurable sur des données qu'on a déjà** : le SEAO porte les
+  deux avis — le mandat de services professionnels, puis le contrat de construction — **et `buyer.id` est
+  rempli à 100 %.** *Apparier par donneur d'ouvrage, comparer les dates d'attribution, rendre la
+  distribution des délais.*
+- **Ce que ça vaut** : *un motif « signal précoce » sans délai mesuré serait exactement la lecture
+  disponible et inutilisable du motif « absence attendue » — il aurait l'air d'un outil.* **La mesure EST
+  la calibration.**
+- ⚠️ **Portée à déclarer d'avance** : nos 2 280 signaux ne suffiront pas — ils couvrent une fenêtre de
+  30 jours. *La mesure se prend sur les fichiers source, sur plusieurs années, et elle est gratuite.*
+- **Ne pas construire.** *Noté comme mesure possible, pas comme travail engagé.*
+
 ---
 
 *Vide — les soixante-quatre notes des 13 et 14 septembre 2026 ont été portées au corpus
