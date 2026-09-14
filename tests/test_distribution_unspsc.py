@@ -1,12 +1,11 @@
 """La distribution UNSPSC — les fonctions pures, testées sans base."""
 from collections import Counter
 
-import pytest
-
 from outils.distribution_unspsc import (
     PALIERS,
-    classifications_des_signaux,
     _codes_pour_part,
+    classifications_des_signaux,
+    profondeur_unspsc,
     tronquer,
 )
 
@@ -95,3 +94,34 @@ def test_une_entree_sans_code_est_ignoree_sans_lever():
 
 def test_les_quatre_paliers_de_la_hierarchie_sont_declares():
     assert sorted(PALIERS) == [2, 4, 6, 8]
+
+
+def test_profondeur_un_code_entierement_renseigne():
+    assert profondeur_unspsc("43211508") == 4
+
+
+def test_profondeur_dun_segment_utilise_tel_quel():
+    """`72000000` ne dit que son segment — les trois autres paires sont vides."""
+    assert profondeur_unspsc("72000000") == 1
+
+
+def test_profondeur_dun_code_arrete_a_la_famille():
+    assert profondeur_unspsc("81100000") == 2
+
+
+def test_profondeur_dun_code_arrete_a_la_classe():
+    assert profondeur_unspsc("81101500") == 3
+
+
+def test_profondeur_un_zero_interne_ne_coupe_pas_le_compte():
+    """Seules les paires FINALES à 00 sont vides — une paire 00 au milieu compte."""
+    assert profondeur_unspsc("81001501") == 4
+
+
+def test_profondeur_rend_none_hors_huit_chiffres():
+    assert profondeur_unspsc("8810") is None
+    assert profondeur_unspsc("881015012") is None
+
+
+def test_profondeur_ignore_la_ponctuation():
+    assert profondeur_unspsc("72-00-00-00") == 1
