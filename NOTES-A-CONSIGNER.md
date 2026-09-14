@@ -979,3 +979,47 @@ attente**, et c'est le cas normal entre deux tâches.
 - ⚠️ **Non affirmé, à lire sur l'hôte** : `systemctl show -p Environment falkye-cycle.service`
   et l'existence de l'archive. *Si elle n'est pas posée, le REQ échoue à archiver à chaque
   cycle — et c'est la source dont dépend D36.*
+
+### N62 — Le moteur de diff n'a JAMAIS tourné sur l'hôte, et l'absence d'archive le prouve
+- **Notée le** : 2026-09-14
+- **Destination** : registre (D36) + chantier 1 + chantier 2.
+- **La cause : jamais appelé, pas d'échec silencieux.** `ingest_all_active_sources` **exclut les
+  sources en `methode_acces: import_manuel`** *(`engine.py:463`)* — or **`req` et `rdprm` sont
+  toutes deux `import_manuel`**. Le cycle ingère donc **cinq** sources, toutes `evenement`, et
+  **aucune ne passe par le moteur de diff**.
+- **La preuve est l'absence elle-même** : `_archiver_snapshot` écrit **avant** d'appliquer le diff
+  et **avant** la quarantaine de lecture. Aucun répertoire nulle part ⇒ **aucun diff accepté,
+  aucune quarantaine de lecture, jamais, sur cet hôte.** *Une absence de fichier qui atteste — la
+  même classe de fait gratuit que `last_modified`.*
+- ⚠️ **Conséquence pour le chantier 1 : toute la machinerie de quarantaine est « construite, non
+  éprouvée en réel ».** Le troisième état du guide, exactement.
+- ⚠️ **Conséquence pour D36 : le mécanisme ne peut pas se produire sur le chemin du minuteur.**
+  Il exige `executer_diff`; aucune source du cycle ne l'emprunte. *D36 reste réelle pour l'import
+  manuel du REQ — elle n'est plus un verrou à l'activation.*
+
+### N63 — Mesurer depuis un shell root ne dit rien de ce que le service voit
+- **Notée le** : 2026-09-14
+- **Destination** : guide d'ingénierie — *troisième membre de la famille portée/provenance.*
+- `/opt/falkye/code/cache/` porte 283 Mo écrits par root : le disque est inscriptible. **Mais
+  l'unité tourne sous `ProtectSystem=strict`, qui remonte l'arborescence en lecture seule DANS SON
+  ESPACE DE MONTAGE** — la permission du fichier n'y change rien. *L'incident du 7 septembre
+  (`Errno 30` sur ce chemin exact, depuis le service) est la preuve directe que les deux vues
+  diffèrent.*
+- **La règle : une lecture prise hors du bac à sable ne conclut rien sur l'intérieur.** Vérifier
+  depuis l'identité ET les protections du service, ou ne pas conclure.
+- *Symétrie honnête : ma prémisse était fausse aussi — j'ai attribué à la lecture seule ce qui
+  venait d'un appel qui n'a jamais lieu. Deux inférences, un seul fait manquant.*
+
+### N64 — Les seuils de quarantaine ne bornent pas la liste de travail du REQ
+- **Notée le** : 2026-09-14
+- **Destination** : registre, D36 — *ceci révise l'option A.*
+- `req.seuils_quarantaine` est **nul** ⇒ `SEUILS_DEFAUT` : apparitions **50 % ET 500 absolues**,
+  les deux devant être franchies ensemble. **Sur 2,7 M de lignes, 50 % font 1,35 M** — l'absolu
+  ne déclenche jamais seul.
+- **Donc un diff ACCEPTÉ peut porter plus d'un million d'apparitions**, et persister sa liste de
+  clés dans la base distante n'est pas tenable. *L'option A ne survit pas à son propre
+  dimensionnement, et c'est moi qui l'avais présentée comme bornée par les seuils.*
+- **Ce qui tient à la place** : appliquer l'état ET émettre les signaux **par lots alignés**, de
+  sorte que l'état n'avance jamais au-delà de ce qui est durable. *Aucun journal, aucune liste —
+  mais un changement du contrat entre `executer_diff` et `apres_diff_accepte`, qui est aujourd'hui
+  invoqué exactement une fois.*
