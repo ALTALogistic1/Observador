@@ -223,6 +223,28 @@ travail deux fois; une correction sans signalement est une main dans le texte de
 Pas d'un suivi, pas d'une demande ultérieure — de celle-là. Un suivi est une intention; une intention
 ne tient pas un document à jour.
 
+## Un document DEVIENT faux; une trace est RENDUE fausse
+
+**La section précédente porte sur le temps** : le monde bouge, le texte reste, quelqu'un doit le voir.
+**Celle-ci porte sur un geste** — un texte exact au moment où il est écrit, réécrit ensuite pour coller au
+travail réel, et faux par cet acte même. *L'intention est bonne : décrire ce qui a été fait. Le résultat
+est un registre qui date le travail au mauvais moment.*
+
+**Une demande de fusion fusionnée est close.** Elle ne peut plus porter de travail, et la modifier ne fait
+que la faire mentir — **et elle ment sur le seul point pour lequel on vient la consulter** : ce qui est
+entré dans la base, et quand. **Une branche qui reçoit des commits après sa fusion appelle une demande
+neuve, pas une réécriture.** *(journal, cas 35)*
+
+**La distinction qui tranche : un document décrit un état, une trace date un événement.** Un document se
+corrige dès qu'il devient faux — c'est une obligation, et c'est la section précédente. **Une trace ne se
+corrige pas : elle se poursuit.** Ce qui manque à un procès-verbal s'ajoute au suivant.
+
+**Le corollaire d'exploitation : une chaîne en succès ne prouve pas que le travail est parti.** Un
+déploiement vert dit que **ce qui a été fusionné** est arrivé sur l'hôte; il ne dit rien de ce qui a été
+écrit et jamais fusionné. *Devant un fichier attendu et absent sur l'hôte, comparer les deux têtes —
+`git log base..branche` — AVANT de chercher une panne.* **Chercher une panne dans une chaîne qui a
+fonctionné coûte plus cher que la vérification qui l'aurait évitée**, et ne rend jamais rien.
+
 ## Ne jamais présumer une capacité non testée
 
 **La règle est symétrique.** Ne jamais présumer une limite non testée — un fournisseur peut couvrir un

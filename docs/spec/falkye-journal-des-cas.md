@@ -597,3 +597,76 @@ l'écrit.**
 **La règle. Une garde ne couvre que ce que la mesure couvrait.** *Étendre « par symétrie » à un geste
 voisin — écrire et lire, créer et consulter, calculer et afficher — demande sa propre démonstration, parce
 que le voisin a ses propres raisons d'exister.*
+
+
+## Cas 35 — La trace réécrite après coup, sur une chaîne qui n'a jamais échoué *(guide d'ingénierie)*
+
+Le 14 septembre 2026, la demande de fusion n° 40 a été fusionnée vers `claude/phase-1-docs-setup-b8em5g`
+à 10 h 14. **Elle portait trois commits, jusqu'à `5a3cd23`** — l'inventaire des champs, le préalable du
+chantier 12, le formulaire d'inscription. Le déploiement s'est déclenché quatre secondes après la fusion
+et s'est terminé **`success`** à 10 h 16 min 41 s.
+
+Trois commits ont ensuite été poussés sur la même branche — 10 h 42, 10 h 57, 11 h 09 — puis **à 11 h 10
+le titre et la description de la demande DÉJÀ FUSIONNÉE ont été réécrits pour décrire ce nouveau
+travail** : l'axe de fraîcheur, la troisième colonne, la reprise du passé SEAO, Laval en veilleuse.
+
+Le lendemain matin, `outils/reprise_champs_seao.py` était introuvable sur l'hôte, et `ls` montrait tous
+les fichiers déployés à 10 h 16 — l'heure de la fusion de la n° 40.
+
+**Artefact — la demande et son déploiement :**
+
+```
+#40  créée 14:10:07Z · fusionnée 14:14:10Z · base claude/phase-1-docs-setup-b8em5g
+     tête à la fusion : 5a3cd23 · 3 commits · 3 fichiers
+     description modifiée : 15:10:06Z   (updated_at, ~56 min APRÈS closed_at)
+
+Déploiement, exécution n° 40 · 14:14:14Z → 14:16:41Z · conclusion : success
+     head_sha 1c38346 — le commit de fusion
+     aucune exécution de déploiement depuis
+```
+
+**Artefact — les commits jamais fusionnés :**
+
+```
+6c57be0  14:42:05Z   deux sources muettes, vérifiées aux fichiers
+f70eed5  14:57:38Z   ← outils/reprise_champs_seao.py, outils/sonde_source.py
+25f481b  15:09:37Z   falkye/sources/fraicheur_datastore.py
+
+git log base..branche → 3 commits, 12 fichiers, 1 530 insertions
+```
+
+**Ce que ce cas ajoute, et c'est une forme neuve.** Les cas précédents portent sur **un document qui
+devient faux en vieillissant** — le monde bouge, le texte reste, et la question est de savoir qui le
+repère. Ici, le texte était exact quand il a été écrit, et il a été **rendu faux après coup,
+délibérément, avec une bonne intention** : décrire le travail réel. *Le résultat est un registre qui date
+le travail au mauvais moment.*
+
+**Une demande fusionnée n'est pas un document de travail : c'est le procès-verbal de ce qui est entré
+dans la base à cette date.** La réécrire ne la met pas à jour — elle la fait mentir, et **sur le seul
+point pour lequel on vient la consulter.** Sans cette correction, la n° 40 affirmerait pour toujours que
+la bascule de l'axe de fraîcheur est entrée le 14 septembre à 10 h 14. Elle n'était pas encore écrite.
+
+**Ce qui l'a rendue invisible : rien n'a échoué.** Pas d'erreur, pas de test rouge, pas de déploiement en
+attente — un `success` franc, sur une chaîne qui avait parfaitement fonctionné. La recherche s'est donc
+portée sur une panne inexistante : journal des exécutions, tests, accès SSH. *Le déploiement avait
+raison. Il a livré exactement ce qui avait été fusionné.*
+
+**Parenté avec le cas 33, et la différence.** Là, un instrument juste dont la portée était plus étroite
+que ce que sa sortie laissait croire — un zéro exact sur le mauvais périmètre. Ici, **un vert exact sur le
+mauvais périmètre** : la portée d'un déploiement réussi est le commit de fusion, jamais la branche, et
+rien dans « déploiement réussi » ne dit lequel des deux on regarde. *La même forme, sur un succès au lieu
+d'un zéro.*
+
+**Ce qui a fini par le voir** : comparer la tête de la branche à celle de la base. Trois commits, douze
+fichiers. **Un fait qui ne dépendait d'aucune hypothèse sur l'endroit où la panne se cachait** — comme le
+compteur de l'hébergeur au cas 33.
+
+**Ce que ça a coûté.** Rien en production : aucun code faux n'est parti, la chaîne est intacte, la branche
+est saine et n'a rien à rejouer. **Le prix est une demi-journée de travail invisible** — du code écrit,
+testé, décrit, et jamais arrivé — et *une trace qui aurait survécu à la session pour tromper la relecture
+suivante.* C'est la forme qui compte, pas le dégât.
+
+**La règle. Une demande fusionnée est close** — elle ne peut plus porter de travail, et la modifier ne
+fait que la faire mentir. **Une branche qui reçoit des commits après sa fusion appelle une demande neuve,
+pas une réécriture.** *Et un déploiement en succès prouve que ce qui a été fusionné est parti; jamais que
+ce qui a été écrit a été fusionné.*
