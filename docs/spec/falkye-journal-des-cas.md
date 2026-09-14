@@ -670,3 +670,237 @@ suivante.* C'est la forme qui compte, pas le dégât.
 fait que la faire mentir. **Une branche qui reçoit des commits après sa fusion appelle une demande neuve,
 pas une réécriture.** *Et un déploiement en succès prouve que ce qui a été fusionné est parti; jamais que
 ce qui a été écrit a été fusionné.*
+
+
+## Cas 36 — Le filet qui a refusé, et l'essai qui a continué *(guide d'ingénierie)*
+
+Le 14 septembre 2026, pour éprouver le rattrapage de `Persistent=true` sans livrer à un vrai
+destinataire, une procédure en deux gestes : masquer le service, puis démarrer le minuteur.
+
+**Artefact — le refus, et le succès qui a suivi :**
+
+```
+$ systemctl mask falkye-cycle.service
+Failed to mask unit: File '/etc/systemd/system/falkye-cycle.service' already exists
+
+$ systemctl start falkye-cycle.timer
+(aucune sortie — succès)
+```
+
+**`mask` pose un lien vers `/dev/null`**; la chaîne de déploiement installe l'unité comme **fichier
+réel**. Les deux ne peuvent pas coexister, et `mask` refuse plutôt que d'écraser. **La procédure
+supposait un fait qu'elle n'avait jamais établi.**
+
+**L'essai a donc tourné sans filet**, et il n'a été arrêté que parce qu'Alexandre a lu le refus au lieu
+d'attendre les six minutes prévues.
+
+**Ce qui l'a rendu invisible : rien n'a échoué bruyamment.** Un refus, puis un succès. *Deux commandes
+indépendantes tapées à la suite ne forment pas une procédure : il n'existe aucun point où l'échec de la
+première empêche la seconde.*
+
+**Et le refus était lui-même informatif.** Il disait que l'unité est un fichier réel — le fait exact
+qui manquait. *Un message d'erreur juste, lu comme du bruit.*
+
+**Ce que la correction a établi, vérifié sur un systemd réel le même jour.** *(a)* `systemctl --runtime
+mask` n'aurait pas sauvé la mise : `systemd-analyze unit-paths` place `/etc/systemd/system` **au-dessus**
+de `/run/systemd/system` — le masque aurait été ignoré et la commande aurait rendu 0. *Un filet pire que
+pas de filet.* *(b)* Une **surcharge** est lue quelle que soit la nature du fichier principal :
+
+```
+unité seule                     → systemd-analyze verify : rien à dire
++ drop-in « ExecStart= »        → « Service has no ExecStart=. Refusing. »
+```
+
+La plainte prouve que la surcharge a écrasé le fichier réel.
+
+**La règle. Un filet n'est pas posé par la commande qui le pose — il est posé quand son EFFET est
+observé.** La vérification lit l'état effectif de la cible *(`systemctl show -p ExecStart …`)*, jamais un
+code de retour. **Et l'étape protégée doit être structurellement inaccessible tant que la vérification
+n'a pas répondu** : un script qui s'arrête, pas une consigne de vigilance.
+
+*Parenté avec la règle d'exploitation du projet — « un mécanisme automatique ne doit pas interrompre le
+travail; un geste humain mal formé, si ». **Ici le geste était mal formé, et rien n'a interrompu.***
+
+**Épilogue, et il vaut mieux que le cas.** Le corpus déclarait ce rattrapage **intestable** depuis le
+9 septembre — le vérifier reviendrait à provoquer l'envoi qu'on cherche à empêcher. La surcharge le rend
+observable sans destinataire. **L'intestabilité était une propriété du montage d'essai, pas du
+mécanisme.** *Procédure à `docs/DEPLOIEMENT.md`, « Éprouver un déclenchement sans livrer ».*
+
+
+## Cas 37 — Trois sources muettes, trois causes opposées, une seule trace *(chantier 2, faille F)*
+
+Les 13 et 14 septembre 2026, trois sources actives rendaient zéro ou presque. **Les trois produisaient
+exactement la même trace : zéro signal, une exécution en succès, quelques secondes.** Il a fallu aller
+au portail de chacune pour savoir laquelle on regardait.
+
+**`subventions_federales` — source vivante, connecteur juste, AXE DE FRAÎCHEUR faux.** L'API réelle porte
+**237 178 enregistrements pour le Québec** et les treize champs demandés existent tous. Le connecteur
+filtrait et triait sur `agreement_start_date` — *le début de l'entente, pas sa publication.* La plus
+récente pour le Québec : **2026-08-01**. Avec une fenêtre de 30 jours (`since` au 2026-08-15), il
+**`return` dès le premier enregistrement**. *Les 768 entreprises qu'elle avait produites viennent des
+premiers cycles, quand la fenêtre tombait encore dans les données.* **Rien n'a changé — ni la source, ni
+le code : c'est la fenêtre qui a dépassé les données.**
+
+**`permis_construction_laval` — connecteur juste, SOURCE ARRÊTÉE.** `last_modified` du CSV :
+**2026-03-31**, sur les trois ressources (CSV, JSON, XML). Près de six mois sans publication. Le
+connecteur balaie **172 168 lignes à chaque cycle** pour ne rien trouver, et le cycle l'inscrit en succès.
+*Vérifiée contre l'hypothèse du déménagement : **les 130 jeux de la Ville de Laval balayés**, aucun
+successeur, aucune mention de remplacement, et le portail est vivant — un autre jeu a été mis à jour le
+jour même.*
+
+**`contrats_federaux` — TRI EMPOISONNÉ par deux aberrations de la source.** La ressource est mise à jour
+le jour même *(`last_modified` du 14 septembre, 06 h 50)*, 1 313 621 contrats, aucun champ manquant. Mais
+le tri `contract_date desc` met en tête **deux dates futures** qui passent la fenêtre et produisent les
+deux seuls signaux; la troisième ligne, `2026-07-23`, arrête tout. *Sur les 60 premiers : 2 futurs, **0
+dans la fenêtre**, 58 plus anciens.* **Les deux signaux en base étaient exactement les deux valeurs
+aberrantes de la source.**
+
+**Et les deux dates futures sont des erreurs que la source réfute elle-même :**
+
+| | `contract_date` | `contract_period_start` | `reporting_period` |
+|---|---|---|---|
+| Real Time Networks | 2026-**12-01** | 2026-**01-12** | 2025-2026-**Q3** |
+| ThinkOn | 2026-09-26 | 2026-02-01 | 2025-2026-**Q4** |
+
+Le premier a **le jour et le mois transposés** — la période débute à la date inversée. Et **un rapport
+trimestriel ne peut pas décrire un contrat attribué après la fin du trimestre.** *La réfutation vient de
+deux autres champs du même enregistrement : ce n'est pas un jugement de vraisemblance.*
+
+**Le fait qui les départage existe, il est gratuit, et personne ne le lit : le `last_modified` de la
+ressource.** *Laval : 2026-03-31. Fédéral : aujourd'hui 06 h 50.* **Un compte de signaux à zéro a trois
+causes; une date de publication figée n'en a qu'une.**
+
+**La règle. Un défaut chez nous, une source arrêtée et un tri empoisonné produisent la même trace — et
+le produit ne sait pas les distinguer.** *C'est l'argument le plus concret du chantier 2, et il est
+mesuré sur trois cas réels le même jour.*
+
+**Et la condition permanente qu'il faut lire avec.** *Le produit vit de sources qu'il ne contrôle pas,
+dans un monde où les portails se refont constamment.* Un jeu renommé, un identifiant changé, une adresse
+déplacée — **et le connecteur lit indéfiniment un fichier figé, sans jamais échouer.** *Chaque source du
+portefeuille est à une refonte de devenir muette de la même façon.* **Précédent : le Globe and Mail,
+déclaré abandonné puis retrouvé à une autre adresse — d'où la règle de chercher un successeur AVANT de
+conclure à une mort.** Appliquée à Laval, elle a **confirmé** la mort plutôt que de l'infirmer : *une
+vérification qui confirme n'est pas une vérification inutile.*
+
+
+## Cas 38 — Le commentaire de code qui affirmait une absence que personne n'avait vérifiée *(guide d'ingénierie)*
+
+Le 13 septembre 2026, une note affirmait qu'**aucune source ne fournit la bande d'effectifs**, et elle
+s'appuyait sur le meilleur témoin disponible : un commentaire du produit lui-même.
+`scoring.py::_score_appel_offres` justifie ses paliers absolus *« faute d'estimation fiable de la taille
+de l'entreprise… tant qu'aucune source ne donne un effectif de façon systématique »*.
+
+**Le 14 septembre, l'archive réelle du REQ a été lue.** `Entreprise.csv` porte **`COD_INTVAL_EMPLO_QUE`**
+— le code d'intervalle d'employés au Québec — décodé par `DomaineValeur.csv` en **quinze valeurs** : *A =
+1 à 5, B = 6 à 10, C = 11 à 25, D = 26 à 49, E = 50 à 99, F = 100 à 249, G = 250 à 499 … L = plus de
+5 000, N/P = non déclaré, O = aucun.*
+
+**Artefact — mesuré sur les 60 000 premières lignes** *(échantillon NON aléatoire : le fichier est ordonné
+par NEQ, donc les vieilles entreprises sont sur-représentées)* :
+
+```
+COD_INTVAL_EMPLO_QUE   rempli à 100 %
+   ~47 %  portent une bande exploitable (A à L)
+   ~47 %  « Aucun »
+    ~7 %  « Non déclaré »
+```
+
+**La source la fournit depuis toujours, gratuitement, dans un fichier déjà téléchargé et déjà importé.**
+*Ce qui manque est une colonne au miroir et une lecture — pas une source, pas une autorisation.*
+
+**La forme, et c'est elle qui vaut d'être écrite.** Ce n'est pas « le code savait et le corpus non ».
+**C'est un commentaire de code qui affirme une ABSENCE que personne n'est allé vérifier, et que tout le
+monde lit ensuite comme une mesure.** *Une confession de code a l'autorité d'un constat : elle est écrite
+par quelqu'un qui regardait le problème, à l'endroit exact où le problème se pose. Rien ne la distingue,
+à la lecture, d'une vérification.*
+
+**Et le corpus avait raison là où on le croyait fautif.** La spéc. 8.2 classait *« déclarée = bande
+d'effectifs du registre »* parmi les provenances disponibles. **Elle avait raison sur la source et tort
+sur le produit** — ce n'était pas une règle qui nomme une donnée que personne ne possède, **c'était une
+règle juste dont personne n'avait vérifié qu'elle était branchée.**
+
+**La règle. Une affirmation d'absence se vérifie à la source, jamais dans un commentaire — le sien
+compris.** *Corollaire mesuré le lendemain : la disproportion « contrat de 1,8 M$ pour une entreprise
+déclarée à 26-49 employés » est devenue calculable pour la première fois. **Première fois qu'une
+vérification AJOUTE au produit au lieu d'en retirer.***
+
+
+## Cas 39 — Le moteur de diff n'a jamais été appelé, et c'est une absence de fichier qui l'atteste *(chantiers 1 et 2)*
+
+Le 14 septembre 2026, en préparant le point d'avancement de D36, une recherche sur l'hôte :
+`find / -type d -name 'diff_archive*'` **ne rend rien.**
+
+**Deux hypothèses, et elles n'ont pas les mêmes conséquences** : échec silencieux de l'archivage, ou
+archivage jamais appelé.
+
+**C'est la seconde, et le code le dit.** `ingest_all_active_sources` **exclut les sources en
+`methode_acces: import_manuel`** *(`falkye/engine.py`, docstring)* — or **`req` et `rdprm` le sont toutes
+deux**. Le cycle ingère donc **cinq sources**, toutes en `type_ingestion: evenement`, et **aucune ne
+passe par le moteur de diff.**
+
+**L'absence est la preuve, et c'est ce qui rend ce cas utile.** `_archiver_snapshot` écrit **avant**
+d'appliquer le diff et **avant même** la quarantaine de lecture. Si l'archivage échouait, l'`OSError`
+remonterait et la source tomberait bruyamment. **Rien nulle part ⇒ aucun diff accepté, aucune quarantaine
+de lecture, jamais, sur cet hôte.** *Un fichier absent qui atteste — la même classe de fait gratuit que le
+`last_modified` du cas 37.*
+
+**Trois conséquences, et aucune n'était su avant ce jour-là.**
+
+**(1) Toute la machinerie de quarantaine du chantier 1 est « construite, non éprouvée en réel ».** Le
+troisième état du guide, exactement — ni un ✓ ni un tiret. *Le chantier est réputé clos.*
+
+**(2) D36 ne peut pas se produire sur le chemin du minuteur.** Son mécanisme exige `executer_diff`;
+aucune source du cycle ne l'emprunte. *Elle reste vraie pour l'import manuel du REQ — elle n'est plus un
+verrou à l'activation.* **C'est ce qui a permis de fermer le chantier 29 le même jour.**
+
+**(3) Et le correctif envisagé ne tenait pas à son propre dimensionnement.** L'option retenue était de
+persister la liste de travail du diff. **`req.seuils_quarantaine` est nul**, donc les seuils par défaut
+s'appliquent : apparitions à **50 % ET 500 absolues, les deux ensemble**. *Sur 2,7 M de lignes, 50 % font
+1,35 million* — l'absolu ne déclenche jamais seul. **Un diff accepté peut donc porter plus d'un million
+d'apparitions**, et l'option avait été présentée comme « bornée par les seuils ». *Elle ne l'est pas.*
+
+**La règle. Avant de corriger un mécanisme, établir qu'il s'exécute.** *Deux propositions de correctif
+ont été construites sur un chemin de code que personne n'avait vérifié comme emprunté — et la
+vérification tenait dans une commande.*
+
+
+## Cas 40 — Six pour cent retenus, et deux des trois causes étaient impossibles *(guide d'ingénierie)*
+
+Le 14 septembre 2026, la reprise des champs SEAO rapporte **2 280 signaux complétés** et **36 477
+attributions sans signal en base** — *le produit retient environ 6 % de ce que le SEAO publie sur la
+période.* L'outil énonçait trois causes : *hors fenêtre, filtre territorial, nom vide.*
+
+**Noms vides : ZÉRO.** Mesuré sur la fenêtre août-septembre : **23 977 attributions distinctes, toutes
+avec au moins un fournisseur nommé**, et aucun `award` sans fournisseur.
+
+**Filtre territorial : structurellement inerte pour cette source, deux fois plutôt qu'une.** *(a)* `seao`
+**ne déclare aucun `territoire`** au registre — son `region: Québec` est du texte libre, explicitement
+distinct du filtre. *(b)* Le connecteur **ne pose jamais `region`** sur le `RawSignal`, et
+`appartient(None, …)` **retient** par principe.
+
+**Donc la fenêtre explique la totalité** — `since = maintenant − 30 jours` (`lookback_days=30`), et le
+connecteur écarte toute attribution antérieure.
+
+**Et ce que « la fenêtre » recouvre est un fait sur la source qu'on ignorait. Artefact — 7 fichiers
+hebdomadaires réels, 24 997 attributions, âge à la fin de la semaine du fichier :**
+
+```
+datées de la semaine du fichier     2 355    9,4 %
+≤ 30 j   — ce que le cycle retient  4 859   19,4 %
+31–90 j                             1 822    7,3 %
+91–365 j                            5 629   22,5 %
+> 365 j                            12 687   50,8 %
+```
+
+**Un fichier « hebdomadaire » du SEAO n'est pas une semaine de contrats : 9,4 % seulement de ses
+attributions sont datées de sa propre semaine.** Le reste remonte jusqu'en 2015 et au-delà — *l'une est
+datée de l'an 1.* **Le nom d'un fichier décrit sa PUBLICATION, jamais son contenu.**
+
+**Ce que la mesure tranche, et ce qu'elle laisse ouvert.** Écarter est **majoritairement juste** : la
+moitié de chaque fichier porte des contrats de plus d'un an, qui ne sont plus des signaux de croissance.
+**Le seul rang discutable est 31–90 jours — 1 822 attributions, environ 260 par semaine.** *Décision de
+produit, pas défaut.*
+
+**La règle. Un outil qui ÉNUMÈRE des causes doit avoir vérifié qu'elles peuvent s'appliquer.** Une
+énumération se lit comme une répartition plausible : celle-ci orientait vers *« c'est voulu, c'est le
+filtre territorial »*. **Le coût n'est pas le mot de trop — c'est la décision qu'il aurait pu emporter.**

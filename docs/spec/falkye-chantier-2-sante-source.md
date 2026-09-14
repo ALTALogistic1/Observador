@@ -377,3 +377,51 @@ incalculable dans six mois.
 
 **Ne rien commencer d'autre.** Un problème appartenant à un autre chantier se consigne au
 `DiagnosticJournal` et se rapporte, sans être attaqué.
+
+---
+
+## La condition permanente — le cadre du chantier, pas un de ses livrables
+
+*Écrit le 14 septembre 2026, constat d'Alexandre. **Ne pas construire : c'est le cadre dans lequel les
+livrables ci-dessus se lisent.***
+
+**Le produit vit de sources qu'il ne contrôle pas, dans un monde où les portails se refont
+constamment.** Un jeu renommé, un identifiant changé, une adresse déplacée — **et le connecteur lit
+indéfiniment un fichier figé, sans jamais échouer.**
+
+**Ce n'est pas un incident, c'est une CONDITION PERMANENTE.** *Chaque source du portefeuille est à une
+refonte de devenir muette de la même façon, et le produit ne saurait pas laquelle.*
+
+**Ce que ça demande, et ce n'est pas la santé de source telle qu'elle était écrite : savoir quand une
+source a cessé de BOUGER.** *Une date de dernière publication qui ne change plus depuis des mois est un
+**fait vérifiable** — plus fiable qu'un compte de signaux à zéro, qui a trois causes.*
+
+**Précédent du corpus à citer avec la règle** : *le Globe and Mail avait été déclaré abandonné, puis
+retrouvé à une autre adresse.* **D'où la règle de vérification : chercher un successeur AVANT de conclure
+à une mort.** Appliquée à Laval le 14 septembre, elle a **confirmé** la mort plutôt que de l'infirmer —
+*une vérification qui confirme n'est pas une vérification inutile.*
+
+## Le fait qui départage, et il est gratuit — `last_modified`
+
+*Mesuré le 14 septembre 2026 sur trois cas réels. Le détail complet est au journal des cas, n° 37.*
+
+**Trois sources rendaient zéro ou presque, pour trois causes opposées, avec exactement la même trace :
+zéro signal, une exécution en succès, quelques secondes.**
+
+| source | cause réelle | ce que `last_modified` dit |
+|---|---|---|
+| `subventions_federales` | **notre axe de fraîcheur** — filtre sur le début de l'entente, pas sur la publication | la ressource bouge |
+| `permis_construction_laval` | **la source s'est arrêtée** — 130 jeux de la Ville balayés, aucun successeur | **figé au 2026-03-31** |
+| `contrats_federaux` | **tri empoisonné** par deux dates futures aberrantes | mis à jour **le jour même, 06 h 50** |
+
+**Un compte de signaux à zéro a trois causes; une date de publication figée n'en a qu'une.**
+
+⚠️ **C'est le premier critère d'acceptation à ajouter au chantier : lire et conserver le `last_modified`
+de chaque ressource, et alerter quand il cesse d'avancer.** *Le fait existe, il est gratuit, il est rendu
+par chaque portail CKAN à chaque appel — et personne ne le lit.*
+
+⚠️ **Et un fait de plus, établi le 14 septembre, qui change ce que ce chantier peut observer :** le moteur
+de diff **n'a jamais été appelé sur l'hôte** — le cycle exclut les sources en `methode_acces:
+import_manuel`, et aucune des cinq sources qu'il ingère ne passe par le moteur *(journal, cas 39)*. *Donc
+`DiffRunHistorique` est vide, et toute santé de source bâtie sur l'historique de diff n'observerait rien.*
+**La santé de source doit s'appuyer sur `SourceRunLog` et sur `last_modified`, pas sur le moteur de diff.**

@@ -264,6 +264,56 @@ motif, pas seulement la conclusion.
 réservé à un usage interne. Le choix se prend avant que la connexion existe en production — après,
 migrer veut dire redemander à chaque client de se reconnecter.
 
+## Ce qu'un instrument doit déclarer — trois choses, et aucune ne vit dans sa documentation
+
+*Écrit le 14 septembre 2026, après trois défauts de la même famille en quatre jours.*
+
+**Sa PORTÉE — ce qu'il ne regarde pas.** Un instrument mesure ce pour quoi il a été construit; son zéro
+ne dit rien du reste. *(journal, cas 33 — un rapport de coût exact rendait zéro pendant que le compteur
+de l'hébergeur voyait 412 millions de lectures.)* **La portée s'écrit à côté de la sortie, jamais dans
+une docstring** : sans quoi un zéro se lit comme une absence de coût.
+
+**Sa PROVENANCE — d'où il a regardé.** Une sonde du 14 septembre interrogeait un datastore sans tri : il
+rend les enregistrements **les plus anciens**, donc **29 champs remplis au lieu de 35**, et un champ
+absent des vieilles lignes paraissait ne pas exister. *Un chiffre faux en est sorti — `amendment_date`
+donnée à 0,2 % au lieu de 27,8 %.* **Ce qui a attrapé le défaut n'est pas une relecture : c'est d'avoir
+mesuré deux fois le même objet.** *Deux mesures qui divergent sont un fait, même quand la conclusion ne
+bouge pas.*
+
+**Et les CAUSES qu'il énumère — qu'elles puissent s'appliquer.** `outils/reprise_champs_seao.py`
+annonçait qu'une attribution sans signal veut dire *« hors fenêtre, filtre territorial, nom vide »*.
+**Deux des trois étaient impossibles pour cette source**, et la mesure les a mises à zéro : le SEAO ne
+déclare aucun `territoire` au registre, son connecteur ne pose jamais `region`, et 23 977 attributions
+sur 23 977 portent un fournisseur nommé. **Une énumération de causes se lit comme une répartition
+plausible** — elle oriente vers une explication fausse. *Le coût n'est pas le mot de trop : c'est la
+décision qu'il aurait pu emporter.*
+
+**Le membre inattendu de la famille : le poste d'observation.** Le 14 septembre, un répertoire de
+`/opt/falkye/code/` porte 283 Mo écrits depuis un shell root — **et le service, lui, ne peut pas y
+écrire** : `ProtectSystem=strict` remonte l'arborescence en lecture seule dans son espace de montage,
+avant que la permission du fichier n'entre en jeu. **Une lecture prise hors du bac à sable ne conclut
+rien sur l'intérieur.** *Vérifier depuis l'identité ET les protections du service, ou ne pas conclure.*
+
+## Un filet n'est posé que lorsque son effet est observé
+
+**Le fait.** Le 14 septembre, une procédure d'essai commençait par poser un filet, puis démarrait le
+mécanisme à éprouver. **La commande qui posait le filet a refusé** — l'unité visée est un fichier réel,
+et `systemctl mask` ne peut pas écraser un fichier. **La commande suivante a réussi.** L'essai a tourné
+sans protection, et seule une lecture attentive du refus a évité qu'on attende la suite.
+
+**Ce qui l'a rendu invisible : rien n'a échoué bruyamment.** Un refus, puis un succès. *Deux commandes
+indépendantes tapées à la suite ne forment pas une procédure — il n'existe aucun point où l'échec de la
+première empêche la seconde.*
+
+**La règle. La vérification lit l'ÉTAT EFFECTIF de la cible, jamais le code de retour de la commande qui
+l'a posé.** Et **l'étape protégée doit être structurellement inaccessible tant que la vérification n'a
+pas répondu** : un script qui s'arrête, pas une consigne de vigilance. *(journal, cas 36.)*
+
+**Le corollaire, parce qu'il s'est vérifié le même jour : un moyen d'essai déclaré impossible mérite
+d'être réexaminé.** Ce document portait depuis le 9 septembre qu'éprouver un rattrapage de minuteur
+revenait à provoquer l'envoi qu'on cherchait à empêcher. **C'était une propriété du montage d'essai, pas
+du mécanisme** — une surcharge d'unité rend le déclenchement observable sans destinataire.
+
 ## Ce qu'un état « construit » ne prouve pas
 
 **Une fonctionnalité construite et testée n'est pas éprouvée.** Tant qu'elle n'a pas tourné contre le

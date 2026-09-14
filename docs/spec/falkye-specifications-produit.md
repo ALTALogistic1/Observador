@@ -249,6 +249,30 @@ générique; plusieurs personas retirés pour avantage faible ou chevauchement.
 
 ---
 
+### 3bis. ⚠️ Ce qu'un profil peut DÉCLARER — trois publics que le modèle n'accueille pas
+
+*Vérifié dans le code le 14 septembre 2026. Décision ouverte au registre, D44.*
+
+**`TypeProfil` ne connaît que `fournisseur`, `client`, `les_deux` — et « client » reste commercial :
+quelqu'un qui achète.** *Un besoin est une paire **sphère + usage**; **un chercheur d'emploi n'a pas de
+sphère à servir, il a un métier**.*
+
+**Trois publics que le corpus prévoit et que le profil n'accueille pas** : **une MRC**, **une chambre de
+commerce**, **un chercheur d'emploi**.
+
+**Et un cas d'usage que les cinq facettes n'ont jamais prévu : RETENIR plutôt que vendre.** *Une MRC veut
+savoir qu'une entreprise de son territoire grandit ailleurs.* ⚠️ **Le grade lui-même change de sens** :
+*« Sur mesure » ne veut pas dire la même chose quand on cherche à EMPÊCHER quelque chose.*
+
+**`ProfileNeed.type_besoin` admet déjà autre chose qu'« offre » : l'axe existe, le moteur ne
+l'implémente pas.**
+
+✅ **Le mode de défaillance, lui, est fermé** *(14 septembre 2026)*. `generer_notifications` faisait
+`if not profile.besoins_fournisseur(): continue` — **un profil sans besoin de type « offre » ne produisait
+rien, en silence, sans erreur ni trace.** *C'était le silence que la charte §17 nomme comme le mode de
+défaillance principal, dans le chemin même qui sert les profils.* **Il se signale désormais bruyamment au
+geste humain (création, inventaire) et par une ligne d'exploitation `PROFIL_INCOMPLET` au cycle.**
+
 ## 4. Sources
 
 ### 4.1 Gabarit du registre
@@ -941,6 +965,32 @@ conservation d'état et de la santé de source.
 
 ---
 
+### 7ter. Ce que la fiche `appel_offres` ne décrit pas — le second prospect
+
+*Relevé du 13 septembre 2026. Décision ouverte au registre, D43.*
+
+**Un avis du SEAO porte DEUX prospects, et cette section n'en décrit qu'un.**
+
+**Le donneur d'ouvrage est le prospect DIRECT** : il entreprend quelque chose, la classification dit quoi,
+son identifiant est présent à 100 %. **Le fournisseur retenu est un prospect CONDITIONNEL** : *un contrat
+décroché crée des besoins — embauche, équipement, assurance, cautionnement, fonds de roulement — **mais
+seulement quand il sort de l'ordinaire pour lui**.* **C'est déjà la calibration du corpus : premier
+contrat, ou disproportion par rapport à la bande d'effectifs.** *Et l'avis porte ce que peu de signaux
+ont : un montant et une date.*
+
+⚠️ **État du produit : le connecteur ne crée une entreprise que pour le FOURNISSEUR.** Le donneur
+d'ouvrage **n'existe comme entité nulle part** — son nom vit dans `Signal.champs`. **Le faire exister est
+un changement de modèle, pas un réglage.** *Les deux prospects attendent donc chacun quelque chose : le
+fournisseur attend l'appariement, le donneur attend d'exister.*
+
+### 7quater. Un type de signal que personne ne produit, et que le NEQ débloquerait
+
+**L'élargissement d'activité.** *Un entrepreneur en construction qui décroche un contrat de construction
+fait son métier; le même qui décroche un contrat d'une autre nature **élargit son activité**.*
+
+**Ça demande le secteur du fournisseur ET l'objet du contrat.** *On a les deux dans les données — le
+secteur par le REQ, l'objet par la classification du SEAO — et ni l'un ni l'autre dans le produit.*
+
 ## 7bis. Angles morts du portefeuille de sources
 
 *Critique du 5 septembre 2026. **Les correctifs qui en découlent sont appliqués aux signaux ci-dessus** — bande d'effectifs promue en signal, capacité du RACJ promue en signal, calibration resserrée des contrats publics, palmarès reclassés en corroboration, EIMT relibellée. Le détail et les pistes de sources sont dans `falkye-recommandations-sources.md`. Ne restent ici que les trois constats qui n'ont pas de correctif.*
@@ -1269,6 +1319,31 @@ traités en tête et donne l'impression d'un retard accumulé; un tri par grade 
 il vaut la peine d'agir. Le tri par date reste disponible, non par défaut.
 
 ---
+
+### 9bis. Trois exigences de sortie décidées les 13 et 14 septembre 2026
+
+**L'adresse est une exigence de SORTIE, pas une option.** *Un portrait sans adresse n'est pas actionnable,
+pour tout type de prospect.* **D'où elle vient, et ce qui arrive quand elle manque** : le REQ ne la donne
+**que si l'entreprise est résolue**; l'EIMT en capte une et **la jette**; le SEAO en porte une à **99,9 %**
+qu'il ne captait pas jusqu'au 13 septembre. *Même cause que le gain partiel sur l'appariement, même
+correctif.*
+
+**Le portrait de TENDANCE — un troisième mode, à côté de la veille continue et de la recherche
+ponctuelle.** *Décision d'Alexandre, 14 septembre 2026; registre, D46.* Consulter un prospect déjà connu
+et **engendrer un portrait sur les douze derniers mois**. **Un objet distinct, pas une variante** — *le
+portrait d'opportunité décrit une situation au présent, le portrait de tendance décrit un mouvement sur un
+an.* **Aucun grade** *(A/AA/AAA mesure la distance entre les faits et ce que l'utilisateur peut servir
+MAINTENANT)*. **Douze mois, une seule fenêtre, non paramétrable. Paliers Radar et Radar+** — *c'est une
+fonctionnalité, pas une source, donc le seuil ne reproduit pas la faille du portefeuille.* ⚠️ **Un portrait
+sur douze mois d'un produit qui observe depuis six est TRONQUÉ, et il doit le dire.**
+
+**L'amorce de premier contact est un BROUILLON, jamais un message prêt.** *Un message rédigé par le produit
+**engage l'utilisateur en son nom**, et une amorce maladroite lui coûte le prospect — **sans que le produit
+le sache jamais**.* **Le brouillon déplace la responsabilité là où elle doit être.** ⚠️ *Elle est déjà
+promise au palier Radar : c'est une contrainte à poser sur quelque chose de vendu, pas sur une idée.*
+
+**Et une suite doit être consultable avec ce qu'elle prolonge** *(registre, D47)* : le portrait de suite
+est plus court parce qu'il ne redit pas ce qui est connu — **donc il n'est lisible qu'AVEC le premier.**
 
 ## 10. Cycle de vie d'une opportunité — décidé, non construit
 

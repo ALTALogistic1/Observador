@@ -527,6 +527,119 @@ bruit. À retirer au prochain passage en root, avec le reste.
 **Conséquence permanente : l'activation du minuteur est un geste délibéré,
 jamais un effet de bord d'un déploiement.**
 
+### Éprouver un déclenchement sans livrer — la procédure, et pourquoi elle existe
+
+*Écrite le 14 septembre 2026. Elle remplace l'affirmation de la section suivante selon laquelle ce
+comportement « ne sera pas vérifié ».*
+
+**Le masquage ne marche pas ici, et le refus est informatif.** `systemctl mask` pose un lien vers
+`/dev/null` à l'emplacement de l'unité; la chaîne de déploiement y installe un **fichier réel**. La
+commande refuse :
+
+```
+Failed to mask unit: File '/etc/systemd/system/falkye-cycle.service' already exists
+```
+
+**Et `systemctl --runtime mask` ne sauve pas la mise** : le masque irait dans `/run/systemd/system/`,
+**de précédence INFÉRIEURE à `/etc/systemd/system/`**. `systemd-analyze unit-paths` donne l'ordre :
+
+```
+/etc/systemd/system          ←  le fichier réel
+/run/systemd/system          ←  le masque, ignoré
+```
+
+*La commande rendrait 0 et l'unité démarrerait quand même — un filet pire que pas de filet.*
+
+**Ce qui marche : une surcharge.** Un `drop-in` est lu **quelle que soit la nature du fichier
+principal** — vérifié sur un systemd réel le 14 septembre, avec une unité factice posée comme fichier
+réel : sans surcharge, `systemd-analyze verify` ne dit rien; avec une surcharge vidant `ExecStart`, il
+répond *« Service has no ExecStart=. Refusing. »* **La plainte prouve que la surcharge a écrasé le
+fichier réel.**
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+sudo mkdir -p /etc/systemd/system/falkye-cycle.service.d
+printf '[Service]\nExecStart=\nExecStart=/bin/false\n' \
+  | sudo tee /etc/systemd/system/falkye-cycle.service.d/zzz-filet-de-test.conf >/dev/null
+sudo systemctl daemon-reload
+
+# LE FILET EST-IL POSÉ ? On lit l'effet sur l'unité, jamais le code de retour de ce qui précède.
+systemctl show -p ExecStart falkye-cycle.service | grep -q '/bin/false' || {
+  echo "ARRÊT — le filet n'est PAS posé. Rien n'a été démarré." >&2
+  exit 1
+}
+
+sudo systemctl start falkye-cycle.timer
+sleep 400                                   # RandomizedDelaySec=300, plus une marge
+journalctl -u falkye-cycle.timer -u falkye-cycle.service --since '-15 min'
+sudo systemctl stop falkye-cycle.timer
+```
+
+Retrait — **explicitement, jamais par `systemctl revert`** :
+
+```bash
+sudo rm -rf /etc/systemd/system/falkye-cycle.service.d
+sudo systemctl daemon-reload
+systemctl show -p ExecStart falkye-cycle.service    # doit redire `falkye cycle`
+```
+
+⚠️ **Pourquoi pas `revert` :** cette commande retire les surcharges **et les fichiers d'unité installés
+par l'utilisateur**. Elle pourrait emporter `/etc/systemd/system/falkye-cycle.service` lui-même.
+
+**Les deux règles que cette procédure porte, et qui valent hors de systemd.**
+
+**Un filet n'est pas posé par la commande qui le pose — il est posé quand son EFFET est observé.** Le
+14 septembre, la première version de cette procédure ouvrait sur `mask`; `mask` a refusé, **et la
+commande suivante a réussi**. L'essai a tourné sans protection. *Deux commandes indépendantes tapées à
+la suite ne forment pas une procédure : il n'existe aucun point où l'échec de la première empêche la
+seconde.* D'où le `set -euo pipefail` et la vérification qui **lit l'unité** plutôt qu'un code de retour.
+
+**Et le refus était lui-même informatif** : il disait que l'unité est un fichier réel, un fait que la
+procédure n'avait jamais établi. *Un message d'erreur exact, lu comme du bruit.* **Rien n'a échoué
+bruyamment** — un refus, puis un succès.
+
+*(journal des cas, n° 36 — et guide d'ingénierie, « Un filet n'est posé que lorsque son effet est
+observé ».)*
+
+### ⚠️ `FALKYE_DIFF_ARCHIVE_DIR` n'est posée dans aucune unité — à poser avant le premier diff réel
+
+*Écrit le 14 septembre 2026, en lisant le moteur de diff pour une autre raison.*
+
+`ARCHIVE_DIR` vaut par défaut le chemin **relatif** `./cache/diff_archive` *(`falkye/diff_engine.py`)*,
+qui se résout sous `WorkingDirectory=/opt/falkye/code`. **Sous `ProtectSystem=strict`, cette
+arborescence est remontée en lecture seule DANS l'espace de montage du service** — c'est exactement le
+défaut du cache CKAN du 7 septembre, `OSError: [Errno 30] Read-only file system: 'cache'`.
+
+**Le cache CKAN a été réglé par `CacheDirectory=` + `FALKYE_CACHE_DIR`. L'archive de diff porte une
+variable DISTINCTE, qui n'est posée ni dans `falkye-cycle.service`, ni dans
+`falkye-miroir-req.service`.**
+
+**Ça ne casse rien aujourd'hui, et la raison compte** : le moteur de diff n'est jamais appelé par le
+cycle *(journal, cas 39)*. **Le jour où un import du REQ passera par lui, le défaut se rejouera.**
+
+*À poser sous `/var/lib/falkye`, qui est déjà en `ReadWritePaths` :*
+
+```ini
+Environment=FALKYE_DIFF_ARCHIVE_DIR=/var/lib/falkye/diff_archive
+```
+
+⚠️ **Et une mise en garde de méthode, payée le 14 septembre.** `/opt/falkye/code/cache/` peut très bien
+contenir des fichiers : **un shell root y écrit sans difficulté.** Ça ne prouve rien sur ce que le
+service peut y faire — *le montage est en lecture seule avant que la permission du fichier n'entre en
+jeu*. **Une lecture prise hors du bac à sable ne conclut rien sur l'intérieur.**
+
+*Et les outils lancés à la main sur l'hôte doivent porter l'identité ET l'environnement du service,
+sans quoi ils laissent des fichiers appartenant à root dans des chemins que le service pourrait un jour
+devoir lire :*
+
+```bash
+sudo bash -c 'set -a; . /etc/falkye/falkye.env; set +a
+  export FALKYE_CACHE_DIR=/var/cache/falkye
+  exec runuser -u falkye -- /opt/falkye/venv/bin/python outils/<outil>.py'
+```
+
 ### ⚠️ `Persistent=true` — le danger réel, et il n'est PAS testé
 
 Le réarmement n'est pas le pire. `falkye-cycle.timer` porte `Persistent=true`,

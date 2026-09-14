@@ -265,3 +265,38 @@ déjà confirmées, volume suffisant pour que les seuils veuillent dire quelque 
 
 **Ne rien commencer d'autre.** Si le chantier révèle un problème appartenant à un autre chantier, le
 consigner dans le `DiagnosticJournal` et le rapporter, sans l'attaquer.
+
+---
+
+## ⚠️ État réel au 14 septembre 2026 — construit, jamais éprouvé en réel
+
+**Ce chantier est réputé clos. Il ne s'est jamais exécuté en production, et personne ne le savait.**
+
+**Le fait, et c'est une absence qui l'atteste.** Sur l'hôte, `find / -type d -name 'diff_archive*'` ne
+rend **rien**. Or `_archiver_snapshot` écrit **avant** d'appliquer le diff et **avant même** la
+quarantaine de lecture : si l'archivage échouait, l'`OSError` remonterait et la source tomberait
+bruyamment. **Aucun répertoire ⇒ aucun diff accepté, aucune quarantaine de lecture, jamais.**
+
+**La cause : jamais appelé, pas d'échec silencieux.** `ingest_all_active_sources` **exclut les sources en
+`methode_acces: import_manuel`** — or `req` et `rdprm` le sont toutes deux. **Le cycle ingère cinq
+sources, toutes en `type_ingestion: evenement`, et aucune ne passe par le moteur de diff.**
+
+**Conséquence, dans les termes du guide : toute la machinerie de quarantaine est « construite, non
+éprouvée en réel » — le troisième état, ni un ✓ ni un tiret.** *Les seuils, la détection de changement de
+schéma, la quarantaine de lecture, la proposition de seuils, la levée manuelle : tout cela passe ses
+tests et n'a jamais vu une source réelle.*
+
+**Ce qui l'éprouvera : le premier import du REQ qui passera par `ingest_snapshot`.** *Et deux choses
+doivent être posées avant ce jour-là :* **(a)** `FALKYE_DIFF_ARCHIVE_DIR`, qui n'est déclarée dans aucune
+unité et dont le défaut relatif tomberait sous le confinement en lecture seule *(`docs/DEPLOIEMENT.md`)*;
+**(b)** la question de D36 — *l'état de diff est validé avant les signaux qu'il a produits*, et c'est sur
+ce chemin-là, le seul, qu'elle peut encore frapper.
+
+⚠️ **Et un chiffre à connaître avant de dimensionner quoi que ce soit sur ce moteur** : `req` ne déclare
+**aucun** seuil au registre, donc les seuils par défaut s'appliquent — apparitions à **50 % ET 500
+absolues, les deux ensemble**. **Sur 2,7 M de lignes, 50 % font 1,35 million.** *Un diff ACCEPTÉ peut donc
+porter plus d'un million d'apparitions : l'absolu ne déclenche jamais seul sur une source de cette
+taille.* **À relire avant de proposer des seuils pour le REQ** *(`proposer_seuils` reste une proposition,
+jamais une application).*
+
+*(journal des cas, n° 39.)*

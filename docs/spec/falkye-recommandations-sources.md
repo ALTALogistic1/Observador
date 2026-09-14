@@ -134,3 +134,52 @@ ou l'entreprise avait-elle déjà réglé ça avant d'ouvrir?
 
 Aucune source n'y répondra. Seuls le taux de rejet du chantier 13 et la densité du chantier 9 le diront,
 et les deux exigent de vrais dossiers.
+
+---
+
+## Pistes instruites et non instruites — 13 septembre 2026
+
+*Ces entrées sont **instruites**, pas retenues. Rien ici n'est à construire.*
+
+### Les programmes d'immobilisations municipaux — instruite
+
+**La base légale est solide et datée.** Le conseil d'une municipalité **doit**, au plus tard le
+**31 décembre** de chaque année, adopter le programme des **trois** exercices suivants, en détaillant
+**l'objet, le montant et le mode de financement** de chaque dépense en immobilisations dont la période de
+financement excède 12 mois. *Loi sur les cités et villes, art. 473; Code municipal, art. 953.1 — délai
+porté au 31 janvier en année d'élection.*
+
+**C'est la promesse du produit prise à sa source** : ce qu'une municipalité **compte faire**, un à trois
+ans avant l'appel d'offres. *Là où le SEAO dit ce qui est déjà attribué.*
+
+**Montréal va plus loin que la loi** : un programme **décennal** (PDI), publié en données ouvertes sous
+**CC-BY 4.0**. ⚠️ **Et il est sur Données Québec (CKAN)** — donc joignable par le client CKAN que le
+produit utilise déjà, **sans nouveau mécanisme d'accès**.
+
+⚠️ **La limite est le format, et elle décide de la portée** : Montréal publie du tableur; **la plupart des
+autres municipalités publient un PDF sur leur propre site**. *Une source « PTI municipal » générique
+n'existe pas — il y aurait Montréal, puis un long travail par municipalité.*
+
+### Trois pistes JAMAIS instruites — ni retenues, ni écartées
+
+*Cet état est distinct des deux autres, et il est le plus honnête pour elles : personne ne les a
+regardées. **Ne pas y toucher avant instruction.***
+
+- **Régie du bâtiment du Québec** — *les catégories de licence disent **ce qu'un entrepreneur est autorisé
+  à exécuter**.*
+- **Registre foncier.**
+- **Gazette officielle du Québec.**
+
+### ✏️ L'OQLF — son motif a changé le 14 septembre 2026
+
+**Elle restait l'unique voie vers un effectif : seuil de 25+ employés, daté, par un organisme public — que
+la spéc. 8.2 classe en taille *mesurée*.** *Son blocage n'est ni technique ni budgétaire : c'est une
+demande d'autorisation au gouvernement du Québec (registre, D5).*
+
+⚠️ **Mais le REQ porte une bande d'effectifs** — `COD_INTVAL_EMPLO_QUE`, **rempli à 100 %**, ~47 % de
+bandes exploitables, **dans un fichier déjà téléchargé et déjà importé** *(journal des cas, n° 38)*.
+**L'OQLF reste plus précise et mieux datée; elle n'est plus la seule.**
+
+*Et deux simulations de portrait sur neuf reposaient sur elle, pour deux raisons distinctes — le NEQ sans
+appariement, et le seuil de 25+ daté.* **Le catalogue la classe cinquième à cause de D5; les simulations
+suggèrent qu'elle devrait être première. À trancher, pas à faire.**
