@@ -74,6 +74,12 @@ attente**, et c'est le cas normal entre deux tâches.
   entreprise hors Québec** sur cette source. *Le produit est déclaré « foyer Québec » en Phase 1.*
 - **Et le champ pour le faire existe et n'est pas capté** : `vendor_postal_code`, relevé par la sonde
   le 14 septembre. *La troisième colonne l'avait déjà trouvé.*
+- ⛔ **NE PAS CORRIGER avant le cycle du 15 septembre — décision d'Alexandre, 14 septembre au soir, et
+  le motif fait partie de la note.** *« Je veux voir ce que le cycle rend tel quel — si des entreprises
+  hors Québec apparaissent, ça me dira combien, et c'est une mesure qu'on n'aura pas deux fois. »*
+  **Le premier cycle non filtré est un instrument à usage unique** : une fois la restriction posée, la
+  proportion hors Québec de cette source devient inobservable sans la retirer à nouveau. *Corriger tout
+  de suite aurait effacé la mesure en même temps que le défaut.*
 
 ---
 
