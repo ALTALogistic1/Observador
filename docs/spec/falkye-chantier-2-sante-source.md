@@ -425,3 +425,22 @@ de diff **n'a jamais été appelé sur l'hôte** — le cycle exclut les sources
 import_manuel`, et aucune des cinq sources qu'il ingère ne passe par le moteur *(journal, cas 39)*. *Donc
 `DiffRunHistorique` est vide, et toute santé de source bâtie sur l'historique de diff n'observerait rien.*
 **La santé de source doit s'appuyer sur `SourceRunLog` et sur `last_modified`, pas sur le moteur de diff.**
+
+## Un fait de santé de source publié par la source elle-même — « Nothing to Report »
+
+*Relevé le 14 septembre 2026 en balayant le portail fédéral. **Aucune valeur prospect, et c'est
+justement pour ça qu'il est ici.***
+
+Le paquet `Proactive Publication - Contracts` d'AchatsCanada porte une ressource
+**`Proactive Publication - Contracts Nothing to Report`** — *98 lignes, 3 champs : une période de
+déclaration, et l'organisme qui déclare **n'avoir rien à publier** pour cette période.*
+
+**C'est la forme rare d'un zéro qui a UNE cause au lieu de trois.** *Un ministère absent d'un
+trimestre peut n'avoir rien attribué, ou n'avoir pas déclaré, ou avoir été mal lu par nous. Cette
+ressource sépare le premier cas des deux autres — **la source dit elle-même « rien », au lieu de se
+taire**.*
+
+⚠️ **À retenir comme FORME, pas comme source à ingérer** : *quand un diffuseur publie sa propre
+absence, le chantier 2 n'a plus à l'inférer.* **C'est le seul exemple connu au portefeuille, et il
+vaut d'être cherché ailleurs** — *une déclaration de vide est plus fiable que n'importe quel
+compte à zéro.*

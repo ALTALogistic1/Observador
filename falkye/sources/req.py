@@ -923,17 +923,22 @@ def get_by_neq(db_session: Session, neq: str) -> REQEntry | None:
     return db_session.get(REQEntry, neq)
 
 
-def resolve_neq_by_name(
-    db_session: Session, nom: str, ville: str | None = None, limit: int = 5
-) -> list[REQMatch]:
-    """Résout un nom d'entreprise en candidats NEQ, par correspondance floue sur le
-    miroir local. Nécessite que ingest_snapshot() ait déjà été exécuté au moins une
-    fois (sinon la table req_entries est vide et rien ne peut être résolu — c'est
-    un état normal avant le premier scan REQ, pas une erreur)."""
-    nom_norm = _normaliser(nom)
-    if not nom_norm:
-        return []
+def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) -> list[REQEntry]:
+    """Les entrées du miroir soumises au score flou — **extraite pour être empruntée**.
 
+    `resolve_neq_by_name` rend un classement; il ne dit pas si la liste est vide
+    parce qu'AUCUN candidat n'a été récupéré ou parce qu'aucun candidat récupéré
+    n'a passé le score. **Ce sont deux échecs différents, et ils appellent deux
+    correctifs différents.** `outils/diagnostic_appariement.py` doit les distinguer,
+    et il doit le faire sur la VRAIE récupération — une requête recopiée à côté
+    mesurerait sa propre copie *(même règle que `requete_nom_exact` et
+    `neq_retenu`)*.
+
+    ⚠️ **La récupération est ancrée sur la TÊTE de la chaîne** : préfixe du premier
+    mot, puis repli sur les six premiers caractères. *Une différence en tête — un
+    article, un préfixe juridique, une enseigne au lieu de la raison sociale —
+    n'abaisse pas le score : elle empêche le candidat d'être récupéré du tout.*
+    """
     prefix = nom_norm.split(" ")[0]
     # GLOB plutôt que LIKE, pour la recherche par préfixe — vérifié (2026-08-31,
     # après le premier import réel du REQ, ~2,7M lignes) : LIKE 'prefix%' avec un
@@ -947,7 +952,7 @@ def resolve_neq_by_name(
     # (*, ?, [, ]) — donc aucun échappement n'est nécessaire ici.
     candidates = (
         db_session.execute(
-            select(REQEntry).where(REQEntry.nom_normalise.op("GLOB")(f"{prefix}*")).limit(2000)
+            select(REQEntry).where(REQEntry.nom_normalise.op("GLOB")(f"{prefix}*")).limit(limite)
         )
         .scalars()
         .all()
@@ -956,12 +961,27 @@ def resolve_neq_by_name(
         # repli : recherche par sous-chaîne si le préfixe est trop restrictif
         candidates = (
             db_session.execute(
-                select(REQEntry).where(REQEntry.nom_normalise.contains(nom_norm[:6])).limit(2000)
+                select(REQEntry).where(REQEntry.nom_normalise.contains(nom_norm[:6])).limit(limite)
             )
             .scalars()
             .all()
         )
 
+    return candidates
+
+
+def resolve_neq_by_name(
+    db_session: Session, nom: str, ville: str | None = None, limit: int = 5
+) -> list[REQMatch]:
+    """Résout un nom d'entreprise en candidats NEQ, par correspondance floue sur le
+    miroir local. Nécessite que ingest_snapshot() ait déjà été exécuté au moins une
+    fois (sinon la table req_entries est vide et rien ne peut être résolu — c'est
+    un état normal avant le premier scan REQ, pas une erreur)."""
+    nom_norm = _normaliser(nom)
+    if not nom_norm:
+        return []
+
+    candidates = candidats_par_nom(db_session, nom_norm)
     if not candidates:
         return []
 
