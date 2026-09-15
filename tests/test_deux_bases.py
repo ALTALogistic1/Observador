@@ -31,6 +31,10 @@ from falkye.models.base import Base, BaseMiroir
 TABLES_MIROIR = {
     # Miroirs de sources : reconstruits par un import du fichier d'origine.
     "req_entries",
+    # Tous les noms EN VIGUEUR d'un NEQ, et pas seulement la dénomination élue
+    # (2026-09-16). Mesuré : 41,7 % des NEQ en portent plusieurs, et le chargeur
+    # en jetait 1 705 806 à chaque import.
+    "req_noms",
     "req_etablissements",
     "corporations_federales_entries",
     "licences_municipales_entries",
