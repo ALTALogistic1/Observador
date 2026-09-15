@@ -41,7 +41,12 @@ EnvironmentFile=-/opt/falkye/version.env
 # Décision d'Alexandre : chaque mesure qui demandait l'archive obligeait à la
 # retélécharger — trois fois en deux jours. Le blocage Cloudflare ne touche que
 # le téléchargement, pas la lecture.
-ExecStart=/opt/falkye/venv/bin/python outils/import_miroir_req.py \
+# `-m` et non `outils/import_miroir_req.py` : lancer un FICHIER met `outils/`
+# en tête de sys.path, jamais la racine — donc `import outils.x` meurt sous
+# l'unité alors qu'il marche à la main (cas 26, deuxième occurrence le
+# 2026-09-16). `-m` met le RÉPERTOIRE COURANT en tête, et WorkingDirectory
+# ci-dessus le rend juste. Vérifié par tests/test_unites_systemd.py.
+ExecStart=/opt/falkye/venv/bin/python -m outils.import_miroir_req \
           --chemin /opt/falkye/import \
           --importe-par chaine-de-deploiement
 

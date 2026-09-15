@@ -35,6 +35,15 @@ import sys
 import time
 from pathlib import Path
 
+# AU NIVEAU MODULE, pas dans `main()`. Un import différé DANS une fonction ne
+# s'exécute qu'au moment où la fonction y arrive : le 2026-09-16, il était après
+# `parse_args`, donc `--help` passait et l'unité mourait. **Un import qui peut
+# échouer doit échouer au chargement**, là où un test l'atteint.
+# `outils.archives_req` : un seul point d'entrée pour tous les outils, sinon deux
+# mesures du même jour porteraient sur deux fichiers différents sans que personne
+# ne le voie.
+from outils.archives_req import avertissement, ligne_de_provenance, resoudre
+
 
 class ImportImpossible(SystemExit):
     """Sortie en erreur AVANT d'avoir touché quoi que ce soit."""
@@ -138,11 +147,6 @@ def main(argv: list[str] | None = None) -> int:
 
     # `--chemin` accepte un RÉPERTOIRE depuis le 16 septembre : les archives sont
     # conservées, datées dans leur nom, et c'est la plus récente qui est importée.
-    # La résolution passe par `outils.archives_req` — un seul point d'entrée pour
-    # tous les outils, sinon deux mesures du même jour porteraient sur deux
-    # fichiers différents sans que personne ne le voie.
-    from outils.archives_req import avertissement, ligne_de_provenance, resoudre
-
     chemin = resoudre(args.chemin)
     if chemin is None:
         raise ImportImpossible(

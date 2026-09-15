@@ -243,7 +243,17 @@ bougé.**
 ### Lancer
 
     sudo systemctl start falkye-miroir-req.service
-    journalctl -u falkye-miroir-req.service -f
+
+    # L'IDENTIFIANT DE CETTE EXÉCUTION-CI, et rien d'autre
+    ID=$(systemctl show -p InvocationID --value falkye-miroir-req.service)
+    journalctl _SYSTEMD_INVOCATION_ID=$ID -f
+
+⚠️ **Ne pas suivre par `journalctl -u … -f` seul.** *Il affiche l'historique AVANT
+de suivre, et rien ne distingue la progression d'un import antérieur de celle
+qu'on attend.* **Le 16 septembre, un import mort à la première seconde a été suivi
+pendant une heure sur la progression du précédent.** *`_SYSTEMD_INVOCATION_ID` ne
+montre que l'exécution en cours — la confusion devient impossible, pas seulement
+improbable.* À défaut, `-n 0` coupe l'historique sans identifier l'exécution.
 
 *Chercher dans le journal la ligne `noms en vigueur indexés dans req_noms`* —
 c'est elle qui dit que la passe neuve a tourné. **Une absence de cette ligne veut
@@ -313,7 +323,17 @@ a changé.*
 ### 3. L'import
 
     sudo systemctl start falkye-miroir-req.service
-    journalctl -u falkye-miroir-req.service -f
+
+    # L'IDENTIFIANT DE CETTE EXÉCUTION-CI, et rien d'autre
+    ID=$(systemctl show -p InvocationID --value falkye-miroir-req.service)
+    journalctl _SYSTEMD_INVOCATION_ID=$ID -f
+
+⚠️ **Ne pas suivre par `journalctl -u … -f` seul.** *Il affiche l'historique AVANT
+de suivre, et rien ne distingue la progression d'un import antérieur de celle
+qu'on attend.* **Le 16 septembre, un import mort à la première seconde a été suivi
+pendant une heure sur la progression du précédent.** *`_SYSTEMD_INVOCATION_ID` ne
+montre que l'exécution en cours — la confusion devient impossible, pas seulement
+improbable.* À défaut, `-n 0` coupe l'historique sans identifier l'exécution.
 
 *L'unité pointe sur le RÉPERTOIRE `/opt/falkye/import`, pas sur un fichier : la
 plus récente des archives datées est prise, et la ligne `provenance:` du journal

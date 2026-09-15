@@ -814,3 +814,47 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
 - **Recommandation, à trancher par Alexandre** : **fusion**, parce que la conservation n'existe pas —
   **mais avec le `nom_detecte` absorbé PRÉSERVÉ au dossier survivant**, pas seulement au journal.
   *Sinon on jette exactement le genre de nom qu'on vient de passer trois jours à récupérer.*
+
+### N41 — Deux familles d'imports dans le même fichier, dont une seule survit à l'unité
+- **Notée le** : 2026-09-16. ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON** — *deuxième occurrence du cas 26
+  dans la même journée.*
+- **Destination** : `falkye-journal-des-cas.md` **(cas 26, suite)**, `falkye-guide-ingenierie.md`.
+- **Le fait** : `outils/import_miroir_req.py` importait `outils.archives_req` pour lire la date de
+  l'archive. **À la main il marchait; sous systemd il est mort à la première seconde** —
+  `ModuleNotFoundError: No module named 'outils'`.
+- **Le mécanisme, et il est plus fin que « le chemin manque »** : `python outils/x.py` met **`outils/`
+  lui-même** en tête de `sys.path`, **jamais la racine**. *`import falkye.x` y survit — le paquet est
+  INSTALLÉ dans le venv et ne dépend pas du répertoire courant. `import outils.y`, lui, meurt.*
+  ⚠️ **Deux familles d'imports dans le même fichier, dont une seule survit à l'unité** — et c'est ce
+  qui rend le défaut invisible : *le fichier est plein d'imports qui marchent.*
+- **Le correctif est dans la FORME D'INVOCATION, pas dans un chemin à poser.** `python -m outils.x`
+  met le **répertoire courant** en tête, et `WorkingDirectory` le rend juste. *Ni `sys.path.insert` à
+  recopier en tête de chaque script, ni `PYTHONPATH` à tenir à jour dans chaque unité : une règle.*
+- ⚠️ **Et un second défaut, dans le MÊME correctif** : l'import fautif était **dans `main()`, après
+  `parse_args`** — donc `--help` sortait avant de l'atteindre, et tout contrôle par `--help` aurait
+  été vert. **Un import qui peut échouer doit échouer AU CHARGEMENT**, là où un test l'atteint.
+- **La garde, mécanique** : `tests/test_unites_systemd.py` — *(1)* aucune unité ne lance un script par
+  son chemin; *(2)* chaque module d'unité **s'importe vraiment**, dans un sous-processus, depuis la
+  racine, **avec `PYTHONPATH` RETIRÉ de l'environnement** *(sans ça, le test hériterait du chemin de
+  la session et passerait ici en échouant sur l'hôte — l'écart même qu'il ferme)*; *(3)* toute unité
+  qui lance `-m` déclare un `WorkingDirectory`. **Vérifiée en la cassant : elle rougit.**
+- **Et `falkye-migration.service` a été converti alors qu'il n'importe rien de `outils` aujourd'hui.**
+  *C'est exactement pourquoi : le jour où il le fera, la panne serait à l'exécution, sur l'hôte, en
+  silence.*
+
+### N42 — `journalctl -u … -f` montre l'historique avant de suivre, et rien ne distingue les deux
+- **Notée le** : 2026-09-16
+- **Destination** : `docs/DEPLOIEMENT.md` *(hors corpus)* et `falkye-guide-ingenierie.md`.
+- **Le fait** : l'import est mort à la **première seconde**, et le journal a montré pendant **une
+  heure** la progression de l'import précédent. *Rien ne distingue les deux — mêmes messages, même
+  unité, même format.* **Le suivi a donné l'impression exacte du succès.**
+- ⚠️ **Ce n'est pas une inattention** : `journalctl -f` affiche les dernières lignes **puis** suit, et
+  une unité `oneshot` qui meurt tout de suite n'écrit presque rien après. *L'historique occupe tout
+  l'écran, et il est authentique — c'est un vrai import, simplement pas celui-là.*
+- **Le remède** : `systemctl show -p InvocationID --value <unité>` puis
+  `journalctl _SYSTEMD_INVOCATION_ID=$ID -f`. **Ne montre que l'exécution en cours** — *la confusion
+  devient impossible, pas seulement improbable.* À défaut, `-n 0` coupe l'historique sans identifier
+  l'exécution.
+- **La règle** : *un flux qui mêle le passé et le présent sans les distinguer est un instrument qui
+  ment par omission.* **Même famille que la table de prix sans date et que l'archive sans date : ce
+  qui est figé doit se distinguer de ce qui est vivant.**
