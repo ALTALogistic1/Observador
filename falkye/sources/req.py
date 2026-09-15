@@ -66,6 +66,7 @@ from falkye.diff_engine import (
     seuils_depuis_registre,
 )
 from falkye.models.req_entry import REQEntry
+from falkye.models.req_nom import REQNom
 from falkye.registry.loader import get_registry
 from falkye.sources.base import RawSignal, SourceConnector
 from falkye.sources.ckan_client import DONNEES_QUEBEC_BASE, CKANClient
@@ -240,6 +241,103 @@ def _charger_index_noms(zf: zipfile.ZipFile) -> dict[str, str]:
     return {neq: nom for neq, (_, _, nom) in meilleurs.items()}
 
 
+#: Lignes de `req_noms` écrites entre deux commits. Le même ordre de grandeur que
+#: `_INTERVALLE_COMMIT` pour l'entreprise-grain — assez gros pour que le coût par
+#: ligne disparaisse, assez petit pour qu'une interruption ne perde pas tout.
+_INTERVALLE_COMMIT_NOMS = 20000
+
+
+def _charger_tous_les_noms(
+    zf: zipfile.ZipFile, db_session: Session, limite: int | None = None
+) -> int:
+    """Écrit **TOUS les noms EN VIGUEUR** de chaque NEQ dans `req_noms`.
+
+    **Pourquoi une passe SÉPARÉE, et pas l'index en mémoire.** L'import tient déjà
+    simultanément l'index des noms élus (~2,7 M), celui des établissements et deux
+    instantanés — *pic mesuré à 3 535 Mo pour 8 Go d'hôte.* **Ajouter 1,7 million
+    de chaînes à ce pic serait une décision qu'on n'a pas prise.** Cette passe
+    relit `Nom.csv` en flux et écrit par lots : **la mémoire ne bouge pas, le coût
+    est une seconde lecture du fichier.**
+
+    ⚠️ **Seuls les noms EN VIGUEUR (`STAT_NOM='V'`) entrent.** *L'historique des
+    noms retirés ferait apparier une entreprise sous un nom qu'elle n'utilise
+    plus* — et une résolution vers une entreprise qui a changé de nom il y a dix
+    ans est une fausse résolution, pas un rappel de plus. **C'est une décision, et
+    elle est révisable : le champ `statut` est conservé pour qu'elle puisse l'être
+    sans réimport.**
+
+    ⚠️ **Le nom ÉLU y figure aussi**, et c'est volontaire : la table répond seule à
+    « quels noms mènent à ce NEQ », sans avoir à joindre `REQEntry`. *Une table qui
+    ne porte que les exceptions oblige tous ses lecteurs à connaître la règle.*
+
+    Rend le nombre de lignes écrites.
+    """
+    from sqlalchemy import insert
+
+    from falkye.models.req_nom import REQNom
+
+    # INSERT OR IGNORE plutôt que `session.add` ligne à ligne, pour DEUX raisons
+    # distinctes qu'il ne faut pas confondre :
+    #   1. un RÉIMPORT réécrit les mêmes clés. Avec `add`, la seconde insertion
+    #      lève `IntegrityError` et fait tomber l'import entier — mesuré sur les
+    #      tests du 2026-09-16.
+    #   2. ~4,4 M de lignes passées par l'ORM une à une coûteraient des dizaines
+    #      de minutes; par lots de dictionnaires, c'est une écriture en masse.
+    # `OR IGNORE` est propre à SQLite, et le miroir EST toujours SQLite
+    # (`outils/import_miroir_req.py` refuse toute autre cible avant de démarrer).
+    requete = insert(REQNom).prefix_with("OR IGNORE")
+
+    ecrites = 0
+    lues = 0
+    lot: list[dict] = []
+    vus: set[tuple[str, str]] = set()
+
+    def _vider():
+        nonlocal lot
+        if lot:
+            db_session.execute(requete, lot)
+            db_session.commit()
+            lot = []
+            vus.clear()  # les lots suivants ne peuvent plus entrer en conflit entre eux
+
+    with zf.open("Nom.csv") as raw:
+        text = io.TextIOWrapper(raw, encoding="utf-8-sig", errors="replace")
+        for row in csv.DictReader(text):
+            if limite is not None and lues >= limite:
+                break
+            lues += 1
+            neq = (row.get("NEQ") or "").strip()
+            nom = (row.get("NOM_ASSUJ") or "").strip()
+            if not neq or not nom:
+                continue
+            if (row.get("STAT_NOM") or "").strip().upper() != "V":
+                continue
+            nom_norm = _normaliser(nom)
+            if not nom_norm:
+                # Un nom qui se normalise en chaîne vide n'apparierait rien et
+                # apparierait TOUT — c'est le défaut du 15 septembre, refusé ici.
+                continue
+            cle = (neq, nom_norm)
+            if cle in vus:
+                # Deux types de nom peuvent porter la même graphie. `OR IGNORE`
+                # l'absorberait, mais le retirer ici évite d'envoyer la ligne.
+                continue
+            vus.add(cle)
+            lot.append({
+                "neq": neq,
+                "nom_normalise": nom_norm,
+                "nom": nom,
+                "statut": (row.get("STAT_NOM") or "").strip(),
+                "type_nom": (row.get("TYP_NOM_ASSUJ") or "").strip(),
+            })
+            ecrites += 1
+            if len(lot) >= _INTERVALLE_COMMIT_NOMS:
+                _vider()
+                logger.info("REQ: %s noms en vigueur indexés jusqu'ici", ecrites)
+    _vider()
+    return ecrites
+
+
 def _charger_index_etablissements(zf: zipfile.ZipFile) -> dict[str, list[_EtabLeger]]:
     """Construit l'index NEQ -> liste d'établissements en lisant Etablissements.csv
     en flux — réduit à _EtabLeger (7 champs) par ligne plutôt que de garder les 17
@@ -360,6 +458,10 @@ class IngestStats:
     # valeur de l'enum MotifQuarantaine (chaîne) du premier grain en cause.
     quarantaine: bool = False
     quarantaine_motif: str | None = None
+    #: Noms EN VIGUEUR indexés dans `req_noms` (tous, pas seulement l'élu).
+    #: **None tant que la passe n'a pas tourné** — un import en quarantaine n'en
+    #: écrit aucun, et zéro s'y lirait « le registre n'en porte aucun ».
+    noms_alternatifs: int | None = None
 
     def __post_init__(self):
         self.changements_adresse = self.changements_adresse or []
@@ -910,6 +1012,11 @@ def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | 
             db_session.commit()
             logger.info("REQ (fichier réel): %s lignes de résolution appliquées jusqu'ici", i)
 
+    # TOUS les noms, en passe séparée — après l'upsert, jamais avant : si le
+    # miroir n'a pas été écrit, les noms n'ont rien à indexer.
+    stats.noms_alternatifs = _charger_tous_les_noms(zf, db_session, limite=limit)
+    logger.info("REQ: %s noms en vigueur indexés dans req_noms", stats.noms_alternatifs)
+
     if rapport_entreprise.run_reference:
         # Run de référence (jamais de candidat, mandat chantier 1) : amorce
         # l'état, REQEntry peuplé, mais aucun changements_adresse/nouvel_
@@ -1136,6 +1243,45 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
             .scalars()
             .all()
         )
+
+    # --- LES AUTRES NOMS DE L'ENTREPRISE (chantier du 2026-09-16) -------------
+    # `REQEntry.nom_normalise` ne porte QUE la dénomination sociale élue. Mesuré :
+    # 41,7 % des NEQ portent plusieurs noms en vigueur, et 2 217 des 8 395
+    # entreprises non résolues s'apparient EXACTEMENT à un nom que le chargeur
+    # jetait — dont 98,8 % de sociétés par actions.
+    #
+    # La même requête, sur `req_noms` : même préfixe GLOB, même repli, même borne.
+    # **Une recherche qui ne couvrirait pas les deux tables ferait dépendre le
+    # résultat de la table où le nom se trouve**, ce qu'aucun appelant ne peut savoir.
+    neqs_deja = {c.neq for c in candidates}
+    autres = (
+        db_session.execute(
+            select(REQNom.neq).where(REQNom.nom_normalise.op("GLOB")(f"{prefix}*")).limit(limite)
+        )
+        .scalars()
+        .all()
+    )
+    if not autres:
+        autres = (
+            db_session.execute(
+                select(REQNom.neq).where(REQNom.nom_normalise.contains(nom_norm[:6])).limit(limite)
+            )
+            .scalars()
+            .all()
+        )
+    manquants = [n for n in dict.fromkeys(autres) if n not in neqs_deja]
+    if manquants:
+        # La borne s'applique au TOTAL, pas à chaque source de candidats : sinon
+        # `limite` ne bornerait plus rien et le coût doublerait en silence.
+        reste = max(0, limite - len(candidates))
+        if reste:
+            candidates = list(candidates) + list(
+                db_session.execute(
+                    select(REQEntry).where(REQEntry.neq.in_(manquants[:reste]))
+                )
+                .scalars()
+                .all()
+            )
 
     return candidates
 

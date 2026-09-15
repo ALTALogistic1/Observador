@@ -582,3 +582,37 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   d'enseigne — portaient sur la population RÉELLEMENT ATTEIGNABLE.* **Il n'y a rien à remesurer.**
 - **Et ce qui a tranché n'était pas une mesure de plus** : c'était **21 pages de guide dans l'archive,
   que personne n'avait ouvertes** *(N25)*. La plage `11`–`22` s'interprétait en une phrase de lexique.
+
+### N29 — Le pont était dans le fichier depuis le premier import, et il a fallu sept hypothèses pour le voir
+- **Notée le** : 2026-09-16
+- ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON.** **Cas neuf au journal** — *et Alexandre le demande « pas pour
+  le défaut, pour ce qu'il a fallu pour le voir ».*
+- **Destination** : `falkye-journal-des-cas.md` (cas neuf), `falkye-guide-ingenierie.md`.
+- **Le défaut, en une ligne** : `_charger_index_noms` élisait **un** nom par NEQ et jetait les autres.
+  **1 705 806 noms jetés à chaque chargement**, sur **1 138 322 NEQ portant plusieurs noms en vigueur —
+  41,7 % du registre.**
+- **Ce que ça coûtait, mesuré** : **2 217 des 8 395 non résolues (26,4 %) s'apparient EXACTEMENT à un
+  nom jeté**, dont **98,8 % de sociétés par actions** et 0,7 % de personnes physiques. *`9224-5842
+  Quebec inc` s'apparie à `Ferme M.G. Bellavance`; `9169-9587 Quebec inc` à `Ferme A. Lapierre & Fils`.*
+  **Le nom numérique est la dénomination sociale élue; le nom parlant est celui qu'on jetait.**
+  Pour l'EIMT seule : **1 837 réparations sur 6 258, 29,4 %** — *la source qui fabrique 74,5 % du mur
+  est aussi celle qui profite le plus du correctif.*
+- **CE QU'IL A FALLU POUR LE VOIR, et c'est ça le cas.** *Sept hypothèses, trois jours, toutes mesurées
+  correctement, toutes tombées* : le seuil de 92, la normalisation asymétrique, le champ
+  `nom_normalise` vide, la troncature de récupération, les ponts d'enseigne externes, la ville, la
+  clientèle hors cible. **Aucune n'était absurde. Aucune ne pouvait aboutir.**
+- **Les trois choses qui ont réellement fait avancer, et aucune n'était une hypothèse de plus** :
+  *(1)* **une contradiction interne** — un score de 66 sur deux chaînes identiques une fois
+  normalisées, impossible, donc une prémisse fausse *(N12)*; *(2)* **un cas entier plutôt qu'une
+  distribution** — *un compte agrégé répond « combien », jamais « où »*, et c'est la trace d'un seul
+  appariement qui a montré que le candidat n'existait pas *(N22)*; *(3)* **vingt et une pages de
+  documentation dans l'archive, que personne n'avait ouvertes** *(N25)*.
+- **La règle, et elle vaut plus que le correctif** : **quand plusieurs hypothèses bien mesurées tombent
+  d'affilée, ce n'est pas la prochaine hypothèse qui manque — c'est que la question est mal posée.**
+  *Le signal n'est pas l'échec d'une mesure : c'est la SÉRIE d'échecs.* **Trois de suite doivent faire
+  arrêter de chercher des réponses et faire relire la question.**
+- ⚠️ **Et un corollaire désagréable** : *le défaut était dans le code du produit, à l'endroit le plus
+  ancien et le moins suspecté — le chargeur, écrit une fois, jamais rouvert.* **On a cherché dehors
+  pendant trois jours ce qui était dedans depuis le début, deux fois de suite** *(N17 pour
+  `nom_normalise`, N29 pour les noms jetés)*. **Ce n'est plus une coïncidence, c'est un biais :
+  le code ancien est présumé juste parce qu'il est ancien.**
