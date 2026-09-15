@@ -144,6 +144,16 @@ def _mesurer_etat_precedent(source_id: str) -> int:
     print("\nPORTÉE : lecture seule sur le miroir. Aucune écriture, aucun diff.")
     print()
 
+    # LA CIBLE, ANNONCÉE ET EXIGÉE — juste avant d'ouvrir, jamais après
+    # `parse_args` : un mode qui ne touche aucune base ne doit pas être
+    # refusé. Sans ce refus, le repli CRÉE `./data/*.sqlite3` dans le
+    # répertoire courant et le verdict porte sur une base vide.
+    from falkye.db import refuser_si_cible_non_choisie
+
+    code = refuser_si_cible_non_choisie()
+    if code:
+        return code
+
     session = get_session()
     try:
         rss = _etape("au démarrage", None)

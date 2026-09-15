@@ -1131,3 +1131,32 @@ jamais à « quand est-il arrivé ici ».* Ce sont deux questions différentes, 
 l'autre se trompe **dans les deux directions selon l'outil qui a fait la copie.** Pour vérifier
 qu'un déploiement a eu lieu, **on interroge le CONTENU** — un `grep` sur ce que la version neuve
 est seule à porter — jamais l'horodatage.
+
+### N54 — Le pic recalculé : l'addition tient, et le poste manquant se mesure à 59 Mo
+
+**La mesure d'Alexandre sur l'hôte** *(2026-09-16)* : état précédent à **4 502 Mo** en ancienne
+forme contre **527 Mo** en neuve.
+
+**Son addition est la bonne, et meilleure que la soustraction.** `3 050 + 527 = 3 577 Mo`.
+*Soustraire des 7 372 donnerait 3 397 — mais **7 372 est l'endroit où le processus est MORT, pas
+le pic qu'il aurait atteint***. Le modèle additif le montre : `3 050 + 4 502 = 7 552`, soit 180 Mo
+au-dessus de la mort. **Une valeur de mort est un plancher du pic, jamais le pic.**
+
+**Le poste que l'inventaire ne couvrait pas : `lignes_par_cle`.** Le dict de dédoublonnage
+(`_dedoublonner_lignes`) vit dans le moteur de diff, donc **hors du rejeu de phase 1**. Mesuré
+sur 2 730 146 entrées, clés et valeurs déjà vivantes : **59 Mo**. *J'aurais annoncé ~280 —
+l'estimation était 4,7 fois trop haute, et la mesure a pris trente secondes.*
+
+⚠️ **Le poste qui aurait pu tout annuler, et pourquoi il ne le fait pas.** `_champs_precedents()`
+relit les `donnees_normalisees` des clés MODIFIÉES, et `modifications` porte `champs_avant` ET
+`champs_apres` : *si le réimport modifiait la moitié du miroir, le coût reviendrait au-dessus de
+l'ancien.* **Il ne le fait pas, et la raison est structurelle** : `nom_normalise` **n'est pas dans
+`champs`** (`_ligne_entreprise` : `neq`, `nom_entreprise`, `secteur_activite`, `adresses`,
+`statut`, `date_derniere_maj`). *La colonne que le réimport répare ne traverse pas le moteur de
+diff.* **Si elle y était, le correctif s'évaporerait** — c'est une propriété à ne pas perdre de
+vue si `champs` s'élargit un jour.
+
+⚠️ **Et la falaise : la quarantaine de volume.** `VOLUME_MODIFICATIONS` matérialise dans `detail`
+**toutes** les apparitions et modifications en dictionnaires, plus l'archive. *Ce n'est pas une
+pente, c'est une falaise* — et c'est un réimport qui change beaucoup de lignes qui la déclenche.
+**Le même raisonnement la neutralise ici**, pour la même raison.

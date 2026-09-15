@@ -22,6 +22,7 @@ sans ce détour : `401 Unauthorized — empty JWT token`, à la première requê
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from sqlalchemy import create_engine
@@ -77,6 +78,49 @@ def bases_sur_repli() -> list[str]:
     if get_miroir_db_url() == DEFAULT_MIROIR_DB_URL:
         manquantes.append("FALKYE_MIROIR_DB_URL")
     return manquantes
+
+
+def refuser_si_cible_non_choisie(flux=None) -> int:
+    """Annonce la cible, et REFUSE de continuer si personne ne l'a choisie.
+
+    **Le fait qui a écrit cette fonction** *(2026-09-16)*. Le garde-fou du
+    11 septembre existait — `bases_sur_repli()` — mais **il était recopié à la
+    main, outil par outil**. *Quinze des vingt-huit outils qui ouvrent une
+    session ne le portaient pas.* Une convention n'est pas un mécanisme : elle
+    protège les fichiers où quelqu'un a pensé à l'écrire, et laisse les autres
+    nus sans que rien ne le signale.
+
+    ⚠️ **Et l'échec sans garde n'est PAS une panne franche.** Reproduit le
+    2026-09-16 : sans `FALKYE_MIROIR_DB_URL`, l'outil a **créé**
+    `./data/miroirs.sqlite3` dans le répertoire courant et interrogé cette base
+    vide. *Sur l'hôte, il est tombé sur un `PermissionError` — mais uniquement
+    parce que le répertoire courant n'était pas inscriptible.* **Ce n'est pas
+    une garde, c'est un accident de permissions** : le même outil lancé depuis
+    un répertoire inscriptible rend un verdict vert sur une base vide.
+
+    *Un verdict rendu sur une base vide est le plus rassurant de tous.*
+
+    Rend `0` quand les deux cibles sont choisies, `2` sinon — à propager tel
+    quel par l'appelant. **À appeler juste avant d'ouvrir la session**, jamais
+    après `parse_args` en aveugle : un outil peut avoir un mode qui ne touche
+    aucune base, et une garde qui refuse ce mode-là refuse à tort.
+    """
+    flux = flux if flux is not None else sys.stderr
+    print(cible_annoncee())
+    manquantes = bases_sur_repli()
+    if not manquantes:
+        return 0
+    print(
+        "\nREFUS — aucune cible n'a été choisie : "
+        f"{', '.join(manquantes)} absente(s), et le repli par défaut est relatif "
+        "au répertoire courant.\n"
+        "  ⚠️ Sans ce refus, l'outil CRÉE une base vide et rend son verdict "
+        "dessus.\n"
+        "  Un verdict rendu sur une base vide est le plus rassurant de tous.\n"
+        "  Sur l'hôte : set -a; . /etc/falkye/falkye.env; set +a",
+        file=flux,
+    )
+    return 2
 
 
 def cible_annoncee(db_url: str | None = None) -> str:

@@ -22,6 +22,23 @@ INDEX = migration.INDEX_COMPOSITE
 REDONDANT = migration.INDEX_REDONDANT
 
 
+@pytest.fixture(autouse=True)
+def cible_declaree(monkeypatch):
+    """Une cible nommée, parce que l'outil refuse celle que personne n'a choisie.
+
+    **Ces deux tests ont rougi le 2026-09-16 en posant la garde**, et le rouge
+    était juste : *ils INJECTENT une session, donc l'environnement ne décidait
+    de rien pour eux — mais ils s'appuyaient sur un repli que tout appelant réel
+    doit refuser.* Déclarer la cible ici n'est pas un contournement : c'est dire
+    « oui, quelqu'un a choisi », ce qu'un lancement réel doit faire aussi.
+
+    Même forme que `tests/test_migration_chantier2_execution.py`, pour l'outil
+    voisin. Voir `falkye/db.py::refuser_si_cible_non_choisie`.
+    """
+    monkeypatch.setenv("FALKYE_DB_URL", "sqlite:////tmp/essai-produit.sqlite3")
+    monkeypatch.setenv("FALKYE_MIROIR_DB_URL", "sqlite:////tmp/essai-miroirs.sqlite3")
+
+
 @pytest.fixture()
 def base_non_migree(db_session):
     """Une base à l'état de la production avant le 2026-09-08 : l'index composite
