@@ -1074,3 +1074,60 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   charge **les deux formes l'une après l'autre** et rend la RSS de chacune. *Lire les DELTAS, pas les
   totaux — l'allocateur ne rend pas au système ce qu'il a pris, donc un delta de libération proche de
   zéro est normal et n'est pas une fuite.*
+
+### N52 — Une garde écrite pour l'environnement a habillé un défaut du dépôt
+
+**Le fait** *(2026-09-16)*. `outils/profil_memoire_import.py --etat-precedent req` a rendu, sur
+l'hôte :
+
+```
+Import impossible (No module named 'falkye.models.etat_ligne_source').
+```
+
+**Ce module n'a jamais existé.** Le vrai est `falkye/models/etat_diff_source.py`. J'avais **déduit
+le nom du module de celui de la classe** (`EtatLigneSource`) au lieu de le lire — *un chemin
+inventé par symétrie, jamais vérifié contre le disque.*
+
+⚠️ **Mais le nom faux n'est pas le pire.** Trois choses se sont additionnées, et seule la
+troisième est intéressante :
+
+1. **L'import était DANS une fonction**, après `parse_args` — donc ni le chargement du module, ni
+   `--help`, ni aucun test ne l'atteignait. *C'est le cas 26 pour la TROISIÈME fois.*
+2. Aucun test n'exerçait `--etat-precedent` : les quatre tests du fichier portent sur `_etape` et
+   la lecture de la RSS. **Le chemin neuf n'était couvert nulle part.**
+3. ⚠️ **Un `except ImportError` l'enveloppait** — écrit pour une dépendance tierce absente. Il a
+   donc rendu un message d'environnement pour un défaut de code, et **a envoyé son lecteur
+   chercher une panne de déploiement qui n'existait pas.**
+
+**LA RÈGLE.** *Une garde ne couvre que ce que la mesure couvrait* — et une garde qui couvre trop
+large **ment sur la cause**. Un `except ImportError` écrit pour les dépendances tierces doit
+**refuser** les modules du dépôt : un `falkye.*` introuvable est un défaut du code, il se dit comme
+tel, et il ne porte pas le même numéro de sortie.
+
+**Le correctif est mécanique, pas vigilant.** `tests/test_imports_des_outils.py` parcourt l'AST de
+chaque outil **à toute profondeur** — dans les fonctions, sous les `try` — et vérifie par
+`find_spec` que chaque module `falkye.*` visé existe, puis que chaque nom importé y est défini.
+*`find_spec` et jamais un import réel : importer exécuterait le module, et un environnement sans
+`sqlalchemy-libsql` ferait rougir la garde pour une raison qui n'est pas la sienne.*
+
+**Vérifiée en la cassant, deux fois** : mauvais module → rouge en nommant fichier et ligne; bon
+module et mauvais symbole → rouge aussi.
+
+### N53 — La date d'un fichier déployé est celle de son commit, pas celle de la copie
+
+**Le fait** *(2026-09-16, apporté par Alexandre)*. Devant l'échec ci-dessus, la première hypothèse
+a été une panne de déploiement — **parce que les fichiers de l'hôte portaient une vieille date.**
+Ils ne la portaient pas par accident : `rsync` **préserve `mtime`**. *La date d'un fichier déployé
+est celle de son dernier commit, jamais celle de la copie.* Le déploiement était à jour :
+`grep -c "etat-precedent"` rendait 3.
+
+**C'est la règle du matin, dans l'autre sens.** `outils/archives_req.py` lit la date d'une archive
+**dans son nom, jamais dans son `mtime`** — parce qu'une copie fraîche d'un fichier ancien se
+présenterait comme récente. Ici, l'inverse : **un fichier récemment copié se présente comme
+ancien.**
+
+**LA RÈGLE, dans sa forme générale.** *Le `mtime` répond à « quand ce contenu a-t-il été écrit »,
+jamais à « quand est-il arrivé ici ».* Ce sont deux questions différentes, et lire l'une pour
+l'autre se trompe **dans les deux directions selon l'outil qui a fait la copie.** Pour vérifier
+qu'un déploiement a eu lieu, **on interroge le CONTENU** — un `grep` sur ce que la version neuve
+est seule à porter — jamais l'horodatage.
