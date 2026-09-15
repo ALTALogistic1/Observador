@@ -106,9 +106,36 @@ def _mesurer_etat_precedent(source_id: str) -> int:
         from sqlalchemy import select
 
         from falkye.db import get_session
-        from falkye.models.etat_ligne_source import EtatLigneSource
+        from falkye.models.etat_diff_source import EtatLigneSource
     except ImportError as exc:  # pragma: no cover - dépend de l'environnement
-        print(f"Import impossible ({exc}).", file=sys.stderr)
+        # ⚠️ DEUX PANNES DIFFÉRENTES SOUS LE MÊME NOM, et il faut les séparer.
+        #
+        # Le 2026-09-16, cette garde a rendu « Import impossible (No module named
+        # 'falkye.models.etat_ligne_source') » — et le module n'existait pas :
+        # j'avais DÉDUIT son nom de celui de la classe au lieu de le lire. *Le
+        # vrai est `etat_diff_source`.* La garde, écrite pour une dépendance
+        # optionnelle absente, a **habillé un défaut du dépôt en problème
+        # d'environnement**, et le message a coûté une fausse piste de
+        # déploiement à celui qui le lisait.
+        #
+        # **Une garde ne couvre que ce que la mesure couvrait** : celle-ci
+        # couvre les dépendances tierces. Un module `falkye.*` introuvable est
+        # un défaut DU CODE, et il se dit comme tel.
+        nom = getattr(exc, "name", "") or ""
+        if nom.startswith("falkye."):
+            print(
+                f"⛔ DÉFAUT DU DÉPÔT, pas de l'environnement : le module {nom!r} "
+                f"n'existe pas.\n"
+                f"   Ce n'est pas un déploiement manquant — c'est un chemin "
+                f"d'import faux dans cet outil.",
+                file=sys.stderr,
+            )
+            return 3
+        print(
+            f"Import impossible ({exc}).\n"
+            f"   Dépendance tierce absente de cet environnement.",
+            file=sys.stderr,
+        )
         return 2
 
     print("=" * 78)
