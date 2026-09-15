@@ -163,6 +163,67 @@ def voisins_par_mot_long(db_session, nom_norm: str, limite: int = 5) -> list[str
     ]
 
 
+#: La borne de récupération du moteur — `req.candidats_par_nom(limite=2000)`. **Quand
+#: elle est ATTEINTE, la liste des candidats est tronquée arbitrairement** : le bon
+#: candidat peut être hors des 2 000, et le score qui suit ne mesure alors plus rien
+#: de la ressemblance des noms. *C'est un cas à distinguer d'un vrai mauvais score.*
+LIMITE_RECUPERATION = 2000
+
+
+def comparaison(paires: list[dict], combien: int, bande, forme: str | None,
+                limite_recup: int) -> None:
+    """Le nom détecté à côté de son meilleur candidat du miroir — **la seule façon de
+    savoir ce qu'on regarde**.
+
+    *Un score de 41 ne dit pas s'il s'agit d'un nom tronqué, d'un établissement pris
+    pour une société, ou d'une entreprise absente du registre.* **Les trois appellent
+    des correctifs différents, et aucun compte ne les sépare.**
+
+    ⚠️ **Le nombre de candidats récupérés est affiché avec chaque paire, et il porte
+    une information que le score seul cache** : *s'il vaut exactement la limite, la
+    récupération a été tronquée — le bon candidat est peut-être hors du lot, et le
+    score ne mesure alors pas la ressemblance des noms mais celle d'un échantillon
+    arbitraire.*
+    """
+    retenues = paires
+    if bande:
+        retenues = [p for p in retenues if bande[0] <= p["score"] <= bande[1]]
+    if forme:
+        f = forme.lower()
+        retenues = [p for p in retenues if any(f in x.lower() for x in p["formes"])]
+    retenues.sort(key=lambda p: p["score"])
+
+    print("\n" + "=" * 78)
+    titre = "LE NOM DÉTECTÉ, ET CE QUE LE MIROIR LUI OPPOSE DE MIEUX"
+    print(titre)
+    print("=" * 78)
+    if bande:
+        print(f"\nbande de score : {bande[0]:.0f} à {bande[1]:.0f}")
+    if forme:
+        print(f"forme retenue  : « {forme} »")
+    print(f"{len(retenues)} entreprise(s) correspondent; {min(combien, len(retenues))} montrées, "
+          "des pires scores vers les meilleurs.")
+    tronques = sum(1 for p in retenues if p["candidats"] >= limite_recup)
+    if tronques:
+        print(f"\n⚠️ {tronques} d'entre elles ont atteint la LIMITE de récupération "
+              f"({limite_recup} candidats).")
+        print("   Pour celles-là, le score ne mesure pas la ressemblance des noms —")
+        print("   il mesure celle d'un échantillon tronqué arbitrairement.")
+
+    for p in retenues[:combien]:
+        marque = "  ⚠ RÉCUPÉRATION TRONQUÉE" if p["candidats"] >= limite_recup else ""
+        print(f"\n   score {p['score']:>5.1f} · {p['candidats']} candidat(s){marque}")
+        print(f"     détecté  : {p['detecte'][:66]}")
+        print(f"     miroir   : {p['meilleur_nom'][:66]}")
+        if p["deuxieme"]:
+            print(f"     2e       : {p['deuxieme'][:60]}  ({p['second']:.1f})")
+        print(f"     formes   : {', '.join(sorted(p['formes']))[:66]}")
+
+    print("\n⚠️ Ce tableau ne dit pas POURQUOI l'écart existe — il le montre.")
+    print("   Un nom tronqué, un établissement, une entreprise absente du registre :")
+    print("   trois lectures différentes de la même ligne, et c'est un humain qui tranche.")
+
+
 def histogramme(scores: list[float], par_forme: dict[str, list[float]],
                 sans_candidat: int, seuil: float) -> None:
     """La distribution du MEILLEUR score, et ce qu'elle dit du levier.
@@ -268,6 +329,12 @@ def main(argv: list[str] | None = None) -> int:
     parseur.add_argument("--toutes", action="store_true", help="toutes les non résolues (défaut : un échantillon)")
     parseur.add_argument("--echantillon", type=int, default=ECHANTILLON_DEFAUT)
     parseur.add_argument("--exemples", type=int, default=10, help="sans-candidat détaillés (défaut 10)")
+    parseur.add_argument("--comparer", type=int, default=0, metavar="N",
+                         help="montrer N entreprises côte à côte avec leur meilleur candidat du miroir")
+    parseur.add_argument("--bande", nargs=2, type=float, default=None, metavar=("MIN", "MAX"),
+                         help="restreindre --comparer à une tranche de score, ex. --bande 0 64")
+    parseur.add_argument("--forme", default=None, metavar="TEXTE",
+                         help="restreindre --comparer aux noms portant cette forme (ex. « numérique »)")
     parseur.add_argument("--histogramme", action="store_true",
                          help="distribution du meilleur score, par tranches de 5 — et croisée avec la graphie")
     parseur.add_argument("--sans-ville", action="store_true",
@@ -328,6 +395,7 @@ def main(argv: list[str] | None = None) -> int:
         dates_resolubles: list = []
         scores: list[float] = []
         par_forme: dict[str, list[float]] = {}
+        paires: list[dict] = []
         sans_candidat: list[tuple[str, str, list[str]]] = []
         for company in entreprises:
             nom = company.nom_detecte or ""
@@ -353,8 +421,17 @@ def main(argv: list[str] | None = None) -> int:
             top = matches[0].score
             second = matches[1].score if len(matches) > 1 else 0.0
             scores.append(top)
-            for forme in formes_du_nom(nom):
+            formes = formes_du_nom(nom)
+            for forme in formes:
                 par_forme.setdefault(forme, []).append(top)
+            if args.comparer:
+                paires.append({
+                    "detecte": nom, "score": top, "second": second,
+                    "candidats": len(candidats), "formes": formes,
+                    "meilleur": matches[0].entry.nom_normalise,
+                    "meilleur_nom": matches[0].entry.nom,
+                    "deuxieme": matches[1].entry.nom_normalise if len(matches) > 1 else None,
+                })
             if top < SEUIL_RESOLUTION_CONFIANTE:
                 familles[f"candidats trop FAIBLES (top < {SEUIL_RESOLUTION_CONFIANTE:.0f})"] += 1
             elif top - second < SEUIL_AMBIGUITE_ECART_MIN and len(matches) > 1:
@@ -390,6 +467,9 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"       miroir · {v[:64]}")
                 if not voisins:
                     print("       miroir · (rien)")
+
+        if args.comparer and paires:
+            comparaison(paires, args.comparer, args.bande, args.forme, LIMITE_RECUPERATION)
 
         if args.histogramme and scores:
             histogramme(scores, par_forme, familles.get("aucun candidat RÉCUPÉRÉ", 0),

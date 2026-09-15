@@ -1,5 +1,6 @@
 """Le diagnostic d'appariement — les fonctions pures, sans base."""
 from outils.diagnostic_appariement import (
+    comparaison,
     formes_du_nom,
     classer_difference,
     est_numero,
@@ -79,3 +80,43 @@ def test_un_nom_dun_seul_mot_est_releve():
 
 def test_un_nom_sans_particularite_le_dit():
     assert formes_du_nom("Patates Orleans") == {"(aucune forme relevée)"}
+
+
+def _paire(nom, score, candidats=5, formes=None):
+    return {"detecte": nom, "score": score, "second": score - 3, "candidats": candidats,
+            "formes": formes or {"(aucune forme relevée)"}, "meilleur": "x",
+            "meilleur_nom": "X inc", "deuxieme": None}
+
+
+def test_la_bande_restreint_la_comparaison(capsys):
+    paires = [_paire("A", 41.0), _paire("B", 88.0), _paire("C", 60.0)]
+    comparaison(paires, 10, (0, 64), None, 2000)
+    sortie = capsys.readouterr().out
+    assert "2 entreprise(s) correspondent" in sortie
+    assert "B" not in sortie.split("détecté")[1] if "détecté" in sortie else True
+
+
+def test_la_forme_restreint_la_comparaison(capsys):
+    paires = [_paire("9164-4187 Quebec inc", 63.0, formes={"dénomination numérique"}),
+              _paire("Patates Orleans", 80.0)]
+    comparaison(paires, 10, None, "numérique", 2000)
+    assert "1 entreprise(s) correspondent" in capsys.readouterr().out
+
+
+def test_la_limite_de_recuperation_atteinte_est_signalee(capsys):
+    """Le score ne mesure alors plus la ressemblance des noms."""
+    comparaison([_paire("A", 55.0, candidats=2000)], 5, None, None, 2000)
+    sortie = capsys.readouterr().out
+    assert "RÉCUPÉRATION TRONQUÉE" in sortie
+    assert "1 d'entre elles ont atteint la LIMITE" in sortie
+
+
+def test_sans_troncature_aucun_avertissement(capsys):
+    comparaison([_paire("A", 55.0, candidats=12)], 5, None, None, 2000)
+    assert "TRONQUÉE" not in capsys.readouterr().out
+
+
+def test_les_pires_scores_viennent_en_premier(capsys):
+    comparaison([_paire("haut", 88.0), _paire("bas", 41.0)], 2, None, None, 2000)
+    sortie = capsys.readouterr().out
+    assert sortie.index("bas") < sortie.index("haut")
