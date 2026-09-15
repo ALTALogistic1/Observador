@@ -545,3 +545,40 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   code qui marche — c'est un code qui n'a pas encore échoué.* **Corrigé aux cinq endroits**, par
   `session.connection(bind_arguments={"mapper": …})`, comme `falkye/cout_lectures.py` le fait depuis
   le 9 septembre.
+
+### N27 — `COD_INTVAL_EMPLO_QUE` : le seul indicateur de niveau qui couvre le registre entier
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-audit-et-mandat.md`, **à D45**, à côté de N13 (`Capacite` de la RACJ) et
+  de N15 (la certification OQLF).
+- **Le fait** : `Entreprise.csv` porte `COD_INTVAL_EMPLO_QUE`, décrit par le guide officiel du
+  Registraire *(§ 4.1)* comme **« ordre de grandeur du nombre d'employés au Québec »**, avec un domaine
+  de valeurs dans `DomaineValeur.csv`. *Il est dans l'archive depuis le premier import, et le produit
+  ne le lit nulle part.*
+- **Ce qui le distingue des deux autres, et c'est décisif.** *`Capacite` de la RACJ ne vaut que pour la
+  restauration et les débits de boisson; la certification OQLF ne marque que les entreprises de 50
+  employés et plus soumises à la francisation.* **Celui-ci couvre le registre entier — 2,7 millions
+  d'entreprises, toutes formes juridiques, tous secteurs.**
+- **Pourquoi ça compte pour D45.** Le produit lit presque exclusivement des signaux d'**événement** :
+  *un événement dit qu'il se passe quelque chose, il ne dit pas à quelle échelle.* **Un ordre de
+  grandeur d'effectif, disponible sur chaque entreprise du miroir, est le premier indicateur de niveau
+  qui ne dépende ni d'un secteur ni d'un seuil réglementaire.**
+- ⚠️ **Trois réserves à écrire avec, parce qu'elles limitent l'usage** : *(1)* c'est un **ordre de
+  grandeur**, pas un compte — une tranche, jamais un nombre; *(2)* il vient de la **déclaration
+  annuelle de l'entreprise**, donc il vieillit au rythme de ce dépôt et non de l'activité réelle;
+  *(3)* **son taux de remplissage n'est pas mesuré** — *l'absence de mesure n'est pas une mesure
+  nulle*, et il faut le compter avant de s'en servir. **Rien n'est instruit ici : c'est un relevé, et
+  la décision reste entière.**
+
+### N28 — Le mur du registre est FERMÉ : le miroir est complet pour ce que la source publie
+- **Notée le** : 2026-09-16
+- ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON** — c'est le résultat qui referme quatre jours de travail.
+- **Destination** : `falkye-journal-des-cas.md` (le cas ouvert par N22, refermé ici),
+  `falkye-audit-et-mandat.md`.
+- **La mesure** : **96,6 % des 224 968 NEQ sans nom élu sont des personnes physiques exploitant une
+  entreprise individuelle**, contre **0 % chez les présents**. *Le Registraire ne publie pas leur nom,
+  et c'est légitime.* **Le miroir n'est pas amputé : il est complet pour ce que la source publie.**
+- **Ce que ça referme, et il faut l'écrire pour que personne ne rouvre** : *les quatre hypothèses
+  écartées les 15 et 16 septembre — le seuil, la normalisation symétrique, la ville, les ponts
+  d'enseigne — portaient sur la population RÉELLEMENT ATTEIGNABLE.* **Il n'y a rien à remesurer.**
+- **Et ce qui a tranché n'était pas une mesure de plus** : c'était **21 pages de guide dans l'archive,
+  que personne n'avait ouvertes** *(N25)*. La plage `11`–`22` s'interprétait en une phrase de lexique.
