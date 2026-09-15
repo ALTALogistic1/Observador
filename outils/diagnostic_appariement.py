@@ -54,6 +54,8 @@ import sys
 import re
 from collections import Counter
 
+from rapidfuzz import fuzz
+
 #: Les mots de tête qui ne portent aucune information distinctive. Une chaîne qui
 #: commence par l'un d'eux voit la récupération par préfixe partir sur un mot commun
 #: à des dizaines de milliers d'entrées.
@@ -215,6 +217,14 @@ def comparaison(paires: list[dict], combien: int, bande, forme: str | None,
         print(f"\n   score {p['score']:>5.1f} · {p['candidats']} candidat(s){marque}")
         print(f"     détecté  : {p['detecte'][:66]}")
         print(f"     miroir   : {p['meilleur_nom'][:66]}")
+        # Les deux chaines REELLEMENT comparées. Les lignes ci-dessus montrent les
+        # noms bruts ; le score ne les voit jamais.
+        nd, nm = p["norm_detecte"], p["meilleur"] or ""
+        print(f"     norm dét. : [{nd[:64]}]  ({len(nd)} car.)")
+        print(f"     norm mir. : [{nm[:64]}]  ({len(nm)} car.)")
+        recalc = fuzz.WRatio(nd, nm)
+        ecart = " ← ÉCART" if abs(recalc - p["score"]) > 0.05 else ""
+        print(f"     recalcul  : WRatio(norm, norm) = {recalc:.1f}{ecart}")
         if p["deuxieme"]:
             print(f"     2e       : {p['deuxieme'][:60]}  ({p['second']:.1f})")
         print(f"     formes   : {', '.join(sorted(p['formes']))[:66]}")
@@ -428,6 +438,7 @@ def main(argv: list[str] | None = None) -> int:
                 paires.append({
                     "detecte": nom, "score": top, "second": second,
                     "candidats": len(candidats), "formes": formes,
+                    "norm_detecte": nom_norm,
                     "meilleur": matches[0].entry.nom_normalise,
                     "meilleur_nom": matches[0].entry.nom,
                     "deuxieme": matches[1].entry.nom_normalise if len(matches) > 1 else None,

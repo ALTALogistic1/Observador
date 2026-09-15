@@ -242,3 +242,61 @@ attente**, et c'est le cas normal entre deux tâches.
 
 *Vide — les soixante-quatre notes des 13 et 14 septembre 2026 ont été portées au corpus
 le 14 septembre. C'est le cas normal entre deux tâches.*
+
+### N12 — Le score de 66 ne sort PAS des deux chaînes affichées, et l'instrument le cachait
+- **Notée le** : 2026-09-15
+- **Destination** : `falkye-journal-des-cas.md` (cas neuf), et `falkye-guide-ingenierie.md`
+  (famille des instruments).
+- **Les valeurs, mesurées localement, sans base ni hôte** :
+  `normaliser("9309-3927 Quebec inc")` → `'9309 3927 quebec inc'` (20 car.);
+  `normaliser("9309-3927 QUÉBEC INC.")` → `'9309 3927 quebec inc'` (20 car.); **égales**.
+  `WRatio(norm, norm) = 100,0`. `WRatio(brut, brut) = 58,97`. `WRatio(norm, brut) = 48,78`.
+  `process.extract` sur le dict à une entrée rend `[('9309 3927 quebec inc', 100.0, '1170123456')]`.
+- **Aucune des trois valeurs n'est 66.** Un balayage montre qu'un score dans la bande 60-68 contre une
+  requête de 20 caractères vient d'une chaîne cible de **1 à 4 caractères** — pas d'un nom.
+- **Et le zéro est du même ordre** : `WRatio('ferme dallaire freres senc', 'ferme') = 90,0`.
+  Un candidat qui partage la tête ne peut pas descendre sous 90. **Un 0 exige une chaîne VIDE** —
+  or `nom_normalise` vide n'est récupérable ni par `GLOB 'ferme*'` ni par le repli `contains`, les
+  deux requêtes portant sur ce même champ. *Le fait et le mécanisme se contredisent : donc une
+  prémisse est fausse, et ce n'est pas le code du score.*
+- ⚠️ **Ce que l'instrument cachait.** `comparaison()` affichait `entry.nom` — le nom BRUT — et
+  jamais `entry.nom_normalise`, la seule chaîne que le score voit. La valeur en cause **était
+  collectée dans le dictionnaire de paire (`"meilleur"`) et jamais imprimée.**
+- **La règle à écrire** : *un instrument qui montre l'entrée et la sortie sans montrer ce qui est
+  réellement comparé ne mesure pas — il illustre.* **Corollaire pour la famille des instruments :
+  quand un outil affiche un score, il affiche les deux opérandes de ce score, telles qu'elles sont
+  passées au scoreur.** Le correctif ajoute `norm dét.`, `norm mir.` (avec leur longueur) et un
+  `recalcul` qui refait `WRatio` sur les deux formes affichées, avec un marqueur `← ÉCART` quand le
+  score rendu par le moteur diffère du score recalculé. **L'écart localise la panne sans l'expliquer.**
+
+### N13 — Le champ `Capacite` de la RACJ : 76,8 % sur 32 195 lignes, un des deux seuls indicateurs de NIVEAU
+- **Notée le** : 2026-09-15
+- **Destination** : `falkye-audit-et-mandat.md`, **à côté de D45**.
+- **Le fait** : le registre des permis d'alcool de la RACJ porte `Capacite` rempli sur **76,8 % de
+  32 195 lignes**. *C'est un nombre de places — donc une mesure de TAILLE d'établissement, pas un
+  compte d'événements.*
+- **Pourquoi ça mérite d'être à côté de D45** : le produit lit presque exclusivement des signaux
+  d'ÉVÉNEMENT (un contrat obtenu, un permis délivré, une offre publiée). *Un événement dit qu'il se
+  passe quelque chose; il ne dit pas à quelle échelle.* **`Capacite` est l'un des deux seuls
+  indicateurs de NIVEAU que le produit puisse lire d'une source publique** — et il est là, gratuit,
+  sous licence ouverte, sur un secteur entier.
+- ⚠️ **Il ne vaut que pour la restauration et les débits de boisson.** *Une garde ne couvre que ce que
+  la mesure couvrait* : ce n'est pas un indicateur de taille d'entreprise, c'est un indicateur de
+  taille de salle. À écrire tel quel, pour que le prochain à lire ne l'étende pas.
+
+### N14 — Deux jeux municipaux écartés, avec le motif, pour que personne n'y revienne
+- **Notée le** : 2026-09-15
+- **Destination** : `falkye-recommandations-sources.md`, section des refus.
+- **Sherbrooke — permis de construction : ÉCARTÉ, source FIGÉE.** La ressource n'a pas bougé depuis
+  **689 jours**. *Un jeu qui ne bouge plus ne produit aucun signal précoce — il produit un arriéré, une
+  fois, puis plus rien.* **Et le coût n'est pas nul** : un connecteur branché dessus consomme un tour
+  de cycle, une fiche de santé de source et une ligne de surveillance, pour zéro détection.
+- **Montréal — liste noire des fournisseurs : ÉCARTÉE, dix lignes.** *L'effectif ne soutient aucune
+  mesure* : dix lignes ne permettent ni d'évaluer un taux d'appariement, ni de détecter une rupture de
+  source, ni de justifier une fiche. **Et le motif est plus fort que l'effectif** : une liste noire est
+  un signal NÉGATIF, hors de la stratégie du portrait *(§6bis)* — le produit détecte une entreprise qui
+  se développe, pas une entreprise qu'on exclut.
+- ⚠️ **Le refus s'écrit avec sa DATE et son motif mesuré**, pas seulement avec son verdict — *sinon le
+  prochain balayage du catalogue les repropose, et le travail se refait.* **Ils redeviennent
+  examinables si le motif tombe** : Sherbrooke si la ressource repart, Montréal jamais (le motif est
+  de nature, pas d'effectif).
