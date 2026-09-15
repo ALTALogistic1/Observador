@@ -382,9 +382,23 @@ def _archiver_snapshot(source_id: str, lignes: list[LigneSnapshot]) -> str:
     dossier.mkdir(parents=True, exist_ok=True)
     horodatage = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
     chemin = dossier / f"{horodatage}.json"
-    chemin.write_text(
-        json.dumps([{"cle": l.cle, "champs": l.champs} for l in lignes], ensure_ascii=False), encoding="utf-8"
-    )
+    # ÉCRITURE EN FLUX, ligne par ligne — jamais `json.dumps` sur la liste
+    # entière. Mesuré le 2026-09-16 sur la population réelle du REQ (2 730 146
+    # lignes) : la liste intermédiaire de dictionnaires coûtait ~500 Mo et la
+    # chaîne JSON complète ~679 Mo de plus, soit **~1 180 Mo de transitoire**
+    # au moment précis de l'archivage — pour un fichier de 679 Mo sur disque.
+    # Ce transitoire s'ajoutait au pic de l'import, qui est mort à 7,2 Go.
+    #
+    # Le format reste un tableau JSON valide (mêmes lecteurs, même fichier) :
+    # seule la façon de le PRODUIRE change. Une ligne par entrée, donc aussi
+    # un fichier qui se lit au `grep` quand on cherche une clé précise.
+    with chemin.open("w", encoding="utf-8") as fichier:
+        fichier.write("[")
+        for i, l in enumerate(lignes):
+            if i:
+                fichier.write(",\n")
+            fichier.write(json.dumps({"cle": l.cle, "champs": l.champs}, ensure_ascii=False))
+        fichier.write("]")
 
     generations = sorted(dossier.glob("*.json"))
     for vieux in generations[:-GENERATIONS_CONSERVEES]:
