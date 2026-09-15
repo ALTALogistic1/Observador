@@ -169,6 +169,97 @@ donc « importé correctement » selon les deux contrôles ci-dessus — portait
 CONFORMES ».** *Tout le reste veut dire que le miroir est chargé et inutilisable
 — l'état le plus coûteux, parce qu'il a l'air du bon.*
 
+## Le réimport du 16 septembre 2026 (soir) — tous les noms
+
+**Ce qu'il apporte, mesuré avant de le lancer** *(`outils/impact_tous_les_noms.py`)* :
+
+    entreprises sans NEQ                  8 931
+      ├─ gains FRANCS                     2 218
+      ├─ gagnés mais AMBIGUS                 12
+      └─ sans effet                       6 701
+    déjà résolues MENACÉES                   43
+    rapport gains francs / menacées         52.0
+    volume        1 705 806 lignes          ~+260 Mo      7 à 35 min
+
+### ⛔ Ce que le réimport NE FERA PAS, et qu'il faut savoir avant
+
+**Le réimport seul ne résoudra AUCUNE des 2 218.** `resolve_company` n'a que deux
+points d'appel — l'ingestion d'un signal brut et l'import manuel — et **aucune
+passe de re-résolution n'existe** *(registre D15)*. *Une entreprise déjà en base
+n'est réessayée que si un NOUVEAU signal la concerne.*
+
+**Conséquence pratique : mesuré le lendemain du réimport, le gain sera proche de
+zéro**, et il serait facile d'en conclure que le correctif a échoué. *Ce ne serait
+pas vrai — le miroir portera bien les noms; c'est le produit qui ne repasse
+jamais.* **Les 2 218 se résoudront au fil des cycles, à mesure que leurs sources
+les renomment** — ou d'un coup, le jour où une passe de re-résolution existe.
+**Elle n'existe pas, et elle n'est pas dans ce réimport.**
+
+### Avant de lancer — six vérifications
+
+**1. Le minuteur est arrêté.** *Un cycle qui démarre pendant l'import lirait un
+miroir à moitié écrit.*
+
+    systemctl is-active falkye-cycle.timer     # attendu : inactive
+    sudo systemctl stop falkye-cycle.timer
+
+**2. Aucun cycle n'est en cours.**
+
+    systemctl is-active falkye-cycle.service   # attendu : inactive
+
+**3. L'espace disque.** *~260 Mo pour `req_noms`, et SQLite a besoin de place pour
+écrire son journal en plus du fichier.* Compter **le double**, soit ~520 Mo libres.
+
+    df -h /var/lib/falkye
+
+**4. Le code de la #56 est sur l'hôte.** ⚠️ **Pas celui de la #55** : avec la #55
+seule, `req_noms` se remplit et le score continue de comparer la dénomination
+sociale — *la porte s'ouvre et le seuil reste infranchissable.*
+
+    /opt/falkye/venv/bin/python -c \
+      "from falkye.models.req_nom import REQNom; \
+       from falkye.sources.req import resolve_neq_by_name; print('#56 présente')"
+
+**5. L'archive, vérifiée sur ses en-têtes.** Deux secondes contre trente minutes.
+
+    python3 outils/verifier_archive_req.py --chemin /opt/falkye/import
+
+**6. Les témoins, capturés.** ⚠️ **AVANT, et il faut que ce soit avant** — faite
+après, la capture relèverait l'état d'arrivée et ne comparerait rien.
+
+    python3 outils/temoins_resolution.py --capturer \
+        --vers /var/lib/falkye/temoins-2026-09-16.json
+
+### Lancer
+
+    sudo systemctl start falkye-miroir-req.service
+    journalctl -u falkye-miroir-req.service -f
+
+*Chercher dans le journal la ligne `noms en vigueur indexés dans req_noms`* —
+c'est elle qui dit que la passe neuve a tourné. **Une absence de cette ligne veut
+dire que le code déployé n'est pas celui de la #56.**
+
+### Après — quatre contrôles, dans cet ordre
+
+    python3 outils/temoins_resolution.py --verifier \
+        --depuis /var/lib/falkye/temoins-2026-09-16.json
+    python3 outils/etat_champ_normalise.py
+    python3 outils/entonnoir_verification.py
+    python3 outils/diagnostic_appariement.py --toutes --histogramme
+
+**Le premier passe en tête, et pas par habitude.** *Il distingue une entreprise
+qui s'est **dérésolue** — visible, réversible — d'une qui a **mal résolu**, dont
+le dossier a changé d'identité en silence.* **Une mauvaise réponse est pire qu'une
+absence de réponse**, et aucun des trois autres contrôles ne la verrait.
+
+### Remettre le minuteur
+
+    sudo systemctl start falkye-cycle.timer
+    systemctl list-timers falkye-cycle.timer
+
+⚠️ **Ne pas l'oublier.** *Un minuteur arrêté ne signale rien — la panne est un
+mardi matin sans courriel, une semaine plus tard.*
+
 ## La reprise du 16 septembre 2026 — la marche, dans l'ordre
 
 **Pourquoi ce réimport.** La moitié du miroir portait un `nom_normalise` vide, et
