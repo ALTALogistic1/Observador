@@ -125,3 +125,90 @@ def test_la_borne_sapplique_au_TOTAL_pas_a_chaque_source(db_session, tmp_path):
         ))
     db_session.commit()
     assert len(candidats_par_nom(db_session, "gagnon 0 inc", limite=4)) == 4
+
+
+# ---------------------------------------------------------------------------
+# UN NEQ, UNE ENTITÉ — le score et l'ambiguïté se comptent sur le NEQ
+# ---------------------------------------------------------------------------
+
+
+def test_le_score_dun_NEQ_est_le_MEILLEUR_de_ses_noms(db_session):
+    """Sans ça, la porte serait ouverte et le seuil infranchissable : la
+    récupération trouverait l'entreprise par son nom commercial, puis la
+    comparerait à sa dénomination sociale numérique."""
+    from falkye.sources.req import resolve_neq_by_name
+
+    db_session.add(REQEntry(
+        neq="1111111111", nom="9224-5842 QUÉBEC INC.",
+        nom_normalise="9224 5842 quebec inc", statut="immatriculee",
+    ))
+    db_session.add(REQNom(
+        neq="1111111111", nom_normalise="ferme m g bellavance",
+        nom="Ferme M.G. Bellavance", statut="V", type_nom="N",
+    ))
+    db_session.commit()
+    matches = resolve_neq_by_name(db_session, "Ferme M.G. Bellavance")
+    assert len(matches) == 1
+    assert matches[0].entry.neq == "1111111111"
+    assert matches[0].score == 100.0
+
+
+def test_deux_noms_du_MEME_NEQ_ne_font_pas_une_ambiguite(db_session):
+    """« Une entreprise n'a pas plusieurs identités parce qu'elle a plusieurs
+    noms. » Deux noms qui se disputent la première place, c'est la même
+    entreprise deux fois."""
+    from falkye.resolution import neq_retenu
+    from falkye.sources.req import resolve_neq_by_name
+
+    db_session.add(REQEntry(
+        neq="1111111111", nom="Construction Pierre Robert inc.",
+        nom_normalise="construction pierre robert inc", statut="immatriculee",
+    ))
+    db_session.add(REQNom(
+        neq="1111111111", nom_normalise="construction pierre robert",
+        nom="Construction Pierre Robert", statut="V", type_nom="N",
+    ))
+    db_session.commit()
+    matches = resolve_neq_by_name(db_session, "Construction Pierre Robert inc.")
+    assert len(matches) == 1          # UN candidat, pas deux
+    assert neq_retenu(matches) == "1111111111"
+
+
+def test_deux_NEQ_DIFFERENTS_restent_une_ambiguite(db_session):
+    """Le regroupement ne doit pas absorber une vraie ambiguïté."""
+    from falkye.resolution import neq_retenu
+    from falkye.sources.req import resolve_neq_by_name
+
+    for neq in ("1111111111", "2222222222"):
+        db_session.add(REQEntry(
+            neq=neq, nom="Transport Gagnon inc.",
+            nom_normalise="transport gagnon inc", statut="immatriculee",
+        ))
+    db_session.commit()
+    matches = resolve_neq_by_name(db_session, "Transport Gagnon inc.")
+    assert len(matches) == 2
+    assert neq_retenu(matches) is None
+
+
+def test_le_meilleur_nom_lemporte_meme_sil_nest_pas_lelu(db_session):
+    """Le nom élu peut scorer mal et un nom alternatif très bien : c'est le
+    meilleur des deux qui représente l'entité."""
+    from falkye.sources.req import resolve_neq_by_name
+
+    db_session.add(REQEntry(
+        neq="1111111111", nom="9169-9587 QUÉBEC INC.",
+        nom_normalise="9169 9587 quebec inc", statut="immatriculee",
+    ))
+    db_session.add(REQNom(
+        neq="1111111111", nom_normalise="ferme a lapierre fils",
+        nom="Ferme A. Lapierre & Fils", statut="V", type_nom="N",
+    ))
+    db_session.add(REQNom(
+        neq="1111111111", nom_normalise="9169 9587 quebec inc",
+        nom="9169-9587 QUÉBEC INC.", statut="V", type_nom="M",
+    ))
+    db_session.commit()
+    matches = resolve_neq_by_name(db_session, "Ferme A. Lapierre & Fils")
+    assert matches[0].score == 100.0
+    # Et le portrait affiche la DÉNOMINATION LÉGALE, jamais le nom apparié.
+    assert matches[0].entry.nom == "9169-9587 QUÉBEC INC."
