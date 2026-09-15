@@ -888,3 +888,49 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   ignore** *(le cas 36 — `systemctl cat` les montre, lire le fichier seul les rate)*. Il compare les
   **directives**, jamais les commentaires : *une garde qui crie pour une reformulation finit par être
   ignorée.*
+
+### N44 — L'import meurt à 7,2 Go, et le chiffre que j'avais annoncé était recopié
+- **Notée le** : 2026-09-16. ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON.**
+- **Destination** : `falkye-journal-des-cas.md` (cas neuf), `docs/MIROIRS.md`, `falkye-guide-ingenierie.md`.
+- **Le fait** : `falkye-miroir-req.service` tué par le gestionnaire de mémoire, **7,2 Go de pic sur
+  7,7 Go disponibles**, cinq minutes après le démarrage, `status=9/KILL`.
+- ⛔ **MA FAUTE, et elle a un nom dans le corpus.** J'ai annoncé *« la mémoire ne bouge pas, le pic
+  reste à 3 535 Mo »* — **un chiffre recopié d'une docstring, jamais re-dérivé.**
+  *« Un chiffre recopié est une promesse que personne ne tient »* — ma propre maxime, appliquée à moi.
+- ⚠️ **Et le chiffre n'était compatible avec RIEN.** Mesuré localement et extrapolé linéairement à
+  2 730 146 lignes : **index des noms 543 Mo · `resolues` 1 078 Mo · `lignes_entreprise` 1 669 Mo =
+  ~3 300 Mo**, *avant* l'index des établissements (déjà chargé) et *avant* `lignes_etab` (pas encore
+  construite). **Les 3 535 Mo ne pouvaient pas couvrir ce que la phase 1 construit** — personne ne
+  l'avait re-dérivé depuis que le chiffre avait été écrit.
+- **Ce qui accumule, et c'est STRUCTUREL, antérieur à mes changements.** La phase 1 tient
+  **simultanément** : l'index des noms élus, l'index des établissements, `resolues` (2,7 M dataclasses)
+  et `lignes_entreprise` (2,7 M `LigneSnapshot` portant chacun un dict de six clés). *L'import est mort
+  AVANT `lignes_etab`, donc avant son propre pire moment.*
+- ⚠️ **La redondance la plus coûteuse, et elle est gratuite à retirer** : `lignes_entreprise`
+  **(1 669 Mo)** est **entièrement dérivable de `resolues`** par `_ligne_entreprise()`. *Deux listes
+  portent la même donnée, l'une reconstructible à partir de l'autre.*
+- **Et un doublement transitoire d'une ligne** : `_charger_index_noms` finit par
+  `return {neq: nom for neq, (_, _, nom) in meilleurs.items()}` — **les deux dictionnaires sont vivants
+  pendant la compréhension**, soit ~708 Mo de plus au moment précis du retour.
+- **Ma passe des noms, elle, est bien en flux** *(lots de 20 000, `INSERT OR IGNORE`)* — **et elle n'a
+  jamais tourné** : la mort est en phase 1, qu'elle suit. *La prévision sur MA passe était juste; elle
+  ne disait rien du total, et c'est le total qui tue.*
+- **La règle** : *une prévision de ressource ne se cite pas, elle se dérive.* **Et quand on annonce
+  qu'un ajout ne change rien, il faut dire par rapport à QUOI** — *« le delta est nul » et « ça tient
+  dans la machine » sont deux affirmations différentes, et j'ai laissé lire la seconde en n'ayant
+  vérifié que la première.*
+
+### N45 — Le miroir est intact, et deux chemins indépendants le disent
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-guide-ingenierie.md`.
+- **Par le code** : la mort est survenue **en phase 1**, dans la boucle de lecture d'`Entreprise.csv`
+  *(les avertissements `absent de Nom.csv` viennent de `req.py:505`, appelé là)*. **Or rien n'est écrit
+  avant `executer_diff_groupe`**, qui vient après — *ni `REQEntry`, ni `EtatLigneSource`, ni l'état de
+  diff.* **L'import a lu sans jamais écrire.**
+- **Par l'horodatage** *(Alexandre)* : `miroirs.sqlite3` n'a pas bougé depuis 14 h 37, **deux heures
+  avant** l'import de 17 h 52.
+- ⚠️ **Et c'est exactement ce qui rendait la vérification nécessaire** : *« un import tué en cours
+  laisse une base que rien ne distingue d'une base complète »*, écrit deux heures plus tôt. **Ici la
+  réponse est bonne — mais elle a été VÉRIFIÉE, pas supposée, et par deux chemins qui ne dépendent pas
+  l'un de l'autre.** *Un raisonnement sur le code et une date de fichier peuvent être faux séparément;
+  ils ne le sont pas ensemble.*
