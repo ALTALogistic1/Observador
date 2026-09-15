@@ -82,9 +82,10 @@ def test_un_nom_sans_particularite_le_dit():
     assert formes_du_nom("Patates Orleans") == {"(aucune forme relevée)"}
 
 
-def _paire(nom, score, candidats=5, formes=None):
+def _paire(nom, score, candidats=5, formes=None, norm=None, meilleur="x"):
     return {"detecte": nom, "score": score, "second": score - 3, "candidats": candidats,
-            "formes": formes or {"(aucune forme relevée)"}, "meilleur": "x",
+            "formes": formes or {"(aucune forme relevée)"}, "meilleur": meilleur,
+            "norm_detecte": norm if norm is not None else nom.lower(),
             "meilleur_nom": "X inc", "deuxieme": None}
 
 
@@ -120,3 +121,38 @@ def test_les_pires_scores_viennent_en_premier(capsys):
     comparaison([_paire("haut", 88.0), _paire("bas", 41.0)], 2, None, None, 2000)
     sortie = capsys.readouterr().out
     assert sortie.index("bas") < sortie.index("haut")
+
+
+def test_la_comparaison_montre_les_deux_chaines_reellement_scorees(capsys):
+    """**Le tableau affichait les noms BRUTS et jamais les chaînes comparées.**
+    Un score de 66 entre deux noms identiques une fois normalisés n'était pas
+    lisible — parce que la valeur en cause n'était nulle part à l'écran."""
+    comparaison([_paire("9309-3927 Quebec inc", 66.0, candidats=1,
+                        norm="9309 3927 quebec inc", meilleur="9309 3927 quebec inc")],
+                5, None, None, 2000)
+    sortie = capsys.readouterr().out
+    assert "[9309 3927 quebec inc]  (20 car.)" in sortie
+    assert "WRatio(norm, norm) = 100.0" in sortie
+
+
+def test_un_ecart_entre_score_rendu_et_score_recalcule_est_signale(capsys):
+    """Si le moteur rend 66 là où les deux formes affichées donnent 100, l'écart
+    est la mesure — pas une explication à construire après coup."""
+    comparaison([_paire("A", 66.0, norm="abc", meilleur="abc")], 5, None, None, 2000)
+    sortie = capsys.readouterr().out
+    assert "recalcul  : WRatio(norm, norm) = 100.0" in sortie
+    assert "ÉCART" in sortie
+
+
+def test_aucun_ecart_signale_quand_le_score_rendu_se_recalcule(capsys):
+    comparaison([_paire("A", 100.0, norm="abc", meilleur="abc")], 5, None, None, 2000)
+    assert "ÉCART" not in capsys.readouterr().out
+
+
+def test_un_normalise_miroir_vide_est_affiche_comme_vide(capsys):
+    """Un score de 0 avec cent candidats exige une chaîne vide côté miroir.
+    L'outil doit la MONTRER, pas la déduire."""
+    comparaison([_paire("Ferme Dallaire", 0.0, candidats=100,
+                        norm="ferme dallaire", meilleur="")], 5, None, None, 2000)
+    sortie = capsys.readouterr().out
+    assert "norm mir. : []  (0 car.)" in sortie
