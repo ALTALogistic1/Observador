@@ -36,8 +36,13 @@ EnvironmentFile=-/opt/falkye/version.env
 # d'un transfert tronqué, PAS d'une archive hostile — la chaîne fournit les
 # deux. C'est acceptable ici parce que ce fichier ne peuple qu'un miroir
 # reconstituable, et que rien de ce qu'il contient n'est exécuté.
+# Un RÉPERTOIRE, pas un fichier : les archives sont CONSERVÉES depuis le
+# 16 septembre, datées dans leur nom, et c'est la plus récente qui est importée.
+# Décision d'Alexandre : chaque mesure qui demandait l'archive obligeait à la
+# retélécharger — trois fois en deux jours. Le blocage Cloudflare ne touche que
+# le téléchargement, pas la lecture.
 ExecStart=/opt/falkye/venv/bin/python outils/import_miroir_req.py \
-          --chemin /opt/falkye/import/JeuDonnees.zip \
+          --chemin /opt/falkye/import \
           --importe-par chaine-de-deploiement
 
 # 33 minutes mesurées en développement, 2 heures de marge : un import interrompu
@@ -57,3 +62,6 @@ ProtectHome=true
 # /var/lib/falkye porte le fichier des miroirs — le SEUL chemin que cette unité
 # écrit. Le répertoire de dépôt, lui, reste en lecture seule.
 ReadWritePaths=/var/lib/falkye
+# Le répertoire de dépôt reste en LECTURE SEULE pour cette unité : l'import ne
+# doit pas pouvoir effacer l'archive qu'il vient de lire. C'est ce qui garantit
+# qu'une mesure relancée demain porte sur le même fichier.

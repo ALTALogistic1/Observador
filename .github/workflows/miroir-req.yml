@@ -52,6 +52,22 @@ jobs:
           ls -l JeuDonnees.zip
           echo "empreinte au départ : $EMPREINTE"
 
+          # LA DATE D'ÉDITION, tirée de l'étiquette (`req-data-2026-09-02`).
+          # C'est la date de PUBLICATION du Registraire, pas celle du transfert :
+          # l'archive est conservée sur l'hôte et son âge doit se lire dans son
+          # nom, sans l'ouvrir. Voir outils/archives_req.py.
+          DATE_EDITION=$(echo "$ETIQUETTE" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
+          if [ -z "$DATE_EDITION" ]; then
+            # REFUS plutôt qu'un nom sans date : une archive non datée ressemble
+            # à une archive fraîche, et c'est exactement le défaut qu'on ferme.
+            echo "REFUS — l'étiquette '$ETIQUETTE' ne porte aucune date AAAA-MM-JJ." >&2
+            echo "  L'archive serait déposée sans date, donc d'âge inconnu." >&2
+            echo "  Renommer la release, ex. req-data-2026-09-02." >&2
+            exit 1
+          fi
+          echo "DATE_EDITION=$DATE_EDITION" >> "$GITHUB_ENV"
+          echo "date d'édition : $DATE_EDITION"
+
       - name: Préparer l'accès SSH
         env:
           CLE: ${{ secrets.FALKYE_DEPLOY_SSH_KEY }}
@@ -76,7 +92,7 @@ jobs:
             'mkdir -p /opt/falkye/import'
           rsync -az --progress \
             -e "ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes" \
-            JeuDonnees.zip "$UTILISATEUR@$HOTE:/opt/falkye/import/JeuDonnees.zip"
+            JeuDonnees.zip "$UTILISATEUR@$HOTE:/opt/falkye/import/JeuDonnees-$DATE_EDITION.zip"
 
       - name: Vérifier le transfert avant d'importer
         env:
@@ -85,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           DISTANTE=$(ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes \
-            "$UTILISATEUR@$HOTE" 'sha256sum /opt/falkye/import/JeuDonnees.zip | cut -d" " -f1')
+            "$UTILISATEUR@$HOTE" "sha256sum /opt/falkye/import/JeuDonnees-$DATE_EDITION.zip | cut -d' ' -f1")
           echo "empreinte à l'arrivée : $DISTANTE"
           # Vérifier ICI plutôt que de laisser l'unité le faire seule : un
           # transfert tronqué doit coûter une minute, pas trente-trois.
@@ -136,14 +152,25 @@ jobs:
             'journalctl -u falkye-miroir-req.service -n 60 --no-pager' || \
             echo "journal non lisible par l'utilisateur de déploiement — voir sur l'hôte"
 
-      - name: Retirer l'archive de l'hôte
+      - name: Inventaire des archives conservées
         if: always()
         env:
           HOTE: ${{ secrets.FALKYE_DEPLOY_HOST }}
           UTILISATEUR: ${{ secrets.FALKYE_DEPLOY_USER }}
         run: |
-          # 267 Mo qui n'ont plus de raison d'être sur un disque de 75 Go, et
-          # qui se retéléchargent en une minute. Retiré APRÈS le rapport, jamais
-          # avant : l'inverse effacerait la pièce à conviction d'un import raté.
+          # L'ARCHIVE N'EST PLUS SUPPRIMÉE — décision d'Alexandre du 16 septembre
+          # 2026. L'ancienne étape faisait `rm -f` avec `if: always()`, donc même
+          # quand l'import échouait, et son motif était l'espace disque. La mesure
+          # l'a démenti : 66 Go libres pour une archive de 267 Mo, soit ~7 Go par
+          # an au rythme de deux semaines. Le coût réel était ailleurs — chaque
+          # mesure demandant l'archive obligeait à la retélécharger, trois fois en
+          # deux jours, et le blocage Cloudflare ne touche que le téléchargement,
+          # pas la lecture.
+          #
+          # Rien n'est purgé ici, et c'est délibéré : une rotation silencieuse
+          # recréerait le même défaut à l'envers — un fichier qui disparaît sans
+          # que personne l'ait décidé. L'inventaire rend la croissance LISIBLE;
+          # purger reste un geste, jamais un effet de bord.
           ssh -i ~/.ssh/id_deploiement -o IdentitiesOnly=yes "$UTILISATEUR@$HOTE" \
-            'rm -f /opt/falkye/import/JeuDonnees.zip' || true
+            'ls -lh /opt/falkye/import/ && echo "---" && du -sh /opt/falkye/import/ && \
+             echo "---" && df -h /opt/falkye | tail -1' || true

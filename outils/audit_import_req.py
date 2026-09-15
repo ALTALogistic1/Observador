@@ -113,10 +113,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Import impossible ({exc}). Lancer depuis la racine du dépôt.", file=sys.stderr)
         return 2
 
+    from outils.archives_req import avertissement, ligne_de_provenance, resoudre
+
+    archive = resoudre(args.chemin)
+    if archive is None:
+        print(f"⛔ aucune archive à {args.chemin!r}.", file=sys.stderr)
+        return 2
+    args.chemin = str(archive)
+
     print("=" * 78)
     print("POURQUOI LE MIROIR NE PORTE QU'UNE SOCIÉTÉ DE LA SÉRIE")
     print("=" * 78)
-    print(f"\narchive : {args.chemin}")
+    print(f"\n{ligne_de_provenance(archive)}")
+    # La provenance AU-DESSUS du chiffre, jamais en bas de page : un chiffre lu
+    # sans sa date est une promesse que personne ne tient.
+    vieillissement = avertissement(archive)
+    if vieillissement:
+        print(f"\n{vieillissement}")
     print(f"série   : {args.serie}-xxxx")
     print("\nPORTÉE : lecture seule. Ni l'archive ni le miroir ne sont modifiés.")
 

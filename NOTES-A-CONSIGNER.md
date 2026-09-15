@@ -476,3 +476,35 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
 - **La règle** : *un chargeur qui résout son chemin depuis `__file__` lit le paquet, pas le dépôt.*
   **La question « quelle version le produit lit-il » a une réponse différente de « quelle version
   avons-nous décidée », et rien dans le code ne les rapproche.**
+
+### N24 — L'archive du REQ était supprimée par la chaîne, `if: always()`, pour un motif que la mesure dément
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-chantier-29-persistance.md` *(écrit)*, `docs/MIROIRS.md` *(écrit)*, et
+  `falkye-journal-des-cas.md` pour la forme du défaut.
+- **Ce qui la faisait disparaître** : `.github/workflows/miroir-req.yml`, dernière étape,
+  `rm -f /opt/falkye/import/JeuDonnees.zip`, **avec `if: always()` — donc même quand l'import
+  échouait.** *Le motif écrit à côté : « 267 Mo qui n'ont plus de raison d'être sur un disque de
+  75 Go ».*
+- **La mesure dément le motif** : **66 Go libres**, archive de **267 Mo**, soit ~7 Go par an au rythme
+  de deux semaines. ⚠️ **Et le coût réel était ailleurs, invisible depuis le flux** : chaque mesure
+  demandant l'archive obligeait à la retélécharger — *trois fois en deux jours, et on a changé de
+  méthode chaque fois pour l'éviter.* **Un coût déplacé n'est pas un coût supprimé.**
+- **La décision** *(Alexandre)* : on conserve, **avec la date dans le nom** —
+  `JeuDonnees-2026-09-02.zip`. *Le blocage Cloudflare ne touche que le téléchargement, pas la
+  lecture : une archive déposée est relisible indéfiniment.* **L'import reste manuel; les mesures
+  cessent de l'être.**
+- **Le revers, pris en connaissance de cause, et ce qui le neutralise.** *Une archive conservée
+  vieillit, et rien ne le signalerait* — **c'est le motif de la journée : Laval figé, l'adresse de
+  l'EIMT, la table de prix sans date. Un fichier figé qui ressemble à un fichier vivant.** La date
+  dans le nom le rend **lisible sans qu'on ait à s'en souvenir**, *même forme que la table de prix
+  datée et que la portée imprimée sous le chiffre.*
+- ⚠️ **Trois règles tombées de là, toutes écrites dans `outils/archives_req.py`** : *(1)* la date vient
+  du **nom**, jamais de `mtime` — *un `scp` réécrit la date de modification et l'archive paraîtrait
+  fraîche de jours qu'elle n'a pas*; *(2)* une archive **sans date** n'est pas récente, elle est
+  **d'âge inconnu** — l'absence de mesure n'est pas une mesure nulle; *(3)* **rien n'est purgé
+  automatiquement** — *une rotation silencieuse recréerait le même défaut à l'envers, un fichier qui
+  disparaît sans que personne l'ait décidé.* **L'inventaire rend la croissance lisible; purger reste
+  un geste.**
+- **Et la chaîne REFUSE désormais de partir si l'étiquette de la release ne porte pas de date.**
+  *Déposer une archive sans date serait déposer un fichier d'âge inconnu qui ressemble à un fichier
+  frais* — le refus coûte une seconde, le silence coûterait trois semaines.
