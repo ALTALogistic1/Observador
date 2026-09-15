@@ -995,3 +995,30 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
 - ⚠️ **À ne pas entreprendre avant d'avoir mesuré `Etablissements.csv`** : *si `lignes_etab` est petite,
   les correctifs locaux suffisent et la réécriture attend.* **Un chantier d'une semaine ne se décide
   pas sur une structure qu'on n'a jamais mesurée.**
+
+### N49 — Mon inventaire n'explique que la moitié du pic, et mon correctif principal ne touche pas la phase qui a tué
+- **Notée le** : 2026-09-16. ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON** — *elle empêche une relance qui
+  échouerait.*
+- **Destination** : `falkye-journal-des-cas.md` *(le cas de l'OOM)*, `docs/MIROIRS.md`.
+- **Le compte, posé franchement** : l'import est mort à **7 372 Mo, EN PHASE 1**. Mon inventaire en
+  explique **3 390** — index des noms 543, établissements ~100 *(257 563 lignes, mesurées)*,
+  `resolues` 1 078, `lignes_entreprise` 1 669. **Il manque 3 982 Mo, soit plus que tout ce que j'ai
+  proposé de retirer.**
+- ⛔ **Et mon correctif le plus gros ne s'applique pas là.** *L'archivage en flux (1 179 Mo) vit dans
+  le moteur de diff, APRÈS la phase 1.* **L'import est mort avant de l'atteindre.** Sur la phase 1,
+  mes correctifs de la soirée ne retirent que **165 Mo** *(le doublement de l'index des noms)*.
+- **Deux causes plausibles à l'écart, et elles se départagent par la mesure, pas par le raisonnement** :
+  *(1)* **`tracemalloc` compte les objets vivants, le système compte la RSS** — *l'allocateur de Python
+  ne rend pas volontiers ce qu'il a pris, et 2,7 millions de petits objets créés puis jetés
+  fragmentent.* **La RSS peut dépasser du double la somme des objets vivants sans qu'aucun bogue
+  n'existe.** *(2)* **Mon extrapolation est linéaire, faite sur 200 000 objets** — à 2,7 millions, les
+  redimensionnements ne se comportent pas pareil.
+- **La décision : ni relancer, ni construire — MESURER.** *Décider sur une extrapolation quand une
+  mesure coûte cinq minutes est exactement ce qu'on s'est interdit ce matin.*
+  `outils/profil_memoire_import.py` refait la phase 1 seule, **sans base, sans écriture, sans diff**,
+  et relève la **RSS du système** à chaque étape. **Lancé à 100 000 puis 500 000 puis 1 000 000 lignes,
+  il donne une COURBE** — *et une courbe mesurée vaut mieux qu'une droite supposée.*
+- **La règle, et c'est la troisième fois aujourd'hui qu'elle se vérifie** : *quand un total mesuré
+  dépasse de beaucoup la somme de ce qu'on sait expliquer, ce n'est pas le total qui est faux — c'est
+  l'inventaire qui est incomplet.* **Ajouter des correctifs à un inventaire incomplet, c'est corriger
+  ce qu'on voit en laissant intact ce qui coûte.**
