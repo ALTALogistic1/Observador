@@ -435,3 +435,44 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   et c'est la quatrième fois aujourd'hui que le chemin ramène à l'écart entre le code déployé et le
   code du dépôt *(N17, N18, N20)*. **À vérifier avant de se servir du chiffre de 23 sources sans
   adresse, qui vient du dépôt.**
+
+### N22 — Le mur n'était pas la comparaison : l'entreprise n'est pas au miroir
+- **Notée le** : 2026-09-16
+- ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON** — c'est le résultat qui referme trois jours de travail, et il
+  change ce qu'il faut chercher.
+- **Destination** : `falkye-journal-des-cas.md` (cas neuf), `falkye-audit-et-mandat.md`.
+- **La trace d'un cas entier** *(`outils/trace_un_appariement.py`, 16 septembre)* : `9309-3927 QUÉBEC
+  INC.` est **introuvable au miroir par les quatre chemins** — NEQ, nom brut exact, sous-chaîne
+  `9309-3927`, nom normalisé exact. Et `nom_normalise GLOB '9309*'` comme `nom LIKE '9309%'` rendent
+  **une seule ligne** sur 2 730 146.
+- **Le moteur a fait exactement ce qu'il devait** : il a récupéré la seule ligne disponible —
+  `9309-1319 QUÉBEC INC.` — l'a comparée à `9309-3927`, obtenu 66, et refusé. *C'est le bon
+  comportement sur une base amputée.*
+- **Ce que ça explique d'un coup** : **six hypothèses tombaient toutes pour la même raison.** *Le seuil,
+  la normalisation, les ponts d'enseigne, la troncature de récupération, le champ `nom_normalise`, la
+  symétrie des formes juridiques* — **on cherchait pourquoi la comparaison échoue, alors que le candidat
+  n'existe pas.** Et ça explique la **médiane à 63,5 des dénominations numériques** : elles sont
+  massivement absentes, et le meilleur candidat est toujours un homonyme partiel de la même série.
+- **La règle, et c'est la vraie prise** : *avant de demander pourquoi une comparaison échoue, vérifier
+  que les deux termes existent.* **Une distribution de scores répond « combien »; elle ne dit jamais
+  que l'un des deux côtés est vide.** *Trois jours de mesures justes sur une question mal posée.*
+- ⚠️ **Et la cause de l'amputation n'est PAS établie.** Trois possibles, trois remèdes opposés : le
+  fichier source est incomplet, l'import filtre, l'import s'arrête. *`outils/audit_import_req.py` les
+  départage sur l'archive.* **Ne pas conclure avant.**
+
+### N23 — L'écart des registres est tranché : le dépôt et le produit lisent le MÊME fichier ici
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-guide-ingenierie.md`, à côté de N21.
+- **Mesuré** *(`outils/quel_registre_est_lu.py`)* : dans le conteneur, `loader.REGISTRY_DIR` résout vers
+  `/home/user/Observador/falkye/registry/sources.yaml` — **le fichier du dépôt lui-même**, même
+  empreinte, **3 adresses**. *Il n'y a donc aucune divergence de ce côté.*
+- **Ce qui reste à mesurer, et l'outil est fait pour ça** : le même relevé **sur l'hôte**. Le chargeur
+  résout `Path(__file__).parent` — **donc il lit le registre À CÔTÉ DU PAQUET INSTALLÉ.** *Si `falkye`
+  y est installé en copie (`pip install .`) plutôt qu'en lien (`pip install -e .`), le YAML lu est un
+  instantané figé à l'installation, qui diverge à chaque fusion touchant le registre, en silence.*
+- ⚠️ **Le chiffre de dix adresses n'est pas expliqué**, et il ne faut pas l'attribuer trop vite. *Mon
+  chiffre de « 23 sources sans adresse » vient du dépôt et vaut pour le dépôt.* **Tant que le relevé
+  de l'hôte n'est pas fait, aucun des deux chiffres ne décrit l'autre côté.**
+- **La règle** : *un chargeur qui résout son chemin depuis `__file__` lit le paquet, pas le dépôt.*
+  **La question « quelle version le produit lit-il » a une réponse différente de « quelle version
+  avons-nous décidée », et rien dans le code ne les rapproche.**
