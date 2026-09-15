@@ -415,3 +415,23 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
 - **Le correctif de méthode, pas de code** : *une tâche ne se déclare pas finie sur un `push` réussi.*
   **Elle se déclare finie sur le NUMÉRO d'une demande ouverte**, vérifié, et donné à Alexandre.
   *Un état vérifié au bout de la chaîne, pas un geste réussi au début.*
+
+### N21 — Une adresse joignable de l'hôte peut être injoignable d'ailleurs, et l'inverse
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-guide-ingenierie.md`, **à côté de « hors bac à sable »** — c'est le même
+  motif, appliqué au réseau plutôt qu'aux données.
+- **Le fait** : l'adresse du REQ rend **200 depuis l'hôte** et l'a toujours fait; depuis le conteneur de
+  développement, la page du Registraire rendait **403**. *Ce n'est pas une adresse qui a changé d'état :
+  c'est deux origines qui reçoivent deux réponses.*
+- **La règle** : **un code de retour est une propriété du COUPLE (adresse, origine), jamais de
+  l'adresse seule.** *Un 403 relevé depuis un conteneur infonuagique ne dit rien de ce qu'un navigateur
+  obtient, et un 200 relevé depuis l'hôte ne garantit pas qu'un connecteur automatisé passera.*
+- ⚠️ **Conséquence pour `outils/adresses_sans_temoin.py`** : sa sonde doit être lue **avec l'origine
+  d'où elle a tourné.** *Le même outil, lancé des deux côtés, rend deux relevés également vrais.*
+  **Et c'est l'hôte qui fait foi**, puisque c'est de là que le produit lit.
+- **Écart relevé en passant, une ligne, non instruit** : la sonde de l'hôte a rendu **dix** adresses,
+  celle du conteneur **trois**. *Le fichier `falkye/registry/sources.yaml` du dépôt n'en porte que
+  trois — vérifié par balayage du YAML brut.* **Donc les deux registres ne sont pas le même fichier**,
+  et c'est la quatrième fois aujourd'hui que le chemin ramène à l'écart entre le code déployé et le
+  code du dépôt *(N17, N18, N20)*. **À vérifier avant de se servir du chiffre de 23 sources sans
+  adresse, qui vient du dépôt.**
