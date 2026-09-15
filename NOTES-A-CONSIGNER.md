@@ -1022,3 +1022,55 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   dépasse de beaucoup la somme de ce qu'on sait expliquer, ce n'est pas le total qui est faux — c'est
   l'inventaire qui est incomplet.* **Ajouter des correctifs à un inventaire incomplet, c'est corriger
   ce qu'on voit en laissant intact ce qui coûte.**
+
+### N50 — La mesure retourne le diagnostic : c'est le moteur de diff, pas la phase 1
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-journal-des-cas.md` *(le cas de l'OOM, sa résolution)*, `docs/MIROIRS.md`,
+  `falkye-chantier-1-quarantaine.md`.
+- **Mesuré sur l'hôte** *(`outils/profil_memoire_import.py`)*, et la pente est **parfaitement
+  linéaire** — 195 Mo par tranche de 250 000 lignes, deux fois de suite :
+
+      au démarrage                           57 Mo
+      index des noms élus (2 730 147 NEQ)   818 Mo   (+761)
+      index des établissements (257 563)    922 Mo   (+104)
+        … 250 000 lignes lues             1 117 Mo   (+195)
+        … 500 000 lignes lues             1 311 Mo   (+195)
+      lignes_etab                         1 311 Mo     (+0)
+
+- **Extrapolé correctement : ~3 050 Mo pour la phase 1 complète.** *L'import est mort à 7 372.*
+  **Donc ~4 300 Mo viennent du MOTEUR DE DIFF**, pas de la phase 1.
+- ⛔ **Et ça renverse ma propre conclusion de l'heure précédente.** J'avais écrit que mon archivage en
+  flux *« ne touche pas la phase qui a tué l'import »* — **je croyais la mort en phase 1.** *La mesure
+  dit l'inverse : la phase 1 tient dans 3 Go, c'est le diff qui écrase la machine.* **Mes 1 179 Mo
+  d'archivage frappent exactement au bon endroit**, et la piste `resolues` devient la moins utile des
+  trois.
+- **Deux relevés qui valaient la mesure à eux seuls** : *(1)* l'index des noms élus pèse **761 Mo, pas
+  les 543 estimés — 40 % de plus**, et il est chargé en entier avant la première ligne
+  d'`Entreprise.csv`; *(2)* **`lignes_etab` ne coûte RIEN** — zéro mégaoctet sur 257 563 lignes.
+  *La crainte des 900 Mo était sans objet, et c'est la mesure qui l'a dit.*
+- **La règle** : *une hypothèse sur l'emplacement d'un coût vaut exactement ce que vaut la mesure qui
+  la porte.* **J'ai eu tort deux fois de suite sur le MÊME pic** — d'abord en annonçant 3 535 Mo
+  recopiés, puis en plaçant la mort en phase 1. **Les deux erreurs venaient du même geste : conclure
+  sur un raisonnement là où cinq minutes de mesure tranchaient.**
+
+### N51 — L'état précédent du diff chargeait 2,7 M de dictionnaires pour en lire quelques milliers
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-chantier-1-quarantaine.md` *(c'est le moteur de diff)*, `docs/MIROIRS.md`.
+- **Le défaut** : `executer_diff` chargeait `cle -> LIGNE ENTIÈRE`, **`donnees_normalisees` comprise**,
+  pour toute la population de la source. *Pour le REQ : 2,7 millions de dictionnaires de six clés,
+  relus de la base.*
+- ⚠️ **Or ce champ n'est lu QU'À UNE LIGNE** *(`diff_engine.py`, calcul des `champs_changes`)* — et
+  **seulement pour les clés dont l'empreinte diffère**, soit quelques milliers. **On chargeait 2,7
+  millions de dictionnaires pour en lire quelques milliers.**
+- **Le correctif, et il tient au même endroit que l'archivage** *(pas de changement d'ordre des phases
+  à improviser, ce qu'Alexandre espérait)* : le dictionnaire ne porte plus que **`clé -> empreinte`**,
+  une chaîne courte; le détail des seules clés modifiées est **relu par lots** ensuite
+  *(`_champs_precedents`, lots de 1 000 — `IN` sans borne dépasse la limite de variables liées de
+  SQLite, et l'erreur ne ressemble en rien à sa cause)*.
+- **Et `.all()` disparaît** : il matérialisait la liste ENTIÈRE des lignes avant de construire le
+  dictionnaire — *les deux structures vivantes en même temps, exactement comme l'index des noms.*
+  Remplacé par un parcours en flux *(`yield_per`)*.
+- ⚠️ **Le gain n'est pas annoncé, il se mesure** : `profil_memoire_import.py --etat-precedent req`
+  charge **les deux formes l'une après l'autre** et rend la RSS de chacune. *Lire les DELTAS, pas les
+  totaux — l'allocateur ne rend pas au système ce qu'il a pris, donc un delta de libération proche de
+  zéro est normal et n'est pas une fuite.*
