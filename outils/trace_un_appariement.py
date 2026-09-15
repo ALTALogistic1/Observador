@@ -93,6 +93,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     session = get_session()
+    # LE PIÈGE DES DEUX BASES, posé une fois pour tout l'outil. La session porte
+    # deux moteurs et aucun n'est le défaut : une requête ORM trouve le sien par
+    # métadonnée, un `text()` n'en a aucune et lève `UnboundExecutionError`. Le
+    # demander explicitement plutôt que de compter sur une connexion déjà ouverte
+    # par une requête précédente — ça marche par ACCIDENT D'ORDRE, et un
+    # réarrangement innocent le casse.
+    miroir = session.connection(bind_arguments={"mapper": REQEntry.__mapper__})
     try:
         print("=" * 78)
         print("UN APPARIEMENT, EN ENTIER")
@@ -136,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
         print("3. LE PLAN D'EXÉCUTION — un SEARCH et un SCAN ne rendent pas le même lot")
         print("-" * 78)
         try:
-            plan = session.execute(
+            plan = miroir.execute(
                 text(f"EXPLAIN QUERY PLAN {sql_emis(requete_prefixe)}")
             ).all()
             for ligne in plan:
@@ -169,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
             neqs = [c.neq for c in candidats[:DETAIL_MAX]]
             marques = ",".join(f"'{n}'" for n in neqs)
             try:
-                types = session.execute(text(
+                types = miroir.execute(text(
                     f"SELECT typeof(nom_normalise) AS t, count(*) FROM req_entries "
                     f"WHERE neq IN ({marques}) GROUP BY t"
                 )).all()
@@ -232,10 +239,10 @@ def main(argv: list[str] | None = None) -> int:
 
                 # Combien de lignes du miroir commencent par ce préfixe, en SQL pur.
                 try:
-                    n_glob = session.execute(text(
+                    n_glob = miroir.execute(text(
                         "SELECT count(*) FROM req_entries WHERE nom_normalise GLOB :m"
                     ), {"m": f"{prefixe}*"}).scalar()
-                    n_like = session.execute(text(
+                    n_like = miroir.execute(text(
                         "SELECT count(*) FROM req_entries WHERE nom LIKE :m"
                     ), {"m": f"{prefixe}%"}).scalar()
                     print(f"\n      lignes dont nom_normalise GLOB '{prefixe}*' : {n_glob}")
