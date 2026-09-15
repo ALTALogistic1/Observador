@@ -73,13 +73,25 @@ def compter_noms(zf: zipfile.ZipFile, limite: int | None = None) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parseur = argparse.ArgumentParser(description=__doc__)
-    parseur.add_argument("--chemin", required=True, help="l'archive ZIP du REQ")
+    parseur.add_argument("--chemin", required=True,
+                         help="l'archive ZIP du REQ, OU le répertoire qui les conserve")
     parseur.add_argument("--limite", type=int, default=None,
                          help="s'arrêter après N lignes de Nom.csv (essai rapide)")
     args = parseur.parse_args(argv)
 
+    # Même point d'entrée que tous les autres outils : les archives sont conservées
+    # et datées depuis le 16 septembre, et deux mesures du même jour doivent porter
+    # sur le même fichier.
+    from outils.archives_req import avertissement, ligne_de_provenance, resoudre
+
+    archive = resoudre(args.chemin)
+    if archive is None:
+        print(f"REFUS — aucune archive à {args.chemin!r}.", file=sys.stderr)
+        return 2
+    args.chemin = str(archive)
+
     try:
-        zf = zipfile.ZipFile(args.chemin)
+        zf = zipfile.ZipFile(archive)
     except Exception as e:
         print(f"REFUS — archive illisible : {e}", file=sys.stderr)
         return 2
@@ -87,7 +99,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"REFUS — pas de Nom.csv dans l'archive. Contenu : {zf.namelist()[:8]}", file=sys.stderr)
         return 2
 
-    print(f"archive : {args.chemin}")
+    print(ligne_de_provenance(archive))
+    vieil = avertissement(archive)
+    if vieil:
+        print(vieil)
     if args.limite:
         print(f"⚠️ PORTÉE RESTREINTE : les {args.limite} premières lignes seulement.")
         print("   Le fichier est ordonné par NEQ — ce n'est PAS un échantillon aléatoire.")
