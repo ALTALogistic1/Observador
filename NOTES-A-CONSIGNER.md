@@ -391,3 +391,27 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   **Rien ne casse — sauf qu'un humain qui cherche par où l'on accède à une source ne trouve rien là où
   il regarde.** *Le registre ne peut rien éprouver pour elles : ce n'est pas un taux d'échec de 0 %,
   c'est zéro mesure.*
+
+### N20 — Pousser n'est pas ouvrir, et ouvrir n'est pas fusionner
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-journal-des-cas.md` (cas neuf), et `falkye-guide-ingenierie.md` — *à côté du
+  cas 35, dont c'est la suite exacte.*
+- ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON** : c'est une faute de procédure qui se répète, et elle coûte du
+  temps à chaque fois.
+- **Le fait** : **trois fois le 16 septembre**, du travail a été poussé sur la branche sans qu'aucune
+  demande de fusion soit ouverte. *La #49 avait été fusionnée à 00 h 42 au commit `1704222`; les quatre
+  commits suivants existaient sur la branche, complets et testés, et n'allaient nulle part.*
+- **Pourquoi ça ne se voit pas.** Le geste `git push` réussit, le journal affiche `→ branche mise à
+  jour`, et **rien ne signale l'absence de demande**. *Le seul symptôme atteint Alexandre à l'autre bout :
+  un outil absent de l'hôte* — **ce qui ressemble à une panne de déploiement, pas à une demande
+  manquante.** Il a diagnostiqué la cause en lisant `ls -la outils/` : tous les fichiers portaient la
+  même date, celle du dernier déploiement.
+- **La règle, formulation d'Alexandre, à reprendre telle quelle** : *« Pousser n'est pas ouvrir, et
+  ouvrir n'est pas fusionner. Tant que la demande n'existe pas, rien ne part. »*
+- ⚠️ **Et c'est la MÊME forme que le cas 35**, ce qui en fait une famille plutôt qu'un incident :
+  *rien n'échoue, chaque geste réussit, et l'écart n'apparaît qu'à l'autre bout de la chaîne.*
+  **Trois maillons — pousser, ouvrir, fusionner, déployer — dont chacun réussit isolément pendant que
+  la chaîne est rompue.**
+- **Le correctif de méthode, pas de code** : *une tâche ne se déclare pas finie sur un `push` réussi.*
+  **Elle se déclare finie sur le NUMÉRO d'une demande ouverte**, vérifié, et donné à Alexandre.
+  *Un état vérifié au bout de la chaîne, pas un geste réussi au début.*
