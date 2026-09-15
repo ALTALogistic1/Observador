@@ -155,6 +155,9 @@ def main(argv: list[str] | None = None) -> int:
         classes: Counter = Counter()
         exemples: dict[str, list] = {}
         asymetries: Counter = Counter()
+        collisions: Counter = Counter()
+        collisions_totales = 0
+        identites_changees: list = []
         avec_forme_juridique = 0
         lots_identiques = 0
         lots_examines = 0
@@ -190,9 +193,33 @@ def main(argv: list[str] | None = None) -> int:
             choix = {c.neq: normaliser_symetrique(c.nom_normalise or "") for c in candidats}
             if set(choix) == {c.neq for c in candidats}:
                 lots_identiques += 1
-            classement = process.extract(requete_sym, choix, scorer=fuzz.WRatio, limit=5)
+            # limit=None : il faut TOUS les scores pour compter les collisions.
+            # Se limiter aux cinq meilleurs cacherait le coût en précision, qui est
+            # précisément le nombre de candidats qui MONTENT ensemble au-dessus du seuil.
+            classement = process.extract(requete_sym, choix, scorer=fuzz.WRatio,
+                                         limit=len(choix) or 1)
             apres = classement[0][1] if classement else 0.0
             apres_second = classement[1][1] if len(classement) > 1 else 0.0
+            neq_apres = classement[0][2] if classement else None
+
+            # --- LE COÛT EN PRÉCISION, mesuré en même temps que le gain --------
+            # Retirer `inc` des deux côtés rapproche des entreprises DIFFÉRENTES qui
+            # partagent un nom. Le seuil de 92 est la seule chose qui en protège, et
+            # un gain rapporté sans son coût serait une demi-mesure.
+            au_seuil_avant = sum(1 for m in matches if m.score >= SEUIL_RESOLUTION_CONFIANTE)
+            au_seuil_apres = sum(1 for _v, s, _k in classement if s >= SEUIL_RESOLUTION_CONFIANTE)
+            if au_seuil_apres > au_seuil_avant:
+                collisions[au_seuil_apres] += 1
+                collisions_totales += au_seuil_apres - au_seuil_avant
+            if (avant >= SEUIL_RESOLUTION_CONFIANTE
+                    and (avant - avant_second) >= SEUIL_AMBIGUITE_ECART_MIN
+                    and neq_apres is not None and neq_apres != matches[0].entry.neq):
+                # Le cas le plus dangereux : l'entreprise ÉTAIT résolue, elle le
+                # reste, mais vers un AUTRE NEQ. Rien n'échoue, et le dossier
+                # change d'identité en silence.
+                identites_changees.append(
+                    (nom, matches[0].entry.neq, matches[0].entry.nom, neq_apres)
+                )
 
             # L'asymétrie elle-même : la chaîne stockée est-elle celle que
             # `normaliser` rendrait sur le nom brut du miroir ?
@@ -250,6 +277,28 @@ def main(argv: list[str] | None = None) -> int:
         print("      La récupération est ancrée sur la TÊTE; une forme juridique en")
         print("      fin ne la change pas. Un écart ici démentirait cette portée.")
 
+        print("\n" + "-" * 78)
+        print("LE COÛT EN PRÉCISION — mesuré avec le gain, jamais après")
+        print("-" * 78)
+        print("\n   Retirer la forme juridique des deux côtés rapproche des entreprises")
+        print("   DIFFÉRENTES qui partagent un nom. Le seuil de 92 est la seule chose")
+        print("   qui en protège.")
+        n_collisions = sum(collisions.values())
+        print(f"\n   {n_collisions} entreprise(s) voient PLUS de candidats franchir 92 qu'avant.")
+        print(f"   {collisions_totales} candidat(s) supplémentaire(s) au-dessus du seuil, au total.")
+        if collisions:
+            print("\n   nombre de candidats ≥ 92 APRÈS, et combien d'entreprises :")
+            for combien, n in sorted(collisions.items()):
+                note = "   ← un seul candidat : pas une collision" if combien == 1 else ""
+                print(f"      {combien:>3} candidat(s)  →  {n} entreprise(s){note}")
+        print(f"\n   ⚠️ {len(identites_changees)} entreprise(s) DÉJÀ RÉSOLUES changeraient de NEQ.")
+        print("      C'est le cas le plus dangereux : rien n'échoue, et le dossier")
+        print("      change d'identité en silence. Aucun compte ne le signalerait.")
+        for nom, neq_avant, nom_avant, neq_apres in identites_changees[: args.exemples]:
+            print(f"\n         détecté : {nom[:58]}")
+            print(f"         avant   : {neq_avant}  {(nom_avant or '')[:44]}")
+            print(f"         après   : {neq_apres}")
+
         print("\n   L'ASYMÉTRIE ELLE-MÊME — stocké contre recalculé, sur le meilleur candidat :")
         for motif, n in asymetries.most_common():
             print(f"      {n:>7}  {motif}")
@@ -279,8 +328,10 @@ def main(argv: list[str] | None = None) -> int:
         print("\n" + "=" * 78)
         print("CE QUE CE CHIFFRE NE DIT PAS")
         print("=" * 78)
-        print("   • Il ne dit pas que les appariements gagnés sont JUSTES. Retirer la")
-        print("     forme juridique rapproche aussi ce qui devait rester distinct.")
+        print("   • Il ne dit pas que les appariements gagnés sont JUSTES. Il mesure")
+        print("     le coût en précision par les COLLISIONS et les changements d'identité,")
+        print("     qui sont des indices, pas une vérité terrain. **Aucune vérité terrain")
+        print("     n'existe ici** : personne n'a la bonne réponse pour ces 8 395 noms.")
         print("   • Il ne dit pas d'où vient l'asymétrie — écriture du miroir ou")
         print("     lecture du connecteur. Le tableau ci-dessus la situe, sans l'imputer.")
         print("   • Rien n'a été écrit. Un rejeu n'est pas une correction.")

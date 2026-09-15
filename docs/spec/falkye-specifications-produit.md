@@ -1732,6 +1732,36 @@ l'échéance soit posée au moment où l'état est posé. **Ni leur liste ni leu
 
 ---
 
+### L'objet du courriel annonce une fenêtre que son contenu ne respecte pas
+
+**La phrase, à garder mot pour mot** *(arrêtée le 16 septembre 2026)* :
+
+> **Le titre du courriel annonce une fenêtre de sept jours que son contenu ne respecte pas.**
+
+**Le mécanisme, mesuré.** Le titre vient d'une fenêtre FIXE :
+`generer_et_envoyer_resume(…, jours: int = 7)`, puis
+`periode_debut = periode_fin - timedelta(days=jours)`, et l'objet affiche
+`summary.periode_debut`. **Le contenu, lui, n'a aucune borne basse** —
+`notifications_en_attente` filtre sur `created_at < avant` et rien d'autre; sa
+propre docstring le dit : *« Deux filtres, et pas de fenêtre de dates basse ».*
+
+**Comment le défaut est resté invisible.** Le 15 septembre, l'objet disait
+« semaine du 8 septembre » et le plus vieux dossier datait du 8 septembre.
+*Les deux explications — une fenêtre de sept jours, ou l'âge du plus vieux
+dossier — rendent la même date ce jour-là.* **Une coïncidence de date rendait la
+ligne illisible, et c'est ce qui l'a fait passer pour autre chose qu'elle n'est.**
+
+⚠️ **Ce que ce n'est PAS.** Ce n'est pas l'âge du plus vieux dossier : ce serait
+moins grave. *Un titre qui dit l'âge du plus vieux dossier serait au moins
+vrai de quelque chose.* **Celui-ci annonce une période, et livre un arriéré.**
+
+**La falsification, posée d'avance et non encore faite** : au prochain envoi,
+si l'objet dit « semaine du 9 septembre » pendant qu'un dossier du 8 est toujours
+dans l'enveloppe, le mécanisme ci-dessus est confirmé. *Non corrigé — la
+correction demande de trancher ce que le titre doit dire, et ce n'est pas une
+question de code.*
+
+
 ## Annexe — points relevés en inspection
 
 Contradictions et incohérences trouvées en croisant les documents, corrigées dans cette version. Listées

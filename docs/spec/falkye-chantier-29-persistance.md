@@ -76,15 +76,31 @@ mort ne se constate que le jour où un humain l'ouvre.* **C'est ce que
 `outils/adresses_sans_temoin.py` mesure maintenant, pour toutes les adresses du
 registre et pas seulement celle-ci.**
 
-**L'accès par entente reste à instruire.** Le contact publié sur la fiche du jeu
-est `Groupe.EOS@req.gouv.qc.ca` *(Direction principale du registraire des
-entreprises)*. **Deux demandes s'adressent au même bureau et tiennent dans la même
-lettre** : un accès automatisé pour réutilisateur, et le droit d'usage
-**commercial** — le jeu est sous `CC-BY-NC-SA 4.0`, `isopen: false`, donc non
-commercial et à partage identique *(cadre légal, § « le cas qui a prouvé la
-règle »)*. *Si l'entente existe, le geste manuel cesse d'être permanent; sinon,
-on saura qu'il l'est, ce qui est déjà une réponse.* **Même réflexe que D5 pour
-l'OQLF.**
+**L'accès par entente : instruit le 16 septembre 2026, et il n'y en a pas.**
+*À inscrire comme un **obstacle sans recours**, pas comme une démarche à faire* —
+la différence compte, parce qu'une démarche en attente se reprend tous les mois
+et coûte du travail à chaque fois.
+
+**Le constat, et pourquoi il ferme la question.** Le fichier est **déjà en licence
+ouverte** : il n'y a pas de droit d'accès à demander, donc pas de porte à ouvrir.
+*Le blocage n'est pas une décision d'accès, c'est une protection d'infrastructure*
+— une règle Cloudflare visant les plages infonuagiques partagées, qui ne distingue
+pas un réutilisateur d'un robot. **Et aucune procédure de dérogation n'est
+publiée**, ni sur la fiche du jeu, ni sur le portail du Registraire. *Le réflexe
+de D5 a été appliqué; il ne rend rien ici.*
+
+⚠️ **Conséquence à écrire franchement : le geste manuel est PERMANENT**, jusqu'à
+ce que le Registraire publie l'archive ailleurs ou lève la règle. *Ce n'est pas
+une dette à résorber, c'est une contrainte à porter* — et le coût se compte : un
+téléchargement de 267 Mo toutes les deux semaines, à la main.
+
+**Ce qui reste à faire pour une AUTRE raison.** Le jeu est sous `CC-BY-NC-SA 4.0`,
+`isopen: false` — **non commercial et à partage identique** *(cadre légal,
+§ « le cas qui a prouvé la règle »)*. **Cette demande-là tient toujours**, et son
+destinataire est le même bureau : `Groupe.EOS@req.gouv.qc.ca` *(Direction
+principale du registraire des entreprises)*. *Elle ne porte pas sur l'accès, elle
+porte sur le droit d'usage — et elle ne devient pas caduque parce que l'accès
+automatisé, lui, n'a pas de recours.*
 
 ### La contrainte qui a décidé de tout
 

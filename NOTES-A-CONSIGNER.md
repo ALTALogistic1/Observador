@@ -358,3 +358,36 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   seuil, récupération — alors qu'il était **dedans**. *Aucune de ces pistes n'était absurde; aucune
   n'aurait pu aboutir.* **Ce qui a ouvert la porte, c'est une contradiction interne** — un score
   impossible sur deux chaînes identiques — **pas une hypothèse de plus.**
+
+### N18 — Aucun connecteur ne normalise le nom : 16 sur 16 le passent tel quel
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-guide-ingenierie.md`, et `falkye-audit-et-mandat.md` à côté de l'asymétrie.
+- **Mesuré par AST sur les 16 expressions qui alimentent `nom_entreprise=` d'un `RawSignal`** :
+  `chgt['nom']`, `employeur`, `brute.nom`, `entree['nom']`, `offre.entreprise`… **Aucune n'appelle
+  `normaliser`, aucune ne retire quoi que ce soit.** *Un `.strip()` retire des espaces; il ne retire
+  pas une forme juridique.*
+- **Ce que ça décide, et c'est structurel.** La graphie des noms **n'est pas une décision du produit** :
+  c'est une propriété de chaque source. *Donc « aligner le connecteur de l'EIMT » n'a pas de sens —
+  il n'y a rien à aligner dans un connecteur qui ne transforme rien.* **Si une asymétrie existe entre
+  le détecté et le stocké, elle vient du MIROIR, qui est le seul des deux côtés à transformer.**
+- ⚠️ **Et ça rouvre la contradiction du 15 septembre par l'autre bout.** `normaliser` **ne retire pas**
+  les formes juridiques non plus. *Donc ni le connecteur ni la fonction de normalisation du dépôt ne
+  peuvent produire un `nom_normalise` amputé de `inc`* — **ce qui ramène, une troisième fois, à la
+  prémisse « le code déployé est le code du dépôt » (N17).**
+
+### N19 — Trois sources sur vingt-six portent une adresse; vingt-trois n'en portent aucune
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-chantier-2-sante-source.md`, et le guide (famille des instruments).
+- **Mesuré** : 26 sources au registre, **3 adresses en tout**, dont **2 sans témoin** *(`req`, `rdprm` —
+  toutes deux en `import_manuel`)*. La troisième, celle du Guichet-Emplois, est citée dans
+  `falkye/sources/guichet_emplois.py`, donc éprouvée à chaque cycle.
+- **Contrôle de tête, 2026-09-16** : `req` **200** *(adresse neuve)*, `guichet_emplois` **200**,
+  `rdprm` **403**. *Le repli HEAD → GET est nécessaire : beaucoup de serveurs refusent `HEAD` tout en
+  servant `GET`, et sans lui on déclarerait mortes des adresses vivantes.*
+- **La règle** *(formulation d'Alexandre, retenue)* : *une adresse qu'aucun mécanisme n'appelle n'est
+  jamais éprouvée.* **Deux adresses du REQ sont mortes sans que personne le sache, pour exactement
+  cette raison.**
+- ⚠️ **Mais le fait le plus lourd n'est pas celui-là.** *23 des 26 sources ne portent AUCUNE adresse.*
+  **Rien ne casse — sauf qu'un humain qui cherche par où l'on accède à une source ne trouve rien là où
+  il regarde.** *Le registre ne peut rien éprouver pour elles : ce n'est pas un taux d'échec de 0 %,
+  c'est zéro mesure.*
