@@ -29,6 +29,63 @@ restauration n'a toujours pas de durée mesurée.
 *Ne pas résumer ce chantier par « tout est vérifié » : ce serait exactement la phrase que ce document
 existe pour empêcher.*
 
+### La marche d'accès à l'archive du REQ — le geste manuel, toutes les deux semaines
+
+**L'adresse, vérifiée le 16 septembre 2026 :**
+
+    https://www.donneesquebec.ca/recherche/dataset/registre-des-entreprises/resource/eac1b5f1-d8c0-4690-9c51-316d44ed9d94
+
+*C'est la fiche de la **ressource**, pas celle du jeu de données.* Depuis un
+navigateur, elle mène au téléchargement de `JeuDonnees.zip` (~267 Mo, six CSV).
+
+**Pourquoi le téléchargement reste manuel, et pourquoi ça ne changera pas seul.**
+La page du Registraire (`FichierDonneesOuvertes.aspx`) rend **403** pour tout ce
+qui n'est pas un navigateur — règle Cloudflare visant les plages infonuagiques
+partagées, documentée depuis le 31 août *(`docs/STATUT_RESEAU.md`)*. **Et il n'y a
+pas d'autre chemin vers le fichier** : Données Québec **n'héberge pas** l'archive,
+elle la lie. *Mesuré le 16 septembre : `/download/` rend 404, le motif avec un nom
+de fichier rend 403 (CKAN redirige vers l'origine), et le guide PDF du même jeu
+rend 200 — le témoin qui prouve que le portail sert bien ce qu'il héberge.*
+
+⚠️ **La ressource est marquée `datastore_active: true`, et c'est un piège.**
+Interrogée, elle rend **268 lignes dont l'unique colonne s'appelle
+`<!DOCTYPE html>`** : CKAN a moissonné la page Cloudflare et l'a rangée comme si
+c'était de la donnée. *Aucun connecteur ne doit faire confiance à ce drapeau sur
+ce jeu.*
+
+**La marche, dans l'ordre.**
+
+1. Ouvrir l'adresse ci-dessus **dans un navigateur**, télécharger `JeuDonnees.zip`.
+2. Déposer l'archive en *release* du dépôt, avec son empreinte SHA-256 publiée
+   *(la chaîne `.github/workflows/miroir-req.yml` la reprend de là)*.
+3. Vérifier l'archive **avant** l'import — `outils/verifier_archive_req.py`, deux
+   secondes sur les en-têtes.
+4. Importer, puis les trois contrôles. **La marche complète est à
+   `docs/MIROIRS.md`, section « La reprise du 16 septembre 2026 ».**
+
+**Le calendrier.** Le Registraire publie **aux deux semaines**. *Dernière
+publication relevée : le 2 septembre 2026* — treize jours au 15, donc une
+nouvelle édition est attendue sous peu. **La date de publication se lit sur la
+fiche du jeu (`metadata_modified`), pas sur le nom du fichier.**
+
+⚠️ **Cette adresse est la troisième.** Les deux précédentes sont mortes sans que
+personne le sache, **pour la même raison : aucun mécanisme ne les appelait.**
+`req` est en `methode_acces: import_manuel`, donc le `lien_recherche` du registre
+n'est lu par aucun connecteur — *une adresse qui vieillit sans témoin, et dont la
+mort ne se constate que le jour où un humain l'ouvre.* **C'est ce que
+`outils/adresses_sans_temoin.py` mesure maintenant, pour toutes les adresses du
+registre et pas seulement celle-ci.**
+
+**L'accès par entente reste à instruire.** Le contact publié sur la fiche du jeu
+est `Groupe.EOS@req.gouv.qc.ca` *(Direction principale du registraire des
+entreprises)*. **Deux demandes s'adressent au même bureau et tiennent dans la même
+lettre** : un accès automatisé pour réutilisateur, et le droit d'usage
+**commercial** — le jeu est sous `CC-BY-NC-SA 4.0`, `isopen: false`, donc non
+commercial et à partage identique *(cadre légal, § « le cas qui a prouvé la
+règle »)*. *Si l'entente existe, le geste manuel cesse d'être permanent; sinon,
+on saura qu'il l'est, ce qui est déjà une réponse.* **Même réflexe que D5 pour
+l'OQLF.**
+
 ### La contrainte qui a décidé de tout
 
 **L'égress du conteneur est limité au port 443** — mesuré par connexion directe : 443 ouvert, les ports
