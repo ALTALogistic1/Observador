@@ -664,3 +664,54 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
 - **Une distinction que l'outil tient et qu'un total effacerait** : `NON_VERIFIE` **n'est pas un
   échec**, c'est une entreprise qui n'est jamais passée par la vérification. *Les fondre ferait lire un
   blocage là où il n'y a qu'une absence de passage* — et les deux n'ont pas le même remède.
+
+### N33 — Le réimport seul ne résoudra aucune des 2 218, et ça ressemblera à un échec
+- **Notée le** : 2026-09-16
+- ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON** : *dit après le réimport, ce fait ferait conclure que le
+  correctif a raté.*
+- **Destination** : `falkye-audit-et-mandat.md`, **à D15** *(c'est le même mécanisme manquant que N6)*.
+- **Le fait, revérifié dans le code le 16 septembre** : `resolve_company` a **exactement deux points
+  d'appel** — `engine.py:339` à l'ingestion d'un signal brut, `manual_import.py:55`. **Aucune passe de
+  re-résolution n'existe.**
+- **Conséquence : le miroir portera les 1,7 million de noms, et le compte d'entreprises résolues ne
+  bougera pas.** *Les 2 218 ne seront réessayées que si une source les renomme.* **Mesuré le lendemain,
+  le gain sera proche de zéro — et ce ne sera pas le correctif qui aura échoué.**
+- ⚠️ **C'est exactement la forme du piège de la journée** : *un mécanisme qui réussit, un effet qui ne
+  se voit pas, et une conclusion fausse qui s'impose d'elle-même.* **Écrit dans la marche, au-dessus
+  des étapes, pour que personne ne lise le chiffre sans lire ça d'abord.**
+- **Ce qui le débloquerait** : une passe de re-résolution des `Company` sans NEQ. *Elle n'existe pas,
+  elle n'est pas dans ce réimport, et elle demande de trancher un cas que la déduplication rend
+  délicat* — **une entreprise qui gagne un NEQ déjà porté par un autre dossier doit être FUSIONNÉE,
+  pas dupliquée.** *À instruire, pas à improviser.*
+
+### N34 — La population non résolue GRANDIT : +536 en un cycle
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-audit-et-mandat.md` *(le coût du chantier 3+4)*, `falkye-chantier-2-sante-source.md`.
+- **Mesuré** : **8 395 entreprises sans NEQ le 15 septembre, 8 931 le 16.** *Le cycle du matin en a
+  ajouté **536**.*
+- **Ce que ça dit, et c'est structurel** : **le mur n'est pas un stock, c'est un débit.** *Chaque cycle
+  hebdomadaire ajoute des entreprises que le produit détecte et ne sait pas identifier.* **Le coût du
+  chantier 3+4 ne se mesure pas à ce qu'il reste à réparer, mais à ce qui s'ajoute pendant qu'on
+  répare.**
+- ⚠️ **Et ça change la lecture de tous les chiffres de la journée** : *2 218 gains sur 8 931, ce n'est
+  pas « un quart du mur réglé »* — c'est un quart du mur **au 16 septembre**, sur une population qui
+  croît d'environ 500 par semaine. **Un pourcentage mesuré sur un stock mobile est daté, et doit se
+  lire avec sa date.**
+
+### N35 — Les 43 menacées : à vérifier après, et la distinction est tout
+- **Notée le** : 2026-09-16 *(consigne d'Alexandre)*
+- **Destination** : `falkye-guide-ingenierie.md` (famille des instruments), journal des cas si un
+  basculement grave se produit.
+- **La consigne, reprise telle quelle** : *« Il faudra vérifier qu'elles se sont bien dérésolues, et
+  non qu'elles ont mal résolu. Une entreprise qui bascule vers une mauvaise réponse est pire qu'une
+  qui bascule vers l'ambigu. »*
+- **Pourquoi** : *une dérésolution se VOIT — l'entreprise redevient candidate, rien de faux n'est
+  présenté.* **Une mauvaise résolution se présente comme un fait**, et rien dans le produit ne la
+  distingue d'une bonne.
+- **L'instrument** : `outils/temoins_resolution.py`, `--capturer` avant / `--verifier` après.
+  ⚠️ **Il capture TOUTES les résolues, pas les 43** — *les 43 sont une prédiction tirée d'un
+  appariement exact, et le moteur compare par score.* **Une garde qui ne surveille que ce qu'elle a
+  prévu ne surveille rien.**
+- ⚠️ **Et la réserve qui va avec** : *il compare un avant à un après; ni l'un ni l'autre n'est une
+  vérité terrain.* **Un changement d'identité est un signal d'alerte, pas une preuve d'erreur — et une
+  résolution inchangée peut avoir toujours été fausse.**
