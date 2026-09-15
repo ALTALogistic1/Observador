@@ -442,6 +442,11 @@ def _ingerer_source(
         run_log.nb_resolutions_exact = comptes.appels[CHEMIN_EXACT]
         run_log.nb_resolutions_prefixe = comptes.appels[CHEMIN_PREFIXE]
         run_log.nb_resolutions_sous_chaine = comptes.appels[CHEMIN_SOUS_CHAINE]
+        # Ce que chaque chemin RAPPORTE, écrit dans la même transaction que ce
+        # qu'il coûte — séparés, les deux pourraient diverger d'une exécution.
+        run_log.nb_abouties_exact = comptes.abouties[CHEMIN_EXACT]
+        run_log.nb_abouties_prefixe = comptes.abouties[CHEMIN_PREFIXE]
+        run_log.nb_abouties_sous_chaine = comptes.abouties[CHEMIN_SOUS_CHAINE]
         db_session.commit()
     except Exception as exc:  # noqa: BLE001 -- une source en échec ne doit pas bloquer les autres
         # L'ordre compte : sortir de la transaction morte AVANT d'essayer

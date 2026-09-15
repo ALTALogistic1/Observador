@@ -191,3 +191,19 @@ class SourceRunLog(Base):
     nb_resolutions_exact: Mapped[int | None] = mapped_column(Integer, nullable=True)
     nb_resolutions_prefixe: Mapped[int | None] = mapped_column(Integer, nullable=True)
     nb_resolutions_sous_chaine: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # --- Ce que chaque chemin RAPPORTE, en face de ce qu'il coûte.
+    #
+    # Le premier cycle livré (2026-09-16) a mesuré que le repli par sous-chaîne
+    # prend **98 % du budget de résolution pour 14 % des appels** — ~8 900 lignes
+    # par appel. C'est ce que D14 demandait. **Et ça ne tranche pas D14** : un
+    # chemin cher qui résout ce que les deux autres ne trouvent pas vaut son
+    # prix. Sans ces trois colonnes-là, la décision se prendrait sur un coût
+    # sans son rendement.
+    #
+    # NULL, pas zéro, pour toute exécution antérieure à leur ajout : un zéro
+    # écrit là se lirait « ce chemin n'a jamais rien résolu » au lieu de
+    # « personne n'a mesuré » — l'absence de mesure n'est pas une mesure nulle.
+    nb_abouties_exact: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nb_abouties_prefixe: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nb_abouties_sous_chaine: Mapped[int | None] = mapped_column(Integer, nullable=True)

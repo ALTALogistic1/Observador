@@ -124,6 +124,85 @@ autour de 7 % signale que le correctif du 6 septembre sur l'indicateur de
 dispense d'adresse n'est pas dans le code déployé — voir
 `falkye/sources/req.py::_resoudre_entreprise`.
 
+**Et le contrôle qui manquait** *(ajouté le 2026-09-16)*. Le nombre d'entrées et
+le taux de ville ne disent **rien** de la colonne dont dépend toute la
+résolution. Le 15 septembre, un miroir de 2 730 146 lignes à 66 % de villes —
+donc « importé correctement » selon les deux contrôles ci-dessus — portait
+**1 371 730 `nom_normalise` vides (50,2 %)**, et rien ne l'avait signalé :
+
+    python3 outils/etat_champ_normalise.py
+
+**Attendu : 0 ligne vide, 0 ligne absente, et « toutes les lignes examinées sont
+CONFORMES ».** *Tout le reste veut dire que le miroir est chargé et inutilisable
+— l'état le plus coûteux, parce qu'il a l'air du bon.*
+
+## La reprise du 16 septembre 2026 — la marche, dans l'ordre
+
+**Pourquoi ce réimport.** La moitié du miroir portait un `nom_normalise` vide, et
+une partie du reste une valeur tronquée. *Conséquence : les 4 873 « candidats
+trop faibles » — 58 % du mur d'appariement — sont pour l'essentiel des
+entreprises que le produit trouve, qu'il a sous les yeux, et qu'il compare à des
+chaînes mutilées ou vides.*
+
+⚠️ **Aucun gain n'est annoncé ici, et c'est délibéré.** Une entreprise dont le bon
+candidat scorait 66 va scorer 100; une entreprise que le miroir ne porte pas
+reste bloquée. **Il n'y a pas un chiffre à promettre, il y a une mesure à
+refaire** — celle du 15 septembre a été prise contre une colonne cassée et ne
+vaut rien.
+
+### 1. Le code d'abord, l'archive ensuite
+
+Le garde-fou doit être **sur l'hôte** avant l'import, sinon il ne protège rien.
+
+    sudo systemctl start falkye-deploiement.service   # ou docs/DEPLOIEMENT.md
+    /opt/falkye/venv/bin/python -c \
+      "from falkye.sources.req import refuser_si_colonnes_absentes; print('garde-fou présent')"
+
+*Un `ImportError` ici veut dire que le déploiement n'a pas passé* — **ne pas
+lancer l'import** : c'est exactement le défaut du cas 35 (une fusion faite, un
+hôte qui ne l'a pas).
+
+### 2. Vérifier l'archive AVANT de l'importer
+
+La vérification porte sur les **en-têtes**, pas sur les lignes : deux secondes,
+contre 33 minutes d'import et un miroir à refaire.
+
+    /opt/falkye/venv/bin/python outils/verifier_archive_req.py \
+        --chemin /opt/falkye/import/JeuDonnees.zip
+
+**Attendu : `aucune colonne déclarée absente`.** *Si une colonne sort ici,
+l'import refusera de démarrer et la nommera — vérifier d'abord une virgule
+oubliée entre deux noms de colonne (deux littéraux collés n'en font qu'un, et
+`dict.get` rend `None` sans rien signaler) avant de conclure que le schéma du REQ
+a changé.*
+
+### 3. L'import
+
+    sudo systemctl start falkye-miroir-req.service
+    journalctl -u falkye-miroir-req.service -f
+
+*L'unité est `oneshot`, `TimeoutStartSec=7200`, et n'écrit que
+`/var/lib/falkye`.* **~33 minutes, pic mémoire ~3,5 Go, zéro écriture facturée**
+— le miroir est un fichier local, il ne touche jamais la base distante.
+
+### 4. Les trois contrôles, dans cet ordre
+
+    python3 outils/etat_champ_normalise.py          # 0 vide, 0 absent, CONFORME
+    python3 outils/diagnostic_appariement.py --toutes --histogramme
+    python3 outils/rapport_cout_cycle.py
+
+**Le premier décide si les deux autres valent la peine d'être lus.** *Un
+histogramme mesuré sur une colonne encore cassée ne dit rien, et il aurait l'air
+de dire quelque chose.*
+
+### 5. Ce qui ne peut PAS être relevé après coup
+
+⚠️ **Le rendement par chemin de résolution ne se rattrape pas sur les exécutions
+passées** : les colonnes `nb_abouties_*` sont `NULL` pour tout ce qui précède
+leur ajout, et `NULL` veut dire *personne n'a mesuré*, jamais *zéro*. **Il faut un
+cycle complet après le réimport pour l'avoir** — et c'est ce cycle-là, pas celui
+du 15, qui tranche D14.
+
 ## ⚠️ L'import du miroir ne coûte RIEN au quota — et ce n'est pas lui qui l'a vidé
 
 *Écrit le 11 septembre 2026, parce que la croyance inverse avait cours et qu'elle a failli retarder un
