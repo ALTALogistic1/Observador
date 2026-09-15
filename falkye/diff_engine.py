@@ -374,6 +374,43 @@ def calculer_empreinte(champs: dict) -> str:
     return hashlib.sha256(brut.encode("utf-8")).hexdigest()
 
 
+#: Clés par lot pour la relecture ciblée des `donnees_normalisees`. SQLite
+#: refuse au-delà de ~32 000 variables liées dans un `IN` — la borne est prise
+#: BIEN en dessous, pour la même raison que `_inserer_lignes_en_lot` : le seuil
+#: exact dépend de la compilation, et le frôler transforme une lecture en erreur.
+TAILLE_LOT_RELECTURE = 1000
+
+
+def _champs_precedents(
+    db_session: Session, source_id: str, cles: list[str]
+) -> dict[str, dict]:
+    """Les `donnees_normalisees` des SEULES clés modifiées.
+
+    **Le détail d'avant ne sert qu'à dire QUELS CHAMPS ont changé** — donc
+    uniquement pour les lignes dont l'empreinte diffère. *Le charger pour les
+    2,7 millions de lignes d'un registre afin d'en lire quelques milliers était
+    le plus gros poste de mémoire du moteur de diff* (mesuré le 2026-09-16 :
+    l'import est mort à 7 372 Mo, dont ~3 000 seulement pour la phase 1).
+
+    ⚠️ **Par lots, jamais en un seul `IN`** : une liste de clés sans borne
+    dépasse la limite de variables liées de SQLite, et l'erreur ne ressemble en
+    rien à sa cause.
+    """
+    if not cles:
+        return {}
+    trouves: dict[str, dict] = {}
+    for depart in range(0, len(cles), TAILLE_LOT_RELECTURE):
+        lot = cles[depart : depart + TAILLE_LOT_RELECTURE]
+        for cle, donnees in db_session.execute(
+            select(EtatLigneSource.cle_naturelle, EtatLigneSource.donnees_normalisees).where(
+                EtatLigneSource.source_id == source_id,
+                EtatLigneSource.cle_naturelle.in_(lot),
+            )
+        ):
+            trouves[cle] = donnees
+    return trouves
+
+
 def _archiver_snapshot(source_id: str, lignes: list[LigneSnapshot]) -> str:
     """Conserve le fichier brut de CETTE exécution — pour pouvoir inspecter un
     diff suspect après coup (mandat). Rotation : ne garde que les
@@ -686,14 +723,29 @@ def executer_diff(
     # les 2,7 M du REQ. C'est un aller-retour, pas 2,7 M — mais la réponse
     # entière transite et se matérialise en mémoire, ce qui reste la limite
     # honnête déjà documentée (voir docs/ARCHITECTURE.md).
-    etats_precedents = {
-        row.cle_naturelle: row
-        for row in db_session.execute(
-            select(
-                EtatLigneSource.cle_naturelle, EtatLigneSource.empreinte, EtatLigneSource.donnees_normalisees
-            ).where(EtatLigneSource.source_id == source_id)
-        ).all()
-    }
+    # L'ÉTAT PRÉCÉDENT, RÉDUIT À SON EMPREINTE (2026-09-16, après l'OOM).
+    #
+    # Ce dictionnaire portait la LIGNE ENTIÈRE, `donnees_normalisees` comprise —
+    # soit, pour le REQ, 2,7 millions de dictionnaires de six clés chargés depuis
+    # la base. Or ce champ n'est lu QU'À UN SEUL ENDROIT : le calcul des champs
+    # changés d'une MODIFICATION, c'est-à-dire pour les quelques milliers de
+    # clés dont l'empreinte diffère. **On chargeait 2,7 millions de dictionnaires
+    # pour en lire quelques milliers.**
+    #
+    # Ici : `clé -> empreinte`, une chaîne courte. Les `donnees_normalisees` des
+    # seules clés modifiées sont relues ensuite, en un lot (`_champs_precedents`).
+    #
+    # Et `.all()` est remplacé par un parcours en flux : il matérialisait la
+    # liste ENTIÈRE des lignes avant de construire le dictionnaire — les deux
+    # structures vivantes en même temps, comme l'index des noms.
+    empreintes_precedentes: dict[str, str] = {}
+    for cle, empreinte in db_session.execute(
+        select(EtatLigneSource.cle_naturelle, EtatLigneSource.empreinte)
+        .where(EtatLigneSource.source_id == source_id)
+        .execution_options(yield_per=5000)
+    ):
+        empreintes_precedentes[cle] = empreinte
+    etats_precedents = empreintes_precedentes
     rapport.nb_lignes_precedentes = len(etats_precedents)
 
     # --- Détection de changement de schéma (jamais sur un run de référence —
@@ -747,14 +799,19 @@ def executer_diff(
     apparitions = [l for cle, l in lignes_par_cle.items() if cle not in etats_precedents]
     disparitions = [cle for cle in etats_precedents if cle not in lignes_par_cle]
     modifications: list[Modification] = []
-    for cle, l in lignes_par_cle.items():
-        etat = etats_precedents.get(cle)
-        if etat is None:
-            continue
-        empreinte_actuelle = calculer_empreinte(l.champs)
-        if empreinte_actuelle == etat.empreinte:
-            continue
-        champs_avant = etat.donnees_normalisees or {}
+    # Deux passes : d'abord QUELLES clés ont changé (sur les empreintes seules),
+    # puis leurs `donnees_normalisees` en UN lot. Charger le détail de tout le
+    # monde pour en lire quelques milliers était le coût qu'on vient de retirer.
+    cles_modifiees = [
+        cle
+        for cle, l in lignes_par_cle.items()
+        if cle in etats_precedents and calculer_empreinte(l.champs) != etats_precedents[cle]
+    ]
+    champs_precedents = _champs_precedents(db_session, source_id, cles_modifiees)
+
+    for cle in cles_modifiees:
+        l = lignes_par_cle[cle]
+        champs_avant = champs_precedents.get(cle) or {}
         champs_changes = sorted(
             k for k in set(champs_avant) | set(l.champs) if champs_avant.get(k) != l.champs.get(k)
         )

@@ -87,14 +87,107 @@ def _etape(nom: str, avant: float | None) -> float | None:
     return maintenant
 
 
+def _mesurer_etat_precedent(source_id: str) -> int:
+    """Ce que l'état précédent du moteur de diff coûte, **dans les deux formes**.
+
+    *La mesure du 16 septembre a montré que la phase 1 coûte ~3 000 Mo sur un pic
+    de 7 372 : le reste vient du moteur de diff.* **Celui-ci chargeait la ligne
+    ENTIÈRE, `donnees_normalisees` comprise, pour 2,7 millions de lignes** — alors
+    que ce champ n'est lu que pour les quelques milliers de clés modifiées.
+
+    L'outil charge les deux formes **l'une après l'autre**, en libérant entre les
+    deux, et rend la RSS de chacune. *Le gain se MESURE, il ne s'annonce pas.*
+
+    ⚠️ **Lecture seule sur le miroir.** Aucune écriture, aucun diff.
+    """
+    try:
+        import gc
+
+        from sqlalchemy import select
+
+        from falkye.db import get_session
+        from falkye.models.etat_ligne_source import EtatLigneSource
+    except ImportError as exc:  # pragma: no cover - dépend de l'environnement
+        print(f"Import impossible ({exc}).", file=sys.stderr)
+        return 2
+
+    print("=" * 78)
+    print(f"L'ÉTAT PRÉCÉDENT DU MOTEUR DE DIFF — source {source_id!r}")
+    print("=" * 78)
+    print("\nPORTÉE : lecture seule sur le miroir. Aucune écriture, aucun diff.")
+    print()
+
+    session = get_session()
+    try:
+        rss = _etape("au démarrage", None)
+
+        # L'ANCIENNE forme : la ligne entière, `donnees_normalisees` comprise.
+        ancien = {
+            row.cle_naturelle: row
+            for row in session.execute(
+                select(
+                    EtatLigneSource.cle_naturelle,
+                    EtatLigneSource.empreinte,
+                    EtatLigneSource.donnees_normalisees,
+                ).where(EtatLigneSource.source_id == source_id)
+            ).all()
+        }
+        rss_ancien = _etape(f"ANCIENNE forme : ligne entière ({len(ancien)} clés)", rss)
+        n = len(ancien)
+        del ancien
+        gc.collect()
+        rss = _etape("  … libérée", rss_ancien)
+
+        # La NEUVE : clé -> empreinte, en flux.
+        neuf: dict[str, str] = {}
+        for cle, empreinte in session.execute(
+            select(EtatLigneSource.cle_naturelle, EtatLigneSource.empreinte)
+            .where(EtatLigneSource.source_id == source_id)
+            .execution_options(yield_per=5000)
+        ):
+            neuf[cle] = empreinte
+        rss_neuf = _etape(f"NEUVE forme : clé -> empreinte ({len(neuf)} clés)", rss)
+
+        print("\n" + "-" * 78)
+        print("LE GAIN, MESURÉ")
+        print("-" * 78)
+        if rss_ancien is None or rss_neuf is None or rss is None:
+            print("\n   RSS non lisible — aucune conclusion. Ce n'est pas zéro gain,")
+            print("   c'est zéro mesure.")
+            return 0
+        print(f"\n   clés dans l'état précédent : {n}")
+        print("\n   ⚠️ LIRE LES DELTAS DE LA COLONNE DE DROITE, pas les totaux.")
+        print("      Le premier `+` est ce que coûte l'ANCIENNE forme; le dernier,")
+        print("      ce que coûte la NEUVE. **La libération entre les deux ne rend")
+        print("      pas forcément la mémoire au système** — l'allocateur de Python")
+        print("      garde ce qu'il a pris, donc un delta de libération proche de")
+        print("      zéro n'est pas une fuite : c'est le comportement normal.")
+        print("\n   ⚠️ Et le gain réel à l'import est SUPÉRIEUR à cet écart : la forme")
+        print("      neuve lit en flux, donc elle évite aussi la liste intermédiaire")
+        print("      que `.all()` matérialisait avant de construire le dictionnaire.")
+        return 0
+    finally:
+        session.close()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--chemin", required=True, help="l'archive, ou le répertoire")
+    parser.add_argument("--chemin", default=None,
+                        help="l'archive, ou le répertoire (requis sauf avec --etat-precedent)")
     parser.add_argument("--lignes", type=int, default=None,
                         help="s'arrêter après N lignes d'Entreprise.csv (défaut : toutes)")
+    parser.add_argument("--etat-precedent", metavar="SOURCE_ID", default=None,
+                        help="mesurer L'ÉTAT PRÉCÉDENT du moteur de diff pour cette "
+                             "source (ex. req) — les DEUX formes, l'ancienne et la neuve")
     args = parser.parse_args(argv)
+
+    if args.etat_precedent:
+        return _mesurer_etat_precedent(args.etat_precedent)
+    if not args.chemin:
+        print("Donner --chemin (l'archive) ou --etat-precedent (la base).", file=sys.stderr)
+        return 2
 
     try:
         from falkye.sources.req import (
