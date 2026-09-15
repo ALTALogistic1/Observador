@@ -715,3 +715,46 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
 - ⚠️ **Et la réserve qui va avec** : *il compare un avant à un après; ni l'un ni l'autre n'est une
   vérité terrain.* **Un changement d'identité est un signal d'alerte, pas une preuve d'erreur — et une
   résolution inchangée peut avoir toujours été fausse.**
+
+### N36 — Le cercle EST au corpus, et il y est décrit comme résolu par un mécanisme qui ne le fait pas
+- **Notée le** : 2026-09-16
+- ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON.** ⚠️ **ET CECI CORRIGE MA PROPRE NOTE N33**, qui affirmait
+  qu'aucune passe de re-résolution n'existait.
+- **Destination** : `docs/ARCHITECTURE.md` *(hors corpus — à corriger)*, `falkye-audit-et-mandat.md`
+  *(registre, décision neuve)*, `falkye-journal-des-cas.md`.
+- **Le corpus le porte**, à `docs/ARCHITECTURE.md` (lignes 107-112), et il le porte comme **acquis** :
+  > *« Après un import REQ, `falkye import-manuel fichier --source-id req` retraite par défaut TOUTES
+  > les entreprises connues (pas seulement celles touchées par ce fichier) — un rafraîchissement du REQ
+  > peut débloquer la résolution NEQ d'entreprises déjà détectées par SEAO/EIMT/etc. qui étaient
+  > jusque-là `non_trouve`. »*
+- ⛔ **Et c'est faux, sur deux étages distincts.**
+  *(1)* **Le drapeau existe et ne re-résout pas.** `--reprocess-tout` *(défaut `True`)* appelle
+  `generer_notifications`, qui parcourt les `Company` et les passe à
+  `_traiter_entreprise_pour_profil` — **score, pertinence, notification.** *`resolve_company` n'y est
+  jamais appelée*, et `company.neq` reste `NULL`. **Le retraitement renotifie; il ne réidentifie pas.**
+  *(2)* **Et le chemin de déploiement ne passe même pas par là.** `outils/import_miroir_req.py` appelle
+  `importer_fichier_source` **directement**, sans la commande CLI — *donc même le drapeau qui ne fait
+  pas ce qu'il dit n'est pas actionné.*
+- **Pourquoi c'est pire qu'une absence.** *Une lacune non documentée se découvre en la cherchant. Une
+  lacune documentée comme résolue ne se cherche pas* — **le corpus répond à la question avant qu'elle
+  soit posée, et il répond faux.** C'est la première fois qu'on trouve le corpus en défaut de cette
+  manière : non pas incomplet, mais **rassurant à tort**.
+- **La règle** : *un document qui décrit un COMPORTEMENT doit nommer la fonction qui le produit.*
+  **« Retraite toutes les entreprises » ne se vérifie pas; « appelle `resolve_company` sur toutes les
+  entreprises » se vérifie en une seconde** — et se serait démenti tout seul à la première lecture.
+
+### N37 — La ligne de base du mur est irrécupérable après le réimport
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-guide-ingenierie.md` (famille des instruments).
+- **Le fait** : la capture des témoins ne portait que les **résolues**. *Les 8 931 SANS NEQ n'étaient
+  capturées nulle part* — et après le réimport, « ce que l'appariement rendait avant » **ne se
+  recalcule plus** : le miroir aura changé.
+- **Sans cet avant, on pourra dire combien se résolvent après, jamais de combien on a bougé.** *Un
+  score de 88 qui passe à 94 et un score de 41 qui passe à 94 ne sont pas le même correctif.*
+- **Le correctif** : `--capturer --non-resolues` relève le **meilleur score, le second, et le nombre de
+  candidats** de chaque non résolue. ⚠️ **Le score, pas seulement le statut** — *un statut dit qu'on a
+  échoué, un score dit de combien.*
+- **La règle, plus large** : *avant toute opération qui réécrit une source de vérité, se demander ce
+  qui ne se recalculera plus après.* **Ce n'est pas la même question que « qu'est-ce qui sera
+  perdu » : rien n'est perdu ici — c'est la MESURE D'AVANT qui devient impossible, et elle n'existe
+  que si quelqu'un l'a prise.**

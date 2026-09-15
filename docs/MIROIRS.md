@@ -224,11 +224,21 @@ sociale — *la porte s'ouvre et le seuil reste infranchissable.*
 
     python3 outils/verifier_archive_req.py --chemin /opt/falkye/import
 
-**6. Les témoins, capturés.** ⚠️ **AVANT, et il faut que ce soit avant** — faite
-après, la capture relèverait l'état d'arrivée et ne comparerait rien.
+**6. Les témoins, capturés — LES DEUX POPULATIONS.** ⚠️ **AVANT, et il faut que
+ce soit avant** — faite après, la capture relèverait l'état d'arrivée et ne
+comparerait rien.
 
     python3 outils/temoins_resolution.py --capturer \
-        --vers /var/lib/falkye/temoins-2026-09-16.json
+        --vers /var/lib/falkye/temoins-resolues.json
+    python3 outils/temoins_resolution.py --capturer --non-resolues \
+        --vers /var/lib/falkye/temoins-non-resolues.json
+
+*La seconde est la **ligne de base du mur**, et elle est **irrécupérable** après :
+le miroir aura changé, et « ce que l'appariement rendait avant » ne se recalcule
+plus.* **Elle relève le meilleur score, le second et le nombre de candidats — pas
+seulement le statut** : *un statut dit qu'on a échoué, un score dit de combien.*
+**Sans elle, on pourra dire combien se résolvent après, jamais de combien on a
+bougé.**
 
 ### Lancer
 

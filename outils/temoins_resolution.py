@@ -69,6 +69,11 @@ def main(argv: list[str] | None = None) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--capturer", action="store_true", help="relever l'état AVANT")
+    parser.add_argument(
+        "--non-resolues", action="store_true",
+        help="capturer les SANS NEQ plutôt que les résolues — la ligne de base "
+             "du mur, irrécupérable une fois le miroir réécrit",
+    )
     parser.add_argument("--verifier", action="store_true", help="comparer l'état APRÈS")
     parser.add_argument("--vers", help="fichier de capture à écrire")
     parser.add_argument("--depuis", help="fichier de capture à relire")
@@ -98,11 +103,22 @@ def main(argv: list[str] | None = None) -> int:
     try:
         # ---- CAPTURE ------------------------------------------------------
         if args.capturer:
-            resolues = session.execute(
-                select(Company).where(Company.neq.is_not(None))
-            ).scalars().all()
-            temoins = [
-                {
+            # LA LIGNE DE BASE DU MUR, et elle est IRRÉCUPÉRABLE après le réimport :
+            # le miroir aura changé, et « ce que l'appariement rendait avant » ne
+            # se recalcule plus. Le meilleur score est relevé ligne à ligne, pas
+            # seulement le statut — un statut dit qu'on a échoué, un score dit
+            # de combien.
+            if args.non_resolues:
+                cibles = session.execute(
+                    select(Company).where(Company.neq.is_(None))
+                ).scalars().all()
+            else:
+                cibles = session.execute(
+                    select(Company).where(Company.neq.is_not(None))
+                ).scalars().all()
+            temoins = []
+            for c in cibles:
+                fiche = {
                     "id": c.id,
                     "nom_detecte": c.nom_detecte,
                     "ville": c.ville,
@@ -111,8 +127,15 @@ def main(argv: list[str] | None = None) -> int:
                         c.statut_resolution.value if c.statut_resolution else None
                     ),
                 }
-                for c in resolues
-            ]
+                if args.non_resolues:
+                    matches = resolve_neq_by_name(
+                        session, c.nom_detecte or "", ville=c.ville
+                    )
+                    fiche["meilleur_score"] = matches[0].score if matches else None
+                    fiche["meilleur_neq"] = matches[0].entry.neq if matches else None
+                    fiche["second_score"] = matches[1].score if len(matches) > 1 else None
+                    fiche["nb_candidats"] = len(matches)
+                temoins.append(fiche)
             chemin.parent.mkdir(parents=True, exist_ok=True)
             chemin.write_text(
                 json.dumps(
@@ -128,10 +151,16 @@ def main(argv: list[str] | None = None) -> int:
             print("=" * 78)
             print("CAPTURE DES TÉMOINS — AVANT LE RÉIMPORT")
             print("=" * 78)
-            print(f"\n   {len(temoins)} entreprise(s) résolues relevées")
+            quoi = "SANS NEQ (ligne de base du mur)" if args.non_resolues else "résolues"
+            print(f"\n   {len(temoins)} entreprise(s) {quoi} relevée(s)")
             print(f"   écrites dans : {chemin}")
-            print("\n   ⚠️ TOUTES les résolues, pas les 43 prédites : une garde qui ne")
-            print("      surveille que ce qu'elle a prévu ne surveille rien.")
+            if args.non_resolues:
+                print("\n   ⚠️ Le meilleur SCORE est relevé, pas seulement le statut :")
+                print("      un statut dit qu'on a échoué, un score dit de COMBIEN.")
+                print("      Après le réimport, cet avant ne se recalcule plus.")
+            else:
+                print("\n   ⚠️ TOUTES les résolues, pas les 43 prédites : une garde qui ne")
+                print("      surveille que ce qu'elle a prévu ne surveille rien.")
             print("\n   ⚠️ Cette capture doit précéder le réimport. Faite après, elle")
             print("      relèverait l'état d'arrivée et ne comparerait rien.")
             return 0
