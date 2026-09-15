@@ -99,6 +99,22 @@ def verifier_archive(chemin: Path, empreinte_attendue: str | None) -> str:
     return empreinte
 
 
+def _memoire_totale_mo() -> float | None:
+    """La mémoire totale de la machine, ou `None` si elle n'est pas lisible.
+
+    **Un pic sans la machine à côté ne dit rien** : 3 500 Mo est confortable sur
+    16 Go et mortel sur 4. *C'est le RAPPORT qui se lit, pas le nombre* — et
+    c'est exactement ce qui manquait au chiffre recopié du 2026-09-06.
+    """
+    try:
+        for ligne in Path("/proc/meminfo").read_text().splitlines():
+            if ligne.startswith("MemTotal:"):
+                return int(ligne.split()[1]) / 1024
+    except (OSError, ValueError, IndexError):
+        return None
+    return None
+
+
 def pic_memoire_mo() -> float:
     """Pic de mémoire résidente du processus. `ru_maxrss` est en kilo-octets
     sous Linux — la même mesure que celle du 2026-09-06 en développement, pour
@@ -190,9 +206,34 @@ def main(argv: list[str] | None = None) -> int:
     total, avec_ville = etat_du_miroir()
     part_ville = 100 * avec_ville / total if total else 0.0
 
+    pic = pic_memoire_mo()
     print("--- RAPPORT D'IMPORT ---", flush=True)
     print(f"durée        : {duree / 60:.1f} min", flush=True)
-    print(f"pic mémoire  : {pic_memoire_mo():.0f} Mo", flush=True)
+    print(f"pic mémoire  : {pic:.0f} Mo", flush=True)
+    # LE PIC, MESURÉ ET COMPARÉ À LA MÉMOIRE RÉELLE DE LA MACHINE.
+    #
+    # Le 2026-09-16, l'import est mort à 7,2 Go sur 7,7 disponibles, après qu'on
+    # ait annoncé un pic de 3 535 Mo — **un chiffre recopié d'une docstring,
+    # jamais re-dérivé**. *Un chiffre recopié est une promesse que personne ne
+    # tient.* Cette ligne-ci est la mesure, pas la citation : elle vieillit avec
+    # l'archive et avec le code, et elle se lit au journal du service.
+    total_mo = _memoire_totale_mo()
+    if total_mo:
+        marge = total_mo - pic
+        print(f"mémoire hôte : {total_mo:.0f} Mo   — marge restante {marge:.0f} Mo "
+              f"({100 * pic / total_mo:.0f} % consommé)", flush=True)
+        if pic > 0.7 * total_mo:
+            print(
+                f"ATTENTION : l'import a consommé {100 * pic / total_mo:.0f} % de la "
+                "mémoire de la machine. Le prochain ajout à la phase 1 la fera sauter. "
+                "Voir docs/MIROIRS.md, « ce qui accumule ».",
+                flush=True,
+            )
+    else:
+        # L'absence de mesure n'est pas une mesure nulle : le dire plutôt que de
+        # taire la comparaison.
+        print("mémoire hôte : non lisible (/proc/meminfo absent) — marge INCONNUE",
+              flush=True)
     print(f"entrées      : {total:,}".replace(",", " "), flush=True)
     print(f"avec ville   : {avec_ville:,} ({part_ville:.1f} %)".replace(",", " "), flush=True)
     print(f"signaux      : {len(signaux)}", flush=True)

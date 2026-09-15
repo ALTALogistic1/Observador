@@ -934,3 +934,64 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   réponse est bonne — mais elle a été VÉRIFIÉE, pas supposée, et par deux chemins qui ne dépendent pas
   l'un de l'autre.** *Un raisonnement sur le code et une date de fichier peuvent être faux séparément;
   ils ne le sont pas ensemble.*
+
+### N46 — « Le delta est nul » et « ça tient dans la machine » sont deux affirmations différentes
+- **Notée le** : 2026-09-16. **Formulation retenue par Alexandre comme valant au-delà du cas.**
+- **Destination** : `falkye-guide-ingenierie.md`, **règle de premier rang**.
+- **Le cas** : j'ai vérifié que ma passe des noms ne consommait rien de plus *(flux, lots de 20 000)*,
+  et j'en ai conclu que l'import tiendrait. **Les deux propositions n'ont aucun rapport.** *Un ajout
+  nul sur une somme déjà au-dessus de la limite ne sauve rien.*
+- **La règle** : *quand on annonce qu'un ajout ne change rien, il faut dire par rapport à QUOI.*
+  **Un delta se mesure contre un total, et le total doit être mesuré aussi** — sinon on rassure sur la
+  moitié de la question, et c'est l'autre moitié qui tue.
+- ⚠️ **Le même motif vaut pour le coût, le temps et le quota** : *« ça n'ajoute que deux requêtes »
+  n'est une bonne nouvelle que si le total en supporte deux de plus.*
+
+### N47 — Ce qui accumule réellement à l'import, mesuré ligne par ligne
+- **Notée le** : 2026-09-16
+- **Destination** : `docs/MIROIRS.md` **(section « ce qui accumule »)**, `falkye-chantier-1-quarantaine.md`.
+- **Mesuré localement, extrapolé linéairement à 2 730 146 lignes.** ⚠️ *Extrapolation déclarée : la
+  mesure porte sur 100 000 à 200 000 objets, et suppose la linéarité.*
+
+  | structure | coût | quand |
+  |---|---|---|
+  | index des noms élus | **543 Mo** | avant la phase 1, vivant jusqu'à la fin |
+  | … son doublement au retour | **+165 Mo** | transitoire — **corrigé** |
+  | `resolues` | **1 078 Mo** | construit en phase 1 |
+  | `lignes_entreprise` | **1 669 Mo** | construit en phase 1 |
+  | archivage du snapshot | **+1 179 Mo** | transitoire, à chaque diff — **corrigé** |
+  | `etats_precedents` | *non mesuré* | chargé dans `executer_diff`, 2,7 M lignes de la base |
+  | index des établissements, `lignes_etab` | *non mesurés* | l'import est mort avant |
+
+- ⛔ **ET MA PREMIÈRE PISTE NE MARCHAIT PAS.** *J'avais proposé de ne pas garder `lignes_entreprise`
+  et de la produire en flux.* **Le moteur de diff la matérialise de toute façon** :
+  `_dedoublonner_lignes` construit `lignes_par_cle`, un dictionnaire de 2,7 M entrées. **Passer un
+  générateur n'aurait économisé que l'enveloppe de la liste (~22 Mo), pas les objets.** *Trouvé en la
+  construisant, dit avant de continuer.*
+- **La piste qui marche à sa place** : **ne pas garder `resolues`** — la phase 2 peut relire
+  `Entreprise.csv` et rappeler `_resoudre_entreprise`. *Une seconde lecture du fichier contre
+  1 078 Mo.* **Non construite : elle demande que `noms` et `etablissements` restent vivants en
+  phase 2, ce qui est le cas, mais c'est un changement d'ordre à instruire.**
+
+### N48 — La forme où la phase 1 n'accumulerait PAS : la jointure de fusion triée
+- **Notée le** : 2026-09-16 *(question d'Alexandre : « est-ce qu'il existe une forme où la phase 1
+  n'accumule pas du tout? »)*
+- **Destination** : `falkye-chantier-1-quarantaine.md` *(c'est le moteur de diff)*, registre.
+- **Oui, et elle est praticable ici parce que les DEUX côtés sont triables sur la même clé.**
+  *`Entreprise.csv` est ordonné par NEQ — le corpus le dit déjà, à propos de `--limite` : « le fichier
+  est ordonné par NEQ, ce n'est PAS un échantillon aléatoire ».* Et `EtatLigneSource.cle_naturelle` est
+  indexé, donc lisible `ORDER BY` **sans tri en mémoire**.
+- **Le principe** : lire les deux flux **en parallèle, en ordre de clé**, et décider ligne par ligne —
+  *clé à gauche seule → disparition; à droite seule → apparition; des deux côtés → comparer les
+  empreintes.* **Rien n'est tenu en mémoire au-delà de la ligne courante et des compteurs.**
+- **Ce que ça coûte, et ce n'est pas rien** : *(1)* le moteur de diff est **générique** — sept sources
+  l'utilisent, et toutes ne sont pas triées; il faudrait un chemin trié **en plus**, pas à la place.
+  *(2)* Les seuils de quarantaine se calculent sur des **totaux** *(apparitions/disparitions rapportées
+  au précédent)*, donc une passe de comptage avant la passe de décision, ou une décision différée.
+  *(3)* L'archivage en flux est déjà fait, mais `apparitions` et `modifications` sont aujourd'hui des
+  **listes rendues au connecteur** — il faudrait les rendre en flux aussi.
+- **Estimation honnête : une semaine, pas une soirée.** *Et ce n'est pas un refactor cosmétique : c'est
+  le passage d'un diff « tout en mémoire » à un diff « en flux », qui change la forme du moteur.*
+- ⚠️ **À ne pas entreprendre avant d'avoir mesuré `Etablissements.csv`** : *si `lignes_etab` est petite,
+  les correctifs locaux suffisent et la réécriture attend.* **Un chantier d'une semaine ne se décide
+  pas sur une structure qu'on n'a jamais mesurée.**
