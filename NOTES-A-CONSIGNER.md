@@ -758,3 +758,59 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   qui ne se recalculera plus après.* **Ce n'est pas la même question que « qu'est-ce qui sera
   perdu » : rien n'est perdu ici — c'est la MESURE D'AVANT qui devient impossible, et elle n'existe
   que si quelqu'un l'a prise.**
+
+### N38 — Une affirmation fausse produit une fausse attente; le silence n'en produit aucune
+- **Notée le** : 2026-09-16. ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON.**
+- **Destination** : `falkye-guide-ingenierie.md` **en règle de premier rang**, et
+  `falkye-journal-des-cas.md`.
+- **Le fait** : `docs/ARCHITECTURE.md` affirme qu'un rafraîchissement du REQ *« peut débloquer la
+  résolution NEQ d'entreprises déjà détectées […] jusque-là `non_trouve` »*. **Le mécanisme nommé
+  renotifie et ne réidentifie pas** *(N36)*. **Conséquence directe et vérifiable : la phrase
+  « les 953 signaux orphelins deviendront résolubles au prochain cycle » est FAUSSE.**
+- **La règle, formulation d'Alexandre reprise telle quelle** : *« Le silence ne produit pas de fausse
+  attente; une affirmation fausse en produit une. »* **Un trou dans le corpus se découvre en le
+  cherchant. Une affirmation contraire aux faits empêche de chercher** — *elle répond à la question
+  avant qu'elle soit posée, et elle répond faux.*
+- ⚠️ **Ce qui rend le cas exemplaire, et pas anecdotique** : *le défaut n'était pas dans le code ni
+  dans une mesure — il était dans la PHRASE qui décrivait le code.* **Le corpus a été, ce jour-là, la
+  source de l'erreur plutôt que la garde contre elle.**
+- **Le garde-fou qui en sort** *(déjà énoncé à N36, repris ici parce qu'il est général)* : **un
+  document qui décrit un COMPORTEMENT nomme la FONCTION qui le produit.** *« Retraite toutes les
+  entreprises » ne se vérifie pas; « appelle `resolve_company` sur toutes les entreprises » se
+  vérifie en une seconde — et se serait démentie à la première lecture.*
+
+### N39 — Le coût du repli par sous-chaîne rend le réimport rentable, indépendamment du gain
+- **Notée le** : 2026-09-16 *(argument d'Alexandre, retenu)*
+- **Destination** : `falkye-audit-et-mandat.md`, **à D14**.
+- **Le raisonnement** : *chaque entreprise sans NEQ coûte ~8 900 lignes lues au repli par sous-chaîne,
+  à CHAQUE cycle.* **Le réimport ne résout rien du stock, mais il réduit ce coût pour les signaux
+  futurs** — une entreprise résolue au premier passage n'emprunte jamais le repli.
+- **Donc le réimport n'est pas seulement un préalable** : *il paie sur le débit* — ~500 nouvelles
+  entreprises par semaine, dont environ un quart se résoudront au lieu d'échouer, et chacune de
+  celles-là économise 8 900 lignes par cycle, indéfiniment.
+- ⚠️ **À rapprocher de D14, sans la trancher** : *le rendement du repli n'est toujours pas mesuré*
+  (les colonnes `nb_abouties_*` sont `NULL` avant le premier cycle qui les écrit). **Cet argument
+  parle du COÛT ÉVITÉ, pas du rendement du chemin — les deux se ressemblent et ne répondent pas à la
+  même question.**
+
+### N40 — La conservation n'est pas une option de conception : le schéma l'interdit
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-specifications-produit.md` (section 9, le pivot), `falkye-audit-et-mandat.md`.
+- **La question posée** *(Alexandre)* : une entreprise qui gagne un NEQ **déjà porté** par un autre
+  dossier — **fusion ou conservation?**
+- **La réponse est factuelle avant d'être un choix.** `Company.neq` porte
+  `unique=True` *(`falkye/models/company.py`, index `ix_companies_neq`)*. **Deux dossiers ne peuvent
+  pas porter le même NEQ** : l'écriture lèverait `IntegrityError`. Et `resolve_company` fait
+  `select(Company).where(Company.neq == neq).scalar_one_or_none()` — *avec deux lignes, il lèverait
+  `MultipleResultsFound` à chaque signal ultérieur de cette entreprise.*
+- **Donc « conservation » n'est pas une voie à peser contre la fusion : c'est un changement de schéma
+  PLUS une réécriture du pivot.** *Le corpus pose le NEQ comme identifiant unique du dossier cumulatif
+  (spec section 9); conserver deux dossiers reviendrait à retirer au NEQ ce qui en fait un pivot.*
+- **Ce que la fusion COÛTE, et il faut l'écrire** : *le `nom_detecte` du dossier absorbé — le nom que
+  la SOURCE employait réellement — disparaît du dossier.* **Il survit au journal de diagnostic**
+  *(`journaliser_fusion_auto` capture id et nom avant la suppression)*, **mais plus personne ne le lit
+  au dossier.** ⚠️ *C'est une perte de PREUVE d'usage : la façon dont une entreprise est nommée dans la
+  vraie vie est précisément ce qu'on a passé la journée à chercher.*
+- **Recommandation, à trancher par Alexandre** : **fusion**, parce que la conservation n'existe pas —
+  **mais avec le `nom_detecte` absorbé PRÉSERVÉ au dossier survivant**, pas seulement au journal.
+  *Sinon on jette exactement le genre de nom qu'on vient de passer trois jours à récupérer.*
