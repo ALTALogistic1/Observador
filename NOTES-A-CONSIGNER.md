@@ -616,3 +616,51 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   pendant trois jours ce qui était dedans depuis le début, deux fois de suite** *(N17 pour
   `nom_normalise`, N29 pour les noms jetés)*. **Ce n'est plus une coïncidence, c'est un biais :
   le code ancien est présumé juste parce qu'il est ancien.**
+
+### N30 — Le NEQ est l'entité; les noms ne sont que des portes vers elle
+- **Notée le** : 2026-09-16. **Formulation d'Alexandre, reprise telle quelle.**
+- **Destination** : `falkye-specifications-produit.md` (section 9, le pivot), `falkye-guide-ingenierie.md`.
+- **Le principe** : *« Une entreprise n'a pas plusieurs identités parce qu'elle a plusieurs noms. »*
+  **Conséquence opératoire : l'ambiguïté se mesure sur les NEQ DISTINCTS, jamais sur les noms.**
+  *Regrouper les candidats par NEQ AVANT de compter les écarts — si un seul NEQ sort, c'est résolu,
+  quel que soit le nombre de noms qui y mènent.*
+- ⚠️ **Et ce principe a trouvé un défaut dans le correctif du matin même.** La récupération cherchait
+  bien dans `req_noms`, mais le score comparait la requête à la **seule dénomination sociale élue** :
+  *`Ferme M.G. Bellavance` retrouvait le NEQ, puis se faisait comparer à `9224-5842 QUÉBEC INC.`.*
+  **La porte était ouverte et le seuil infranchissable.** Corrigé : le score d'un NEQ est **le
+  meilleur de ses noms**, et le classement porte sur les NEQ.
+- **La leçon de méthode** : *un test qui vérifie la récupération ne vérifie pas la résolution.*
+  **Le test du matin passait — il s'arrêtait à `candidats_par_nom`.** Un correctif se teste **bout en
+  bout, sur la fonction que le produit appelle vraiment**, pas sur l'étage qu'on vient d'écrire.
+
+### N31 — Deux bornes posées avec le correctif, et une distinction à ne pas perdre
+- **Notée le** : 2026-09-16 *(décisions d'Alexandre)*
+- **Destination** : `falkye-specifications-produit.md`, `falkye-audit-et-mandat.md`.
+- **Borne 1 — les noms ANCIENS ne servent pas à apparier.** *« Une entreprise qui a changé de nom a
+  souvent changé d'autre chose, et on apparierait juste en présentant faux. »* **À inscrire comme
+  chemin de DERNIER RECOURS, à confiance plafonnée — et à ne pas construire.** *Le champ `statut` de
+  `req_noms` est conservé pour que la décision reste révisable sans réimport.*
+- **Borne 2 — le portrait affiche le NOM LÉGAL du registre, jamais le nom apparié.** *Le nom commercial
+  vient à côté, pas à la place.* **`Ferme M.G. Bellavance` TROUVE `9224-5842 Québec inc.`; elle ne la
+  remplace pas.**
+- ⚠️ **La distinction qui gouverne les deux** : **résoudre l'identité et présenter les faits sont deux
+  choses.** *Alexandre a hésité sur deux contrats du SEAO attribués sous deux noms du même NEQ : les
+  joindre aide parfois — deux contrats en six semaines, c'est une entreprise qui accélère — et nuit
+  parfois, quand les deux noms servent des activités différentes.* **Mais le choix n'est pas entre
+  joindre et séparer : c'est entre joindre et NE RIEN AVOIR.** *Sans le NEQ, l'entreprise nommée
+  autrement reste sans secteur, sans taille, sans adresse.* **Le NEQ résout l'identité; le portrait
+  décidera de la présentation — c'est une décision du cerveau, pour le 22. Rien ne se ferme.**
+
+### N32 — L'entonnoir : 92 sur 11 556, et personne ne sait ce qui bloque
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-audit-et-mandat.md` *(registre — c'est une décision ouverte, pas un fait)*.
+- **Les chiffres** : **11 556 détectées, 8 395 sans identité (73 %), 3 161 avec un NEQ, ~92 vérifiées.**
+- **Le corpus exige trois conditions** *(spec section 6)* : statut légal, signe d'activité, cohérence
+  d'identité. **Le correctif des noms règle la troisième. Personne n'a mesuré laquelle des deux autres
+  bloque, ni dans quelle proportion.**
+- ⚠️ **Et c'est ça qui décide si le correctif rapporte.** *2 217 entreprises de plus avec un NEQ ne
+  servent à rien si elles échouent ensuite sur la même chose.* **`outils/entonnoir_verification.py`
+  mesure, à lancer APRÈS le réimport** — lancé avant, il mesure l'état qu'on s'apprête à changer.
+- **Une distinction que l'outil tient et qu'un total effacerait** : `NON_VERIFIE` **n'est pas un
+  échec**, c'est une entreprise qui n'est jamais passée par la vérification. *Les fondre ferait lire un
+  blocage là où il n'y a qu'une absence de passage* — et les deux n'ont pas le même remède.

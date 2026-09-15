@@ -1301,11 +1301,45 @@ def resolve_neq_by_name(
     if not candidates:
         return []
 
-    choices = {c.neq: c.nom_normalise for c in candidates}
-    ranked = process.extract(nom_norm, choices, scorer=fuzz.WRatio, limit=limit)
+    # --- UN NEQ, UNE ENTITÉ (décision d'Alexandre, 2026-09-16) ---------------
+    #
+    # « Une entreprise n'a pas plusieurs identités parce qu'elle a plusieurs
+    # noms. » **Le NEQ est l'entité; les noms ne sont que des portes vers elle.**
+    #
+    # Deux conséquences, et la seconde corrige un défaut du correctif du matin :
+    #
+    #   1. Le score d'un NEQ est le MEILLEUR de ses noms. Scorer la requête
+    #      contre la seule dénomination sociale élue ferait retrouver
+    #      `Ferme M.G. Bellavance` par la récupération, puis la comparerait à
+    #      `9224-5842 QUÉBEC INC.` — score au plancher, refus. **La porte serait
+    #      ouverte et le seuil infranchissable.**
+    #   2. L'ambiguïté se compte sur les NEQ DISTINCTS. Deux noms du même NEQ qui
+    #      se disputent la première place ne sont pas une ambiguïté : c'est la
+    #      même entreprise deux fois. *Regrouper AVANT de comparer peut donc
+    #      résoudre des cas aujourd'hui classés ambigus.*
+    noms_par_neq: dict[str, list[str]] = {}
+    for c in candidates:
+        if c.nom_normalise:
+            noms_par_neq.setdefault(c.neq, []).append(c.nom_normalise)
+    for neq, forme in db_session.execute(
+        select(REQNom.neq, REQNom.nom_normalise).where(
+            REQNom.neq.in_([c.neq for c in candidates])
+        )
+    ).all():
+        noms_par_neq.setdefault(neq, []).append(forme)
 
     by_neq = {c.neq: c for c in candidates}
-    matches = [REQMatch(entry=by_neq[neq], score=score) for _, score, neq in ranked]
+    scores: list[tuple[str, float]] = []
+    for neq, formes in noms_par_neq.items():
+        # `process.extractOne` sur les noms DE CE NEQ : le meilleur l'emporte, et
+        # les autres ne comptent pas — ils ne sont pas des concurrents, ils sont
+        # la même entreprise.
+        meilleur = process.extractOne(nom_norm, formes, scorer=fuzz.WRatio)
+        if meilleur is not None:
+            scores.append((neq, meilleur[1]))
+    scores.sort(key=lambda t: t[1], reverse=True)
+
+    matches = [REQMatch(entry=by_neq[neq], score=score) for neq, score in scores[:limit]]
 
     if ville:
         ville_norm = _normaliser(ville)
