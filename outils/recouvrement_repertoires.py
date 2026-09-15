@@ -194,6 +194,16 @@ def main(argv: list[str] | None = None) -> int:
     print("         Le compte rendu est un PLANCHER. Rien n'est écrit en base.")
     print("         Le NEQ des répertoires est rapporté tel que publié, non vérifié.")
 
+    # LA CIBLE, ANNONCÉE ET EXIGÉE — juste avant d'ouvrir, jamais après
+    # `parse_args` : un mode qui ne touche aucune base ne doit pas être
+    # refusé. Sans ce refus, le repli CRÉE `./data/*.sqlite3` dans le
+    # répertoire courant et le verdict porte sur une base vide.
+    from falkye.db import refuser_si_cible_non_choisie
+
+    code = refuser_si_cible_non_choisie()
+    if code:
+        return code
+
     session = get_session()
     try:
         entreprises = session.execute(

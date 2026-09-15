@@ -904,3 +904,51 @@ produit, pas défaut.*
 **La règle. Un outil qui ÉNUMÈRE des causes doit avoir vérifié qu'elles peuvent s'appliquer.** Une
 énumération se lit comme une répartition plausible : celle-ci orientait vers *« c'est voulu, c'est le
 filtre territorial »*. **Le coût n'est pas le mot de trop — c'est la décision qu'il aurait pu emporter.**
+
+## Cas 41 — La garde existait, recopiée à la main, absente de la moitié des outils *(guide d'ingénierie)*
+
+**Le fait.** Le 11 septembre 2026, un garde-fou est écrit pour un défaut réel : sans
+`FALKYE_DB_URL` ni `FALKYE_MIROIR_DB_URL`, un outil parle à un fichier local **relatif au
+répertoire courant**, sans le dire. La fonction qui le détecte — `bases_sur_repli()` — est juste,
+et les outils qui la portent refusent correctement.
+
+**Le 16 septembre, cinq jours plus tard, un outil lancé sans environnement n'a pas refusé.** Il est
+tombé sur `PermissionError: 'data'`. *Le garde-fou n'a pas mordu.*
+
+**Ce que le relevé a montré.** Sur les **28 outils qui ouvrent une session, 15 ne portaient pas la
+garde** — parmi eux l'import du miroir, la purge hors territoire, et le profileur de mémoire écrit
+le jour même. **La garde était une convention recopiée à la main.** *Elle protégeait les fichiers
+où quelqu'un avait pensé à l'écrire, et ne disait rien des autres — surtout pas qu'elle n'y était
+pas.*
+
+⚠️ **Et l'échec sans garde n'est pas une panne franche.** Reproduit dans un répertoire vierge :
+
+```
+$ ls data/
+miroirs.sqlite3     # 0 octet — l'outil vient de le CRÉER
+```
+
+**L'outil a fabriqué la base qu'il prétendait interroger, puis l'a interrogée.** Sur l'hôte il est
+tombé sur un `PermissionError` **uniquement parce que le répertoire courant n'était pas
+inscriptible** — *ce n'est pas une garde, c'est un accident de permissions.* Le même outil lancé
+depuis un répertoire inscriptible **rend un verdict vert sur une base vide.**
+
+*Un verdict rendu sur une base vide est le plus rassurant de tous* — et c'est le cas 30 qui revient
+par une autre porte : **l'instrument fabrique la preuve qu'il devait recueillir.**
+
+**LA RÈGLE. Une garde recopiée à la main n'est pas une garde : c'est une vigilance, et une
+vigilance ne se vérifie pas.** *Tant qu'aucun mécanisme n'exige sa présence, on ne sait pas combien
+d'endroits ne l'ont pas* — et le relevé, quand on le fait enfin, donne quinze sur vingt-huit. **Le
+correctif d'une convention n'est pas de la rappeler, c'est de la rendre exigible.**
+
+**Ce qui a été fait.** `falkye/db.py::refuser_si_cible_non_choisie()` porte la garde une fois; les
+15 outils l'appellent **juste avant d'ouvrir leur session** — *jamais après `parse_args` en
+aveugle, parce qu'un outil peut avoir un mode qui ne touche aucune base, et une garde posée trop
+tôt le refuserait à tort*. `tests/test_garde_cible_des_outils.py` liste les outils qui ouvrent une
+session et **exige que chacun appelle la garde** : la présence devient mécanique, le placement
+reste humain.
+
+**Deux tests ont rougi en la posant, et le rouge était juste** : ils injectaient une session, donc
+l'environnement ne décidait de rien pour eux — *mais ils s'appuyaient sur le repli que tout
+appelant réel doit refuser.* Déclarer la cible dans leur fixture n'est pas un contournement, c'est
+dire « oui, quelqu'un a choisi ».

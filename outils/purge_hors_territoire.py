@@ -88,6 +88,16 @@ def main(argv: list[str] | None = None) -> int:
     from falkye.models.diagnostic_journal import DiagnosticJournal
     from falkye.models.signal import Signal
 
+    # LA CIBLE, ANNONCÉE ET EXIGÉE — juste avant d'ouvrir, jamais après
+    # `parse_args` : un mode qui ne touche aucune base ne doit pas être
+    # refusé. Sans ce refus, le repli CRÉE `./data/*.sqlite3` dans le
+    # répertoire courant et le verdict porte sur une base vide.
+    from falkye.db import refuser_si_cible_non_choisie
+
+    code = refuser_si_cible_non_choisie()
+    if code:
+        return code
+
     session = get_session()
     try:
         avant_e = session.execute(select(func.count()).select_from(Company)).scalar()
