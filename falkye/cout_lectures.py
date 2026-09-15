@@ -43,19 +43,68 @@ CHEMINS = (CHEMIN_EXACT, CHEMIN_PREFIXE, CHEMIN_SOUS_CHAINE)
 
 @dataclass
 class ComptesResolution:
-    """Les appels d'une exécution, par chemin. Des entiers, rien d'autre."""
+    """Les appels d'une exécution, par chemin, **et ceux qui ont abouti**. Des
+    entiers, rien d'autre.
+
+    **Pourquoi deux compteurs et pas un** *(Alexandre, 2026-09-16)*. Le premier
+    cycle livré a mesuré que le repli par sous-chaîne coûte **98 % du budget de
+    résolution pour 14 % des appels** — ~8 900 lignes lues par appel. *C'est
+    exactement ce que D14 demandait de mesurer, et ça ne suffit pas à trancher :
+    un chemin cher qui résout ce que rien d'autre ne trouve vaut son prix.*
+    **Un coût sans son rendement ne décide rien** — il donne juste l'air de décider.
+
+    ⚠️ **« Abouti » a un sens ÉTROIT, et il faut le tenir.** Un chemin aboutit
+    quand **l'appel qu'il a servi a rendu un candidat retenu** — pas quand il a
+    rendu des lignes. *Un balayage qui rend 8 396 lignes dont aucune n'atteint le
+    seuil n'a rien abouti, et le compter comme un succès inverserait la mesure.*
+    """
 
     appels: dict[str, int] = field(default_factory=lambda: {c: 0 for c in CHEMINS})
+    #: Les appels de chaque chemin qui ont rendu un candidat RETENU. Jamais
+    #: supérieur à `appels[chemin]` — vérifié par un test, parce qu'un taux
+    #: au-dessus de 100 % passerait pour un arrondi au lieu d'un défaut.
+    abouties: dict[str, int] = field(default_factory=lambda: {c: 0 for c in CHEMINS})
 
     def compter(self, chemin: str) -> None:
         self.appels[chemin] = self.appels.get(chemin, 0) + 1
+
+    def compter_abouti(self, chemin: str) -> None:
+        self.abouties[chemin] = self.abouties.get(chemin, 0) + 1
 
     @property
     def total(self) -> int:
         return sum(self.appels.values())
 
+    @property
+    def total_abouti(self) -> int:
+        return sum(self.abouties.values())
+
+    def rendement(self, chemin: str) -> float | None:
+        """Part des appels de ce chemin qui ont abouti, ou **None si le chemin
+        n'a pas été emprunté**.
+
+        *Zéro appel et zéro réussite ne font pas un rendement de 0 %* — ils font
+        une absence de mesure, et l'écrire `0` la ferait lire comme un échec.
+        """
+        appels = self.appels.get(chemin, 0)
+        if not appels:
+            return None
+        return 100.0 * self.abouties.get(chemin, 0) / appels
+
 
 _comptes: ContextVar[ComptesResolution | None] = ContextVar("falkye_comptes", default=None)
+
+
+def compter_abouti(chemin: str) -> None:
+    """Marque que l'appel servi par ce chemin a rendu un candidat RETENU.
+
+    Même silence hors exécution que `compter`, et pour la même raison. **À
+    appeler au point où le candidat est retenu, jamais au point où les lignes
+    sont lues** — sinon on compterait un balayage stérile comme un succès.
+    """
+    comptes = _comptes.get()
+    if comptes is not None:
+        comptes.compter_abouti(chemin)
 
 
 def compter(chemin: str) -> None:

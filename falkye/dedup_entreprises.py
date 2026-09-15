@@ -53,7 +53,7 @@ from rapidfuzz import fuzz
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from falkye.cout_lectures import CHEMIN_PREFIXE, CHEMIN_SOUS_CHAINE, compter
+from falkye.cout_lectures import CHEMIN_PREFIXE, CHEMIN_SOUS_CHAINE, compter, compter_abouti
 from falkye.models.company import Company
 from falkye.models.diagnostic_journal import DiagnosticJournal, TypeDiagnostic
 from falkye.models.notification import Notification
@@ -155,6 +155,10 @@ def trouver_meilleur_candidat_fusion(
 
     prefix = nom_normalise.split(" ")[0]
     compter(CHEMIN_PREFIXE)
+    # Le chemin QUI A SERVI cet appel — c'est lui qui sera crédité si un candidat
+    # est retenu. Retenu ici plutôt que déduit plus bas : après le repli, la liste
+    # `candidats` ne dit plus d'où elle vient.
+    chemin_servant = CHEMIN_PREFIXE
     candidats = db_session.execute(requete_candidats_prefixe(prefix)).scalars().all()
     if not candidats:
         # Compté ICI, pas au moment de construire la requête : c'est l'appel
@@ -162,6 +166,7 @@ def trouver_meilleur_candidat_fusion(
         # Sa fréquence est la question ouverte du 2026-09-08 — c'est le seul des
         # trois chemins que l'index composite ne corrige pas.
         compter(CHEMIN_SOUS_CHAINE)
+        chemin_servant = CHEMIN_SOUS_CHAINE
         candidats = (
             db_session.execute(requete_candidats_sous_chaine(nom_normalise[:6])).scalars().all()
         )
@@ -178,6 +183,10 @@ def trouver_meilleur_candidat_fusion(
 
     if meilleur is None or meilleur.score < SEUIL_FUSION_CANDIDAT:
         return None
+    # Compté ICI, au point où le candidat est RETENU — pas au point où les lignes
+    # ont été lues. Un balayage qui rend 8 396 lignes dont aucune n'atteint le
+    # seuil n'a rien abouti, et le compter plus haut inverserait la mesure.
+    compter_abouti(chemin_servant)
     return meilleur
 
 

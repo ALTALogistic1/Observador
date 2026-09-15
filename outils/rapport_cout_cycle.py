@@ -37,6 +37,15 @@ CHEMINS_COLONNES = (
     ("sous_chaine", "nb_resolutions_sous_chaine"),
 )
 
+#: Ce que chaque chemin RAPPORTE. **Le coût seul ne tranche pas D14** : le repli
+#: par sous-chaîne prend 98 % du budget pour 14 % des appels, et s'il résout ce
+#: que les deux autres ne trouvent pas, il vaut son prix.
+CHEMINS_ABOUTIES = (
+    ("exact", "nb_abouties_exact"),
+    ("prefixe", "nb_abouties_prefixe"),
+    ("sous_chaine", "nb_abouties_sous_chaine"),
+)
+
 
 def lignes_du_rapport(db_session, depuis: datetime):
     from sqlalchemy import select
@@ -135,8 +144,17 @@ def main(argv: list[str] | None = None) -> int:
         print(entete)
 
         totaux = {nom: 0 for nom, _ in CHEMINS_COLONNES}
+        # `None` et `0` ne se confondent pas ici : une exécution antérieure à
+        # l'ajout des colonnes n'a pas abouti zéro fois, elle n'a pas été mesurée.
+        abouties_totales = {nom: 0 for nom, _ in CHEMINS_ABOUTIES}
+        runs_mesures = 0
         for ligne in lignes:
             appels = {nom: getattr(ligne, col) or 0 for nom, col in CHEMINS_COLONNES}
+            mesure = any(getattr(ligne, col, None) is not None for _, col in CHEMINS_ABOUTIES)
+            if mesure:
+                runs_mesures += 1
+                for nom, col in CHEMINS_ABOUTIES:
+                    abouties_totales[nom] += getattr(ligne, col) or 0
             derivees = (
                 {nom: "—" for nom, _ in CHEMINS_COLONNES}
                 if perime
@@ -187,6 +205,38 @@ def main(argv: list[str] | None = None) -> int:
                 "réel du cycle se lit\n"
                 "  au compteur de l'hébergeur, relevé avant et après."
             )
+
+        print("\n" + "-" * 78)
+        print("CE QUE CHAQUE CHEMIN RAPPORTE — en face de ce qu'il coûte (D14)")
+        print("-" * 78)
+        if not runs_mesures:
+            # L'absence de mesure n'est pas une mesure nulle : le dire, plutôt
+            # que d'afficher trois zéros qui se liraient « aucun chemin ne résout ».
+            print("   AUCUNE des exécutions de cette fenêtre ne porte la mesure du")
+            print("   rendement — elles précèdent l'ajout des colonnes. Ce n'est pas")
+            print("   zéro résolution : c'est zéro mesure. Rejouer un cycle pour l'avoir.")
+        else:
+            if runs_mesures < len(lignes):
+                print(f"   ⚠️ {runs_mesures} exécution(s) sur {len(lignes)} portent la mesure;")
+                print("      les autres précèdent l'ajout des colonnes et sont EXCLUES,")
+                print("      jamais comptées comme des zéros.")
+            print(f"\n   {'chemin':<14}{'appels':>10}{'abouties':>11}{'rendement':>12}"
+                  f"{'lignes ~ / aboutie':>22}")
+            for nom, _ in CHEMINS_ABOUTIES:
+                appels_n = totaux[nom]
+                abouties_n = abouties_totales[nom]
+                rendement = f"{100 * abouties_n / appels_n:.1f} %" if appels_n else "—"
+                cout_unitaire = (
+                    f"~{derivees_totales[nom] / abouties_n:,.0f}".replace(",", " ")
+                    if abouties_n else "—"
+                )
+                print(f"   {nom:<14}{appels_n:>10}{abouties_n:>11}{rendement:>12}{cout_unitaire:>22}")
+            print("\n   ⚠️ « Aboutie » = l'appel servi par ce chemin a rendu un candidat")
+            print("      RETENU — pas qu'il a rendu des lignes. Un balayage de 8 396")
+            print("      lignes dont aucune n'atteint le seuil n'a rien abouti.")
+            print("   ⚠️ Le coût par aboutie est une DÉRIVATION, comme les lignes lues :")
+            print("      il vieillit avec la population sans NEQ. Il compare des chemins")
+            print("      entre eux à un instant donné; il ne se reporte pas d'un mois à l'autre.")
 
         print(f"\n{AVERTISSEMENT_DERIVATION}")
         print(f"\n{PORTEE}")

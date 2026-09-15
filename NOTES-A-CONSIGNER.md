@@ -300,3 +300,118 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   prochain balayage du catalogue les repropose, et le travail se refait.* **Ils redeviennent
   examinables si le motif tombe** : Sherbrooke si la ressource repart, Montréal jamais (le motif est
   de nature, pas d'effectif).
+
+### N15 — Le `MATRICULE` de l'OQLF EST un NEQ : un quatrième pont, avec la clé
+- **Notée le** : 2026-09-15
+- **Destination** : `falkye-sources-spheres-verifiees.md` et `falkye-recommandations-sources.md`.
+- **Mesuré** : **99,7 % des `MATRICULE` de l'OQLF ont un format de NEQ valide** (dix chiffres).
+  *L'OQLF ne nomme jamais ce champ « NEQ » — la ressemblance est de forme, et elle se vérifie
+  à 99,7 %, ce qui ne laisse guère de place à la coïncidence.*
+- **Ce que ça vaut** : 14 614 entreprises certifiées, avec leur **nom ET leur clé**. Ce n'est pas un
+  répertoire de noms de plus, c'est un pont nom ↔ NEQ. **Inutile pour le mur actuel** *(0 appariement
+  sur 8 395 — la population ne recoupe pas)*, **réel pour ailleurs**.
+- ⚠️ **Et il porte une information que le REQ n'a pas** : une entreprise certifiée par l'OQLF est une
+  entreprise de **50 employés et plus** soumise au processus de francisation. *C'est un indicateur de
+  TAILLE* — le second des deux que le produit puisse lire, avec `Capacite` de la RACJ (N13).
+
+### N16 — Le recouvrement des trois répertoires : 5 sur 8 395, et la forme reste bonne
+- **Notée le** : 2026-09-15
+- **Destination** : `falkye-recommandations-sources.md`, avec le chiffre.
+- **Mesuré** : OPC permis **5** appariements sur 8 395 (0,1 %); OPC Parle consommation **0**; OQLF **0**.
+- **Ce que ça infirme, et ce que ça n'infirme pas.** *La FORME du pont enseigne → raison sociale n'est
+  pas infirmée* — elle n'a simplement pas été éprouvée : **la population ne recoupe pas.** Quelques
+  dizaines de milliers de lignes dans des secteurs étroits (recouvrement, véhicules routiers,
+  francisation) contre un mur fait à 74,5 % de l'EIMT.
+- **L'argument qui reste entier** : si la forme est bonne, il faut aller chercher `AUTRES_NOMS` **au
+  REQ, à l'échelle du registre entier** — 10 065 lignes coûtent une commande, 2,7 millions coûtent un
+  import. ⚠️ **Mais pas avant que `nom_normalise` soit réparé** *(N17)* : on mesurerait un pont contre
+  une colonne vide, et le zéro qui en sortirait serait attribué au pont.
+
+### N17 — `nom_normalise` : la moitié du miroir est vide, et le code du dépôt ne peut pas l'expliquer
+- **Notée le** : 2026-09-15
+- ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON** — celle-ci abîme le produit **maintenant**, et elle est écrite
+  comme telle : *les 4 873 « candidats trop faibles », 58 % du mur d'appariement, sont probablement
+  presque tous là-dedans.* **Des entreprises que le produit trouve, qu'il a sous les yeux, et qu'il
+  compare à des chaînes mutilées ou vides.**
+- **Destination** : `falkye-journal-des-cas.md` (cas neuf), `falkye-audit-et-mandat.md`.
+- **Les faits mesurés sur l'hôte** *(Alexandre, 2026-09-15)* : **1 371 730 / 2 730 146 lignes (50,2 %)**
+  ont un `nom_normalise` vide ou absent. Et `nom = '9309-3927 QUÉBEC INC.'` porte
+  `nom_normalise = '9309 3927 quebec'` — **la forme juridique retirée d'un seul côté**, score 66,
+  recalcul concordant.
+- **Ce que le dépôt dit, et qui contredit la donnée.** `nom` et `nom_normalise` sont écrits **ensemble,
+  dans la même instruction, depuis la même chaîne**, aux quatre seuls endroits qui les écrivent
+  (`req.py` 469, 477-478, 869, 899). `normaliser` n'a **pas changé depuis le 3 septembre**
+  (`git log --follow`, deux commits, fonction identique). Et elle ne rend vide sur **aucun** des noms
+  relevés — même en simulant un mauvais encodage lu avec `errors="replace"`.
+- ⚠️ **La contradiction, mesurée et non résolue.** Un score de 0 exige que les candidats récupérés
+  portent une chaîne **vide** (`process.extract` sur cent valeurs vides rend `('', 0.0)`; sur des
+  `None`, il les ÉCARTE). Or ils ont été récupérés par `GLOB 'ferme*'`, **qui porte sur cette même
+  colonne**. *Une chaîne vide ne peut satisfaire ni ce filtre ni son repli.* **Donc le filtre et la
+  lecture ne rendent pas la même valeur pour la même ligne** — et le défaut n'est pas dans la donnée,
+  il est sous elle. **Aucune lecture de code ne tranchera ça; il faut lire la base.**
+- **La règle à écrire, et elle est plus large que ce cas** : *quand le code ne peut pas produire la
+  donnée observée, ce n'est pas le code qu'on relit une quatrième fois — c'est la prémisse « le code
+  déployé est le code du dépôt » qu'on vérifie.* **C'est la même forme que le cas 35** (la #40
+  fusionnée dont l'outil n'était pas sur l'hôte) : *rien n'a échoué, et c'est pour ça que c'était
+  invisible.*
+- **Ce que trois jours ont coûté** : le mur a été cherché **dehors** — enseignes, ponts, sources,
+  seuil, récupération — alors qu'il était **dedans**. *Aucune de ces pistes n'était absurde; aucune
+  n'aurait pu aboutir.* **Ce qui a ouvert la porte, c'est une contradiction interne** — un score
+  impossible sur deux chaînes identiques — **pas une hypothèse de plus.**
+
+### N18 — Aucun connecteur ne normalise le nom : 16 sur 16 le passent tel quel
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-guide-ingenierie.md`, et `falkye-audit-et-mandat.md` à côté de l'asymétrie.
+- **Mesuré par AST sur les 16 expressions qui alimentent `nom_entreprise=` d'un `RawSignal`** :
+  `chgt['nom']`, `employeur`, `brute.nom`, `entree['nom']`, `offre.entreprise`… **Aucune n'appelle
+  `normaliser`, aucune ne retire quoi que ce soit.** *Un `.strip()` retire des espaces; il ne retire
+  pas une forme juridique.*
+- **Ce que ça décide, et c'est structurel.** La graphie des noms **n'est pas une décision du produit** :
+  c'est une propriété de chaque source. *Donc « aligner le connecteur de l'EIMT » n'a pas de sens —
+  il n'y a rien à aligner dans un connecteur qui ne transforme rien.* **Si une asymétrie existe entre
+  le détecté et le stocké, elle vient du MIROIR, qui est le seul des deux côtés à transformer.**
+- ⚠️ **Et ça rouvre la contradiction du 15 septembre par l'autre bout.** `normaliser` **ne retire pas**
+  les formes juridiques non plus. *Donc ni le connecteur ni la fonction de normalisation du dépôt ne
+  peuvent produire un `nom_normalise` amputé de `inc`* — **ce qui ramène, une troisième fois, à la
+  prémisse « le code déployé est le code du dépôt » (N17).**
+
+### N19 — Trois sources sur vingt-six portent une adresse; vingt-trois n'en portent aucune
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-chantier-2-sante-source.md`, et le guide (famille des instruments).
+- **Mesuré** : 26 sources au registre, **3 adresses en tout**, dont **2 sans témoin** *(`req`, `rdprm` —
+  toutes deux en `import_manuel`)*. La troisième, celle du Guichet-Emplois, est citée dans
+  `falkye/sources/guichet_emplois.py`, donc éprouvée à chaque cycle.
+- **Contrôle de tête, 2026-09-16** : `req` **200** *(adresse neuve)*, `guichet_emplois` **200**,
+  `rdprm` **403**. *Le repli HEAD → GET est nécessaire : beaucoup de serveurs refusent `HEAD` tout en
+  servant `GET`, et sans lui on déclarerait mortes des adresses vivantes.*
+- **La règle** *(formulation d'Alexandre, retenue)* : *une adresse qu'aucun mécanisme n'appelle n'est
+  jamais éprouvée.* **Deux adresses du REQ sont mortes sans que personne le sache, pour exactement
+  cette raison.**
+- ⚠️ **Mais le fait le plus lourd n'est pas celui-là.** *23 des 26 sources ne portent AUCUNE adresse.*
+  **Rien ne casse — sauf qu'un humain qui cherche par où l'on accède à une source ne trouve rien là où
+  il regarde.** *Le registre ne peut rien éprouver pour elles : ce n'est pas un taux d'échec de 0 %,
+  c'est zéro mesure.*
+
+### N20 — Pousser n'est pas ouvrir, et ouvrir n'est pas fusionner
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-journal-des-cas.md` (cas neuf), et `falkye-guide-ingenierie.md` — *à côté du
+  cas 35, dont c'est la suite exacte.*
+- ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON** : c'est une faute de procédure qui se répète, et elle coûte du
+  temps à chaque fois.
+- **Le fait** : **trois fois le 16 septembre**, du travail a été poussé sur la branche sans qu'aucune
+  demande de fusion soit ouverte. *La #49 avait été fusionnée à 00 h 42 au commit `1704222`; les quatre
+  commits suivants existaient sur la branche, complets et testés, et n'allaient nulle part.*
+- **Pourquoi ça ne se voit pas.** Le geste `git push` réussit, le journal affiche `→ branche mise à
+  jour`, et **rien ne signale l'absence de demande**. *Le seul symptôme atteint Alexandre à l'autre bout :
+  un outil absent de l'hôte* — **ce qui ressemble à une panne de déploiement, pas à une demande
+  manquante.** Il a diagnostiqué la cause en lisant `ls -la outils/` : tous les fichiers portaient la
+  même date, celle du dernier déploiement.
+- **La règle, formulation d'Alexandre, à reprendre telle quelle** : *« Pousser n'est pas ouvrir, et
+  ouvrir n'est pas fusionner. Tant que la demande n'existe pas, rien ne part. »*
+- ⚠️ **Et c'est la MÊME forme que le cas 35**, ce qui en fait une famille plutôt qu'un incident :
+  *rien n'échoue, chaque geste réussit, et l'écart n'apparaît qu'à l'autre bout de la chaîne.*
+  **Trois maillons — pousser, ouvrir, fusionner, déployer — dont chacun réussit isolément pendant que
+  la chaîne est rompue.**
+- **Le correctif de méthode, pas de code** : *une tâche ne se déclare pas finie sur un `push` réussi.*
+  **Elle se déclare finie sur le NUMÉRO d'une demande ouverte**, vérifié, et donné à Alexandre.
+  *Un état vérifié au bout de la chaîne, pas un geste réussi au début.*

@@ -18,7 +18,7 @@ from falkye.dedup_entreprises import (
     journaliser_candidat_fusion,
     trouver_meilleur_candidat_fusion,
 )
-from falkye.cout_lectures import CHEMIN_EXACT, compter
+from falkye.cout_lectures import CHEMIN_EXACT, compter, compter_abouti
 from falkye.models.company import Company, StatutLegal, StatutResolution
 from falkye.sources import req as req_source
 from falkye.sources.base import RawSignal
@@ -51,7 +51,14 @@ def _find_unresolved_company(db_session: Session, nom_detecte: str) -> Company |
     falkye/models/company.py (sinon quadratique sur de gros volumes, ex. SEAO)."""
     nom_norm = normaliser(nom_detecte)
     compter(CHEMIN_EXACT)
-    return db_session.execute(requete_nom_exact(nom_norm)).scalar_one_or_none()
+    trouve = db_session.execute(requete_nom_exact(nom_norm)).scalar_one_or_none()
+    if trouve is not None:
+        # Le chemin exact aboutit quand il rend UNE ligne — il n'a pas de seuil
+        # à franchir, la correspondance est l'aboutissement. Le dire ici plutôt
+        # que de le supposer ailleurs : les trois chemins doivent être comptés
+        # à la même définition, sinon leurs rendements ne se comparent pas.
+        compter_abouti(CHEMIN_EXACT)
+    return trouve
 
 
 def neq_retenu(matches: list) -> str | None:

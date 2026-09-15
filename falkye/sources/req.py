@@ -42,6 +42,7 @@ passera plus jamais par ce chemin.
 """
 from __future__ import annotations
 
+import ast
 import csv
 import io
 import logging
@@ -49,6 +50,7 @@ import re
 import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 from datetime import datetime, timezone
 
 from dateutil import parser as dateutil_parser
@@ -518,6 +520,162 @@ def _ligne_etablissement(neq: str, etab: _EtabLeger) -> LigneSnapshot:
     )
 
 
+#: Quelle fonction lit quel CSV. **Le garde-fou se branche ici**, et nulle part
+#: ailleurs : ajouter un CSV à l'import sans l'ajouter à cette table le laisserait
+#: hors vérification, en silence.
+_LECTEURS_PAR_CSV = {
+    "Entreprise.csv": "_resoudre_entreprise",
+    "Nom.csv": "_charger_index_noms",
+    "Etablissements.csv": "_charger_index_etablissements",
+}
+
+
+def colonnes_brutes_lues(source_module: str, nom_fonction: str) -> set[str]:
+    """Les en-têtes CSV que cette fonction lit RÉELLEMENT, extraites de son code.
+
+    **Lues par AST plutôt que recopiées dans une liste à côté.** Une liste
+    recopiée se désynchronise à la première colonne ajoutée, et le garde-fou
+    vérifierait alors sa propre copie *(même règle que pour les requêtes :
+    emprunter, jamais recopier)*.
+
+    ⚠️ **C'est ce qui rend une virgule manquante VISIBLE.** `row.get("A" "B")`
+    — deux littéraux collés par une virgule oubliée — est du Python valide : il
+    lit une colonne nommée `"AB"`, qui n'existe pas, et `.get` rend `None` sans
+    rien signaler. *L'AST rend la chaîne telle que Python la voit*, donc `"AB"`,
+    et la vérification d'en-tête la refuse en la nommant.
+    """
+    arbre = ast.parse(source_module)
+    for noeud in ast.walk(arbre):
+        if not isinstance(noeud, ast.FunctionDef) or noeud.name != nom_fonction:
+            continue
+        return {
+            appel.args[0].value
+            for appel in ast.walk(noeud)
+            if isinstance(appel, ast.Call)
+            and isinstance(appel.func, ast.Attribute)
+            and appel.func.attr == "get"
+            and appel.args
+            and isinstance(appel.args[0], ast.Constant)
+            and isinstance(appel.args[0].value, str)
+        }
+    return set()
+
+
+def colonnes_couvertes_par_la_quarantaine(source_module: str) -> set[str]:
+    """Les colonnes brutes que le moteur de diff surveille DÉJÀ.
+
+    `_colonnes_entreprise_vues` teste `"X" in entete_...` pour chaque champ
+    logique; `_MAPPING_COLONNES_ETABLISSEMENTS` fait la même chose par sa table.
+    **Quand une de ces colonnes disparaît, l'import part en QUARANTAINE** —
+    `REQEntry` reste intact, l'incident est journalisé, `falkye quarantaine
+    lister` le montre.
+
+    ⚠️ **C'est une meilleure réponse qu'un refus, et le garde-fou ne doit pas
+    la préempter** : un refus levé plus tôt ferait perdre l'incident et son motif.
+    *Extraites du code, comme les colonnes lues — les deux mécanismes restent
+    ainsi synchronisés sans qu'on ait à y penser.*
+    """
+    arbre = ast.parse(source_module)
+    couvertes: set[str] = set()
+    for noeud in ast.walk(arbre):
+        # `if "COD_STAT_IMMAT" in entete_entreprise:` — le côté DROIT doit être
+        # une en-tête, sinon n'importe quel `"clé" in dict` du module entrerait
+        # ici et élargirait la couverture en silence (`_local_path` l'a fait).
+        if (
+            isinstance(noeud, ast.Compare)
+            and isinstance(noeud.left, ast.Constant)
+            and isinstance(noeud.left.value, str)
+            and any(isinstance(op, ast.In) for op in noeud.ops)
+            and any(
+                isinstance(c, ast.Name) and c.id.startswith("entete") for c in noeud.comparators
+            )
+        ):
+            couvertes.add(noeud.left.value)
+        # la table de correspondance des établissements
+        if isinstance(noeud, ast.Assign) and any(
+            isinstance(c, ast.Name) and c.id == "_MAPPING_COLONNES_ETABLISSEMENTS"
+            for c in noeud.targets
+        ):
+            if isinstance(noeud.value, ast.Dict):
+                couvertes.update(
+                    v.value for v in noeud.value.values
+                    if isinstance(v, ast.Constant) and isinstance(v.value, str)
+                )
+    return couvertes
+
+
+def colonnes_declarees_absentes(
+    entetes: dict[str, list[str]], source_module: str | None = None
+) -> dict[str, list[str]]:
+    """`CSV -> colonnes déclarées par le code mais ABSENTES de l'en-tête réelle`.
+
+    **Le garde-fou posé après le 15 septembre 2026** *(décision d'Alexandre)* :
+    vérifier que **toutes les colonnes déclarées existent**, pas seulement celles
+    dont on constate qu'elles servent.
+
+    **Le défaut qu'il ferme, et pourquoi rien ne l'attrapait.** `dict.get` d'une
+    colonne inexistante rend `None`. Ce `None` devient `""` par le `or ""`
+    habituel, puis une chaîne normalisée **vide** écrite en base. *Aucune
+    exception, aucun avertissement, aucun test rouge — et la moitié d'un miroir
+    de 2,7 millions de lignes devient inutilisable sans que rien n'échoue.*
+    **C'est la forme la plus coûteuse qui soit : une faute invisible à
+    l'exécution.**
+
+    **Sa portée est le POINT AVEUGLE, et rien d'autre.** Les colonnes dont
+    dépend un champ *logique* — `NOM_ASSUJ`, `COD_STAT_IMMAT`, `LIGN1_ADR`… —
+    sont déjà surveillées par le moteur de diff, qui met l'import en quarantaine
+    en laissant `REQEntry` intact et en journalisant le motif. *Ce garde-fou les
+    laisse passer exprès.* **Il ne couvre que celles qu'aucun champ logique ne
+    représente** — `STAT_NOM`, `TYP_NOM_ASSUJ`, `ADR_DOMCL_ADR_DISP`,
+    `NO_SUF_ETAB`, les dates de `Nom.csv` — *qui décident du nom élu et de
+    l'adresse retenue, et dont la disparition ne déclenche rien du tout.*
+
+    ⚠️ **Ce que ce garde-fou NE couvre PAS**, et qu'il ne faut pas lui prêter :
+    il compare des NOMS d'en-tête. *Une colonne présente mais vide, renommée avec
+    le même sens, ou remplie d'autre chose passe sans rien dire* — **une garde ne
+    couvre que ce que la mesure couvrait.**
+    """
+    if source_module is None:
+        source_module = Path(__file__).read_text(encoding="utf-8")
+    couvertes = colonnes_couvertes_par_la_quarantaine(source_module)
+    absentes: dict[str, list[str]] = {}
+    for csv_nom, fonction in _LECTEURS_PAR_CSV.items():
+        presentes = set(entetes.get(csv_nom) or [])
+        lues = colonnes_brutes_lues(source_module, fonction)
+        # Les colonnes que la quarantaine surveille sont RETIRÉES d'ici : sur
+        # celles-là le moteur de diff a déjà une réponse, meilleure que le refus.
+        manquantes = sorted(lues - presentes - couvertes)
+        if manquantes:
+            absentes[csv_nom] = manquantes
+    return absentes
+
+
+class ColonnesDeclareesAbsentes(RuntimeError):
+    """L'import refuse AVANT d'avoir lu une seule ligne."""
+
+
+def refuser_si_colonnes_absentes(entetes: dict[str, list[str]]) -> None:
+    """Lève si une colonne déclarée manque à l'appel. **Refuser, pas dégrader.**
+
+    *Un import qui dégrade produit un miroir utilisable en apparence, et le
+    défaut ne se voit qu'à la résolution, des jours plus tard.* Le refus coûte
+    deux secondes — la vérification porte sur les en-têtes, avant toute lecture
+    de ligne — contre 33 minutes d'import et un miroir à refaire.
+    """
+    absentes = colonnes_declarees_absentes(entetes)
+    if not absentes:
+        return
+    detail = "; ".join(f"{csv_nom} → {', '.join(cols)}" for csv_nom, cols in absentes.items())
+    raise ColonnesDeclareesAbsentes(
+        "REQ : le code lit des colonnes qui N'EXISTENT PAS dans l'archive — "
+        f"{detail}. Rien n'a été importé. Une colonne absente ne lève pas à la "
+        "lecture : `dict.get` rend None, et la valeur finit vide en base sans "
+        "qu'aucun test ne rougisse. Vérifier une virgule oubliée entre deux noms "
+        "de colonne (deux littéraux collés n'en font qu'un) avant de conclure que "
+        "le schéma du REQ a changé."
+    )
+
+
 def _colonnes_entreprise_vues(entete_entreprise: list[str], entete_nom: list[str], entete_etablissements: list[str]) -> dict[str, str]:
     """`colonnes_vues` du grain entreprise pour le moteur générique — dans le
     VOCABULAIRE LOGIQUE de CHAMPS_PERTINENTS_REQ (comme `LigneSnapshot.champs`,
@@ -673,6 +831,18 @@ def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | 
     instantanés (entreprise, établissement) sont tenus en mémoire simultanément
     pendant la phase 1 — de l'ordre de quelques Go sur le fichier réel actuel
     (~2,7M entreprises), validé lors de la macro-vérification du chantier 1."""
+    # LE GARDE-FOU, posé avant TOUTE lecture de ligne. Deux secondes sur les
+    # en-têtes contre 33 minutes d'import et un miroir à refaire — et surtout
+    # contre un miroir utilisable EN APPARENCE, dont le défaut ne se voit qu'à
+    # la résolution, des jours plus tard.
+    refuser_si_colonnes_absentes(
+        {
+            "Entreprise.csv": _en_tete_csv(zf, "Entreprise.csv"),
+            "Nom.csv": _en_tete_csv(zf, "Nom.csv"),
+            "Etablissements.csv": _en_tete_csv(zf, "Etablissements.csv"),
+        }
+    )
+
     noms = _charger_index_noms(zf)
     etablissements = _charger_index_etablissements(zf)
 

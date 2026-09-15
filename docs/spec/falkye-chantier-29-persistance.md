@@ -29,6 +29,79 @@ restauration n'a toujours pas de durée mesurée.
 *Ne pas résumer ce chantier par « tout est vérifié » : ce serait exactement la phrase que ce document
 existe pour empêcher.*
 
+### La marche d'accès à l'archive du REQ — le geste manuel, toutes les deux semaines
+
+**L'adresse, vérifiée le 16 septembre 2026 :**
+
+    https://www.donneesquebec.ca/recherche/dataset/registre-des-entreprises/resource/eac1b5f1-d8c0-4690-9c51-316d44ed9d94
+
+*C'est la fiche de la **ressource**, pas celle du jeu de données.* Depuis un
+navigateur, elle mène au téléchargement de `JeuDonnees.zip` (~267 Mo, six CSV).
+
+**Pourquoi le téléchargement reste manuel, et pourquoi ça ne changera pas seul.**
+La page du Registraire (`FichierDonneesOuvertes.aspx`) rend **403** pour tout ce
+qui n'est pas un navigateur — règle Cloudflare visant les plages infonuagiques
+partagées, documentée depuis le 31 août *(`docs/STATUT_RESEAU.md`)*. **Et il n'y a
+pas d'autre chemin vers le fichier** : Données Québec **n'héberge pas** l'archive,
+elle la lie. *Mesuré le 16 septembre : `/download/` rend 404, le motif avec un nom
+de fichier rend 403 (CKAN redirige vers l'origine), et le guide PDF du même jeu
+rend 200 — le témoin qui prouve que le portail sert bien ce qu'il héberge.*
+
+⚠️ **La ressource est marquée `datastore_active: true`, et c'est un piège.**
+Interrogée, elle rend **268 lignes dont l'unique colonne s'appelle
+`<!DOCTYPE html>`** : CKAN a moissonné la page Cloudflare et l'a rangée comme si
+c'était de la donnée. *Aucun connecteur ne doit faire confiance à ce drapeau sur
+ce jeu.*
+
+**La marche, dans l'ordre.**
+
+1. Ouvrir l'adresse ci-dessus **dans un navigateur**, télécharger `JeuDonnees.zip`.
+2. Déposer l'archive en *release* du dépôt, avec son empreinte SHA-256 publiée
+   *(la chaîne `.github/workflows/miroir-req.yml` la reprend de là)*.
+3. Vérifier l'archive **avant** l'import — `outils/verifier_archive_req.py`, deux
+   secondes sur les en-têtes.
+4. Importer, puis les trois contrôles. **La marche complète est à
+   `docs/MIROIRS.md`, section « La reprise du 16 septembre 2026 ».**
+
+**Le calendrier.** Le Registraire publie **aux deux semaines**. *Dernière
+publication relevée : le 2 septembre 2026* — treize jours au 15, donc une
+nouvelle édition est attendue sous peu. **La date de publication se lit sur la
+fiche du jeu (`metadata_modified`), pas sur le nom du fichier.**
+
+⚠️ **Cette adresse est la troisième.** Les deux précédentes sont mortes sans que
+personne le sache, **pour la même raison : aucun mécanisme ne les appelait.**
+`req` est en `methode_acces: import_manuel`, donc le `lien_recherche` du registre
+n'est lu par aucun connecteur — *une adresse qui vieillit sans témoin, et dont la
+mort ne se constate que le jour où un humain l'ouvre.* **C'est ce que
+`outils/adresses_sans_temoin.py` mesure maintenant, pour toutes les adresses du
+registre et pas seulement celle-ci.**
+
+**L'accès par entente : instruit le 16 septembre 2026, et il n'y en a pas.**
+*À inscrire comme un **obstacle sans recours**, pas comme une démarche à faire* —
+la différence compte, parce qu'une démarche en attente se reprend tous les mois
+et coûte du travail à chaque fois.
+
+**Le constat, et pourquoi il ferme la question.** Le fichier est **déjà en licence
+ouverte** : il n'y a pas de droit d'accès à demander, donc pas de porte à ouvrir.
+*Le blocage n'est pas une décision d'accès, c'est une protection d'infrastructure*
+— une règle Cloudflare visant les plages infonuagiques partagées, qui ne distingue
+pas un réutilisateur d'un robot. **Et aucune procédure de dérogation n'est
+publiée**, ni sur la fiche du jeu, ni sur le portail du Registraire. *Le réflexe
+de D5 a été appliqué; il ne rend rien ici.*
+
+⚠️ **Conséquence à écrire franchement : le geste manuel est PERMANENT**, jusqu'à
+ce que le Registraire publie l'archive ailleurs ou lève la règle. *Ce n'est pas
+une dette à résorber, c'est une contrainte à porter* — et le coût se compte : un
+téléchargement de 267 Mo toutes les deux semaines, à la main.
+
+**Ce qui reste à faire pour une AUTRE raison.** Le jeu est sous `CC-BY-NC-SA 4.0`,
+`isopen: false` — **non commercial et à partage identique** *(cadre légal,
+§ « le cas qui a prouvé la règle »)*. **Cette demande-là tient toujours**, et son
+destinataire est le même bureau : `Groupe.EOS@req.gouv.qc.ca` *(Direction
+principale du registraire des entreprises)*. *Elle ne porte pas sur l'accès, elle
+porte sur le droit d'usage — et elle ne devient pas caduque parce que l'accès
+automatisé, lui, n'a pas de recours.*
+
 ### La contrainte qui a décidé de tout
 
 **L'égress du conteneur est limité au port 443** — mesuré par connexion directe : 443 ouvert, les ports
