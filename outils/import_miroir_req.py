@@ -126,19 +126,47 @@ def etat_du_miroir() -> tuple[int, int]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--chemin", required=True, help="archive JeuDonnees.zip déposée sur l'hôte")
+    parser.add_argument(
+        "--chemin", required=True,
+        help="l'archive, OU le répertoire qui les conserve (la plus récente est prise)",
+    )
     parser.add_argument("--empreinte-attendue", default=os.environ.get("FALKYE_REQ_SHA256"))
     parser.add_argument("--importe-par", default="chaine-de-deploiement")
     args = parser.parse_args(argv)
 
     url = verifier_cible()
-    chemin = Path(args.chemin)
+
+    # `--chemin` accepte un RÉPERTOIRE depuis le 16 septembre : les archives sont
+    # conservées, datées dans leur nom, et c'est la plus récente qui est importée.
+    # La résolution passe par `outils.archives_req` — un seul point d'entrée pour
+    # tous les outils, sinon deux mesures du même jour porteraient sur deux
+    # fichiers différents sans que personne ne le voie.
+    from outils.archives_req import avertissement, ligne_de_provenance, resoudre
+
+    chemin = resoudre(args.chemin)
+    if chemin is None:
+        raise ImportImpossible(
+            f"aucune archive trouvée à {args.chemin!r}. Si c'est un répertoire, il "
+            "est vide; si c'est un fichier, il n'existe pas. Déposer "
+            "`JeuDonnees-AAAA-MM-JJ.zip` — la date est celle de PUBLICATION, lue "
+            "sur la fiche du jeu, pas celle du transfert."
+        )
     empreinte = verifier_archive(chemin, args.empreinte_attendue)
 
     taille_mo = chemin.stat().st_size / (1024 * 1024)
     print(f"cible    : {url}", flush=True)
     print(f"archive  : {chemin} ({taille_mo:.0f} Mo)", flush=True)
+    print(f"provenance: {ligne_de_provenance(chemin)}", flush=True)
     print(f"empreinte: {empreinte}", flush=True)
+
+    # L'avertissement de vieillissement passe AVANT l'import, pas dans le rapport
+    # final : un import de 33 minutes lancé sur une archive périmée doit pouvoir
+    # être interrompu à la première ligne du journal, pas constaté après coup.
+    # Il n'INTERROMPT pas — un mécanisme automatique ne doit pas arrêter le
+    # travail — mais il est écrit là où on le lit en premier.
+    vieillissement = avertissement(chemin)
+    if vieillissement:
+        print(vieillissement, flush=True)
 
     from falkye.db import get_session, init_db
     from falkye.manual_import import importer_fichier_source

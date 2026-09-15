@@ -113,10 +113,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Import impossible ({exc}). Lancer depuis la racine du dépôt.", file=sys.stderr)
         return 2
 
+    from outils.archives_req import avertissement, ligne_de_provenance, resoudre
+
+    archive = resoudre(args.chemin)
+    if archive is None:
+        print(f"⛔ aucune archive à {args.chemin!r}.", file=sys.stderr)
+        return 2
+    args.chemin = str(archive)
+
     print("=" * 78)
     print("POURQUOI LE MIROIR NE PORTE QU'UNE SOCIÉTÉ DE LA SÉRIE")
     print("=" * 78)
-    print(f"\narchive : {args.chemin}")
+    print(f"\n{ligne_de_provenance(archive)}")
+    # La provenance AU-DESSUS du chiffre, jamais en bas de page : un chiffre lu
+    # sans sa date est une promesse que personne ne tient.
+    vieillissement = avertissement(archive)
+    if vieillissement:
+        print(f"\n{vieillissement}")
     print(f"série   : {args.serie}-xxxx")
     print("\nPORTÉE : lecture seule. Ni l'archive ni le miroir ne sont modifiés.")
 
@@ -269,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
             print("\n(miroir non consulté — --sans-miroir)")
             return 0
         try:
-            from sqlalchemy import func, select, text
+            from sqlalchemy import text
 
             from falkye.db import get_session
             from falkye.models.req_entry import REQEntry
@@ -282,8 +295,17 @@ def main(argv: list[str] | None = None) -> int:
             print("\n" + "-" * 78)
             print("6. LE MIROIR, EN FACE")
             print("-" * 78)
-            total_miroir = session.execute(select(func.count()).select_from(REQEntry)).scalar() or 0
-            dans_miroir = session.execute(
+            # LE PIÈGE DES DEUX BASES. La session porte DEUX moteurs (falkye/db.py) et
+            # aucun n'est le défaut : SQLAlchemy route par métadonnée, donc une requête
+            # ORM sur `REQEntry` trouve son moteur seule, mais un `text()` n'a aucune
+            # métadonnée à router et lève `UnboundExecutionError`. La connexion se
+            # demande explicitement, par le mapper du modèle visé — même geste que
+            # `falkye/cout_lectures.py` et les outils de migration.
+            connexion_miroir = session.connection(bind_arguments={"mapper": REQEntry.__mapper__})
+            total_miroir = connexion_miroir.execute(
+                text("SELECT count(*) FROM req_entries")
+            ).scalar() or 0
+            dans_miroir = connexion_miroir.execute(
                 text("SELECT count(*) FROM req_entries WHERE nom LIKE :m"),
                 {"m": f"{args.serie}-%"},
             ).scalar() or 0

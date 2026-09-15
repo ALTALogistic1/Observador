@@ -56,12 +56,26 @@ ce jeu.*
 **La marche, dans l'ordre.**
 
 1. Ouvrir l'adresse ci-dessus **dans un navigateur**, télécharger `JeuDonnees.zip`.
-2. Déposer l'archive en *release* du dépôt, avec son empreinte SHA-256 publiée
-   *(la chaîne `.github/workflows/miroir-req.yml` la reprend de là)*.
+2. Déposer l'archive en *release* du dépôt, **avec la date de publication dans
+   l'étiquette** — `req-data-2026-09-02` — et son empreinte SHA-256 publiée
+   *(la chaîne `.github/workflows/miroir-req.yml` la reprend de là)*. **La chaîne
+   REFUSE de partir si l'étiquette ne porte aucune date** : l'archive serait
+   déposée sans date, donc d'âge inconnu, et c'est exactement le défaut qu'on
+   ferme. *La date est celle du Registraire (`metadata_modified` sur la fiche du
+   jeu), jamais celle du transfert.*
 3. Vérifier l'archive **avant** l'import — `outils/verifier_archive_req.py`, deux
    secondes sur les en-têtes.
 4. Importer, puis les trois contrôles. **La marche complète est à
    `docs/MIROIRS.md`, section « La reprise du 16 septembre 2026 ».**
+
+**L'archive est conservée sur l'hôte, et ne l'était pas.** *Jusqu'au 16 septembre
+2026, le flux de déploiement la supprimait* — `rm -f /opt/falkye/import/JeuDonnees.zip`,
+avec `if: always()`, **donc même quand l'import échouait**. Son motif était
+l'espace disque; la mesure l'a démenti : **66 Go libres pour 267 Mo**, soit
+environ 7 Go par an. *Le coût réel était ailleurs — chaque mesure demandant
+l'archive obligeait à la retélécharger.* **L'étape de suppression est remplacée
+par un inventaire**, et les archives portent désormais leur date :
+`JeuDonnees-2026-09-02.zip`.
 
 **Le calendrier.** Le Registraire publie **aux deux semaines**. *Dernière
 publication relevée : le 2 septembre 2026* — treize jours au 15, donc une

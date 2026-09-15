@@ -51,11 +51,44 @@ a quelque chose à dire.
 ### 1. Le fichier source
 
 L'archive du Registraire des entreprises se télécharge chez
-[Données Québec](https://www.donneesquebec.ca/recherche/dataset/registre-des-entreprises)
+[Données Québec](https://www.donneesquebec.ca/recherche/dataset/registre-des-entreprises/resource/eac1b5f1-d8c0-4690-9c51-316d44ed9d94)
 — environ 267 Mo, six fichiers CSV. Le téléchargement automatisé depuis un
 hébergeur infonuagique est refusé par le pare-feu de l'origine (règle
 Cloudflare), d'où la copie déposée en *release* du dépôt, dont l'empreinte
 SHA-256 est publiée avec l'actif.
+
+**L'archive est CONSERVÉE sur l'hôte, et sa date est dans son nom**
+*(décision d'Alexandre, 2026-09-16)* :
+
+    /opt/falkye/import/JeuDonnees-2026-09-02.zip
+
+**Ce que ça change.** *Chaque mesure qui demandait l'archive obligeait à la
+retélécharger — trois fois en deux jours, et on a changé de méthode chaque fois
+pour l'éviter.* Le blocage Cloudflare ne touche que le **téléchargement**, pas la
+lecture : **une archive déposée est relisible indéfiniment.** *L'import reste
+manuel; les mesures cessent de l'être.*
+
+⚠️ **Le revers, pris en connaissance de cause.** *Une archive conservée vieillit,
+et dans trois semaines quelqu'un la relira en croyant mesurer l'état courant.*
+C'est le motif du 16 septembre — Laval figé, l'adresse de l'EIMT, la table de
+prix sans date : **un fichier figé qui ressemble à un fichier vivant.** La date
+dans le nom est ce qui le neutralise : `outils/archives_req.py` la lit, calcule
+l'âge, et **tout outil qui ouvre une archive imprime sa provenance avant son
+premier chiffre.** Au-delà de 21 jours — une édition manquée — l'avertissement
+dit combien d'éditions ont paru depuis.
+
+⚠️ **La date vient du NOM, jamais de `mtime`** : un `scp` ou une restauration
+réécrit la date de modification, et l'archive paraîtrait fraîche de jours qu'elle
+n'a pas.
+
+⚠️ **Une archive SANS date n'est pas traitée comme récente** — elle est utilisable
+et **toujours signalée** : *son âge n'est pas nul, il est inconnu.*
+
+**Rien n'est purgé automatiquement**, et c'est délibéré : une rotation silencieuse
+recréerait le même défaut à l'envers — *un fichier qui disparaît sans que personne
+l'ait décidé.* Le flux de déploiement rend un **inventaire** (`ls -lh`, `du -sh`,
+`df -h`) à chaque passage; purger reste un geste. *~7 Go par an au rythme de deux
+semaines, pour 66 Go libres.*
 
 ```bash
 sha256sum JeuDonnees.zip     # doit correspondre au digest de la release
@@ -168,7 +201,7 @@ La vérification porte sur les **en-têtes**, pas sur les lignes : deux secondes
 contre 33 minutes d'import et un miroir à refaire.
 
     /opt/falkye/venv/bin/python outils/verifier_archive_req.py \
-        --chemin /opt/falkye/import/JeuDonnees.zip
+        --chemin /opt/falkye/import
 
 **Attendu : `aucune colonne déclarée absente`.** *Si une colonne sort ici,
 l'import refusera de démarrer et la nommera — vérifier d'abord une virgule
@@ -180,6 +213,10 @@ a changé.*
 
     sudo systemctl start falkye-miroir-req.service
     journalctl -u falkye-miroir-req.service -f
+
+*L'unité pointe sur le RÉPERTOIRE `/opt/falkye/import`, pas sur un fichier : la
+plus récente des archives datées est prise, et la ligne `provenance:` du journal
+dit laquelle et de quand.*
 
 *L'unité est `oneshot`, `TimeoutStartSec=7200`, et n'écrit que
 `/var/lib/falkye`.* **~33 minutes, pic mémoire ~3,5 Go, zéro écriture facturée**

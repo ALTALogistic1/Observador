@@ -53,13 +53,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Import impossible ({exc}). Lancer depuis la racine du dépôt.", file=sys.stderr)
         return 2
 
+    from outils.archives_req import avertissement, ligne_de_provenance, resoudre
+
+    archive = resoudre(args.chemin)
+    if archive is None:
+        print(f"⛔ aucune archive à {args.chemin!r}.", file=sys.stderr)
+        return 2
+
     print("=" * 78)
     print("L'ARCHIVE DU REQ, VÉRIFIÉE SUR SES EN-TÊTES")
     print("=" * 78)
-    print(f"\narchive : {args.chemin}")
+    print(f"\n{ligne_de_provenance(archive)}")
+    vieillissement = avertissement(archive)
+    if vieillissement:
+        print(f"\n{vieillissement}")
 
     try:
-        zf = zipfile.ZipFile(args.chemin)
+        zf = zipfile.ZipFile(archive)
     except (OSError, zipfile.BadZipFile) as exc:
         print(f"\n⛔ archive illisible : {exc}", file=sys.stderr)
         return 2

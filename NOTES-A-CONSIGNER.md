@@ -476,3 +476,72 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
 - **La règle** : *un chargeur qui résout son chemin depuis `__file__` lit le paquet, pas le dépôt.*
   **La question « quelle version le produit lit-il » a une réponse différente de « quelle version
   avons-nous décidée », et rien dans le code ne les rapproche.**
+
+### N24 — L'archive du REQ était supprimée par la chaîne, `if: always()`, pour un motif que la mesure dément
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-chantier-29-persistance.md` *(écrit)*, `docs/MIROIRS.md` *(écrit)*, et
+  `falkye-journal-des-cas.md` pour la forme du défaut.
+- **Ce qui la faisait disparaître** : `.github/workflows/miroir-req.yml`, dernière étape,
+  `rm -f /opt/falkye/import/JeuDonnees.zip`, **avec `if: always()` — donc même quand l'import
+  échouait.** *Le motif écrit à côté : « 267 Mo qui n'ont plus de raison d'être sur un disque de
+  75 Go ».*
+- **La mesure dément le motif** : **66 Go libres**, archive de **267 Mo**, soit ~7 Go par an au rythme
+  de deux semaines. ⚠️ **Et le coût réel était ailleurs, invisible depuis le flux** : chaque mesure
+  demandant l'archive obligeait à la retélécharger — *trois fois en deux jours, et on a changé de
+  méthode chaque fois pour l'éviter.* **Un coût déplacé n'est pas un coût supprimé.**
+- **La décision** *(Alexandre)* : on conserve, **avec la date dans le nom** —
+  `JeuDonnees-2026-09-02.zip`. *Le blocage Cloudflare ne touche que le téléchargement, pas la
+  lecture : une archive déposée est relisible indéfiniment.* **L'import reste manuel; les mesures
+  cessent de l'être.**
+- **Le revers, pris en connaissance de cause, et ce qui le neutralise.** *Une archive conservée
+  vieillit, et rien ne le signalerait* — **c'est le motif de la journée : Laval figé, l'adresse de
+  l'EIMT, la table de prix sans date. Un fichier figé qui ressemble à un fichier vivant.** La date
+  dans le nom le rend **lisible sans qu'on ait à s'en souvenir**, *même forme que la table de prix
+  datée et que la portée imprimée sous le chiffre.*
+- ⚠️ **Trois règles tombées de là, toutes écrites dans `outils/archives_req.py`** : *(1)* la date vient
+  du **nom**, jamais de `mtime` — *un `scp` réécrit la date de modification et l'archive paraîtrait
+  fraîche de jours qu'elle n'a pas*; *(2)* une archive **sans date** n'est pas récente, elle est
+  **d'âge inconnu** — l'absence de mesure n'est pas une mesure nulle; *(3)* **rien n'est purgé
+  automatiquement** — *une rotation silencieuse recréerait le même défaut à l'envers, un fichier qui
+  disparaît sans que personne l'ait décidé.* **L'inventaire rend la croissance lisible; purger reste
+  un geste.**
+- **Et la chaîne REFUSE désormais de partir si l'étiquette de la release ne porte pas de date.**
+  *Déposer une archive sans date serait déposer un fichier d'âge inconnu qui ressemble à un fichier
+  frais* — le refus coûte une seconde, le silence coûterait trois semaines.
+
+### N25 — Le guide officiel du Registraire existe, il est dans l'archive, et personne ne l'avait lu
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-sources-spheres-verifiees.md` (fiche REQ), `falkye-guide-ingenierie.md`.
+- **Le fait** : le jeu de données du REQ porte une **seconde ressource**, `Guide d'utilisation`, un PDF
+  de 21 pages, **servi par Données Québec** (200, contrairement à l'archive elle-même). *Il documente
+  les 37 colonnes d'`Entreprise.csv`, les 7 de `Nom.csv`, le schéma relationnel, et un lexique.*
+- **Ce qu'il tranche en une phrase** *(page 16)* : *« Numéro de 10 chiffres attribué à chaque
+  entreprise au moment de son immatriculation. **Les deux premiers chiffres correspondent à la forme
+  juridique de l'entreprise et sont 11, 22 ou 33.** »* **Le préfixe du NEQ n'est pas un rang, c'est une
+  CATÉGORIE** — ce qui change entièrement la lecture de la plage des absents.
+- ⚠️ **Et il ne couvre pas tout ce que le fichier porte** : la borne haute observée est `8881817611`,
+  donc un préfixe `88`, **hors des trois valeurs documentées**. *À relever, pas à lisser.*
+- **Trois choses que le produit ignore et qui sont dans l'archive** :
+  *(1)* **`DomaineValeur.csv`** — la table code → libellé de tous les domaines. *Le produit lit des
+  codes nus depuis le début.* *(2)* **`COD_INTVAL_EMPLO_QUE`**, décrit comme *« ordre de grandeur du
+  nombre d'employés au Québec »* — **un TROISIÈME indicateur de niveau**, sur le registre entier, à
+  côté de `Capacite` de la RACJ et de la certification OQLF *(N13, N15)*. **Et celui-là couvre toutes
+  les entreprises, pas un secteur.** *(3)* `IND_FAIL`, indicateur de faillite.
+- **La règle** : *une source de données ouvertes publie souvent sa propre documentation comme une
+  ressource à côté du fichier.* **La lire coûte dix minutes; ne pas la lire a coûté trois jours** —
+  la plage `11`–`22` s'interprétait en une phrase.
+
+### N26 — Le piège des deux bases, troisième occurrence, et cette fois il marchait par accident
+- **Notée le** : 2026-09-16
+- **Destination** : `falkye-guide-ingenierie.md`, *à côté de la règle du 9 septembre.*
+- **Le fait** : `UnboundExecutionError` à l'étape 6 de `audit_import_req.py` — un `text()` n'a aucune
+  métadonnée à router, et la session porte deux moteurs dont aucun n'est le défaut.
+- ⚠️ **Ce qui est neuf, et plus inquiétant que la panne** : `trace_un_appariement.py` fait **quatre**
+  `text()` par la même session et **n'a jamais levé**. *Il marchait parce qu'une requête ORM sur
+  `REQEntry` avait déjà ouvert la connexion juste avant.* **Le code était faux et passait, par
+  ACCIDENT D'ORDRE** — un réarrangement innocent l'aurait cassé, et la panne aurait semblé venir du
+  réarrangement.
+- **La règle, plus large que le cas** : *un code qui dépend d'un effet de bord d'ordre n'est pas un
+  code qui marche — c'est un code qui n'a pas encore échoué.* **Corrigé aux cinq endroits**, par
+  `session.connection(bind_arguments={"mapper": …})`, comme `falkye/cout_lectures.py` le fait depuis
+  le 9 septembre.
