@@ -858,3 +858,33 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
 - **La règle** : *un flux qui mêle le passé et le présent sans les distinguer est un instrument qui
   ment par omission.* **Même famille que la table de prix sans date et que l'archive sans date : ce
   qui est figé doit se distinguer de ce qui est vivant.**
+
+### N43 — La chaîne n'a JAMAIS copié les unités, et c'est une propriété de sécurité
+- **Notée le** : 2026-09-16. ⚠️ **EXCEPTION À LA RÈGLE DU TAMPON.**
+- **Destination** : `docs/DEPLOIEMENT.md` *(hors corpus)*, `falkye-chantier-29-persistance.md`,
+  `falkye-journal-des-cas.md` **(cas 35, troisième forme)**.
+- **Le fait** : `.github/workflows/deploiement.yml` fait un `rsync` du dépôt vers
+  `/opt/falkye/code/`. **Les unités y arrivent bien — et systemd lit
+  `/etc/systemd/system/`.** *Rien ne fait le pont.* **Depuis le premier déploiement, les unités de
+  l'hôte sont ce que quelqu'un y a installé à la main, un jour.**
+- ⚠️ **Et ce n'est PAS un oubli à réparer en ajoutant une ligne.** Le fichier de permissions le dit :
+  `deploy` a le droit de **sept actions nommées** sur cinq unités, *« une chaîne compromise peut
+  interrompre le service, jamais lire la base ni les clés d'envoi »*. **Lui donner le droit d'écrire
+  dans `/etc/systemd/system/` lui donnerait celui de faire exécuter n'importe quoi en root** — et les
+  unités, elles, lisent `/etc/falkye/falkye.env`. *La séparation est délibérée; la combler serait un
+  recul.*
+- **Ce qui manquait n'est donc pas la copie, c'est la DÉTECTION.** *Lire ne demande aucun privilège* —
+  `systemctl cat` est ouvert à tous. **La chaîne peut constater la dérive même sans le droit de la
+  corriger**, et c'est le seul trou réel.
+- **La règle, et elle est plus large que systemd** : *quand une chaîne automatique n'a
+  délibérément PAS le droit de corriger quelque chose, elle doit avoir le devoir de le CONSTATER.*
+  **Sinon l'interdiction de corriger devient une interdiction de savoir.**
+- ⚠️ **Et ma garde `tests/test_unites_systemd.py` ne l'aurait pas vu** *(Alexandre l'a relevé)* :
+  **elle lit les unités du DÉPÔT.** *Elle vérifie ce qu'on a décidé, pas ce que l'hôte fait.* **Les
+  deux gardes sont nécessaires et ne se remplacent pas** — l'une empêche d'écrire une mauvaise unité,
+  l'autre empêche de croire qu'une bonne unité est installée.
+- **L'instrument** : `outils/ecart_unites_hote.py`, à lancer **sur l'hôte**. Trois écarts distincts,
+  *qui ne se soignent pas pareil* : unité absente, directives divergentes, **drop-in que le dépôt
+  ignore** *(le cas 36 — `systemctl cat` les montre, lire le fichier seul les rate)*. Il compare les
+  **directives**, jamais les commentaires : *une garde qui crie pour une reformulation finit par être
+  ignorée.*
