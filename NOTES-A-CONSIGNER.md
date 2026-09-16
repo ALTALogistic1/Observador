@@ -1160,3 +1160,45 @@ vue si `champs` s'élargit un jour.
 **toutes** les apparitions et modifications en dictionnaires, plus l'archive. *Ce n'est pas une
 pente, c'est une falaise* — et c'est un réimport qui change beaucoup de lignes qui la déclenche.
 **Le même raisonnement la neutralise ici**, pour la même raison.
+
+### N55 — Le repli silencieux, une porte plus loin : l'archive du diff
+
+**Le fait** *(2026-09-16)*. Le correctif mémoire tient — **3,9 Go de pic contre 7,37**, proche des
+3 640 calculés. **Mais l'import est mort ailleurs :**
+
+```
+File "falkye/diff_engine.py", line 419, in _archiver_snapshot
+OSError: [Errno 30] Read-only file system: 'cache'
+```
+
+`FALKYE_DIFF_ARCHIVE_DIR` n'était posée nulle part, et le repli `./cache/diff_archive` est
+**relatif au répertoire courant** — `/opt/falkye/code/cache` sous l'unité, que
+`ProtectSystem=strict` rend en lecture seule.
+
+⚠️ **C'est exactement le repli de la base, une porte plus loin** *(cas 41)* : un chemin par défaut
+qui a l'air de marcher. **Et sur une machine où le répertoire courant est inscriptible, il n'aurait
+rien dit du tout** — 679 Mo déposés à côté du code, perdus au déploiement suivant. *C'est ce que la
+suite de tests faisait* : `cache/diff_archive/` existait dans l'arbre de travail, invisible parce
+que `/cache/` est ignoré par git.
+
+**Ce qui avait été mal jugé le matin.** Le défaut avait été noté, puis écarté « parce que
+l'archivage n'est jamais appelé ». **Faux** : `executer_diff` appelle `_archiver_snapshot` sur le
+**chemin accepté normalement** *(ligne 920)*, pas seulement en quarantaine. *Trois des quatre
+appels sont des quarantaines, et c'est le quatrième qui tourne tous les jours.* **Compter les
+points d'appel n'est pas mesurer lequel s'exécute.**
+
+**LA RÈGLE, et elle est la moitié manquante du cas 41.** *Un refus posé au moment d'écrire coûte
+tout le travail qui précède.* L'import a lu 2,7 millions de lignes, chargé l'état précédent,
+calculé le diff — **puis** a refusé. `verifier_cible_archive()` est donc appelée **en tête
+d'`executer_diff`**, et vérifie aussi que le répertoire est *inscriptible* : un chemin choisi mais
+confiné échoue comme un chemin non choisi, et l'`Errno 30` ne nomme ni la variable ni la directive.
+
+**Le fichier d'environnement, pas les unités.** Les quatre unités chargent déjà
+`/etc/falkye/falkye.env` et déclarent toutes `ReadWritePaths=/var/lib/falkye`. *Une ligne au
+fichier couvre les quatre; recopiée dans chacune, elle manquerait à la cinquième* — le cas 41, mot
+pour mot.
+
+⚠️ **Et un coût que personne n'avait chiffré : 679 Mo par exécution × 5 générations = jusqu'à
+3,4 Go** dans `/var/lib/falkye`, à côté du miroir. *Trois commentaires d'unité disaient que
+`/var/lib/falkye` ne portait que « le fichier des miroirs » ou « les miroirs ET l'état de diff ».
+Ils étaient faux, et corrigés.*

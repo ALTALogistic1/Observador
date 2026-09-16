@@ -82,9 +82,17 @@ from falkye.models.etat_diff_source import EtatLigneSource, EtatSchemaSource
 
 logger = logging.getLogger(__name__)
 
-# Même convention que falkye/sources/ckan_client.py::CACHE_DIR — surchargeable
-# par variable d'environnement pour les tests/déploiements.
-ARCHIVE_DIR = Path(os.environ.get("FALKYE_DIFF_ARCHIVE_DIR", "./cache/diff_archive"))
+#: Le repli, nommé pour pouvoir être REFUSÉ. *Tant qu'il n'avait pas de nom, il
+#: n'était qu'une chaîne dans un `os.environ.get` — impossible de dire « personne
+#: n'a choisi » sans la recopier.* Même motif que `DEFAULT_MIROIR_DB_URL`.
+DOSSIER_ARCHIVE_PAR_DEFAUT = Path("./cache/diff_archive")
+
+# Surchargeable par variable d'environnement pour les tests et les déploiements.
+# ⚠️ LU À L'IMPORT : une variable posée après le chargement du module n'a aucun
+# effet. Les tests surchargent l'ATTRIBUT (`monkeypatch.setattr(diff_engine,
+# "ARCHIVE_DIR", ...)`), pas l'environnement — et c'est pour ça que la garde
+# ci-dessous compare la VALEUR au repli plutôt que de relire `os.environ`.
+ARCHIVE_DIR = Path(os.environ.get("FALKYE_DIFF_ARCHIVE_DIR", DOSSIER_ARCHIVE_PAR_DEFAUT))
 GENERATIONS_CONSERVEES = 5  # "un petit nombre de générations suffit" (mandat)
 
 # Insertion en LOT (SQLAlchemy Core, jamais un ORM par ligne) pour le run de
@@ -411,10 +419,71 @@ def _champs_precedents(
     return trouves
 
 
+class ArchiveSansCible(RuntimeError):
+    """Personne n'a choisi où l'archive du diff est écrite.
+
+    **Le fait qui a écrit cette classe** *(2026-09-16)*. `FALKYE_DIFF_ARCHIVE_DIR`
+    n'était posée nulle part, donc le chemin retombait sur `./cache/diff_archive`
+    — **relatif au répertoire courant**, c'est-à-dire `/opt/falkye/code/cache`
+    sous l'unité, que `ProtectSystem=strict` rend en lecture seule :
+
+        OSError: [Errno 30] Read-only file system: 'cache'
+
+    *C'est le repli silencieux de la base, une porte plus loin* : un chemin par
+    défaut qui a l'air de marcher, et qui écrit ailleurs que là où on croit.
+    **Sur une machine où le répertoire courant est inscriptible, il n'aurait rien
+    dit du tout** — il aurait déposé 679 Mo à côté du code et les aurait perdus
+    au déploiement suivant.
+    """
+
+
+def verifier_cible_archive() -> None:
+    """Refuse EN TÊTE d'exécution si l'archive n'a pas de cible choisie.
+
+    ⚠️ **En tête, et pas au moment d'écrire.** L'archivage est le dernier geste
+    du chemin accepté : le 16 septembre, l'import a lu 2,7 millions de lignes,
+    chargé l'état précédent, calculé le diff — **puis est mort sur un `mkdir`**.
+    *Une garde qui parle après le travail fait coûte le travail.*
+
+    Vérifie aussi que le répertoire est **inscriptible** : un chemin choisi mais
+    confiné par l'unité échouerait exactement comme un chemin non choisi, et
+    l'`Errno 30` ne nomme ni la variable ni la directive qui l'interdit.
+    """
+    if ARCHIVE_DIR == DOSSIER_ARCHIVE_PAR_DEFAUT:
+        raise ArchiveSansCible(
+            "FALKYE_DIFF_ARCHIVE_DIR n'est pas posée, et le repli "
+            f"« {DOSSIER_ARCHIVE_PAR_DEFAUT} » est RELATIF au répertoire courant.\n"
+            "  Sous une unité systemd, ProtectSystem=strict le rend en lecture "
+            "seule : l'import meurt après tout le travail.\n"
+            "  Ailleurs, il écrit 679 Mo à côté du code, sans rien dire.\n"
+            "  Sur l'hôte : la ligne va dans /etc/falkye/falkye.env, à côté de "
+            "FALKYE_MIROIR_DB_URL —\n"
+            "    FALKYE_DIFF_ARCHIVE_DIR=/var/lib/falkye/diff_archive"
+        )
+    try:
+        ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+        temoin = ARCHIVE_DIR / ".temoin-ecriture"
+        temoin.touch()
+        temoin.unlink(missing_ok=True)
+    except OSError as exc:
+        raise ArchiveSansCible(
+            f"FALKYE_DIFF_ARCHIVE_DIR désigne « {ARCHIVE_DIR} », qui n'est pas "
+            f"inscriptible : {exc}\n"
+            "  Si l'exécution est sous une unité systemd, vérifier que "
+            "ReadWritePaths= couvre ce chemin.\n"
+            "  Le chemin et le droit d'y écrire sont deux moitiés d'une même "
+            "déclaration : l'un sans l'autre échoue."
+        ) from exc
+
+
 def _archiver_snapshot(source_id: str, lignes: list[LigneSnapshot]) -> str:
     """Conserve le fichier brut de CETTE exécution — pour pouvoir inspecter un
     diff suspect après coup (mandat). Rotation : ne garde que les
     GENERATIONS_CONSERVEES dernières par source."""
+    # La même garde qu'en tête d'exécution, pour les appelants directs (tests,
+    # rejeu d'une quarantaine). *Une garde posée à un seul endroit protège ce
+    # chemin-là* — c'est le cas 41, et il a coûté quinze outils.
+    verifier_cible_archive()
     dossier = ARCHIVE_DIR / source_id
     dossier.mkdir(parents=True, exist_ok=True)
     horodatage = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
@@ -655,6 +724,11 @@ def executer_diff(
     pas être invoqué autrement. Optionnel pour rester compatible avec un
     appelant qui préfère encore inspecter `rapport` lui-même (ex. un script
     de migration ponctuel, hors périmètre de cette garantie)."""
+    # LA CIBLE DE L'ARCHIVE, VÉRIFIÉE AVANT TOUT TRAVAIL. Le 2026-09-16,
+    # l'import du REQ a lu 2,7 millions de lignes, chargé l'état précédent et
+    # calculé le diff — puis est mort sur le `mkdir` de l'archivage. Trente
+    # minutes pour apprendre qu'une variable d'environnement manquait.
+    verifier_cible_archive()
     seuils_declares = seuils or SEUILS_DEFAUT
     rapport = RapportExecution(source_id=source_id, nb_lignes_actuelles=len(lignes))
 
