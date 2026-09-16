@@ -47,6 +47,8 @@ Usage :
 """
 from __future__ import annotations
 
+from outils.nombres import milliers
+
 import argparse
 import sys
 from collections import Counter
@@ -178,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
         print("1. LES COMPTES — posés en SQL, sans interprétation")
         print("-" * 78)
         total = session.execute(select(func.count()).select_from(REQEntry)).scalar() or 0
-        print(f"   lignes au miroir                   : {total:,}".replace(",", " "))
+        print(f"   lignes au miroir                   : {milliers(total)}")
         for libelle, condition in [
             ("nom_normalise IS NULL", "nom_normalise IS NULL"),
             ("nom_normalise = ''", "nom_normalise = ''"),
@@ -187,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
         ]:
             n = session.execute(text(f"SELECT count(*) FROM req_entries WHERE {condition}")).scalar() or 0
             part = f"  ({100 * n / total:.1f} %)" if total else ""
-            print(f"   {libelle:<35}: {n:,}".replace(",", " ") + part)
+            print(f"   {libelle:<35}: {milliers(n)}" + part)
 
         # ⚠️ `typeof()` : si la colonne porte des BLOB plutôt que du TEXT, GLOB ne
         # peut PAS les apparier (SQLite compare les types), et Python les relit en
@@ -196,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
         for typ, n in session.execute(
             text("SELECT typeof(nom_normalise) AS t, count(*) FROM req_entries GROUP BY t")
         ):
-            print(f"      {str(typ):<10} {n:,}".replace(",", " "))
+            print(f"      {str(typ):<10} {milliers(n)}")
 
         # --- 2. la distribution des longueurs --------------------------------
         print("\n" + "-" * 78)
@@ -214,7 +216,7 @@ def main(argv: list[str] | None = None) -> int:
             " FROM req_entries GROUP BY tranche ORDER BY 2 DESC"
         )):
             part = f"  ({100 * n / total:.1f} %)" if total else ""
-            print(f"   {libelle:<34} {n:,}".replace(",", " ") + part)
+            print(f"   {libelle:<34} {milliers(n)}" + part)
 
         # --- 3. LA CONTRADICTION ---------------------------------------------
         print("\n" + "-" * 78)

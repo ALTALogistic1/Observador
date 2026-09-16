@@ -33,6 +33,8 @@ Usage, SUR L'HÔTE :
 """
 from __future__ import annotations
 
+from outils.nombres import milliers
+
 import argparse
 import csv
 import io
@@ -108,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
             t = (row.get("TYP_NOM_ASSUJ") or "").strip() or "(vide)"
             par_type[t] = par_type.get(t, 0) + 1
             if lignes % 1_000_000 == 0:
-                print(f"   … {lignes:,} lignes lues".replace(",", " "), flush=True)
+                print(f"   … {milliers(lignes)} lignes lues", flush=True)
 
     attendu = len(vues)
 
@@ -117,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     print("-" * 78)
     def ligne(libelle: str, n: int) -> None:
         part = 100 * n / lignes if lignes else 0.0
-        print(f"   {libelle:<48} {n:>9,}  {part:>5.1f} %".replace(",", " "))
+        print(f"   {libelle:<48} {n:>9,}  {part:>5.1f} %")
 
     ligne("lignes de Nom.csv", lignes)
     ligne("  NEQ ou NOM vide", vides)
@@ -129,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     if par_type:
         print("\n   par type de nom (parmi les paires retenues) :")
         for t, n in sorted(par_type.items(), key=lambda kv: -kv[1])[:8]:
-            print(f"      {t:<10} {n:>9,}".replace(",", " "))
+            print(f"      {t:<10} {n:>9,}")
 
     print("\n" + "-" * 78)
     print("CE QUE LA TABLE PORTE VRAIMENT")
@@ -151,13 +153,13 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         session.close()
 
-    print(f"\n   count(*) sur req_noms : {reel:,}".replace(",", " "))
-    print(f"   attendu par l'archive : {attendu:,}".replace(",", " "))
+    print(f"\n   count(*) sur req_noms : {milliers(reel)}")
+    print(f"   attendu par l'archive : {milliers(attendu)}")
     ecart = reel - attendu
     if ecart == 0:
         print("\n   ✅ IDENTIQUES — la table porte exactement ce que l'archive donne.")
     else:
-        print(f"\n   ⚠️ ÉCART DE {ecart:+,}".replace(",", " "))
+        print(f"\n   ⚠️ ÉCART DE {ecart:+,}")
         print("      Un écart NÉGATIF veut dire que des lignes envoyées n'ont pas")
         print("      atterri — `OR IGNORE` absorbe en silence. Un écart POSITIF")
         print("      veut dire que la table porte des restes d'un import antérieur :")

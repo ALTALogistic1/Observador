@@ -27,6 +27,8 @@ Le rapport part sur la sortie standard, donc dans le journal du service.
 """
 from __future__ import annotations
 
+from outils.nombres import milliers
+
 import argparse
 import hashlib
 import os
@@ -258,8 +260,8 @@ def main(argv: list[str] | None = None) -> int:
         # taire la comparaison.
         print("mémoire hôte : non lisible (/proc/meminfo absent) — marge INCONNUE",
               flush=True)
-    print(f"entrées      : {total:,}".replace(",", " "), flush=True)
-    print(f"avec ville   : {avec_ville:,} ({part_ville:.1f} %)".replace(",", " "), flush=True)
+    print(f"entrées      : {milliers(total)}", flush=True)
+    print(f"avec ville   : {milliers(avec_ville)} ({part_ville:.1f} %)", flush=True)
     # LE PONT DES NOMS, DANS LE RAPPORT IMPRIMÉ. Il était journalisé par
     # `logger.info` dans falkye/sources/req.py — **et rien ne configurait le
     # journal** : sans gestionnaire, le logger racine est à WARNING, donc la
@@ -267,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
     # noms et `grep req_noms` ne rendait rien.* **Une ligne de contrôle qui ne
     # s'imprime pas ne contrôle rien**, et son absence se lit comme « la passe
     # n'a pas tourné ».
-    print(f"noms du pont : {noms_du_pont:,} en vigueur dans req_noms".replace(",", " "),
+    print(f"noms du pont : {milliers(noms_du_pont)} en vigueur dans req_noms",
           flush=True)
     if total and not noms_du_pont:
         # Pas une erreur de sortie : le miroir des entrées EST chargé. Mais une

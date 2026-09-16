@@ -42,6 +42,8 @@ Usage, SUR L'HÔTE :
 """
 from __future__ import annotations
 
+from outils.nombres import milliers
+
 import argparse
 from collections import defaultdict
 
@@ -78,8 +80,8 @@ def main(argv: list[str] | None = None) -> int:
         sans_neq = session.execute(
             select(func.count()).select_from(Company).where(Company.neq.is_(None))
         ).scalar() or 0
-        print(f"   dossiers au total      : {total:,}".replace(",", " "))
-        print(f"   dont sans NEQ          : {sans_neq:,}".replace(",", " "))
+        print(f"   dossiers au total      : {milliers(total)}")
+        print(f"   dont sans NEQ          : {milliers(sans_neq)}")
 
         # --- FAMILLE 1 : graphie identique -----------------------------------
         print("\n" + "-" * 78)
@@ -92,9 +94,9 @@ def main(argv: list[str] | None = None) -> int:
             .order_by(func.count().desc())
         ).all()
         dossiers_1 = sum(n for _, n in groupes)
-        print(f"\n   groupes                : {len(groupes):,}".replace(",", " "))
-        print(f"   dossiers impliqués     : {dossiers_1:,}".replace(",", " "))
-        print(f"   dossiers EN TROP       : {dossiers_1 - len(groupes):,}".replace(",", " "))
+        print(f"\n   groupes                : {milliers(len(groupes))}")
+        print(f"   dossiers impliqués     : {milliers(dossiers_1)}")
+        print(f"   dossiers EN TROP       : {milliers(dossiers_1 - len(groupes))}")
         for nom_norm, n in groupes[: args.exemples]:
             membres = session.execute(
                 select(Company).where(Company.nom_detecte_normalise == nom_norm)
@@ -124,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
                 mixtes += 1
                 if len(exemples_3) < args.exemples:
                     exemples_3.append((nom_norm, resolus, orphelins))
-        print(f"   groupes MIXTES         : {mixtes:,}".replace(",", " "))
+        print(f"   groupes MIXTES         : {milliers(mixtes)}")
         for nom_norm, resolus, orphelins in exemples_3:
             print(f"\n   « {nom_norm} »")
             for c in resolus:
@@ -160,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
         scores_par_paire: dict[tuple[int, int], float] = {}
         for i, company in enumerate(orphelins):
             if i and i % 1000 == 0:
-                print(f"   … {i:,} dossiers examinés".replace(",", " "), flush=True)
+                print(f"   … {milliers(i)} dossiers examinés", flush=True)
             meilleur = trouver_meilleur_candidat_fusion(
                 session, company.nom_detecte_normalise, company.ville,
                 exclure_id=company.id,
@@ -195,12 +197,12 @@ def main(argv: list[str] | None = None) -> int:
             dossiers_flous += len(groupe)
 
         auto = sum(1 for s in scores_par_paire.values() if s >= SEUIL_FUSION_AUTO)
-        print(f"\n   dossiers examinés      : {len(orphelins):,}".replace(",", " "))
-        print(f"   paires trouvées        : {len(paires):,}".replace(",", " "))
-        print(f"   groupes connexes       : {groupes_flous:,}".replace(",", " "))
-        print(f"   dossiers impliqués     : {dossiers_flous:,}".replace(",", " "))
-        print(f"   dossiers EN TROP       : {dossiers_flous - groupes_flous:,}".replace(",", " "))
-        print(f"   dont score ≥ {SEUIL_FUSION_AUTO:.0f}       : {auto:,} paire(s)".replace(",", " "))
+        print(f"\n   dossiers examinés      : {milliers(len(orphelins))}")
+        print(f"   paires trouvées        : {milliers(len(paires))}")
+        print(f"   groupes connexes       : {milliers(groupes_flous)}")
+        print(f"   dossiers impliqués     : {milliers(dossiers_flous)}")
+        print(f"   dossiers EN TROP       : {milliers(dossiers_flous - groupes_flous)}")
+        print(f"   dont score ≥ {SEUIL_FUSION_AUTO:.0f}       : {milliers(auto)} paire(s)")
 
         for paire, score in sorted(scores_par_paire.items(), key=lambda kv: -kv[1])[: args.exemples]:
             a, b = (session.get(Company, paire[0]), session.get(Company, paire[1]))

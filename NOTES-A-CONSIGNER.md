@@ -1393,3 +1393,57 @@ croit la contrainte responsable du sujet entier.*
 ⚠️ **La famille 2 sous-compte, et c'est écrit dans l'outil** : la fonction rend le MEILLEUR
 candidat, donc un groupe de trois est vu comme des paires. *Le chiffre est un plancher* — et c'est
 celui que le produit voit lui-même, ce qui est la mesure honnête de ce qu'il rate.
+
+### N65 — L'hypothèse la plus coûteuse était un appel de fonction, pas une règle
+
+**La direction tranchée par Alexandre** *(2026-09-16)* : **un dossier peut porter plusieurs noms,
+aucun nom ne se perd, et la fusion reste écartée.** Le miroir permet plusieurs noms par NEQ
+(1 505 879 paires, 41,7 % du registre); le dossier n'en permet qu'un. *Le produit suppose qu'une
+entreprise n'est nommée que d'une façon, et le registre dit le contraire.*
+
+**Le recensement du coût dit l'inverse de ce que le chiffre brut annonce.** 55 lectures de
+`nom_detecte` dans `falkye/`, mais :
+
+- **≈ 47 sont de l'AFFICHAGE, et ne bougent pas** — l'idiome est déjà
+  `company.nom_officiel_req or company.nom_detecte`. *La règle du 15 septembre (« le portrait
+  affiche le nom légal du registre ») est ce qui les rend immobiles.*
+- **≈ 6 sont de la RECHERCHE, et les élargir EST le gain.**
+- **2 sont de l'ÉCRITURE.**
+
+⚠️ **Le vrai coût n'est aucun des trois : c'est une ligne.**
+
+```python
+trouve = db_session.execute(requete_nom_exact(nom_norm)).scalar_one_or_none()
+```
+
+**`scalar_one_or_none()` LÈVE si deux dossiers non résolus portent le même nom normalisé.** Le
+chemin de production y passe à chaque signal non résolu. *Un dossier qui gagne un nom peut se
+mettre à porter le nom d'un autre dossier* — et l'exception arriverait en production, pas en test.
+
+**LA RÈGLE, et elle vaut plus que la structure proposée.** *Les hypothèses les plus coûteuses à
+défaire ne sont pas celles qu'on a écrites comme règles : ce sont celles qu'on a écrites comme
+appels de fonction.* **Une règle du corpus se relit et se discute. Un `scalar_one_or_none()` se
+découvre en le cassant.**
+
+**Et la réponse à « quelle règle du corpus dois-je défaire » est : aucune.** Le portrait est
+renforcé, la règle de `req_noms` (« la table sert à TROUVER, jamais à NOMMER ») est étendue mot pour
+mot, la conservation et l'ancienneté sont intactes. *Ce qui change vit en dessous du corpus.*
+
+### N66 — Une transformation destinée à une valeur s'appliquait à toute la ligne
+
+**Le fait.** L'idiome répandu dans `outils/` était `f"… {n:,}".replace(",", " ")`. ⚠️ **`.replace`
+porte sur la LIGNE, pas sur le nombre** : « PERDUS, NEQ déjà porté » sortait « PERDUS  NEQ déjà
+porté ».
+
+**Trouvé par un test qui cherchait un libellé et ne l'a pas trouvé** — dans un outil écrit le jour
+même. *Et il traînait déjà dans `purge_hors_territoire.py` et `entonnoir_noms_req.py`, livrés
+depuis des jours, où personne ne l'avait vu* — **parce qu'on lit les chiffres d'un rapport, jamais
+sa ponctuation.**
+
+**LA RÈGLE. Une transformation destinée à UNE valeur ne s'applique pas à la ligne qui la
+contient.** *La ligne n'est pas la valeur* — et le jour où le libellé change, la sortie change sans
+que le code ait bougé. `outils/nombres.py::milliers` formate la valeur seule; 12 outils corrigés,
+et `tests/test_format_des_nombres.py` refuse le retour de l'idiome.
+
+*Le séparateur est l'espace insécable étroite (U+202F) : une espace ordinaire laisserait un nombre
+se couper en fin de ligne, et un nombre coupé se relit comme deux.*

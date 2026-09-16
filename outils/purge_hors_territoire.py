@@ -28,6 +28,8 @@ d'une suppression n'existe pas.
 """
 from __future__ import annotations
 
+from outils.nombres import milliers
+
 import argparse
 import sys
 
@@ -112,9 +114,9 @@ def main(argv: list[str] | None = None) -> int:
 
         print(f"source                : {args.source}")
         print(f"territoire déclaré    : {args.territoire}")
-        print(f"état avant            : {avant_e:,} entreprises, {avant_s:,} signaux".replace(",", " "))
-        print(f"à supprimer           : {len(a_supprimer):,} entreprises, {nb_signaux:,} signaux".replace(",", " "))
-        print(f"CONSERVÉES (autre src): {len(conservees):,}".replace(",", " "))
+        print(f"état avant            : {milliers(avant_e)} entreprises, {milliers(avant_s)} signaux")
+        print(f"à supprimer           : {milliers(len(a_supprimer))} entreprises, {milliers(nb_signaux)} signaux")
+        print(f"CONSERVÉES (autre src): {milliers(len(conservees))}")
 
         if not args.appliquer:
             print("\n(compté seulement — relancer avec --appliquer pour supprimer)")
@@ -150,15 +152,15 @@ def main(argv: list[str] | None = None) -> int:
             ).rowcount or 0
             session.commit()
             if i % 10 == 0:
-                print(f"  ... {efface_ent:,} entreprises retirées".replace(",", " "), flush=True)
+                print(f"  ... {milliers(efface_ent)} entreprises retirées", flush=True)
 
         apres_e = session.execute(select(func.count()).select_from(Company)).scalar()
         apres_s = session.execute(select(func.count()).select_from(Signal)).scalar()
         print("\n--- SUPPRESSION APPLIQUÉE ---")
-        print(f"journal de diagnostic : {efface_diag:,} ligne(s)".replace(",", " "))
-        print(f"signaux               : {efface_sig:,}".replace(",", " "))
-        print(f"entreprises           : {efface_ent:,}".replace(",", " "))
-        print(f"état après            : {apres_e:,} entreprises, {apres_s:,} signaux".replace(",", " "))
+        print(f"journal de diagnostic : {milliers(efface_diag)} ligne(s)")
+        print(f"signaux               : {milliers(efface_sig)}")
+        print(f"entreprises           : {milliers(efface_ent)}")
+        print(f"état après            : {milliers(apres_e)} entreprises, {milliers(apres_s)} signaux")
         return 0
     finally:
         session.close()

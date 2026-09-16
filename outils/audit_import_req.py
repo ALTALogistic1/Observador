@@ -54,6 +54,8 @@ Usage :
 """
 from __future__ import annotations
 
+from outils.nombres import milliers
+
 import argparse
 import csv
 import io
@@ -150,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         membres = zf.infolist()
         for info in sorted(membres, key=lambda i: -i.file_size):
             marque = "  ←" if info.filename in CSV_ATTENDUS else ""
-            print(f"      {info.file_size:>14,}".replace(",", " ")
+            print(f"      {info.file_size:>14,}"
                   + f"  {info.filename}{marque}")
         familles = Counter(re.sub(r"[_-]?\d+(?=\.csv$)", "", m.filename) for m in membres)
         scindes = {n: c for n, c in familles.items() if c > 1}
@@ -191,8 +193,8 @@ def main(argv: list[str] | None = None) -> int:
             neqs_par_fichier[nom_csv] = neqs
             lignes_par_fichier[nom_csv] = lignes
             print(f"\n   {nom_csv}")
-            print(f"      lignes        : {lignes:,}".replace(",", " "))
-            print(f"      NEQ distincts : {len(neqs):,}".replace(",", " "))
+            print(f"      lignes        : {milliers(lignes)}")
+            print(f"      NEQ distincts : {milliers(len(neqs))}")
             print(f"      en-tête       : {len(_en_tete_csv(zf, nom_csv))} colonne(s)")
 
         # --- 3. la série, à trois étages -------------------------------------
@@ -202,11 +204,11 @@ def main(argv: list[str] | None = None) -> int:
         noms = _charger_index_noms(zf)
         elus_serie = {neq: n for neq, n in noms.items() if serie_du_nom(n) == args.serie}
         neqs_serie_fichier = {neq for neq, _ in noms_de_la_serie if neq}
-        print(f"\n   dans Nom.csv (toutes lignes)   : {len(noms_de_la_serie):,}".replace(",", " "))
-        print(f"   NEQ distincts porteurs         : {len(neqs_serie_fichier):,}".replace(",", " "))
-        print(f"   dans l'index des noms ÉLUS     : {len(elus_serie):,}".replace(",", " "))
+        print(f"\n   dans Nom.csv (toutes lignes)   : {milliers(len(noms_de_la_serie))}")
+        print(f"   NEQ distincts porteurs         : {milliers(len(neqs_serie_fichier))}")
+        print(f"   dans l'index des noms ÉLUS     : {milliers(len(elus_serie))}")
         perdus_a_lelection = neqs_serie_fichier - set(elus_serie)
-        print(f"   perdus à l'ÉLECTION du nom     : {len(perdus_a_lelection):,}".replace(",", " "))
+        print(f"   perdus à l'ÉLECTION du nom     : {milliers(len(perdus_a_lelection))}")
         if perdus_a_lelection:
             print("      ⚠️ Ces NEQ portent un nom de la série dans Nom.csv, mais le nom")
             print("         ÉLU pour eux est un autre — l'entreprise existe au miroir")
@@ -245,8 +247,8 @@ def main(argv: list[str] | None = None) -> int:
         total = sum(causes.values())
         for cause, combien in causes.most_common():
             part = f"  ({100 * combien / total:.2f} %)" if total else ""
-            print(f"      {combien:>10,}".replace(",", " ") + f"  {cause}{part}")
-        print(f"\n   entreprises RETENUES : {len(retenus):,}".replace(",", " "))
+            print(f"      {combien:>10,}" + f"  {cause}{part}")
+        print(f"\n   entreprises RETENUES : {milliers(len(retenus))}")
         if abandons_serie:
             print(f"\n   ⚠️ {len(abandons_serie)} NEQ de la série {args.serie} sont ABANDONNÉS")
             print("      faute de nom dans l'index. C'est la cause « l'import filtre ».")
@@ -265,12 +267,12 @@ def main(argv: list[str] | None = None) -> int:
         ):
             profil = profil_de_coupure(ensemble)
             print(f"\n   {libelle}")
-            print(f"      {profil['n']:,}".replace(",", " ")
+            print(f"      {milliers(profil['n'])}"
                   + f"   de {profil['min']} à {profil['max']}")
         sans_nom = neqs_par_fichier["Entreprise.csv"] - set(noms)
         if sans_nom:
             profil = profil_de_coupure(sans_nom)
-            print(f"\n   NEQ d'Entreprise.csv SANS nom élu : {profil['n']:,}".replace(",", " "))
+            print(f"\n   NEQ d'Entreprise.csv SANS nom élu : {milliers(profil['n'])}")
             print(f"      de {profil['min']} à {profil['max']}")
             print("\n      ⚠️ Lecture : si ces NEQ sont TOUS au-dessus d'un seuil, le")
             print("         parcours de Nom.csv s'est arrêté — c'est « l'import s'arrête ».")
@@ -319,11 +321,11 @@ def main(argv: list[str] | None = None) -> int:
                 text("SELECT count(*) FROM req_entries WHERE nom LIKE :m"),
                 {"m": f"{args.serie}-%"},
             ).scalar() or 0
-            print(f"\n   entrées au miroir              : {total_miroir:,}".replace(",", " "))
-            print(f"   entreprises RETENUES à l'import : {len(retenus):,}".replace(",", " "))
+            print(f"\n   entrées au miroir              : {milliers(total_miroir)}")
+            print(f"   entreprises RETENUES à l'import : {milliers(len(retenus))}")
             ecart = len(retenus) - total_miroir
             if ecart:
-                print(f"\n   ⚠️ ÉCART DE {ecart:+,}".replace(",", " ")
+                print(f"\n   ⚠️ ÉCART DE {ecart:+,}"
                       + " entre ce que l'import retient et ce que le miroir porte.")
                 print("      L'import a donc été interrompu, ou le miroir a été écrit")
                 print("      par une autre exécution que celle-ci.")
