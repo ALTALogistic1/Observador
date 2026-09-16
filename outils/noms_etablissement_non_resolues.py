@@ -40,7 +40,7 @@ l'adresse, qui n'est pas construite.
 d'écrit. Le compte est un **plancher**.
 
 Usage :
-    python3 outils/profil_des_6176.py --chemin /opt/falkye/import
+    python3 outils/noms_etablissement_non_resolues.py --chemin /opt/falkye/import
 """
 from __future__ import annotations
 
@@ -79,8 +79,24 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 78)
     print("⚠️ PÉRIMÈTRE DE CETTE MESURE — à lire avant les chiffres")
     print("=" * 78)
-    print("   Elle cherche les entreprises SANS NEQ dans `NOM_ETAB`")
-    print("   (Etablissements.csv), troisième gisement de noms de l'archive REQ.")
+    print("   Elle LIT toutes les entreprises sans NEQ — la MÊME requête que")
+    print("   `diagnostic_appariement.py` :")
+    print()
+    print("       select(Company).where(Company.neq.is_(None))")
+    print()
+    print("   ⚠️ MAIS elle n'en MESURE qu'un sous-ensemble, qu'elle découpe")
+    print("      elle-même à l'exécution : celles dont le nom normalisé est")
+    print("      ABSENT de `Nom.csv` — les autres sont déjà réglées par le pont.")
+    print("      Les deux comptes sont imprimés ci-dessous, et c'est le second")
+    print("      qui est mesuré.")
+    print()
+    print("   ⚠️ ET LE DÉCOUPAGE SE FAIT PAR NOM NORMALISÉ, PAS PAR DOSSIER.")
+    print("      Deux dossiers de graphie identique comptent pour une forme.")
+    print("      Un compte de formes et un compte de dossiers ne sont pas le")
+    print("      même nombre, et le second est le plus grand.")
+    print()
+    print("   Elle cherche ces restantes dans `NOM_ETAB` (Etablissements.csv),")
+    print("   troisième gisement de noms de l'archive REQ.")
     print()
     print("   CE QU'ELLE NE COUVRE PAS :")
     print("     • les entités PUBLIQUES — le REQ est le registre des entités")
@@ -156,8 +172,21 @@ def main(argv: list[str] | None = None) -> int:
                     if forme in non_resolues:
                         deja_pontees.add(forme)
             restantes = {f: c for f, c in non_resolues.items() if f not in deja_pontees}
-            print(f"\n   non résolues            : {sum(len(v) for v in non_resolues.values())}")
-            print(f"   réglées par le pont     : {sum(len(non_resolues[f]) for f in deja_pontees)}")
+            # ⚠️ Les deux comptes sont imprimés, et chacun dit s'il compte des
+            # DOSSIERS ou des FORMES. *Un compte qui ne dit pas son unité se lit
+            # dans l'unité que le lecteur a en tête* — et celle du plan est le
+            # dossier.
+            n_dossiers = sum(len(v) for v in non_resolues.values())
+            n_formes = len(non_resolues)
+            n_pontees = sum(len(non_resolues[f]) for f in deja_pontees)
+            n_restantes = sum(len(v) for v in restantes.values())
+            print(f"\n   LU  — dossiers sans NEQ          : {n_dossiers}")
+            print(f"         formes distinctes           : {n_formes}")
+            print(f"   dont réglées par le pont         : {n_pontees} dossier(s)")
+            print(f"   MESURÉ — restantes               : {n_restantes} dossier(s)"
+                  f", {len(restantes)} forme(s)")
+            print(f"\n   ⚠️ CE QUI SUIT NE PORTE QUE SUR CES {n_restantes} DOSSIERS.")
+            print(f"      Les {n_pontees} autres ne sont couvertes par aucune mesure ici.")
             print(f"   RESTANTES à expliquer   : {sum(len(v) for v in restantes.values())}")
 
             # Passe 2 — NOM_ETAB.
