@@ -1504,3 +1504,54 @@ publique » n'a pas de sens défini.
 
 **LA RÈGLE. Poser une valeur par défaut pour avancer, c'est trancher une décision ouverte sans le
 dire.** *La nommer coûte une ligne; la deviner coûte une migration.*
+
+### N70 — « Vivant » n'était pas fondé : j'avais le mécanisme, pas l'occurrence
+
+**La question d'Alexandre** *(2026-09-16)* : j'ai qualifié `scalar_one_or_none()` de « défaut VIVANT
+sur le chemin de production » **sans en donner la preuve**, et le corpus veut que la preuve voyage
+avec le fait.
+
+**La réponse est la seconde des deux lectures : c'était DÉDUIT de la lecture du code.** *Je n'avais
+aucune trace, et je n'en ai toujours pas — les journaux sont sur l'hôte.* **Le mot était trop fort
+et je le retire.**
+
+**Mais l'enquête a rendu mieux qu'une confession, et c'est bien la forme du cas 27.** Ce qui
+protège le chemin aujourd'hui n'est **pas une garde** : `resolve_company` ne crée un second dossier
+que si le rapprochement flou échoue, et *un nom normalisé identique score 100, donc au-dessus de
+`SEUIL_FUSION_AUTO = 95`* — le doublon est absorbé. **C'est un effet de bord d'un autre mécanisme
+pris pour une garantie.**
+
+⚠️ **Et la fissure est nommable, mesurable, et c'est la même que ce matin.**
+`requete_candidats_prefixe` est bornée par `LIMITE_CANDIDATS = 500` **sans `ORDER BY`**. *Si le
+préfixe sature la borne et que le vrai jumeau n'est pas dans la tranche rendue, le score n'a jamais
+lieu et le second dossier naît.* **La borne sans ordre, une table plus loin.**
+
+**Démontré plutôt qu'affirmé** — `tests/test_doublon_nom_non_resolu.py` : le jumeau échappe à la
+borne saturée, puis deux dossiers de même nom font lever `_find_unresolved_company`, **la fonction
+que le cycle traverse à chaque signal non résolu.**
+
+**LA RÈGLE. « Ce défaut peut arriver » et « ce défaut est arrivé » sont deux affirmations
+différentes, et un test ne prouve que la première.** *L'occurrence se lit dans les journaux et dans
+la population, jamais dans le code.* **Dire laquelle des deux on tient coûte trois mots.**
+
+### N71 — L'adresse est capturée et jamais promue : le préalable avant toute mesure
+
+**Vérifié au code, et l'audit avait raison.** `falkye/sources/eimt.py` construit son `RawSignal`
+avec `champs={"adresse": …}` et **aucun argument `adresse=`** — alors que `RawSignal.adresse`
+existe *(`falkye/sources/base.py`)*. **Le champ existe, la donnée existe, et le pont entre les deux
+n'existe pas.**
+
+⚠️ **Donc une mesure d'appariement par adresse rendrait ZÉRO, et ce zéro se lirait comme
+« l'adresse ne sert à rien »** — alors qu'il ne dirait rien de l'adresse, seulement du champ. *C'est
+la série d'hypothèses tombées du 14 au 16 septembre, où le second terme de la comparaison
+n'existait pas.*
+
+`outils/portee_adresse.py` **n'apparie rien** : il établit si les deux termes existent, des deux
+côtés, **et il montre LA FORME** — un échantillon brut côte à côte. *Deux taux de remplissage élevés
+ne disent pas que les deux chaînes se comparent : « 123, Rang Saint-Joseph, bureau 2 » et
+« 123 RANG SAINT-JOSEPH » sont deux remplissages et un seul appariement.* **C'est ce que la
+normalisation devra franchir, et personne ne l'avait regardé.**
+
+**Rappel du mandat, à ne pas perdre** : le chantier 4 pose **l'adresse comme axe principal, le nom
+en corroborateur.** *Elle passe seconde dans l'ordre des mesures pour son préalable, jamais pour son
+rang.*
