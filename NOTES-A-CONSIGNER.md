@@ -1719,3 +1719,56 @@ sur la même commande. `refuser_si_cible_non_choisie()` l'interdit.
 
 *Et un cas que la requête brute aurait raté : la forme stockée VIDE. `nom_detecte_normalise == ''`
 partagée par deux dossiers est un doublon comme un autre, et `scalar_one_or_none()` lève pareil.*
+
+### N78 — 4a fermée par la mesure, et la garde a payé avant elle
+
+**`doublons_forme_stockee` a tourné sur l'hôte, cible distante annoncée, aucun repli : 0 forme
+partagée et 0 forme vide sur 8 931.** `scalar_one_or_none()` n'a jamais pu lever.
+
+⚠️ **Et la garde de la cible a rendu son service AVANT la mesure** : elle a refusé sur
+`REPLI PAR DÉFAUT` quand l'environnement n'était pas chargé. *Sans elle, la sortie aurait été
+`✅ AUCUNE LIGNE RENDUE` sur une base vide, et 4a aurait été fermée sur rien.*
+
+**C'est la première fois qu'une garde de cette session empêche une FAUSSE CONCLUSION plutôt qu'une
+panne.** *Une panne se voit; un verdict vert sur une base vide ne se voit pas.*
+
+**Le correctif reste pertinent et cesse d'être urgent.** *Ce zéro dit que le défaut n'est pas
+survenu, pas qu'il est impossible* — la borne sans ordre du dédoublonnage peut créer cette condition
+demain.
+
+### N79 — Neuf hypothèses tombées demandaient toutes POURQUOI la comparaison échoue
+
+**L'hypothèse d'Alexandre** *(2026-09-16, déclarée comme telle et non établie)* : **une part des
+8 931 n'a pas de NEQ à trouver.** Le REQ ne contient que les entités immatriculées au Québec; un
+employeur vu par l'EIMT peut être fédéral ou extraprovincial.
+
+**Ce qui rend cette hypothèse différente des neuf autres n'est pas sa vraisemblance, c'est sa
+FORME.** *Les neuf demandaient pourquoi la comparaison échoue; celle-ci demande s'il y a quelque
+chose à comparer.* **Quand plusieurs hypothèses bien mesurées tombent, la question est mal posée** —
+et le remède n'est pas une dixième hypothèse de la même famille.
+
+**Ce que le registre déclare, LU et non déduit** — et il porte deux champs qu'on confond :
+
+| | |
+|---|---|
+| **`territoire`** | le FILTRE réel. `null` ⇒ `appartient()` **RETIENT TOUT**, à dessein |
+| **`region`** | du **TEXTE LIBRE**, « région couverte ». *Il ne filtre rien.* |
+
+⚠️ **Une seule source sur vingt-six déclare un `territoire` : `eimt`.** Toutes les autres —
+`seao`, `contrats_federaux`, `subventions_federales`, `rob_top_growing`, `investissement_quebec`,
+`deloitte_fast50` — ont `territoire: null`. *Une source dont `region` dit « Québec » et dont
+`territoire` est `null` n'est pas filtrée.*
+
+⚠️ **Et le cas de l'EIMT retourne l'argument sans le trancher.** Son `territoire: ['Québec']` porte
+sur la **PROVINCE DE L'EMPLOI**, pas sur le lieu d'immatriculation. *Un employeur qui embauche au
+Québec peut être constitué au fédéral* — **c'est exactement la distinction sur laquelle porte
+l'hypothèse, et le registre ne peut pas y répondre.**
+
+**LA RÈGLE. Une source pancanadienne ne prouve pas qu'un dossier est hors Québec : elle dit qu'il
+PEUT l'être.** *La ventilation borne ce qu'on peut espérer; elle ne classe aucun dossier.* **Et ce
+qu'il faudrait faire d'une population hors registre est une décision de produit, pas un
+correctif** — aucune valeur par défaut n'est posée.
+
+*Deux pièges de comptage traités dans la sortie : un dossier à deux sources compte dans les deux
+colonnes — **un total de colonnes n'est pas un total de dossiers** — et un dossier SANS signal n'a
+aucune source, donc échappe entièrement au croisement.*
