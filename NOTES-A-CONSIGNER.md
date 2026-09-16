@@ -1597,3 +1597,75 @@ sont couvertes par aucune mesure ici ».*
 fichier portant trois chiffres consécutifs, années exclues — *un fichier daté dit QUAND, ce qui ne
 se périme jamais; un fichier compté dit COMBIEN, ce qui se périme.* Vérifié en remettant l'ancien
 nom.
+
+### N73 — La normalisation est la même, la SOURCE DE LA VALEUR ne l'est pas
+
+**La question d'Alexandre** *(2026-09-16)* : `dossiers sans NEQ : 8931` et `formes distinctes : 8931`
+étant égaux, aucun dossier ne partage sa forme — donc `scalar_one_or_none()` ne peut pas lever. *La
+normalisation de l'outil est-elle celle du chemin de résolution?*
+
+**Premier temps : OUI, même fonction.** Les deux importent `falkye.sources.column_mapping.
+normaliser`. Vérifié.
+
+⚠️ **Second temps, et il change la conclusion : ce n'est pas la même SOURCE DE VALEUR.**
+
+```python
+# l'outil RECALCULE
+forme = normaliser(company.nom_detecte or "")
+# la production LIT LA COLONNE STOCKÉE
+Company.nom_detecte_normalise == nom_norm
+```
+
+*Une colonne stockée a été écrite un jour, par le normaliseur de ce jour-là.* **Si `normaliser` a
+changé depuis — et il a changé le 15 septembre, c'est tout le sujet du réimport — la colonne porte
+l'ancienne forme et le recalcul porte la neuve.** Deux dossiers peuvent donc être distincts à la
+lecture de l'outil et identiques dans la colonne, ou l'inverse.
+
+**Donc l'égalité 8931/8931 est une PRÉSOMPTION FORTE, pas une preuve.** Ce qui ferme la question est
+une requête d'une ligne, sur la colonne que la production interroge :
+
+```sql
+SELECT nom_detecte_normalise, count(*) FROM companies
+WHERE neq IS NULL GROUP BY nom_detecte_normalise HAVING count(*) > 1;
+```
+
+**LA RÈGLE. Deux valeurs produites par la même fonction ne sont pas la même valeur si l'une est
+stockée et l'autre recalculée.** *Une colonne dérivée est une photo, pas un miroir* — et la question
+« est-ce le même code » ne répond jamais à « est-ce la même valeur ».
+
+### N74 — Deux bornes, deux tables, et les confondre fait chercher le mur du mauvais côté
+
+**Relevé en préparant la trace des 6 414.** La demande visait `LIMITE_CANDIDATS = 500` — **mais ce
+n'est pas la borne qui décide du sort de ces dossiers.**
+
+| borne | où | ce qu'elle décide |
+|---|---|---|
+| `candidats_par_nom(limite=2000)` | contre le **MIROIR** | ce qui est comparé au registre |
+| `LIMITE_CANDIDATS = 500` | entre les **`Company`** | ce qui est comparé aux autres dossiers |
+
+*Les deux sont des « LIMIT sans ORDER BY » relevés le même jour*, ce qui rend la confusion facile —
+et c'est précisément pour ça qu'il faut l'écrire. **Un dossier qui échoue à se résoudre contre le
+REQ a buté sur la première; la seconde ne l'a jamais vu.**
+
+**Un test refuse que le diagnostic annonce une borne différente de celle que le moteur applique** —
+*sinon la trace mentirait sur la borne qu'elle diagnostique.*
+
+### N75 — NOM_ETAB rend zéro, et c'est le périmètre imprimé qui l'a rendu lisible
+
+**5 sur 2 517, toutes en forme `IND`** — des personnes physiques, la population que le Registraire ne
+publie pas. *L'hypothèse tombe.*
+
+**Mais la mesure rend en passant plus gros qu'elle ne cherchait : 6 414 dossiers sur 8 931 — 72 % —
+portent un nom déjà présent dans `Nom.csv` et n'ont toujours pas de NEQ.** **Le second terme de la
+comparaison existe pour presque trois quarts d'entre eux.** *Ce qui échoue n'est pas de TROUVER le
+nom, c'est de DÉCIDER lequel.*
+
+⚠️ **Et ce chiffre n'était visible que parce que le périmètre imprimé l'exigeait.** Le compte
+« réglées par le pont » n'avait été ajouté que pour dire ce que l'outil ne mesurait PAS *(cas 33)*.
+**La déclaration de portée a produit la trouvaille.**
+
+*Deux motifs relevés dans les exemples — champs nommant plusieurs entreprises, noms commerciaux entre
+parenthèses — attendent délibérément : les corriger ferait passer ces dossiers d'un mur vers l'autre,
+et leur gain est nul tant que le second n'est pas compris.* **Et la réserve d'Alexandre sur ces
+quinze est juste : ce sont les quinze premiers par ordre alphabétique, donc le tri du fichier promu
+en échantillon — le cas 19.**
