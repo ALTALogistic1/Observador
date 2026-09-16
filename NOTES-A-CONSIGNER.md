@@ -1447,3 +1447,60 @@ et `tests/test_format_des_nombres.py` refuse le retour de l'idiome.
 
 *Le séparateur est l'espace insécable étroite (U+202F) : une espace ordinaire laisserait un nombre
 se couper en fin de ligne, et un nombre coupé se relit comme deux.*
+
+### N67 — Trois contraintes reçues après l'ouverture : deux tiennent, une tombe
+
+**Les renvois vérifiés au corpus, et ils disent bien ce que le message rapportait.** *Le vérifier était
+la première chose à faire : un message cite de seconde main, le corpus fait foi.*
+
+**CE QUI TIENT TEL QUEL.** Le recensement des 55 lectures (≈47 affichage / ≈6 recherche / 2 écriture) —
+*quelle que soit la forme du pivot, ces sites afficheront ou chercheront un nom*. Le défaut
+`scalar_one_or_none()` — **vivant sur le chemin de production, indépendant de toute décision ouverte, et
+le plus urgent des trois.** Les correctifs de collision et les deux mesures.
+
+**CE QUI TIENT MOYENNANT UN AJOUT — cas 33.** Les deux mesures portent sur les `Company` résolues contre
+**le REQ, registre des entités PRIVÉES**. *Entière et valable sur ce périmètre.* Ce qu'elles ne
+couvraient pas : les entités **publiques** (D27 ⬜, D28 ⬜), les **donneurs d'ouvrage** qui n'existent
+comme entité nulle part (D43 ⬜), et la **famille d'entité** que la structure ne porte pas.
+
+⚠️ **Et le mandat chiffre ce que ça écarte : 56 % d'ambiguïté sur les entreprises, ZÉRO sur les
+organismes publics.** *La population où l'appariement est difficile est exactement celle que ces outils
+mesurent; celle où il est trivial en est absente.* **L'ajout suit la prescription du cas 33 à la
+lettre : le périmètre s'imprime À CÔTÉ DE LA SORTIE, pas dans la documentation** — et deux tests
+l'exigent.
+
+**CE QUI TOMBE.** `company_noms` comme structure définitive. Elle accrochait les noms à `company_id` et
+**supposait que `Company.neq` reste le pivot**. Le mandat dit l'inverse : *« la clé du moteur cesse
+d'être un identifiant de territoire »*, une identité interne, une table d'identifiants externes avec
+territoire — et la famille s'ajoute à côté. **La forme survit, son point d'accrochage tombe.** *Et la
+phrase qui condamne le report condamne aussi de la construire seule maintenant : « le faire après, c'est
+migrer deux fois la même clé » — la construire à part en ferait trois.*
+
+### N68 — J'avais étendu une décision par symétrie, et le cas 34 l'interdit
+
+⚠️ **L'étape 2 de ma proposition — « élargir les 6 points de recherche » — était présentée comme une
+conséquence de la décision du 16. Elle n'en est pas une.** La décision porte sur la **conservation des
+noms** : qu'aucun ne se perde, qu'aucun dossier ne soit supprimé.
+
+**Conserver un nom et l'utiliser pour chercher sont deux gestes différents, et le second a ses propres
+risques** — élargir la récupération augmente les candidats, donc les ambiguïtés **et les faux
+appariements**. *Rien dans la décision du 16 ne dit qu'on accepte ce coût-là.* **Retiré de la
+proposition : la lecture et le dédoublonnage demandent chacun leur démonstration chiffrée.**
+
+**Et le cas 27 + 41 appliqués à la même proposition.** Elle décrivait deux points d'écriture à étendre,
+et **rien n'obligeait un troisième, écrit le mois prochain, à passer par la table.** *C'est la garde
+recopiée à la main, une table plus loin — six heures après qu'elle ait coûté quinze outils sur
+vingt-huit.* Ce qui l'exigerait : **un seul chemin d'écriture du nom** *(l'endroit qui ne peut pas être
+contourné)* **ET un test d'AST qui refuse toute affectation hors de lui**. *Le test sans la fonction est
+une vigilance outillée; la fonction sans le test est une convention.*
+
+### N69 — Les décisions que ma proposition supposait, nommées plutôt que devinées
+
+**D28** : mon élargissement envoyait **tout** nom au REQ — *c'est présumer que toute entité est privée*,
+exactement l'ambiguïté d'entité que D28 doit trancher avec une réponse par défaut. **D29** : ma règle
+d'ancienneté décide quel dossier porte **le NEQ**; dès qu'une entité peut porter deux identifiants,
+« qui porte quoi » relève de D29. **D27** : sans registre public, « apparier des noms à une entité
+publique » n'a pas de sens défini.
+
+**LA RÈGLE. Poser une valeur par défaut pour avancer, c'est trancher une décision ouverte sans le
+dire.** *La nommer coûte une ligne; la deviner coûte une migration.*
