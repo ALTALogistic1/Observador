@@ -1279,3 +1279,58 @@ regardait que les modules `falkye.*`.**
 qui a fixé la mesure.** Elle avait été écrite sur un défaut `falkye.*`, et avait pris cette portée
 pour la bonne. *La question à poser en écrivant une garde n'est pas « est-ce qu'elle attrape ce
 défaut-ci », c'est « où est la frontière que je viens de tracer sans la nommer ».*
+
+### N60 — Un `LIMIT` sans `ORDER BY` rend le rejeu non reproductible
+
+**Le fait** *(2026-09-16, relevé par Alexandre)*. `candidats_par_nom` bornait quatre requêtes par
+`LIMIT` **sans aucun ordre**. Un `LIMIT` sans ordre ne rend pas « les 2 000 meilleurs » : il rend
+**2 000 lignes au hasard de l'index** — et « au hasard » veut dire *susceptible de changer entre
+deux exécutions*, après un réimport, un `VACUUM`, une insertion.
+
+⚠️ **Deux passages du même rejeu pouvaient donner deux chiffres différents.** *Les 804 « résolubles
+maintenant » étaient un chiffre qu'on ne pouvait pas re-obtenir* — et c'est sur eux qu'une passe
+allait écrire dans la base.
+
+**LA RÈGLE. Une mesure non reproductible n'est pas une mesure, c'est un tirage.** Et un geste
+irréversible ne s'appuie jamais sur un tirage.
+
+*Le coût est nul sur le chemin GLOB* : l'ordre demandé est celui de l'index, donc SQLite le suit
+sans trier. Le repli par sous-chaîne balaie déjà la table entière; un tri borné à `limite` lignes ne
+change pas son ordre de grandeur.
+
+⚠️ **Et ce n'est PAS un classement par pertinence.** Trier par `nom_normalise` rend le tirage
+reproductible, pas meilleur : sur 50 000 « gestion… », les 2 000 retenus restent une tranche
+alphabétique arbitraire. **Rendre la récupération pertinente est un autre chantier, et il reste
+ouvert.**
+
+### N61 — La passe de reprise : conservation, et trois gardes avant le premier octet
+
+**La décision d'Alexandre** *(2026-09-16)* : **conservation plutôt que fusion, parce qu'elle est
+réversible.** *Deux dossiers séparés se fusionnent plus tard; deux dossiers fusionnés ne se séparent
+pas.* `Company.neq` étant `unique=True`, un NEQ déjà porté ne peut pas être posé sur un second
+dossier — et le chemin « naturel » aurait été de fusionner. **La passe ne fusionne rien** : elle
+journalise un candidat de fusion `a_examiner`, et **les deux dossiers sortent intacts**. *Un test
+porte cette décision et rougit si quelqu'un fusionne plus tard.*
+
+**Trois gardes avant la première écriture.**
+
+1. **Le rapport est le mode par DÉFAUT** — `--appliquer` est le seul chemin qui écrit. *Un outil qui
+   écrit par défaut est un outil qu'on lance une fois de trop.*
+2. **`--comparer N` montre des PAIRES** — nom détecté contre nom du registre, score, écart au
+   second. *La dernière vérification avant un geste irréversible se fait sur des paires, jamais sur
+   un total : un score de 100 sur deux raisons sociales différentes est une fausse résolution, et
+   c'est la seule chose qu'un total ne montre pas.*
+3. ⚠️ **L'instantané d'avant précède le commit, et s'il ne peut pas s'écrire, RIEN n'est modifié.**
+   *Sans lui, « réversible » est une intention.* C'est le défaut du chemin d'archive du diff, une
+   table plus loin.
+
+**La décision passe par `neq_retenu`**, la fonction que le produit appelle — *une règle recopiée
+mesurerait sa propre copie.*
+
+### N62 — La garde des imports a payé son écriture le jour même
+
+En écrivant la passe, j'ai importé `falkye.sources.req._enrich_from_req`. **Il vit dans
+`falkye/resolution.py`.** *Troisième déduction de nom en deux jours* — et cette fois
+`tests/test_imports_des_outils.py` l'a nommée, fichier et ligne, **avant l'hôte**. C'est la
+première fois qu'une garde de cette session attrape un défaut que j'étais en train de commettre
+plutôt qu'un défaut déjà payé.

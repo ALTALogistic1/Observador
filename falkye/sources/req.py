@@ -1238,6 +1238,23 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
     n'abaisse pas le score : elle empêche le candidat d'être récupéré du tout.*
     """
     prefix = nom_norm.split(" ")[0]
+    # ⚠️ **`ORDER BY` OBLIGATOIRE AVEC `LIMIT`** *(2026-09-16, relevé par
+    # Alexandre)*. Un `LIMIT` sans ordre ne rend pas « les 2 000 meilleurs » : il
+    # rend **2 000 lignes au hasard de l'index**, et « au hasard » veut dire
+    # *susceptible de changer entre deux exécutions* — après un réimport, après
+    # un `VACUUM`, après une insertion. **Deux passages du même rejeu pouvaient
+    # donner deux chiffres différents**, et une passe qui ÉCRIT dans la base ne
+    # peut pas s'appuyer là-dessus.
+    #
+    # L'ordre est celui de l'index (`nom_normalise`), donc SQLite le suit sans
+    # trier — le coût est nul sur le chemin GLOB. Le repli par sous-chaîne
+    # balaie déjà la table entière; y ajouter un tri borné à `limite` lignes ne
+    # change pas son ordre de grandeur.
+    #
+    # ⚠️ **Ce n'est pas un classement par PERTINENCE.** Trier par `nom_normalise`
+    # rend le tirage REPRODUCTIBLE, pas meilleur : sur 50 000 « gestion… », les
+    # 2 000 retenus restent une tranche alphabétique arbitraire. *Rendre la
+    # récupération pertinente est un autre chantier, et il reste ouvert.*
     # GLOB plutôt que LIKE, pour la recherche par préfixe — vérifié (2026-08-31,
     # après le premier import réel du REQ, ~2,7M lignes) : LIKE 'prefix%' avec un
     # paramètre lié force SQLite à un SCAN complet de la table (150x plus lent,
@@ -1250,7 +1267,10 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
     # (*, ?, [, ]) — donc aucun échappement n'est nécessaire ici.
     candidates = (
         db_session.execute(
-            select(REQEntry).where(REQEntry.nom_normalise.op("GLOB")(f"{prefix}*")).limit(limite)
+            select(REQEntry)
+            .where(REQEntry.nom_normalise.op("GLOB")(f"{prefix}*"))
+            .order_by(REQEntry.nom_normalise, REQEntry.neq)
+            .limit(limite)
         )
         .scalars()
         .all()
@@ -1259,7 +1279,10 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
         # repli : recherche par sous-chaîne si le préfixe est trop restrictif
         candidates = (
             db_session.execute(
-                select(REQEntry).where(REQEntry.nom_normalise.contains(nom_norm[:6])).limit(limite)
+                select(REQEntry)
+                .where(REQEntry.nom_normalise.contains(nom_norm[:6]))
+                .order_by(REQEntry.nom_normalise, REQEntry.neq)
+                .limit(limite)
             )
             .scalars()
             .all()
@@ -1277,7 +1300,10 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
     neqs_deja = {c.neq for c in candidates}
     autres = (
         db_session.execute(
-            select(REQNom.neq).where(REQNom.nom_normalise.op("GLOB")(f"{prefix}*")).limit(limite)
+            select(REQNom.neq)
+            .where(REQNom.nom_normalise.op("GLOB")(f"{prefix}*"))
+            .order_by(REQNom.nom_normalise, REQNom.neq)
+            .limit(limite)
         )
         .scalars()
         .all()
@@ -1285,7 +1311,10 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
     if not autres:
         autres = (
             db_session.execute(
-                select(REQNom.neq).where(REQNom.nom_normalise.contains(nom_norm[:6])).limit(limite)
+                select(REQNom.neq)
+                .where(REQNom.nom_normalise.contains(nom_norm[:6]))
+                .order_by(REQNom.nom_normalise, REQNom.neq)
+                .limit(limite)
             )
             .scalars()
             .all()
