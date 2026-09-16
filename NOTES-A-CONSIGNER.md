@@ -1555,3 +1555,45 @@ normalisation devra franchir, et personne ne l'avait regardé.**
 **Rappel du mandat, à ne pas perdre** : le chantier 4 pose **l'adresse comme axe principal, le nom
 en corroborateur.** *Elle passe seconde dans l'ordre des mesures pour son préalable, jamais pour son
 rang.*
+
+### N72 — Le chiffre du nom de fichier n'était produit par aucune requête du fichier
+
+**La question d'Alexandre** *(2026-09-16)* : `profil_des_6176` porte-t-il un sous-ensemble des 8 931,
+ou une population recomptée? **Il demandait les deux requêtes, pas une explication.** *Il avait
+raison de les demander : elles répondent une troisième chose.*
+
+**Les voici, et elles sont identiques au caractère près :**
+
+```python
+# outils/diagnostic_appariement.py:381   → « les 8 931 »
+select(Company).where(Company.neq.is_(None))
+# outils/profil_des_6176.py:136          → « les 6 176 »
+select(Company).where(Company.neq.is_(None))
+```
+
+**Donc ni (a) ni (b).** L'outil **LIT la population entière** — la même requête — puis **découpe son
+sous-ensemble lui-même, à l'exécution** : il écarte les formes présentes dans `Nom.csv`, déjà
+réglées par le pont. ⚠️ **Le 6 176 n'est produit par aucune requête de ce fichier.** *C'est une
+mesure passée, gelée dans un nom.*
+
+**Et un second défaut que la question a fait apparaître : le découpage se fait par NOM NORMALISÉ,
+pas par dossier.** Deux dossiers de graphie identique comptent pour une forme. *Un compte de formes
+et un compte de dossiers ne sont pas le même nombre*, et le plan raisonne en dossiers. **Un compte
+qui ne dit pas son unité se lit dans l'unité que le lecteur a en tête.**
+
+**LA RÈGLE, et c'est celle du corpus sur les chiffres recopiés appliquée aux noms.** *Un chiffre
+recopié est une promesse que personne ne tient* — **et un nom de fichier est l'endroit où personne
+ne va la vérifier.** Deux défauts distincts, et le second est le pire :
+
+1. un compte ne se met pas à jour quand la population bouge;
+2. ⚠️ **il donne l'autorité d'une MESURE à ce qui n'est qu'une ÉTIQUETTE.**
+
+**Renommé `noms_etablissement_non_resolues.py`** — *nommer ce que l'outil FAIT, pas ce qu'il a
+trouvé un jour.* Le périmètre imprime désormais **la requête elle-même**, les deux comptes avec leur
+unité, et la phrase qui manquait : *« ce qui suit ne porte que sur ces N dossiers; les M autres ne
+sont couvertes par aucune mesure ici ».*
+
+**Et la règle est rendue exigible** : `tests/test_noms_doutils_sans_compte.py` refuse tout nom de
+fichier portant trois chiffres consécutifs, années exclues — *un fichier daté dit QUAND, ce qui ne
+se périme jamais; un fichier compté dit COMBIEN, ce qui se périme.* Vérifié en remettant l'ancien
+nom.
