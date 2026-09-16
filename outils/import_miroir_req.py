@@ -122,18 +122,31 @@ def pic_memoire_mo() -> float:
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
 
 
-def etat_du_miroir() -> tuple[int, int]:
-    """(entrées, entrées avec ville) — le contrôle de sortie de docs/MIROIRS.md.
+def etat_du_miroir() -> tuple[int, int, int]:
+    """(entrées, entrées avec ville, noms du pont) — les contrôles de sortie.
 
-    Un taux autour de 7 % au lieu de ~66 % signale que le correctif du
+    Un taux de ville autour de 7 % au lieu de ~66 % signale que le correctif du
     2026-09-06 sur l'indicateur de dispense d'adresse n'est pas dans le code
     déployé. C'est le seul contrôle qui distingue « importé » de
     « importé correctement ».
+
+    ⚠️ **Le troisième compte est LU DANS LA TABLE, pas rapporté par la passe.**
+    *Un compte que la passe rend et un compte qu'on lit dans la table sont deux
+    affirmations différentes* — la première dit « j'ai envoyé », la seconde dit
+    « c'est là ». Entre les deux il y a les `OR IGNORE`, les contraintes et les
+    transactions non validées. **C'est la seconde qui intéresse un contrôle de
+    sortie.**
+
+    *Ajouté le 2026-09-16 : la passe `req_noms` était journalisée par
+    `logger.info` dans un programme qui ne configure aucun journal, donc la
+    ligne n'existait nulle part. La table portait 1 505 879 noms et
+    `grep req_noms` ne rendait rien.*
     """
     from sqlalchemy import func, select
 
     from falkye.db import get_session
     from falkye.models.req_entry import REQEntry
+    from falkye.models.req_nom import REQNom
 
     session = get_session()
     try:
@@ -144,7 +157,8 @@ def etat_du_miroir() -> tuple[int, int]:
             ).scalar()
             or 0
         )
-        return total, avec_ville
+        noms = session.execute(select(func.count()).select_from(REQNom)).scalar() or 0
+        return total, avec_ville, noms
     finally:
         session.close()
 
@@ -213,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
         session.close()
     duree = time.monotonic() - debut
 
-    total, avec_ville = etat_du_miroir()
+    total, avec_ville, noms_du_pont = etat_du_miroir()
     part_ville = 100 * avec_ville / total if total else 0.0
 
     pic = pic_memoire_mo()
@@ -246,6 +260,26 @@ def main(argv: list[str] | None = None) -> int:
               flush=True)
     print(f"entrées      : {total:,}".replace(",", " "), flush=True)
     print(f"avec ville   : {avec_ville:,} ({part_ville:.1f} %)".replace(",", " "), flush=True)
+    # LE PONT DES NOMS, DANS LE RAPPORT IMPRIMÉ. Il était journalisé par
+    # `logger.info` dans falkye/sources/req.py — **et rien ne configurait le
+    # journal** : sans gestionnaire, le logger racine est à WARNING, donc la
+    # ligne partait dans le vide. *Le 2026-09-16, la table portait 1 505 879
+    # noms et `grep req_noms` ne rendait rien.* **Une ligne de contrôle qui ne
+    # s'imprime pas ne contrôle rien**, et son absence se lit comme « la passe
+    # n'a pas tourné ».
+    print(f"noms du pont : {noms_du_pont:,} en vigueur dans req_noms".replace(",", " "),
+          flush=True)
+    if total and not noms_du_pont:
+        # Pas une erreur de sortie : le miroir des entrées EST chargé. Mais une
+        # table de pont vide veut dire que la résolution ne verra que les noms
+        # ÉLUS — 41,7 % des NEQ portent plusieurs noms en vigueur, et le pont
+        # est la seule chose qui les atteint.
+        print(
+            "ATTENTION : req_noms est VIDE alors que les entrées sont chargées. "
+            "La passe des noms n'a pas tourné, ou elle a échoué en silence — "
+            "la résolution retombe sur les seuls noms élus.",
+            flush=True,
+        )
     print(f"signaux      : {len(signaux)}", flush=True)
 
     if total and part_ville < 40:

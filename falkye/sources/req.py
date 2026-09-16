@@ -1213,6 +1213,14 @@ def get_by_neq(db_session: Session, neq: str) -> REQEntry | None:
     return db_session.get(REQEntry, neq)
 
 
+#: Diviseur de la part de `limite` RÉSERVÉE aux candidats venus de `req_noms`.
+#: Un quart : assez pour que le pont existe même quand la requête principale
+#: sature, assez peu pour que la récupération principale reste dominante.
+#: **Ce n'est pas un réglage fin, c'est un plancher** — la valeur exacte se
+#: mesurera sur le rendement par chemin, jamais ici.
+PART_RESERVEE_AUX_AUTRES_NOMS = 4
+
+
 def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) -> list[REQEntry]:
     """Les entrées du miroir soumises au score flou — **extraite pour être empruntée**.
 
@@ -1284,13 +1292,38 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
         )
     manquants = [n for n in dict.fromkeys(autres) if n not in neqs_deja]
     if manquants:
-        # La borne s'applique au TOTAL, pas à chaque source de candidats : sinon
-        # `limite` ne bornerait plus rien et le coût doublerait en silence.
-        reste = max(0, limite - len(candidates))
-        if reste:
+        # ⚠️ UNE PART RÉSERVÉE, et non « ce qui reste ». **Corrigé le 2026-09-16,
+        # après un réimport qui n'a rien changé du tout.**
+        #
+        # La version précédente prenait `reste = limite - len(candidates)`. La
+        # borne était bien respectée — *et le pont n'ajoutait JAMAIS personne dès
+        # que la première requête saturait la borne.* Or le préfixe de
+        # récupération est le PREMIER MOT du nom : « gestion », « les »,
+        # « construction », « entreprises ». **La saturation n'est pas un cas
+        # limite, c'est le cas courant — et c'est exactement là que le pont
+        # servirait.**
+        #
+        # *Mesuré : 1 505 879 noms ajoutés au miroir, et le diagnostic inchangé À
+        # L'UNITÉ PRÈS sur trois catégories (3 061 ambigus, 313 résolubles).* Pas
+        # « peu de gain » : zéro effet. **Une borne qui protège du coût en
+        # supprimant l'apport protège du gain.**
+        #
+        # Ici, le pont a un PLANCHER garanti, et la liste principale est rognée
+        # pour lui faire place. Le total reste borné par `limite` : le coût ne
+        # bouge pas. *Et les candidats du pont valent mieux que ceux qu'ils
+        # remplacent* — ils sont ciblés par leur préfixe, là où les derniers de
+        # la liste principale sont une tranche arbitraire (le `LIMIT` n'a pas
+        # d'`ORDER BY` : sur 50 000 « gestion… », SQLite en rend 2 000 au hasard
+        # de l'index).
+        reserve = min(len(manquants), max(1, limite // PART_RESERVEE_AUX_AUTRES_NOMS))
+        place = limite - reserve
+        if len(candidates) > place:
+            candidates = list(candidates)[:place]
+        a_chercher = manquants[: limite - len(candidates)]
+        if a_chercher:
             candidates = list(candidates) + list(
                 db_session.execute(
-                    select(REQEntry).where(REQEntry.neq.in_(manquants[:reste]))
+                    select(REQEntry).where(REQEntry.neq.in_(a_chercher))
                 )
                 .scalars()
                 .all()
