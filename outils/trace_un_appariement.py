@@ -50,6 +50,12 @@ import sys
 
 #: Combien de candidats sont détaillés ligne à ligne. Au-delà, seul le compte est
 #: rendu — **et le fait qu'il y ait eu troncature est dit**, jamais tu.
+#: La borne de `candidats_par_nom` contre le MIROIR — **pas**
+#: `LIMITE_CANDIDATS = 500`, qui borne le dédoublonnage entre `Company`.
+#: *Deux bornes, deux tables, deux chemins, et les confondre fait chercher
+#: le mur du mauvais côté.*
+BORNE_MOTEUR = 2000
+
 DETAIL_MAX = 40
 
 
@@ -69,16 +75,94 @@ def sql_emis(requete) -> str:
         return f"(non littéralisable : {type(exc).__name__}) {requete}"
 
 
+def _tracer_depuis_la_base(combien: int) -> int:
+    """Trace N dossiers de la population QUI ÉCHOUE, choisis par la base.
+
+    **Le critère, et il est opérationnel plutôt que narratif** : un dossier sans
+    NEQ dont le nom normalisé **existe pourtant dans le miroir** — soit comme
+    dénomination élue (`req_entries`), soit comme nom en vigueur (`req_noms`).
+
+    *C'est la définition exacte de « le second terme de la comparaison existe ».*
+    **Le produit a le nom sous les yeux et ne s'en sert pas** — ce qui échoue
+    n'est donc pas de TROUVER le nom, c'est de DÉCIDER lequel.
+
+    ⚠️ **Choisis par `id` croissant, pas au hasard.** *Deux exécutions doivent
+    tracer les mêmes dossiers* — sinon la trace n'est pas relisable, et c'est le
+    même défaut que la borne sans ordre.
+    """
+    from sqlalchemy import select
+
+    from falkye.db import get_session, refuser_si_cible_non_choisie
+
+    code = refuser_si_cible_non_choisie()
+    if code:
+        return code
+
+    from falkye.models.company import Company
+    from falkye.models.req_entry import REQEntry
+    from falkye.models.req_nom import REQNom
+
+    session = get_session()
+    try:
+        choisis: list[Company] = []
+        for company in session.execute(
+            select(Company).where(Company.neq.is_(None)).order_by(Company.id)
+            .execution_options(yield_per=500)
+        ).scalars():
+            forme = company.nom_detecte_normalise
+            if not forme:
+                continue
+            existe = session.execute(
+                select(REQEntry.neq).where(REQEntry.nom_normalise == forme).limit(1)
+            ).scalar_one_or_none()
+            if existe is None:
+                existe = session.execute(
+                    select(REQNom.neq).where(REQNom.nom_normalise == forme).limit(1)
+                ).scalar_one_or_none()
+            if existe is not None:
+                choisis.append((company, existe))
+            if len(choisis) >= combien:
+                break
+    finally:
+        session.close()
+
+    if not choisis:
+        print("Aucun dossier sans NEQ dont le nom existe dans le miroir.", file=sys.stderr)
+        print("Ce zéro est une MESURE : la population décrite n'existe pas.", file=sys.stderr)
+        return 1
+
+    for i, (company, neq_attendu) in enumerate(choisis, start=1):
+        print("\n" + "#" * 78)
+        print(f"# CAS {i}/{len(choisis)} — dossier #{company.id}"
+              f"   (NEQ attendu {neq_attendu}, trouvé par nom EXACT dans le miroir)")
+        print("#" * 78)
+        argv = ["--nom", company.nom_detecte, "--neq", neq_attendu]
+        if company.ville:
+            argv += ["--ville", company.ville]
+        main(argv)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--nom", required=True, help="le nom détecté, tel que la source l'a livré")
+    parser.add_argument("--nom", help="le nom détecté, tel que la source l'a livré")
+    parser.add_argument(
+        "--depuis-la-base", type=int, default=0, metavar="N",
+        help="tracer N dossiers CHOISIS dans la population qui échoue : sans NEQ, "
+             "et dont le nom normalisé EXISTE pourtant dans le miroir",
+    )
     parser.add_argument("--attendu", default=None,
                         help="le nom du miroir qu'on s'attend à voir apparier")
     parser.add_argument("--neq", default=None, help="le NEQ attendu, si on le connaît")
     parser.add_argument("--ville", default=None, help="la ville du dossier (bonus de +5)")
     args = parser.parse_args(argv)
+    if not args.nom and not args.depuis_la_base:
+        parser.error("donner --nom, ou --depuis-la-base N")
+
+    if args.depuis_la_base:
+        return _tracer_depuis_la_base(args.depuis_la_base)
 
     try:
         from rapidfuzz import fuzz, process
@@ -169,6 +253,28 @@ def main(argv: list[str] | None = None) -> int:
         n_prefixe = len(session.execute(requete_prefixe).scalars().all())
         print(f"\n   le préfixe seul rend    : {n_prefixe} ligne(s)")
         print(f"   candidats_par_nom rend  : {len(candidats)} ligne(s)")
+
+        # --- LA BORNE COUPE-T-ELLE, ET DE COMBIEN ? -------------------------
+        # ⚠️ **C'est la borne DE 2000, celle de `candidats_par_nom` contre le
+        # MIROIR** — à ne pas confondre avec `LIMITE_CANDIDATS = 500`, qui borne
+        # le dédoublonnage entre `Company`. *Deux bornes, deux tables, deux
+        # chemins* : celle-ci décide ce qui est comparé au registre, l'autre
+        # décide ce qui est comparé aux autres dossiers.
+        prefixe = nom_norm.split(" ")[0]
+        sans_borne = session.execute(
+            select(func.count()).select_from(REQEntry)
+            .where(REQEntry.nom_normalise.op("GLOB")(f"{prefixe}*"))
+        ).scalar() or 0
+        print(f"\n   ⚠️ LA BORNE — préfixe {prefixe!r}")
+        print(f"      lignes AVANT la borne   : {sans_borne}")
+        print(f"      borne de candidats_par_nom : {BORNE_MOTEUR}")
+        if sans_borne > BORNE_MOTEUR:
+            print(f"      ⛔ LA BORNE COUPE : {sans_borne - BORNE_MOTEUR} ligne(s) écartées,")
+            print("         et le LIMIT n'a d'ordre que depuis le 2026-09-16 —")
+            print("         avant, la tranche changeait d'une exécution à l'autre.")
+        else:
+            print("      ✅ la borne ne coupe pas : tous les candidats du préfixe sont là.")
+            print("         Si le bon candidat manque, ce n'est PAS la borne.")
         if n_prefixe == 0 and candidats:
             print("   ⚠️ LE REPLI A SERVI : le préfixe n'a rien rendu.")
         print()

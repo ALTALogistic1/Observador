@@ -52,3 +52,37 @@ def test_le_sql_emis_ne_leve_pas_sur_un_type_non_litteralisable():
 def test_la_borne_de_detail_existe_et_est_franche():
     """Au-delà, seul le compte est rendu — et la troncature est DITE."""
     assert isinstance(DETAIL_MAX, int) and DETAIL_MAX > 0
+
+
+def test_sans_nom_ni_selecteur_loutil_refuse(capsys):
+    """`--nom` n'est plus obligatoire, donc quelque chose doit l'exiger. *Une
+    option rendue facultative sans garde laisse passer un appel vide qui
+    plantait avant.*"""
+    import pytest as _pytest
+
+    from outils import trace_un_appariement
+
+    with _pytest.raises(SystemExit):
+        trace_un_appariement.main([])
+
+
+def test_la_borne_du_moteur_nest_pas_celle_du_dedoublonnage():
+    """⚠️ **Deux bornes, deux tables, deux chemins.**
+
+    `BORNE_MOTEUR = 2000` borne la récupération contre le MIROIR;
+    `LIMITE_CANDIDATS = 500` borne le dédoublonnage entre `Company`. *Les
+    confondre fait chercher le mur du mauvais côté* — et c'est une confusion
+    facile, puisque les deux sont des « LIMIT sans ORDER BY » de la même
+    journée.
+    """
+    from falkye.dedup_entreprises import LIMITE_CANDIDATS
+    from falkye.sources.req import candidats_par_nom
+    from outils.trace_un_appariement import BORNE_MOTEUR
+    import inspect
+
+    assert BORNE_MOTEUR != LIMITE_CANDIDATS, "les deux bornes ont convergé — ce test a vieilli"
+    defaut = inspect.signature(candidats_par_nom).parameters["limite"].default
+    assert BORNE_MOTEUR == defaut, (
+        f"le diagnostic annonce {BORNE_MOTEUR} et le moteur borne à {defaut} : "
+        "la trace mentirait sur la borne qu'elle diagnostique"
+    )
