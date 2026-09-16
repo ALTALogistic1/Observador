@@ -136,7 +136,8 @@ def _tracer_depuis_la_base(combien: int) -> int:
         print(f"# CAS {i}/{len(choisis)} — dossier #{company.id}"
               f"   (NEQ attendu {neq_attendu}, trouvé par nom EXACT dans le miroir)")
         print("#" * 78)
-        argv = ["--nom", company.nom_detecte, "--neq", neq_attendu]
+        argv = ["--nom", company.nom_detecte, "--neq", neq_attendu,
+                "--forme-stockee", company.nom_detecte_normalise or ""]
         if company.ville:
             argv += ["--ville", company.ville]
         main(argv)
@@ -157,6 +158,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="le nom du miroir qu'on s'attend à voir apparier")
     parser.add_argument("--neq", default=None, help="le NEQ attendu, si on le connaît")
     parser.add_argument("--ville", default=None, help="la ville du dossier (bonus de +5)")
+    parser.add_argument(
+        "--forme-stockee", default=None, metavar="FORME",
+        help="la colonne `nom_detecte_normalise` du dossier, pour la comparer à la "
+             "forme RECALCULÉE (posée automatiquement par --depuis-la-base)",
+    )
     args = parser.parse_args(argv)
     if not args.nom and not args.depuis_la_base:
         parser.error("donner --nom, ou --depuis-la-base N")
@@ -207,6 +213,34 @@ def main(argv: list[str] | None = None) -> int:
         print("-" * 78)
         nom_norm = normaliser(args.nom)
         print(f"\n   détecté brut   : {apercu(args.nom)}")
+
+        # --- LES DEUX FORMES, CÔTE À CÔTE -----------------------------------
+        # ⚠️ **« La forme normalisée » est ambiguë, et l'ambiguïté se lève ici.**
+        # Il y en a DEUX, produites par la même fonction à des moments
+        # différents :
+        #
+        #   RECALCULÉE — `normaliser(nom)`, maintenant. C'est ce que la
+        #       résolution contre le REQ compare (`resolve_neq_by_name` reçoit
+        #       le nom brut et le normalise à chaque appel).
+        #   STOCKÉE — `Company.nom_detecte_normalise`, écrite le jour de la
+        #       création du dossier, par le normaliseur de CE jour-là. C'est ce
+        #       que `_find_unresolved_company` et le dédoublonnage comparent.
+        #
+        # *Une colonne dérivée est une photo, pas un miroir* — et `normaliser` a
+        # changé le 15 septembre 2026.
+        if args.forme_stockee is not None:
+            print(f"\n   forme RECALCULÉE : {apercu(nom_norm)}")
+            print(f"   forme STOCKÉE    : {apercu(args.forme_stockee)}")
+            if args.forme_stockee != nom_norm:
+                print("\n   ⛔ LES DEUX DIFFÈRENT.")
+                print("      La colonne stockée est périmée pour ce dossier.")
+                print("      Conséquence : `_find_unresolved_company` et le")
+                print("      dédoublonnage cherchent une chaîne que la résolution")
+                print("      ne produit plus. ⚠️ Mais ça n'explique PAS un échec de")
+                print("      résolution contre le REQ : ce chemin-là ne lit jamais")
+                print("      la colonne stockée, des deux côtés.")
+            else:
+                print("   ✅ identiques — la colonne stockée est à jour pour ce dossier.")
         print(f"   normalisé      : {apercu(nom_norm)}   ({len(nom_norm)} car.)")
         if args.attendu:
             attendu_norm = normaliser(args.attendu)

@@ -1669,3 +1669,53 @@ parenthèses — attendent délibérément : les corriger ferait passer ces doss
 et leur gain est nul tant que le second n'est pas compris.* **Et la réserve d'Alexandre sur ces
 quinze est juste : ce sont les quinze premiers par ordre alphabétique, donc le tri du fichier promu
 en échantillon — le cas 19.**
+
+### N76 — La distinction stockée/recalculée, appliquée au critère plutôt qu'au compte
+
+**La question d'Alexandre** *(2026-09-16)* : le sélecteur de `--depuis-la-base` choisit-il sur la
+valeur recalculée ou sur la colonne stockée? *Il m'appliquait ma propre distinction au CRITÈRE DE
+SÉLECTION plutôt qu'au compte.*
+
+**Vérifié au code : la colonne STOCKÉE** — `trace_un_appariement.py:112`,
+`forme = company.nom_detecte_normalise`. **Bonne population, on lance tel quel.**
+
+⚠️ **Mais sa question en ouvre une meilleure, et sa propre hypothèse tombe par lecture.** Il
+supposait que la colonne périmée pourrait expliquer les 6 414. **Elle ne peut pas**, et la raison
+est structurelle :
+
+```
+resolve_neq_by_name(db_session, raw.nom_entreprise)  → normaliser(nom), RECALCULÉ
+    comparé à
+REQEntry.nom_normalise / REQNom.nom_normalise        → le miroir, réécrit le 16
+```
+
+**Aucun des deux côtés de cette comparaison ne lit `Company.nom_detecte_normalise`.** *La colonne
+périmée ne peut pas expliquer un échec de résolution contre le REQ — elle n'y participe pas.*
+
+**Là où elle reste vivante :** `_find_unresolved_company` et `dedup_entreprises`, qui comparent tous
+deux la colonne stockée. **Ce sont deux chemins différents, et le même mot — « la forme
+normalisée » — les désignait tous les deux.**
+
+**LA RÈGLE. Quand un même mot désigne deux valeurs, la question « laquelle » doit être posée à
+CHAQUE endroit, pas une fois.** *Je l'avais posée au compte; il l'a posée au critère de sélection;
+elle se posait aussi aux deux côtés de la comparaison.* **La trace imprime désormais les deux formes
+côte à côte, nommées**, et dit explicitement qu'un écart n'explique pas un échec contre le REQ.
+
+### N77 — Le zéro qui ferme 4a doit dire ce qu'il ne ferme pas
+
+`outils/doublons_forme_stockee.py` interroge **la colonne que la production compare**, jamais un
+recalcul. *Un test met les deux valeurs en désaccord : deux dossiers de forme stockée identique dont
+les noms bruts se normalisent différemment aujourd'hui — **un outil qui recalculerait ne les verrait
+pas**, et rendrait un zéro exact sur le mauvais périmètre.*
+
+⚠️ **Et la sortie borne son propre zéro** : *« ce zéro dit que le défaut n'est pas SURVENU, pas
+qu'il est impossible »* — **la borne sans ordre du dédoublonnage peut créer cette condition
+demain.**
+
+⚠️ **Pourquoi un outil plutôt qu'une ligne de SQL.** La base est **distante** : une commande lancée
+sans l'environnement retombe sur `./data/falkye.sqlite3`, **qu'elle crée puis interroge**. *Une base
+vide rend zéro ligne, et ce zéro se lit exactement comme la bonne réponse* — cas 30 et cas 41 réunis
+sur la même commande. `refuser_si_cible_non_choisie()` l'interdit.
+
+*Et un cas que la requête brute aurait raté : la forme stockée VIDE. `nom_detecte_normalise == ''`
+partagée par deux dossiers est un doublon comme un autre, et `scalar_one_or_none()` lève pareil.*
