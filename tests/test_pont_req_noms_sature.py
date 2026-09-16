@@ -119,3 +119,21 @@ def test_la_borne_totale_tient_toujours(miroir_sature, db_session):
         f"{len(candidats)} candidats pour une borne de {BORNE} : la part réservée "
         "a doublé le coût au lieu de partager le budget"
     )
+
+
+def test_la_recuperation_est_reproductible(miroir_sature):
+    """**Deux exécutions identiques doivent rendre la même chose.**
+
+    Un `LIMIT` sans `ORDER BY` rend 2 000 lignes *au hasard de l'index* — et
+    « au hasard » veut dire susceptible de changer après un réimport, un
+    `VACUUM`, une insertion. *Le rejeu devenait non reproductible, et une passe
+    qui ÉCRIT dans la base ne peut pas s'appuyer sur un tirage au sort.*
+
+    ⚠️ Ce test verrouille la REPRODUCTIBILITÉ, pas la pertinence : la tranche
+    retenue reste alphabétique et arbitraire.
+    """
+    nom = normaliser("gestion pierre tremblay")
+    premier = [c.neq for c in candidats_par_nom(miroir_sature, nom)]
+    second = [c.neq for c in candidats_par_nom(miroir_sature, nom)]
+    assert premier == second, "deux appels identiques rendent deux listes différentes"
+    assert len(set(premier)) == len(premier), "un NEQ apparaît deux fois dans les candidats"
