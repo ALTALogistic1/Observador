@@ -1334,3 +1334,62 @@ En écrivant la passe, j'ai importé `falkye.sources.req._enrich_from_req`. **Il
 `tests/test_imports_des_outils.py` l'a nommée, fichier et ligne, **avant l'hôte**. C'est la
 première fois qu'une garde de cette session attrape un défaut que j'étais en train de commettre
 plutôt qu'un défaut déjà payé.
+
+### N63 — La vérification faite d'avance répond à l'état d'avant
+
+**Le fait** *(2026-09-16, 19 h 03)*. La passe de reprise est morte sur
+`UNIQUE constraint failed: companies.neq`, transaction annulée en entier — **rien posé sur les 736**.
+
+**La cause, nommée par Alexandre avant moi.** La disponibilité du NEQ était vérifiée contre les
+dossiers **EXISTANTS**, jamais contre **ce que la passe elle-même allait poser**. *Deux dossiers du
+lot visant le même NEQ libre : le premier le prend, le second viole la contrainte.*
+
+⚠️ **Et le rapport le montrait déjà.** 69 NEQ déjà pris, **tous des doublons de graphie** —
+« Annexair inc. » contre « Annexair Inc ». *Si la base porte ces doublons, le lot en porte aussi* —
+personne ne l'avait lu ainsi, moi le premier. **Un rapport qui contient la réponse ne la donne pas
+pour autant.**
+
+**LA RÈGLE. Une vérification faite d'avance répond à l'état d'avant, jamais à celui du moment où
+l'on écrit.** Deux correctifs distincts, et il en fallait deux :
+
+1. **Les collisions internes au lot, résolues AVANT l'affichage** — pas au moment de poser. *« Le
+   premier arrivé » serait un ordre d'itération, donc un tirage* — et `ORDER BY` a été posé le matin
+   même pour qu'un geste irréversible n'en dépende pas. Ici la règle est nommée, **visible dans le
+   rapport**, et rend la même chose à chaque exécution.
+2. **La disponibilité re-vérifiée au moment de poser** — pour l'autre cas, celui qu'aucun calcul
+   d'avance ne couvre : *un cycle de production qui prendrait ce NEQ entre le rapport et
+   l'écriture.* Plus un `flush()` par ligne, pour que la contrainte, si elle parle, nomme **une**
+   ligne au lieu d'annuler tout.
+
+**L'échelle du gagnant n'est PAS neuve.** `falkye/dedup_entreprises.py` la pose déjà pour le cas
+analogue : *« le PRINCIPAL est toujours le dossier le plus ANCIEN (`first_detected_at`) »*. En
+inventer une seconde ferait dépendre l'identité d'une entreprise **de la table par laquelle on
+arrive**.
+
+⚠️ **Et l'ancienneté n'est pas la vérité** — le dossier le plus vieux peut être le plus mal saisi.
+Mais ce choix ne décide pas quel nom est juste : il décide **qui porte le NEQ pendant qu'un humain
+regarde la paire**. *C'est la conservation qui rend ce choix bon marché* : le perdant n'est pas
+perdu, il est journalisé. **Le modèle choisi hier a payé aujourd'hui.**
+
+### N64 — Les doublons de dossier, et la famille que la contrainte rend invisible
+
+**Demandé par Alexandre** *(2026-09-16)* : *« Ne le corrige pas. Mesure-le. »* `outils/
+doublons_entreprises.py` ne fait que mesurer — aucune écriture, aucune proposition.
+
+**Trois familles, et la troisième est celle que personne ne pouvait voir.**
+
+1. **Graphie identique** — même `nom_detecte_normalise`, après retrait de casse, accents et
+   ponctuation.
+2. **Graphie proche, les deux sans NEQ** — mesurée avec `trouver_meilleur_candidat_fusion` et **les
+   seuils du produit** (90/95). *Une règle recopiée mesurerait sa propre copie.*
+3. ⚠️ **Un dossier RÉSOLU et un NON RÉSOLU.** `Company.neq` est `unique=True`, donc **deux dossiers
+   résolus ne peuvent pas être doublons — la contrainte l'interdit.** *Mais un résolu et un
+   non-résolu cohabitent sans rien violer*, et c'est exactement ce que la passe a trouvé.
+
+**LA RÈGLE. Une contrainte d'unicité empêche une classe de défaut ET la rend invisible.** Ce qu'elle
+interdit n'arrive jamais; ce qu'elle laisse passer n'est plus surveillé par personne, *parce qu'on
+croit la contrainte responsable du sujet entier.*
+
+⚠️ **La famille 2 sous-compte, et c'est écrit dans l'outil** : la fonction rend le MEILLEUR
+candidat, donc un groupe de trois est vu comme des paires. *Le chiffre est un plancher* — et c'est
+celui que le produit voit lui-même, ce qui est la mesure honnête de ce qu'il rate.
