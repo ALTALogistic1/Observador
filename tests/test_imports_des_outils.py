@@ -36,6 +36,15 @@ from pathlib import Path
 
 import pytest
 
+#: Les paquets du dépôt. ⚠️ `outils` a été AJOUTÉ le 2026-09-16, quelques
+#: heures après la création de ce fichier : un outil importait
+#: `outils.archives_req.resoudre_archive`, qui n'existe pas — le vrai est
+#: `resoudre` — et cette garde ne l'a pas vu parce qu'elle ne regardait que
+#: `falkye.*`. **Le défaut exact qu'elle existe pour attraper, hors de sa
+#: propre portée.** *Une garde ne couvre que ce que la mesure couvrait — y
+#: compris quand c'est la garde elle-même qui a fixé la mesure.*
+PREFIXES = ("falkye", "outils")
+
 RACINE = Path(__file__).resolve().parent.parent
 DOSSIER_OUTILS = RACINE / "outils"
 
@@ -56,13 +65,13 @@ def _imports_falkye(chemin: Path) -> list[tuple[int, str, tuple[str, ...]]]:
     for noeud in ast.walk(arbre):
         if isinstance(noeud, ast.ImportFrom):
             # `from . import x` a `module is None`; il ne nous concerne pas.
-            if noeud.level or not noeud.module or not noeud.module.startswith("falkye"):
+            if noeud.level or not noeud.module or not noeud.module.startswith(PREFIXES):
                 continue
             noms = tuple(a.name for a in noeud.names if a.name != "*")
             trouves.append((noeud.lineno, noeud.module, noms))
         elif isinstance(noeud, ast.Import):
             for alias in noeud.names:
-                if alias.name.startswith("falkye"):
+                if alias.name.startswith(PREFIXES):
                     trouves.append((noeud.lineno, alias.name, ()))
     return trouves
 

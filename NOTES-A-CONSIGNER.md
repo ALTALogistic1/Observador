@@ -1202,3 +1202,80 @@ pour mot.
 3,4 Go** dans `/var/lib/falkye`, à côté du miroir. *Trois commentaires d'unité disaient que
 `/var/lib/falkye` ne portait que « le fichier des miroirs » ou « les miroirs ET l'état de diff ».
 Ils étaient faux, et corrigés.*
+
+### N56 — Les deux « hausses » étaient une population, pas une dégradation
+
+**Le fait** *(2026-09-16)*. Après réimport, deux catégories du diagnostic montent : candidats faibles
+`4 873 → 5 211` (+338), aucun candidat `148 → 346` (+198). *Lu comme une régression.*
+
+**L'arithmétique tranche seule :**
+
+```
+somme des catégories AVANT : 8 395
+somme des catégories APRÈS : 8 931
+population « sans NEQ »    : 8 931   (les DEUX colonnes)
+ce qui manque à AVANT      :   536
+somme des deux hausses     :   536   ← identiques
+```
+
+**La colonne « avant » portait une ventilation de 8 395 en face d'une population de 8 931.** Les
+deux hausses sont, à l'unité près, les 536 entreprises que cette ventilation ne comptait pas.
+*Aucune entreprise n'a reculé.*
+
+**LA RÈGLE.** ⚠️ **Deux colonnes côte à côte affirment une comparaison.** *Quand leurs totaux
+diffèrent, elles comparent deux populations et non deux états* — et la différence se lit comme un
+mouvement. **Un tableau avant/après doit porter la somme de ses lignes**, sinon la première chose
+qu'il communique est fausse.
+
+### N57 — Le pont existait, était interrogé, et n'ajoutait jamais personne
+
+**Le fait.** Le miroir porte 1 505 879 noms de plus. Le diagnostic est **identique à l'unité** sur
+trois catégories : 3 061 ambigus, 313 résolubles. *Pas « peu de gain » — zéro effet.*
+
+**La cause est une ligne que j'ai écrite exprès, en la croyant prudente :**
+
+```python
+reste = max(0, limite - len(candidates))   # la borne s'applique au TOTAL
+if reste: … req_noms …
+```
+
+⚠️ **Si la première requête rend déjà `limite` lignes, `reste` vaut zéro et pas un seul nom du pont
+n'entre.** Or le préfixe de récupération est le **PREMIER MOT** du nom — « gestion », « les »,
+« construction ». **La saturation n'est pas un cas limite : c'est le cas courant, et c'est
+exactement là que le pont servirait.**
+
+*Démontré par un test avant de le dire* : 2 050 entrées partageant le préfixe, une cible atteignable
+uniquement par `req_noms` — absente des candidats.
+
+**LA RÈGLE. Une borne qui protège du coût en supprimant l'apport protège du gain.** Le correctif
+donne au pont une **part réservée** (un quart) et rogne la liste principale pour lui faire place :
+le total reste borné, le coût ne bouge pas. *Et les candidats du pont valent mieux que ceux qu'ils
+remplacent* — ils sont ciblés par leur préfixe, là où les derniers de la liste principale sont une
+tranche arbitraire : **le `LIMIT` n'a pas d'`ORDER BY`**, donc sur 50 000 « gestion… » SQLite en
+rend 2 000 au hasard de l'index. *Cette absence d'ordre reste un défaut ouvert.*
+
+### N58 — Une ligne de contrôle qui ne s'imprime pas ne contrôle rien
+
+**Le fait.** `req.py` journalisait « %s noms en vigueur indexés dans req_noms » par `logger.info`.
+**Aucun programme de l'import ne configure de journal** — l'outil rapporte par `print()`. Sans
+gestionnaire, le logger racine est à WARNING : *la ligne partait dans le vide.* La table portait
+1 505 879 noms et `grep req_noms` ne rendait rien — **et son absence se lisait comme « la passe n'a
+pas tourné »**.
+
+**Le correctif ne déplace pas la ligne, il change ce qu'elle compte.** Le rapport imprime désormais
+un `count(*)` **lu dans la table**, et non le total rendu par la passe : *« j'ai envoyé » et
+« c'est là » sont deux affirmations différentes*, et entre les deux il y a les `OR IGNORE`, les
+contraintes et les transactions non validées. Une table vide alors que les entrées sont chargées
+crie désormais.
+
+### N59 — La garde de ce matin ne couvrait pas les imports `outils.*`
+
+**Le fait**, quelques heures après avoir écrit `tests/test_imports_des_outils.py` : un outil neuf
+importait `outils.archives_req.resoudre_archive`. **Ce nom n'existe pas** — le vrai est `resoudre`.
+*Le même défaut que le matin, déduit au lieu d'être lu.* **La garde ne l'a pas vu : elle ne
+regardait que les modules `falkye.*`.**
+
+⚠️ **Une garde ne couvre que ce que la mesure couvrait — y compris quand c'est la garde elle-même
+qui a fixé la mesure.** Elle avait été écrite sur un défaut `falkye.*`, et avait pris cette portée
+pour la bonne. *La question à poser en écrivant une garde n'est pas « est-ce qu'elle attrape ce
+défaut-ci », c'est « où est la frontière que je viens de tracer sans la nommer ».*
