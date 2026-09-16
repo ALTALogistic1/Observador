@@ -27,6 +27,8 @@ information.
 """
 from __future__ import annotations
 
+from outils.nombres import milliers
+
 import argparse
 import sys
 from datetime import datetime, timedelta, timezone
@@ -227,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
                 abouties_n = abouties_totales[nom]
                 rendement = f"{100 * abouties_n / appels_n:.1f} %" if appels_n else "—"
                 cout_unitaire = (
-                    f"~{derivees_totales[nom] / abouties_n:,.0f}".replace(",", " ")
+                    f"~{derivees_totales[nom] / abouties_n:,.0f}"
                     if abouties_n else "—"
                 )
                 print(f"   {nom:<14}{appels_n:>10}{abouties_n:>11}{rendement:>12}{cout_unitaire:>22}")

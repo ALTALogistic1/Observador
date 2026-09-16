@@ -46,6 +46,8 @@ Usage :
 """
 from __future__ import annotations
 
+from outils.nombres import milliers
+
 import argparse
 import hashlib
 import re
@@ -105,7 +107,7 @@ def afficher(titre: str, fiche: dict) -> None:
         return
     print(f"      chemin     : {fiche['chemin']}")
     print(f"      mode       : {mode_installation(fiche['chemin'])}")
-    print(f"      octets     : {fiche['octets']:,}".replace(",", " "))
+    print(f"      octets     : {milliers(fiche['octets'])}")
     print(f"      lignes     : {fiche['lignes']}")
     print(f"      modifié le : {fiche['modifie']:%Y-%m-%d %H:%M:%S} UTC")
     print(f"      empreinte  : {fiche['empreinte']}")

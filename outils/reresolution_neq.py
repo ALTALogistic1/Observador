@@ -56,6 +56,16 @@ from pathlib import Path
 DOSSIER_INSTANTANE = Path("/var/lib/falkye")
 
 
+def _sans_champs_de_travail(paire: dict) -> dict:
+    """La paire sans ses champs de calcul (préfixés `_`).
+
+    *L'instantané porte l'état d'AVANT, ce qui suffit à défaire le geste* — y
+    mêler les intermédiaires de décision rendrait son format dépendant de la
+    façon dont la passe raisonne ce jour-là.
+    """
+    return {k: v for k, v in paire.items() if not k.startswith("_")}
+
+
 def _resoudre_une(db_session, company) -> tuple[str | None, list]:
     """`(neq retenu ou None, matches)` — **par le chemin de production**.
 
@@ -137,6 +147,13 @@ def main(argv: list[str] | None = None) -> int:
                 # L'état d'AVANT, pour que l'instantané soit réversible.
                 "neq_avant": None,
                 "statut_avant": getattr(company.statut_resolution, "value", None),
+                # Sert à départager une collision interne au lot. Préfixé `_`
+                # parce qu'il est retiré avant l'écriture de l'instantané : ce
+                # fichier porte l'état d'avant, pas les intermédiaires de calcul.
+                "_anciennete": (
+                    company.first_detected_at.isoformat()
+                    if company.first_detected_at else None
+                ),
             }
             if detenteur is not None:
                 paire["detenteur_id"] = detenteur.id
@@ -145,7 +162,63 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 libres.append(paire)
 
+        # --- LES COLLISIONS À L'INTÉRIEUR DU LOT ------------------------------
+        # ⚠️ **Le défaut du 2026-09-16, 19 h 03.** La disponibilité était vérifiée
+        # contre les dossiers EXISTANTS, jamais contre ce que la passe elle-même
+        # allait poser. *Deux dossiers du lot visant le même NEQ libre : le
+        # premier le prend, le second viole `UNIQUE(companies.neq)`* — et la
+        # transaction entière est annulée, donc **rien** n'est posé.
+        #
+        # Le rapport le laissait voir : 69 NEQ déjà pris, tous des doublons de
+        # graphie (« Annexair inc. » contre « Annexair Inc »). *Si la base porte
+        # déjà ces doublons, le lot en porte aussi* — mais personne ne l'avait lu
+        # ainsi.
+        #
+        # **Résolu ICI, avant l'affichage, et pas au moment de poser.** Le
+        # premier arrivé serait un ordre d'itération, donc un tirage — et
+        # `ORDER BY` a été posé ce matin précisément pour qu'un geste
+        # irréversible ne dépende pas d'un tirage. Ici la règle est nommée, elle
+        # est visible dans `--comparer`, et elle rend la même chose à chaque
+        # exécution.
+        par_neq: dict[str, list[dict]] = {}
+        for paire in libres:
+            par_neq.setdefault(paire["neq"], []).append(paire)
+
+        collisions = {neq: v for neq, v in par_neq.items() if len(v) > 1}
+        libres = []
+        for neq, pretendants in par_neq.items():
+            if len(pretendants) == 1:
+                libres.append(pretendants[0])
+                continue
+            # LE PLUS ANCIEN GAGNE — `first_detected_at`, départagé par `id`.
+            #
+            # **Ce n'est pas une échelle neuve : c'est celle du produit.**
+            # `falkye/dedup_entreprises.py` la pose déjà pour le cas analogue —
+            # *« le PRINCIPAL est toujours le dossier le plus ANCIEN
+            # (first_detected_at) »*. Inventer un second critère ici ferait
+            # dépendre l'identité d'une entreprise de la table par laquelle on
+            # arrive.
+            #
+            # ⚠️ **Et l'ancienneté n'est pas la vérité.** Le dossier le plus vieux
+            # peut être le plus mal saisi. Mais ce choix ne décide pas quel nom
+            # est juste : il décide seulement qui PORTE le NEQ pendant qu'un
+            # humain regarde la paire. **C'est la conservation qui rend ce choix
+            # bon marché** — le perdant n'est pas perdu, il est journalisé.
+            pretendants.sort(key=lambda x: (x["_anciennete"] is None,
+                                            x["_anciennete"], x["company_id"]))
+            gagnant, *perdants = pretendants
+            libres.append(gagnant)
+            for perdant in perdants:
+                perdant["detenteur_id"] = gagnant["company_id"]
+                perdant["detenteur_nom"] = gagnant["nom_detecte"]
+                perdant["motif"] = "collision dans le lot — le plus ancien garde le NEQ"
+                pris.append(perdant)
+
         print(f"   NEQ retenu, NEQ LIBRE          : {len(libres)}")
+        if collisions:
+            en_trop = sum(len(v) for v in collisions.values()) - len(collisions)
+            print(f"   dont COLLISIONS dans le lot    : {len(collisions)} NEQ visés par "
+                  f"plusieurs dossiers, {en_trop} dossier(s) écarté(s)")
         print(f"   NEQ retenu, NEQ DÉJÀ PRIS      : {len(pris)}   (conservés, jamais fusionnés)")
         print(f"   aucun NEQ retenu               : {non_resolues}")
 
@@ -195,7 +268,13 @@ def main(argv: list[str] | None = None) -> int:
             dossier.mkdir(parents=True, exist_ok=True)
             chemin = dossier / f"reresolution-{horodatage}.json"
             chemin.write_text(
-                json.dumps({"a_poser": libres, "conserves": pris}, ensure_ascii=False, indent=1),
+                json.dumps(
+                    {
+                        "a_poser": [_sans_champs_de_travail(x) for x in libres],
+                        "conserves": [_sans_champs_de_travail(x) for x in pris],
+                    },
+                    ensure_ascii=False, indent=1,
+                ),
                 encoding="utf-8",
             )
         except OSError as exc:
@@ -211,11 +290,29 @@ def main(argv: list[str] | None = None) -> int:
         from falkye.resolution import _enrich_from_req
 
         poses = 0
+        tardifs = 0
         for p in libres:
             company = session.get(Company, p["company_id"])
+            # ⚠️ **LA DISPONIBILITÉ RE-VÉRIFIÉE AU MOMENT DE POSER**, et pas
+            # seulement au moment de décider. Les collisions internes au lot
+            # sont déjà résolues plus haut; celle-ci attrape l'autre cas — **un
+            # cycle de production qui aurait pris ce NEQ entre le rapport et
+            # l'écriture.** *Une vérification faite d'avance répond à l'état
+            # d'avant, jamais à celui du moment où l'on écrit.*
+            occupant = session.execute(
+                select(Company).where(Company.neq == p["neq"])
+            ).scalar_one_or_none()
+            if occupant is not None:
+                p["detenteur_id"] = occupant.id
+                p["detenteur_nom"] = occupant.nom_detecte
+                p["motif"] = "NEQ pris entre le rapport et l'écriture"
+                pris.append(p)
+                tardifs += 1
+                continue
             company.neq = p["neq"]
             company.statut_resolution = StatutResolution.RESOLU
             _enrich_from_req(session, company, p["neq"])
+            session.flush()  # la contrainte parle ICI, sur UNE ligne nommée
             poses += 1
 
         journalises = 0
@@ -234,6 +331,8 @@ def main(argv: list[str] | None = None) -> int:
 
         session.commit()
         print(f"\n   NEQ posés                  : {poses}")
+        if tardifs:
+            print(f"   pris entre rapport et écriture : {tardifs}   (journalisés, non posés)")
         print(f"   rapprochements journalisés : {journalises}   (aucune fusion)")
         print("\n" + "=" * 78)
         print("   Pour défaire : l'instantané ci-dessus porte l'état d'avant de")

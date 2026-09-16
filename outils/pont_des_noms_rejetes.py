@@ -54,6 +54,8 @@ Usage :
 """
 from __future__ import annotations
 
+from outils.nombres import milliers
+
 import argparse
 import csv
 import io
@@ -188,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
                         "stat": (rangee.get("STAT_NOM") or "").strip(),
                         "typ": (rangee.get("TYP_NOM_ASSUJ") or "").strip(),
                     })
-            print(f"lignes lues dans Nom.csv      : {lignes_nom:,}".replace(",", " "))
+            print(f"lignes lues dans Nom.csv      : {milliers(lignes_nom)}")
 
             # --- l'index des noms ÉLUS, celui du moteur ---------------------
             print("\n… élection des noms par la fonction DU MOTEUR (quelques minutes)",

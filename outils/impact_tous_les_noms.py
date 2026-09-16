@@ -36,6 +36,8 @@ Usage :
 """
 from __future__ import annotations
 
+from outils.nombres import milliers
+
 import argparse
 import csv
 import io
@@ -159,9 +161,9 @@ def main(argv: list[str] | None = None) -> int:
         print("=" * 78)
         octets = lignes_en_vigueur * OCTETS_PAR_LIGNE
         basse, haute = estimer_duree(lignes_en_vigueur)
-        print(f"\n   lignes de Nom.csv lues        : {lues:,}".replace(",", " "))
-        print(f"   noms EN VIGUEUR à indexer     : {lignes_en_vigueur:,}".replace(",", " "))
-        print(f"   écartés (normalisés vides)    : {formes_vides:,}".replace(",", " "))
+        print(f"\n   lignes de Nom.csv lues        : {milliers(lues)}")
+        print(f"   noms EN VIGUEUR à indexer     : {milliers(lignes_en_vigueur)}")
+        print(f"   écartés (normalisés vides)    : {milliers(formes_vides)}")
         print(f"\n   taille estimée de req_noms    : ~{octets / 1024 / 1024:.0f} Mo"
               f"   ({OCTETS_PAR_LIGNE} o/ligne, ordre de grandeur)")
         print(f"   durée d'import ajoutée        : entre ~{basse:.0f} et ~{haute:.0f} min")

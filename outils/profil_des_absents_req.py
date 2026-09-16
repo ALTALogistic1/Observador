@@ -56,6 +56,8 @@ Usage :
 """
 from __future__ import annotations
 
+from outils.nombres import milliers
+
 import argparse
 import csv
 import io
@@ -205,8 +207,8 @@ def main(argv: list[str] | None = None) -> int:
         print("\n" + "-" * 78)
         print("LES DEUX POPULATIONS")
         print("-" * 78)
-        print(f"\n   sans nom élu : {n_absents:,}".replace(",", " "))
-        print(f"   avec nom élu : {n_presents:,}".replace(",", " "))
+        print(f"\n   sans nom élu : {milliers(n_absents)}")
+        print(f"   avec nom élu : {milliers(n_presents)}")
 
         # --- le préfixe, c'est-à-dire la forme juridique ------------------
         print("\n" + "-" * 78)
@@ -217,8 +219,8 @@ def main(argv: list[str] | None = None) -> int:
         for prefixe in sorted(set(prefixes_absents) | set(prefixes_presents)):
             a, p = prefixes_absents.get(prefixe, 0), prefixes_presents.get(prefixe, 0)
             marque = "" if prefixe in ("11", "22", "33") else "   ⚠️ hors 11/22/33"
-            print(f"   {prefixe:<10}{a:>12,}".replace(",", " ")
-                  + f"{p:>12,}".replace(",", " ")
+            print(f"   {prefixe:<10}{a:>12,}"
+                  + f"{p:>12,}"
                   + f"{part(prefixes_absents, prefixe):>10.1f}%"
                   + f"{part(prefixes_presents, prefixe):>11.1f}%{marque}")
 
@@ -234,9 +236,9 @@ def main(argv: list[str] | None = None) -> int:
                 1 for neq in noms if bas <= neq <= haut
             )
             print(f"\n   plage des absents      : {bas} à {haut}")
-            print(f"   NEQ AVEC un nom dans cette plage : {dans_plage_avec_nom:,}"
-                  .replace(",", " "))
-            print(f"   NEQ SANS nom dans cette plage    : {n_absents:,}".replace(",", " "))
+            print(f"   NEQ AVEC un nom dans cette plage : {milliers(dans_plage_avec_nom)}"
+                  )
+            print(f"   NEQ SANS nom dans cette plage    : {milliers(n_absents)}")
             if dans_plage_avec_nom:
                 total_plage = dans_plage_avec_nom + n_absents
                 print(f"\n   ⛔ L'EXCLUSION N'EST PAS LA PLAGE.")
@@ -260,8 +262,8 @@ def main(argv: list[str] | None = None) -> int:
                   f"{'part abs.':>11}{'part prés.':>11}{'écart':>9}")
             for ecart, valeur, lib, n_a, n_p, p_a, p_p in lignes[:VALEURS_MAX]:
                 marque = "  ←" if abs(ecart) >= 20 else ""
-                print(f"   {valeur[:13]:<14}{n_a:>11,}".replace(",", " ")
-                      + f"{n_p:>11,}".replace(",", " ")
+                print(f"   {valeur[:13]:<14}{n_a:>11,}"
+                      + f"{n_p:>11,}"
                       + f"{p_a:>10.1f}%{p_p:>10.1f}%{ecart:>+8.1f}{marque}")
                 if lib:
                     print(f"      └ {lib[:66]}")
