@@ -83,7 +83,33 @@ usermod -aG falkye,systemd-journal deploy
 #     QUATRE barres obliques : le chemin est absolu.
 printf 'FALKYE_MIROIR_DB_URL=sqlite:////var/lib/falkye/miroirs.sqlite3\n' \
     >> /etc/falkye/falkye.env
+
+# 1.6 L'archive du diff. AJOUTÉE LE 2026-09-16, après un import mort dessus.
+#     Le repli est `./cache/diff_archive` — RELATIF au répertoire courant, donc
+#     /opt/falkye/code/cache sous l'unité, que ProtectSystem=strict rend en
+#     lecture seule. L'import du REQ a lu 2,7 millions de lignes, calculé le
+#     diff, PUIS est mort sur le mkdir. Le moteur refuse désormais en tête
+#     d'exécution si cette ligne manque.
+#
+#     DANS LE FICHIER D'ENVIRONNEMENT, et non dans chaque unité : les quatre
+#     unités le chargent déjà, et les quatre déclarent ReadWritePaths=
+#     /var/lib/falkye. Une ligne ici couvre les quatre; recopiée dans chacune,
+#     elle manquerait à la cinquième — c'est le cas 41, exactement.
+printf 'FALKYE_DIFF_ARCHIVE_DIR=/var/lib/falkye/diff_archive\n' \
+    >> /etc/falkye/falkye.env
 chmod 600 /etc/falkye/falkye.env
+```
+
+⚠️ **Ce que l'archive coûte en disque, et pourquoi il faut le savoir avant.**
+L'archivage n'est PAS réservé aux quarantaines : `executer_diff` l'appelle
+**sur le chemin accepté normalement**, à chaque exécution. Pour le REQ, cela
+fait **679 Mo par exécution**, et `GENERATIONS_CONSERVEES = 5` — soit **jusqu'à
+3,4 Go** dans `/var/lib/falkye/diff_archive/req/`, à côté du fichier des
+miroirs. *Vérifier l'espace disponible avant le premier import réel :*
+
+```bash
+df -h /var/lib/falkye
+du -sh /var/lib/falkye/diff_archive/* 2>/dev/null
 ```
 
 **Vérifier avant de continuer** — chaque commande doit répondre :
@@ -97,6 +123,7 @@ ls -ld /opt/falkye /opt/falkye/code /opt/falkye/import /var/lib/falkye
                  # drwxr-s--- deploy falkye   /opt/falkye/import
                  # drwxr-x---  falkye falkye   /var/lib/falkye
 grep MIROIR /etc/falkye/falkye.env    # la ligne, avec quatre barres
+grep ARCHIVE /etc/falkye/falkye.env  # FALKYE_DIFF_ARCHIVE_DIR, chemin ABSOLU
 python3 --version                      # 3.11 ou plus
 ```
 

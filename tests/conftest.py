@@ -26,6 +26,30 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 
+@pytest.fixture(autouse=True)
+def cible_archive_declaree(tmp_path, monkeypatch):
+    """Une cible nommée pour l'archive du diff, dans le répertoire du test.
+
+    **Le fait qui a écrit ce décor** *(2026-09-16)*. `FALKYE_DIFF_ARCHIVE_DIR`
+    n'était posée nulle part, et le repli — `./cache/diff_archive` — est
+    RELATIF au répertoire courant. *Sur l'hôte, sous `ProtectSystem=strict`,
+    l'import du REQ est mort dessus après trente minutes de travail.* **Ici, il
+    ne mourait pas : la suite déposait ses archives dans l'arbre de travail du
+    dépôt**, invisible parce que `/cache/` est ignoré par git.
+
+    ⚠️ *Un test qui passe parce qu'il a le droit d'écrire là où la production
+    ne l'a pas ne verrouille rien* — c'est la troisième forme décrite en tête de
+    ce fichier, à un répertoire près.
+
+    **`setattr`, pas `setenv`** : `diff_engine.ARCHIVE_DIR` est lu À L'IMPORT du
+    module, donc une variable posée après le chargement n'aurait aucun effet —
+    et le test passerait pour la mauvaise raison.
+    """
+    from falkye import diff_engine
+
+    monkeypatch.setattr(diff_engine, "ARCHIVE_DIR", tmp_path / "diff_archive")
+
+
 @pytest.fixture()
 def db_session(tmp_path, monkeypatch):
     """DEUX bases SQLite en mémoire, comme en production — pas une seule.

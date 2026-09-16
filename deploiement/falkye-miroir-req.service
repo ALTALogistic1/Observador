@@ -64,8 +64,14 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-# /var/lib/falkye porte le fichier des miroirs — le SEUL chemin que cette unité
-# écrit. Le répertoire de dépôt, lui, reste en lecture seule.
+# ⚠️ /var/lib/falkye porte TROIS choses, et la troisième a été découverte le
+# 2026-09-16 en tuant un import : le fichier des miroirs, l'état de diff, et
+# **l'archive du diff** (FALKYE_DIFF_ARCHIVE_DIR, posée dans le fichier
+# d'environnement). Cette dernière pèse 679 Mo par exécution pour le REQ, cinq
+# générations conservées. Le moteur refuse de démarrer si la variable manque
+# plutôt que de retomber sur un chemin relatif que ProtectSystem=strict
+# interdit — c'est ce repli-là qui a coûté trente minutes de lecture.
+# Le répertoire de dépôt, lui, reste en lecture seule.
 ReadWritePaths=/var/lib/falkye
 # Le répertoire de dépôt reste en LECTURE SEULE pour cette unité : l'import ne
 # doit pas pouvoir effacer l'archive qu'il vient de lire. C'est ce qui garantit
