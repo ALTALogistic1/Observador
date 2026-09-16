@@ -73,6 +73,26 @@ def main(argv: list[str] | None = None) -> int:
     print("LES DOUBLONS DE DOSSIER — combien en désignent une seule entreprise?")
     print("=" * 78)
     print("\nPORTÉE : mesure seule. N'écrit rien, ne fusionne rien, ne propose rien.\n")
+    # LA PORTÉE, DANS LA SORTIE ET PAS DANS LA DOCUMENTATION (cas 33).
+    # *Un instrument mesure ce qu'il a été construit pour mesurer; son zéro ne
+    # dit rien de ce qu'il ne regarde pas.*
+    print("⚠️ PÉRIMÈTRE DE CETTE MESURE — à lire avant les chiffres")
+    print("   Elle porte sur les `Company` du produit, résolues contre le REQ.")
+    print("   Le REQ est le registre des entités PRIVÉES.")
+    print("   Elle ne dit donc RIEN de :")
+    print("     • les entités PUBLIQUES — aucun registre pivot n'est choisi (D27 ⬜),")
+    print("       aucune règle de classement public/privé n'existe (D28 ⬜);")
+    print("     • les donneurs d'ouvrage du SEAO — ils n'existent comme entité")
+    print("       NULLE PART dans le produit (D43 ⬜), donc aucune ligne les concernant")
+    print("       n'entre dans ce compte;")
+    print("     • la FAMILLE d'entité — la structure actuelle ne la porte pas.")
+    print("   Sur le SEAO : identifiant de l'organisme acheteur présent à 100 %,")
+    print("   celui du fournisseur jamais un NEQ — 56 % d'ambiguïté sur les")
+    print("   entreprises, ZÉRO sur les organismes publics (mandat, chantiers 3+4).")
+    print("   *Le chiffre ci-dessous est vrai sur son périmètre, et son périmètre")
+    print("   est la moitié privée d'une population qui en compte deux.*")
+    print()
+
 
     session = get_session()
     try:

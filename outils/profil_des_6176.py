@@ -73,6 +73,33 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Import impossible ({exc}). Lancer depuis la racine du dépôt.", file=sys.stderr)
         return 2
 
+    # LA PORTÉE, DANS LA SORTIE ET PAS DANS LA DESCRIPTION (cas 33).
+    # *Un instrument mesure ce qu'il a été construit pour mesurer; son zéro ne
+    # dit rien de ce qu'il ne regarde pas.*
+    print("=" * 78)
+    print("⚠️ PÉRIMÈTRE DE CETTE MESURE — à lire avant les chiffres")
+    print("=" * 78)
+    print("   Elle cherche les entreprises SANS NEQ dans `NOM_ETAB`")
+    print("   (Etablissements.csv), troisième gisement de noms de l'archive REQ.")
+    print()
+    print("   CE QU'ELLE NE COUVRE PAS :")
+    print("     • les entités PUBLIQUES — le REQ est le registre des entités")
+    print("       PRIVÉES; aucun registre pivot public n'est choisi (D27 ⬜),")
+    print("       aucune règle de classement public/privé n'existe (D28 ⬜);")
+    print("     • les donneurs d'ouvrage du SEAO — ils n'existent comme entité")
+    print("       NULLE PART dans le produit (D43 ⬜);")
+    print("     • la FAMILLE d'entité — la structure ne la porte pas;")
+    print("     • les entreprises ABSENTES d'Etablissements.csv — une entreprise")
+    print("       sans établissement déclaré n'a aucun NOM_ETAB, et son absence")
+    print("       ici ne dit RIEN de sa récupérabilité par une autre porte.")
+    print()
+    print("   ⚠️ Et la ventilation par forme juridique porte sur les NEQ RETROUVÉS,")
+    print("      jamais sur ceux qui restent introuvables : *on ne connaît la forme")
+    print("      juridique que d'une entreprise qu'on a déjà identifiée.* Le profil")
+    print("      des NON retrouvés reste hors de portée de cet outil.")
+    print("=" * 78)
+    print()
+
     from outils.archives_req import avertissement, ligne_de_provenance, resoudre
     from outils.profil_des_absents_req import charger_domaines, part
 

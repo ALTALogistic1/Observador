@@ -86,3 +86,21 @@ def test_loutil_NECRIT_RIEN(population):
     population.expire_all()
     apres = {c.id: c.neq for c in population.execute(select(Company)).scalars().all()}
     assert avant == apres, "l'outil de MESURE a modifié la base"
+
+
+def test_le_perimetre_est_dans_la_sortie(population, capsys):
+    """**Cas 33, appliqué à cet outil-ci.** *Un instrument mesure ce qu'il a été
+    construit pour mesurer; son zéro ne dit rien de ce qu'il ne regarde pas* — et
+    **sa portée s'écrit à côté de sa sortie, pas dans sa documentation.**
+
+    Cette mesure porte sur les entités PRIVÉES, résolues contre le REQ. Elle ne
+    dit rien des entités publiques (D27/D28 ouvertes) ni des donneurs d'ouvrage
+    (D43 : ils n'existent comme entité nulle part). *Un lecteur qui prendrait
+    son total pour la population entière se tromperait de moitié.*
+    """
+    assert apport_noms_multiples.main(["--exemples", "0"]) == 0
+    sortie = capsys.readouterr().out
+    assert "PÉRIMÈTRE DE CETTE MESURE" in sortie
+    assert "D27" in sortie and "D43" in sortie, (
+        "le périmètre ne nomme pas les décisions ouvertes qui le bornent"
+    )

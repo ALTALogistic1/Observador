@@ -1,177 +1,191 @@
-# Un dossier qui porte plusieurs noms — proposition, non appliquée
+# Un dossier qui porte plusieurs noms — état après les trois contraintes
 
-*Rédigé le 2026-09-16, à la demande d'Alexandre. **Rien n'est construit.**
-Ce document répond à trois questions dans son ordre : ce que ça rapporte, ce que
-la forme coûte, et quelle structure.*
-
----
-
-## 1. Ce que ça rapporte — à mesurer, pas à annoncer
-
-`outils/apport_noms_multiples.py` le chiffre. **Aucun nombre n'est écrit ici** :
-celui d'hier a été mesuré contre un pont que personne n'empruntait, et celui
-d'avant-hier contre une colonne cassée.
-
-```bash
-python3 -m outils.apport_noms_multiples --exemples 20
-```
-
-Il sépare trois choses que la forme actuelle confond :
-
-- **ce que la résolution TROUVE** — inchangé par la forme;
-- **ce que la forme actuelle peut en FAIRE** — un NEQ libre, un dossier;
-- **ce qu'un dossier à plusieurs noms en ferait** — tout NEQ retenu devient un
-  rattachement, qu'il soit libre ou déjà porté.
-
-⚠️ **Et un chiffre qui recadre la question.** L'outil rapporte les **NEQ
-DISTINCTS** visés par les 8 931. *Si les 8 931 dossiers désignent beaucoup moins
-d'entreprises réelles, « 8 931 entreprises sans identité » n'est pas la bonne
-phrase.* **Un compte de dossiers répond « combien de lignes », jamais « combien
-d'entreprises ».**
+*Rédigé le 2026-09-16, **révisé le même jour** après réception de trois
+contraintes arrivées APRÈS l'ouverture de la demande #71. **Rien n'est
+construit.** Ce document dit ce qui tient, ce qui tient moyennant un ajout, et
+ce qui tombe.*
 
 ---
 
-## 2. Ce que la forme coûte — 55 lectures, et seulement 8 qui comptent
+## ⚠️ Avant tout : ce que je tiens de la décision du 16, et ce que je n'ai pas
 
-`grep nom_detecte falkye/` rend **55 points de lecture**. *Le chiffre brut fait
-peur et il est trompeur* : ils se rangent en trois familles, et deux d'entre
-elles ne bougent pas.
+**La décision n'est écrite nulle part dans `docs/spec/`.** Vérifié : aucun
+fichier du corpus ne porte « un dossier peut porter plusieurs noms » ni « aucun
+nom ne se perd ».
 
-### Famille A — AFFICHER (≈ 47 points) : **rien à changer**
+**Ce que j'ai réellement sous les yeux :**
 
-`premier_contact.py` (18), `cli.py` (5), `engine.py`, `summary.py`,
-`notifications/formatter.py`, `liens.py`, `web/app.py`…
+- `NOTES-A-CONSIGNER.md`, **N61 et N63** — *conservation plutôt que fusion*, et
+  *le dossier le plus ancien porte le NEQ*. Écrites à partir des messages
+  d'Alexandre des 15 et 16 septembre, **dans mon tampon, pas au corpus.**
+- `NOTES-A-CONSIGNER.md`, **N65** — la direction multi-noms, transcrite de son
+  message de ce soir.
+- ⚠️ **N40, et elle mérite d'être rappelée** : le 15 septembre, **je
+  recommandais la FUSION**, au motif que « la conservation n'existe pas, le
+  schéma l'interdit ». *Alexandre a tranché contre ma recommandation.* La
+  décision est donc la sienne de bout en bout, et je ne peux pas la recopier de
+  mémoire comme si elle était mienne.
 
-**Et l'idiome est déjà le bon partout où le dossier est résolu :**
-
-```python
-nom = company.nom_officiel_req or company.nom_detecte
-```
-
-*Le portrait affiche déjà le nom légal du registre en priorité* — c'est la règle
-posée le 15 septembre, et **elle est renforcée, pas défaite**. Un dossier qui
-gagne des noms n'affiche pas plus de noms : il affiche toujours celui du
-registre.
-
-⚠️ **UNE exception, et elle mérite d'être nommée.** `premier_contact.py` écrit
-`company.nom_detecte` **sans** passer par `nom_officiel_req` — 18 fois, dans le
-texte d'un courriel adressé à un humain. *C'est le seul endroit où un mauvais
-nom coûte la crédibilité plutôt qu'une ligne de journal.* **Cette incohérence
-existe déjà aujourd'hui** : elle n'est pas créée par la proposition, elle est
-révélée par elle.
-
-### Famille B — CHERCHER (≈ 6 points) : **c'est là qu'est le gain**
-
-`dedup_entreprises.py` (requêtes préfixe/sous-chaîne, score),
-`resolution.py::requete_nom_exact`.
-
-**Ce sont les seuls points à élargir, et les élargir EST le gain.** Six endroits,
-tous concentrés, tous déjà extraits en fonctions nommées pour être empruntés.
-
-### Famille C — ÉCRIRE (2 points) : `resolution.py` lignes 106 et 127
-
-Où le nom est posé à la création du dossier.
-
-### ⚠️ Le vrai coût n'est aucun des trois : c'est une ligne
-
-```python
-# falkye/resolution.py::_find_unresolved_company
-trouve = db_session.execute(requete_nom_exact(nom_norm)).scalar_one_or_none()
-```
-
-**`scalar_one_or_none()` LÈVE si deux dossiers non résolus portent le même nom
-normalisé.** C'est l'invariant que la forme neuve casse — *un dossier qui gagne
-un nom peut se mettre à porter le nom d'un autre dossier*, et le chemin de
-production passe ici à chaque signal non résolu.
-
-**Cet invariant n'est écrit nulle part.** Ni dans le corpus, ni dans une
-docstring : il vit dans le choix d'un appel SQLAlchemy. *C'est la réponse à
-« quelle règle dois-je défaire » — ce n'est pas une règle du corpus, c'est une
-hypothèse tacite du code.*
-
-**Et il est peut-être DÉJÀ violé.** `outils/doublons_entreprises.py` (famille 1)
-compte exactement les groupes qui le violeraient. **La mesure qu'Alexandre lance
-ce soir répond à cette question-là aussi.**
+**Je travaille donc sur ce qu'en rapportent ses messages et mes notes, pas sur un
+texte du dépôt.** *Si le plan de travail dit autre chose, c'est lui qui a
+raison.*
 
 ---
 
-## 3. La structure proposée — `company_noms`, symétrique de `req_noms`
+## Les trois issues, déclarées
 
-### La forme
+### ✅ CE QUI TIENT TEL QUEL
 
-Une table rattachée au dossier, **exactement comme `req_noms` l'est au miroir** :
+**1. Le recensement du coût — 55 lectures, ≈47 / ≈6 / 2.**
+Il compte des lectures de `Company.nom_detecte` dans le code. *Quelle que soit
+la forme que prend le pivot d'identité, ces 47 sites afficheront un nom et ces 6
+en chercheront un.* **Aucune des trois contraintes ne le touche.**
 
-| colonne | rôle |
+**2. ⚠️ `scalar_one_or_none()` dans `_find_unresolved_company`.**
+*C'est le plus urgent des trois, et il ne dépend d'aucune décision ouverte.* La
+ligne lève si deux dossiers non résolus portent le même nom normalisé, et le
+chemin de production y passe à chaque signal non résolu. **`doublons_entreprises`
+famille 1 dit s'il est déjà violé.** À traiter indépendamment de tout le reste.
+
+**3. La correction des collisions dans `reresolution_neq` et les deux mesures.**
+Elles opèrent sur la structure d'aujourd'hui, et leur validité n'en dépend pas.
+
+### ⚠️ CE QUI TIENT MOYENNANT UN AJOUT — et l'ajout est fait
+
+**Les deux mesures — leur périmètre est la moitié privée d'une population qui en
+compte deux.**
+
+*Cas 33 : « un instrument mesure ce qu'il a été construit pour mesurer; son zéro
+ne dit rien de ce qu'il ne regarde pas », et « sa portée s'écrit à côté de sa
+sortie, pas dans sa documentation ».*
+
+**Ce que `apport_noms_multiples` et `doublons_entreprises` mesurent
+EXACTEMENT :** les `Company` du produit, résolues contre **le REQ**, qui est le
+registre des entités **privées**. *Sur ce périmètre, la mesure est entière et
+valable.*
+
+**Ce qu'elles NE couvraient pas, et ne pouvaient pas couvrir :**
+
+- **les entités publiques** — aucun registre pivot n'est choisi (**D27 ⬜**),
+  aucune règle de classement n'existe (**D28 ⬜**);
+- **les donneurs d'ouvrage du SEAO** — ils n'existent **comme entité nulle
+  part** dans le produit (**D43 ⬜**), donc aucune ligne les concernant n'entre
+  dans le compte;
+- **la famille d'entité** — la structure actuelle ne la porte pas.
+
+*Et le mandat chiffre précisément ce que ça écarte : sur le SEAO, l'identifiant
+de l'organisme acheteur est présent à **100 %**, celui du fournisseur n'est
+jamais un NEQ — **56 % d'ambiguïté sur les entreprises, zéro sur les organismes
+publics**.* **La population où l'appariement est difficile est exactement celle
+que ces deux outils mesurent; celle où il est trivial en est absente.**
+
+**L'ajout :** les deux outils **impriment ce périmètre en tête de leur sortie**,
+et deux tests l'exigent. *La prescription du cas 33 est « à côté de la sortie » —
+pas dans ce document.*
+
+### ⛔ CE QUI TOMBE
+
+**`company_noms` comme structure DÉFINITIVE.**
+
+Ma proposition accroche les noms à `company_id` et **suppose que `Company.neq`
+reste le pivot de l'identité**. Le mandat dit l'inverse, noir sur blanc
+*(chantiers 3+4)* :
+
+> « **la clé du moteur cesse d'être un identifiant de territoire** »
+> « Une **identité interne**, distincte de tout identifiant externe […] Une table
+> d'**identifiants externes** rattachés, chacun avec son territoire, sa source et
+> sa date — zéro, un ou plusieurs »
+
+**Donc la table des noms ne se rattache pas au dossier tel qu'il est : elle se
+rattache à l'identité interne du chantier 3, à côté de la table des
+identifiants externes — et la famille d'entité s'ajoute au territoire.**
+
+*La FORME reste bonne — `(identité, nom_normalisé)`, avec `nom`, `source_id`,
+`first_seen_at`, symétrique de `req_noms`. Ce qui tombe, c'est son point
+d'accrochage et le moment de la construire.* **Le mandat chiffre le report :
+« le faire maintenant coûte presque rien; le faire après, c'est migrer deux fois
+la même clé ».** La même phrase condamne de construire `company_noms` seule
+maintenant : *ce serait une troisième migration de la même clé.*
+
+---
+
+## Les décisions ouvertes que ma proposition SUPPOSAIT
+
+*Plutôt que de poser une valeur par défaut pour avancer, les voici nommées.*
+
+| décision | ce que la proposition supposait |
 |---|---|
-| `company_id` | le dossier |
-| `nom_normalise` | la clé de recherche |
-| `nom` | la graphie d'origine, telle que reçue |
-| `source_id` | **qui a nommé l'entreprise ainsi** |
-| `first_seen_at` | quand ce nom est apparu |
+| **D28** — règle de classement public/privé | ⚠️ **Mon étape 2 envoyait TOUT nom au REQ.** *C'est présumer que toute entité est privée* — exactement l'ambiguïté d'entité que D28 doit trancher avec une réponse par défaut. |
+| **D29** — quel identifiant fait foi | Ma règle d'ancienneté décide quel dossier porte **le NEQ**. Dès qu'une entité peut porter deux identifiants, « qui porte quoi » est une question de D29, pas d'ancienneté. |
+| **D27** — registre des entités publiques | Pas de présomption directe, **mais** : sans lui, une entité publique n'a aucun pivot, donc « lui apparier des noms » n'a pas de sens défini. |
 
-Clé primaire `(company_id, nom_normalise)` — la même que `req_noms`.
-
-### Pourquoi cette forme et pas une autre
-
-**1. `nom_detecte` NE BOUGE PAS.** Il reste la colonne du dossier, donc
-**aucune des 47 lectures d'affichage ne change**, et aucune migration de données
-n'est nécessaire pour qu'elles continuent de marcher. *La table est ADDITIVE.*
-
-**2. La règle de `req_noms` s'applique telle quelle :** *« la table sert à
-TROUVER, jamais à NOMMER »*. Elle est déjà écrite, déjà acceptée, déjà testée
-une fois. **La symétrie est l'argument** : le miroir et le dossier auraient la
-même forme pour le même problème, et un lecteur qui comprend l'un comprend
-l'autre.
-
-**3. `source_id` est le champ qui n'existe pas côté miroir, et il faut l'avoir.**
-Le registre publie des noms; le produit, lui, **les reçoit de sources qui se
-trompent**. Savoir que « Annexair Inc » vient du SEAO et « Annexair inc. » de la
-RBQ est ce qui permettra plus tard de dire *quelle source écrit mal les noms* —
-et c'est une mesure qu'on ne pourra jamais refaire après coup si la colonne
-n'existe pas.
-
-### Ce que la structure ne fait PAS
-
-- ⚠️ **Elle ne fusionne rien.** Un dossier qui porte plusieurs noms ne supprime
-  aucun dossier. *La conservation est intacte* — c'est même elle qui rend la
-  proposition sûre.
-- **Elle ne change pas le NEQ.** `Company.neq` reste `unique=True` : une
-  entreprise, un dossier porteur. La table ajoute des portes, pas des identités.
-- **Elle ne décide pas quel nom afficher.** `nom_officiel_req or nom_detecte`
-  continue de répondre.
-
-### Les trois étapes, si la direction est retenue
-
-1. **La table et son remplissage** — chaque `Company` reçoit son `nom_detecte`
-   comme premier nom. *Migration sans perte, réversible : la table peut être
-   vidée sans que rien du produit change.*
-2. **Élargir les 6 points de recherche** — et **c'est ici que le gain arrive**,
-   pas à l'étape 1.
-3. ⚠️ **Traiter `scalar_one_or_none()` AVANT l'étape 2**, jamais après. *Sinon
-   l'élargissement met une exception sur le chemin de production.*
-
-**L'ordre n'est pas négociable, et l'étape 3 est la seule qui touche un chemin
-qui tourne aujourd'hui.**
+**Aucune valeur par défaut n'est posée.** *La demande de mesure et de chiffrage
+tient sans ces trois décisions; la structure définitive, non.*
 
 ---
 
-## 4. Quelle règle du corpus change?
+## Les deux réserves du corpus, appliquées à la forme
 
-**Aucune.** Et c'est la réponse honnête, pas une esquive.
+### Cas 27 + cas 41 — ce qui l'exigerait mécaniquement
 
-| règle | sort |
-|---|---|
-| « le portrait affiche le nom légal du registre, jamais le nom apparié » | **renforcée** — c'est elle qui rend les 47 lectures immobiles |
-| « la table sert à TROUVER, jamais à NOMMER » *(`req_noms`)* | **étendue** au dossier, mot pour mot |
-| conservation plutôt que fusion | **intacte**, et c'est elle qui rend la proposition sûre |
-| « le PRINCIPAL est toujours le dossier le plus ANCIEN » | **intacte** |
+*Cas 27 : une règle portée par la discipline de chaque appelant n'est pas portée
+— elle doit vivre à l'endroit qui ne peut pas être contourné. Cas 41 : le
+correctif d'une convention n'est pas de la rappeler, c'est de la rendre
+exigible.*
 
-**Ce qui change est en dessous du corpus : une hypothèse que personne n'a
-écrite** — *« un nom normalisé désigne au plus un dossier non résolu »* — et qui
-n'existe que sous la forme d'un `scalar_one_or_none()`.
+⚠️ **Ma proposition avait exactement ce défaut.** Elle décrivait deux points
+d'écriture à étendre, et **rien n'obligeait un troisième, écrit le mois
+prochain, à passer par la table des noms.** *C'est la garde recopiée à la main,
+une table plus loin — et elle a coûté quinze outils sur vingt-huit il y a six
+heures.*
 
-⚠️ **C'est la leçon à en tirer, et elle vaut plus que la structure.** *Les
-hypothèses les plus coûteuses à défaire ne sont pas celles qu'on a écrites comme
-règles : ce sont celles qu'on a écrites comme appels de fonction.* Une règle du
-corpus, on la relit et on la discute. Un `scalar_one_or_none()`, on le découvre
-en le cassant.
+**Ce qui l'exigerait mécaniquement, et l'ordre est celui de la préférence :**
+
+1. **Un seul chemin d'écriture du nom** — une fonction qui est la *seule* façon
+   de nommer une entité, et qui écrit les deux endroits en un geste. *L'endroit
+   qui ne peut pas être contourné.*
+2. **Un test d'AST qui refuse toute affectation de `nom_detecte` hors de cette
+   fonction** — même forme que `tests/test_imports_des_outils.py` et
+   `tests/test_garde_cible_des_outils.py`, **tous deux vérifiés en les cassant
+   aujourd'hui.** *C'est l'idiome du dépôt, et il a prouvé deux fois qu'il
+   mord.*
+
+*Le point 2 sans le point 1 est une vigilance outillée; le point 1 sans le point
+2 est une convention.* **Il faut les deux.**
+
+### Cas 34 — ce que je ne dois PAS étendre par symétrie
+
+*« Une garde ne couvre que ce que la mesure couvrait. »*
+
+⚠️ **Et j'avais commis l'extension.** L'étape 2 de ma proposition — *« élargir
+les 6 points de recherche »* — était présentée comme une conséquence de la
+décision du 16. **Elle n'en est pas une.** La décision porte sur la
+**conservation des noms** : qu'aucun nom ne se perde, et qu'aucun dossier ne
+soit supprimé.
+
+**Conserver un nom et l'utiliser pour chercher sont deux gestes différents, et
+le second a ses propres risques** : élargir la récupération augmente le nombre
+de candidats, donc le nombre d'appariements ambigus et de **faux** appariements.
+*Rien dans la décision du 16 ne dit qu'on accepte ce coût-là.*
+
+**L'élargissement de la lecture et l'élargissement du dédoublonnage demandent
+chacun leur propre démonstration**, chiffrée séparément. *Ils ne sont pas
+acquis, et je les retire de la proposition.*
+
+---
+
+## Ce que je recommande maintenant
+
+**Dans cet ordre, et les deux premiers ne dépendent d'aucune décision ouverte.**
+
+1. **`scalar_one_or_none()`** — défaut vivant sur le chemin de production,
+   indépendant de tout le reste.
+2. **Les deux mesures**, en lisant leur périmètre imprimé.
+3. **D27, D28, D29** — et la table des noms **avec** le chantier 3, jamais
+   avant. *Une migration de moins.*
+
+**Et si la pression est de récupérer les noms maintenant** : la table peut
+naître **dans le miroir** plutôt que dans la base durable, comme `req_noms` —
+elle y serait un index de recherche reconstructible, **sans rien promettre sur
+l'identité**, et sa disparition ne coûterait rien. *Ce n'est pas la structure
+définitive, et il faudrait l'écrire comme telle dans sa propre docstring.*

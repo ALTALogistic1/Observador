@@ -87,3 +87,12 @@ def test_sauter_le_flou_le_dit(population, capsys):
     assert doublons_entreprises.main(["--sans-flou"]) == 0
     sortie = capsys.readouterr().out
     assert "SAUTÉE" in sortie and "n'est pas nulle" in sortie
+
+
+def test_le_perimetre_est_dans_la_sortie(population, capsys):
+    """**Cas 33.** La portée s'écrit à côté de la sortie, jamais seulement dans
+    la documentation — sinon un total se lit comme la population entière."""
+    assert doublons_entreprises.main(["--sans-flou"]) == 0
+    sortie = capsys.readouterr().out
+    assert "PÉRIMÈTRE DE CETTE MESURE" in sortie
+    assert "D27" in sortie and "D43" in sortie

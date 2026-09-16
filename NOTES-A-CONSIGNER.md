@@ -1447,3 +1447,111 @@ et `tests/test_format_des_nombres.py` refuse le retour de l'idiome.
 
 *Le séparateur est l'espace insécable étroite (U+202F) : une espace ordinaire laisserait un nombre
 se couper en fin de ligne, et un nombre coupé se relit comme deux.*
+
+### N67 — Trois contraintes reçues après l'ouverture : deux tiennent, une tombe
+
+**Les renvois vérifiés au corpus, et ils disent bien ce que le message rapportait.** *Le vérifier était
+la première chose à faire : un message cite de seconde main, le corpus fait foi.*
+
+**CE QUI TIENT TEL QUEL.** Le recensement des 55 lectures (≈47 affichage / ≈6 recherche / 2 écriture) —
+*quelle que soit la forme du pivot, ces sites afficheront ou chercheront un nom*. Le défaut
+`scalar_one_or_none()` — **vivant sur le chemin de production, indépendant de toute décision ouverte, et
+le plus urgent des trois.** Les correctifs de collision et les deux mesures.
+
+**CE QUI TIENT MOYENNANT UN AJOUT — cas 33.** Les deux mesures portent sur les `Company` résolues contre
+**le REQ, registre des entités PRIVÉES**. *Entière et valable sur ce périmètre.* Ce qu'elles ne
+couvraient pas : les entités **publiques** (D27 ⬜, D28 ⬜), les **donneurs d'ouvrage** qui n'existent
+comme entité nulle part (D43 ⬜), et la **famille d'entité** que la structure ne porte pas.
+
+⚠️ **Et le mandat chiffre ce que ça écarte : 56 % d'ambiguïté sur les entreprises, ZÉRO sur les
+organismes publics.** *La population où l'appariement est difficile est exactement celle que ces outils
+mesurent; celle où il est trivial en est absente.* **L'ajout suit la prescription du cas 33 à la
+lettre : le périmètre s'imprime À CÔTÉ DE LA SORTIE, pas dans la documentation** — et deux tests
+l'exigent.
+
+**CE QUI TOMBE.** `company_noms` comme structure définitive. Elle accrochait les noms à `company_id` et
+**supposait que `Company.neq` reste le pivot**. Le mandat dit l'inverse : *« la clé du moteur cesse
+d'être un identifiant de territoire »*, une identité interne, une table d'identifiants externes avec
+territoire — et la famille s'ajoute à côté. **La forme survit, son point d'accrochage tombe.** *Et la
+phrase qui condamne le report condamne aussi de la construire seule maintenant : « le faire après, c'est
+migrer deux fois la même clé » — la construire à part en ferait trois.*
+
+### N68 — J'avais étendu une décision par symétrie, et le cas 34 l'interdit
+
+⚠️ **L'étape 2 de ma proposition — « élargir les 6 points de recherche » — était présentée comme une
+conséquence de la décision du 16. Elle n'en est pas une.** La décision porte sur la **conservation des
+noms** : qu'aucun ne se perde, qu'aucun dossier ne soit supprimé.
+
+**Conserver un nom et l'utiliser pour chercher sont deux gestes différents, et le second a ses propres
+risques** — élargir la récupération augmente les candidats, donc les ambiguïtés **et les faux
+appariements**. *Rien dans la décision du 16 ne dit qu'on accepte ce coût-là.* **Retiré de la
+proposition : la lecture et le dédoublonnage demandent chacun leur démonstration chiffrée.**
+
+**Et le cas 27 + 41 appliqués à la même proposition.** Elle décrivait deux points d'écriture à étendre,
+et **rien n'obligeait un troisième, écrit le mois prochain, à passer par la table.** *C'est la garde
+recopiée à la main, une table plus loin — six heures après qu'elle ait coûté quinze outils sur
+vingt-huit.* Ce qui l'exigerait : **un seul chemin d'écriture du nom** *(l'endroit qui ne peut pas être
+contourné)* **ET un test d'AST qui refuse toute affectation hors de lui**. *Le test sans la fonction est
+une vigilance outillée; la fonction sans le test est une convention.*
+
+### N69 — Les décisions que ma proposition supposait, nommées plutôt que devinées
+
+**D28** : mon élargissement envoyait **tout** nom au REQ — *c'est présumer que toute entité est privée*,
+exactement l'ambiguïté d'entité que D28 doit trancher avec une réponse par défaut. **D29** : ma règle
+d'ancienneté décide quel dossier porte **le NEQ**; dès qu'une entité peut porter deux identifiants,
+« qui porte quoi » relève de D29. **D27** : sans registre public, « apparier des noms à une entité
+publique » n'a pas de sens défini.
+
+**LA RÈGLE. Poser une valeur par défaut pour avancer, c'est trancher une décision ouverte sans le
+dire.** *La nommer coûte une ligne; la deviner coûte une migration.*
+
+### N70 — « Vivant » n'était pas fondé : j'avais le mécanisme, pas l'occurrence
+
+**La question d'Alexandre** *(2026-09-16)* : j'ai qualifié `scalar_one_or_none()` de « défaut VIVANT
+sur le chemin de production » **sans en donner la preuve**, et le corpus veut que la preuve voyage
+avec le fait.
+
+**La réponse est la seconde des deux lectures : c'était DÉDUIT de la lecture du code.** *Je n'avais
+aucune trace, et je n'en ai toujours pas — les journaux sont sur l'hôte.* **Le mot était trop fort
+et je le retire.**
+
+**Mais l'enquête a rendu mieux qu'une confession, et c'est bien la forme du cas 27.** Ce qui
+protège le chemin aujourd'hui n'est **pas une garde** : `resolve_company` ne crée un second dossier
+que si le rapprochement flou échoue, et *un nom normalisé identique score 100, donc au-dessus de
+`SEUIL_FUSION_AUTO = 95`* — le doublon est absorbé. **C'est un effet de bord d'un autre mécanisme
+pris pour une garantie.**
+
+⚠️ **Et la fissure est nommable, mesurable, et c'est la même que ce matin.**
+`requete_candidats_prefixe` est bornée par `LIMITE_CANDIDATS = 500` **sans `ORDER BY`**. *Si le
+préfixe sature la borne et que le vrai jumeau n'est pas dans la tranche rendue, le score n'a jamais
+lieu et le second dossier naît.* **La borne sans ordre, une table plus loin.**
+
+**Démontré plutôt qu'affirmé** — `tests/test_doublon_nom_non_resolu.py` : le jumeau échappe à la
+borne saturée, puis deux dossiers de même nom font lever `_find_unresolved_company`, **la fonction
+que le cycle traverse à chaque signal non résolu.**
+
+**LA RÈGLE. « Ce défaut peut arriver » et « ce défaut est arrivé » sont deux affirmations
+différentes, et un test ne prouve que la première.** *L'occurrence se lit dans les journaux et dans
+la population, jamais dans le code.* **Dire laquelle des deux on tient coûte trois mots.**
+
+### N71 — L'adresse est capturée et jamais promue : le préalable avant toute mesure
+
+**Vérifié au code, et l'audit avait raison.** `falkye/sources/eimt.py` construit son `RawSignal`
+avec `champs={"adresse": …}` et **aucun argument `adresse=`** — alors que `RawSignal.adresse`
+existe *(`falkye/sources/base.py`)*. **Le champ existe, la donnée existe, et le pont entre les deux
+n'existe pas.**
+
+⚠️ **Donc une mesure d'appariement par adresse rendrait ZÉRO, et ce zéro se lirait comme
+« l'adresse ne sert à rien »** — alors qu'il ne dirait rien de l'adresse, seulement du champ. *C'est
+la série d'hypothèses tombées du 14 au 16 septembre, où le second terme de la comparaison
+n'existait pas.*
+
+`outils/portee_adresse.py` **n'apparie rien** : il établit si les deux termes existent, des deux
+côtés, **et il montre LA FORME** — un échantillon brut côte à côte. *Deux taux de remplissage élevés
+ne disent pas que les deux chaînes se comparent : « 123, Rang Saint-Joseph, bureau 2 » et
+« 123 RANG SAINT-JOSEPH » sont deux remplissages et un seul appariement.* **C'est ce que la
+normalisation devra franchir, et personne ne l'avait regardé.**
+
+**Rappel du mandat, à ne pas perdre** : le chantier 4 pose **l'adresse comme axe principal, le nom
+en corroborateur.** *Elle passe seconde dans l'ordre des mesures pour son préalable, jamais pour son
+rang.*
