@@ -282,3 +282,68 @@ def test_lecart_du_produit_nest_pas_modifie(population):
     avant = resolution.SEUIL_AMBIGUITE_ECART_MIN
     chiffrage_corrections.main(["--seuil-simule", "80"])
     assert resolution.SEUIL_AMBIGUITE_ECART_MIN == avant == 8.0
+
+
+# ---------------------------------------------------------------------------
+# LES TROIS LECTURES D'UNE PERTE  (2026-09-17, second relevé d'Alexandre)
+# ---------------------------------------------------------------------------
+#
+# La règle de lecture n'en donnait que DEUX, et faisait conclure « l'instrument
+# est en cause » sur un cas qui est un mécanisme : **9 perdus sur 13 ne
+# portaient aucune parenthèse au nom détecté.** *Un CANDIDAT peut en porter une,
+# et la lui retirer lui fait perdre un discriminant.*
+
+
+@pytest.fixture()
+def population_discriminant(db_session, monkeypatch):
+    """Le nom détecté n'a AUCUNE parenthèse; un candidat concurrent en a une.
+
+    Avant : `100` contre `85.5` — écart 14.5, **RETENU**.
+    Après : la parenthèse retirée côté registre rend les deux formes
+    identiques — `100` contre `100`, écart 0, **AMBIGU**.
+
+    ⚠️ *C'est une perte RÉELLE et un MÉCANISME* : le registre a perdu ce qui
+    séparait les deux entreprises. **Rien à voir avec l'instrument.**
+    """
+    _cible_declaree(monkeypatch)
+    for neq, nom in (("3000000001", "Solutions BCITI inc"),
+                     ("3000000002", "Solutions BCITI (Groupe Nordet) inc")):
+        db_session.add(REQEntry(neq=neq, nom=nom, nom_normalise=normaliser(nom),
+                                statut="IMMATRICULÉE"))
+    detecte = "Solutions BCITI inc"
+    db_session.add(Company(neq=None, nom_detecte=detecte,
+                           nom_detecte_normalise=normaliser(detecte)))
+    db_session.commit()
+    monkeypatch.setattr("falkye.db.get_session", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    return db_session
+
+
+def test_une_perte_sans_parenthese_detectee_nACCUSE_PAS_linstrument(
+    population_discriminant, capsys
+):
+    """⚠️ **La règle de lecture corrigée.** *Le compteur qui accuse l'instrument
+    ne compte que les pertes où AUCUNE parenthèse n'existe nulle part.*"""
+    assert chiffrage_corrections.main([]) == 0
+    sortie = capsys.readouterr().out
+    assert "RETENUS perdus : 1" in sortie, sortie
+    assert "perdus SANS aucune parenthèse, ni au nom ni chez leurs candidats : 0" in sortie, (
+        "une perte causée par une parenthèse CÔTÉ REGISTRE est comptée comme un "
+        "défaut d'instrument — c'est la lecture qu'Alexandre a refusée"
+    )
+    assert "TROIS LECTURES, PAS DEUX" in sortie
+
+
+def test_le_perdu_est_trace_avec_la_provenance_de_ses_formes(
+    population_discriminant, capsys
+):
+    """*« Quel second candidat apparaît après le retrait, et d'où il vient »* —
+    la question du 2026-09-17, répondue par l'outil et non à la main."""
+    assert chiffrage_corrections.main([]) == 0
+    sortie = capsys.readouterr().out
+    assert "quel second apparaît après le retrait" in sortie
+    assert "ses formes au registre" in sortie
+    assert "req_entries (dénomination élue)" in sortie
+    assert "parenthèse au nom détecté : NON" in sortie
+    # La forme fautive est montrée, marquée, telle que le registre l'écrit.
+    assert "Solutions BCITI (Groupe Nordet) inc" in sortie
