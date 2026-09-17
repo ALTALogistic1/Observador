@@ -218,6 +218,7 @@ def _tracer_depuis_la_base(par_famille: int, familles: tuple[str, ...]) -> int:
             # faible » et n'ont pas la même cause.**
             #
             # Sans ce `--neq`, l'étape 5 se saute et la question reste ouverte.
+            argv += ["--famille-selection", f]
             attendu = decide or _jumeau_exact(company.nom_detecte_normalise)
             if attendu:
                 argv += ["--neq", attendu]
@@ -245,6 +246,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="le nom du miroir qu'on s'attend à voir apparier")
     parser.add_argument("--neq", default=None, help="le NEQ attendu, si on le connaît")
     parser.add_argument("--ville", default=None, help="la ville du dossier (bonus de +5)")
+    parser.add_argument(
+        "--famille-selection", default=None, metavar="FAMILLE",
+        help="la famille d'où ce cas vient (posée par --par-famille) — sert à dire "
+             "POURQUOI un jumeau exact est introuvable plutôt que de se taire",
+    )
     parser.add_argument(
         "--forme-stockee", default=None, metavar="FORME",
         help="la colonne `nom_detecte_normalise` du dossier, pour la comparer à la "
@@ -455,7 +461,24 @@ def main(argv: list[str] | None = None) -> int:
         print("5. LA LIGNE ATTENDUE — dans le lot, ou introuvable ?")
         print("-" * 78)
         if not (args.attendu or args.neq):
-            print("\n   (aucun --attendu ni --neq donné : étape sautée)")
+            # ⚠️ **TROIS SILENCES DIFFÉRENTS SOUS LE MÊME MESSAGE**, et le
+            # distinguer a coûté un aller-retour le 2026-09-17. *« Aucun --neq
+            # donné » se lisait comme « on ne l'a pas demandé »* alors que la
+            # recherche avait bien eu lieu et n'avait rien trouvé.
+            if args.famille_selection:
+                print(f"\n   ⚠️ JUMEAU EXACT CHERCHÉ, ET INTROUVABLE.")
+                print("      La forme normalisée du dossier n'existe à l'identique")
+                print("      NI dans `req_entries` NI dans `req_noms`.")
+                if args.famille_selection == "trop_faible":
+                    print("\n      **Et c'est ATTENDU pour cette famille.** Un dossier")
+                    print("      « trop faible » l'est parce que son nom DIFFÈRE de celui")
+                    print("      du registre — s'il était identique, il scorerait 100.")
+                    print("      *Le jumeau exact ne peut donc presque jamais servir ici :")
+                    print("      c'est l'étape 7 qui répond, en montrant si le bon candidat")
+                    print("      a été PRÉSENTÉ au scoreur et avec quel score.*")
+            else:
+                print("\n   (aucun --attendu ni --neq donné, et aucune famille : "
+                      "étape sautée)")
         else:
             dans_le_lot = [
                 c for c in candidats

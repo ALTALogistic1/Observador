@@ -1928,3 +1928,56 @@ scoré?** *Les deux verdicts s'appellent « trop faible » et n'ont pas la même
 
 *Ce n'est pas une présélection du résultat (cas 42) : la sélection porte sur l'ÉCHEC — la famille
 vient de `neq_retenu` — et le jumeau n'est cherché qu'ensuite.*
+
+### N86 — Trois silences différents sous le même message
+
+**L'écart relevé par Alexandre** *(2026-09-17)* : la trace disait *« aucun --attendu ni --neq donné :
+étape sautée »* alors que j'avais annoncé que le jumeau exact était désormais cherché.
+
+**Vérifié : la fonction a tourné et n'a rien trouvé, correctement.**
+
+```
+détecté normalisé  : '11888935 canada inc workstaff'
+registre normalisé : '11888935 canada inc'
+égaux ? False
+```
+
+⚠️ **Et mon affirmation était trop forte d'une façon qui compte.** *Pour la famille « trop faible »,
+un jumeau EXACT n'existe presque jamais — c'est précisément pourquoi ces dossiers sont trop
+faibles.* **Le jumeau exact ne peut donc quasiment pas servir sur cette famille-là**, et c'est
+l'étape 7 qui répond, en montrant si le bon candidat a été présenté au scoreur.
+
+**LA RÈGLE. « On ne l'a pas demandé » et « on l'a cherché et il n'existe pas » sont deux silences
+différents, et le second est un résultat.** *Les confondre dans un seul message transforme une
+mesure en absence de mesure* — et c'est la forme du cas 33 appliquée à une seule ligne de sortie.
+
+### N87 — Deux corrections qui ne sont pas de même nature, et le chiffrage doit le rendre visible
+
+**Le cas qui ouvre la question** : un dossier échouant de **deux points** à cause de `(Workstaff)`,
+avec une récupération parfaite — préfixe numérique, une ligne rendue, borne non atteinte, bon
+candidat présenté. **Le mur était dans le score, pas dans la récupération.**
+
+⚠️ **Et une hypothèse ne tombe pas, elle n'est pas encore testée** *(Alexandre)* : le préfixe de ce
+cas était NUMÉRIQUE. *L'argument sur `split(" ")[0]` donnant `centre` ou `construction` n'est ni
+confirmé ni réfuté* — il attend un nom ordinaire.
+
+**LA DISTINCTION QUE LE CHIFFRAGE DOIT PORTER :**
+
+| | |
+|---|---|
+| **retirer les parenthèses** | **correction de DONNÉES** — *elle ne peut que rapprocher des chaînes qui désignent la même entreprise* |
+| **abaisser le seuil** | **changement d'ÉCHELLE** — *il récupère du VRAI **et** du FAUX* |
+
+**Donc l'abaissement rend DEUX chiffres** : ce qu'il récupère, **et ce qu'il laisse passer** —
+mesuré par les prétendants multiples, *la seule forme de faux qu'on ait vue de près : 26
+organisations publiques distinctes à 95-100 sur un même NEQ*.
+
+⚠️ **Un chiffrage qui ne compterait que le gain ferait paraître l'abaissement gratuit.** C'est la
+règle, et un test la porte.
+
+**Et le seuil de 92 ne bouge pas** *(Alexandre)* : *c'est une échelle existante, elle se change avec
+lui, jamais dans une demande de mesure.* **Un raisonnement donne l'axe; seul un incident donne le
+seuil — et un cas unique n'est pas encore un incident.**
+
+*Le coût est de deux passes : retirer la parenthèse change aussi le PRÉFIXE, donc la RÉCUPÉRATION —
+la simuler sans rejouer la récupération mesurerait autre chose.*
