@@ -59,7 +59,7 @@ compte deux.**
 ne dit rien de ce qu'il ne regarde pas », et « sa portée s'écrit à côté de sa
 sortie, pas dans sa documentation ».*
 
-**Ce que `apport_noms_multiples` et `doublons_entreprises` mesurent
+**Ce que `rejeu_resolution` et `doublons_entreprises` mesurent
 EXACTEMENT :** les `Company` du produit, résolues contre **le REQ**, qui est le
 registre des entités **privées**. *Sur ce périmètre, la mesure est entière et
 valable.*

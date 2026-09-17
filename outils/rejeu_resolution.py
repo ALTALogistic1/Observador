@@ -33,8 +33,8 @@ et le nombre d'entreprises est plus petit.* **Un compte de dossiers répond
 « combien de lignes », jamais « combien d'entreprises ».**
 
 Usage, SUR L'HÔTE :
-    python3 -m outils.apport_noms_multiples
-    python3 -m outils.apport_noms_multiples --exemples 20
+    python3 -m outils.rejeu_resolution
+    python3 -m outils.rejeu_resolution --exemples 20
 """
 from __future__ import annotations
 
@@ -42,6 +42,13 @@ from outils.nombres import milliers
 
 import argparse
 from collections import Counter, defaultdict
+
+
+def _part(n: int, total: int) -> str:
+    """Un pourcentage, ou un tiret quand il n'y a rien à diviser. *Un « 0,0 % »
+    sur une population vide se lit comme une mesure; le tiret dit qu'il n'y en a
+    pas eu.*"""
+    return f"{100 * n / total:.1f} %" if total else "—"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -62,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from falkye.db import get_session
     from falkye.models.company import Company
-    from falkye.resolution import neq_retenu
+    from falkye.resolution import SEUIL_RESOLUTION_CONFIANTE, neq_retenu
     from falkye.sources import req as req_source
 
     print("=" * 78)
@@ -73,7 +80,10 @@ def main(argv: list[str] | None = None) -> int:
     # *Un instrument mesure ce qu'il a été construit pour mesurer; son zéro ne
     # dit rien de ce qu'il ne regarde pas.*
     print("⚠️ PÉRIMÈTRE DE CETTE MESURE — à lire avant les chiffres")
+    print("   UNITÉ : des DOSSIERS (`Company`), jamais des formes normalisées.")
     print("   Elle porte sur les `Company` du produit, résolues contre le REQ.")
+    print("   ⚠️ Elle N'ÉCRIT RIEN : aucun NEQ posé, aucun dossier créé, aucune")
+    print("      passe appliquée. C'est un rejeu qui COMPTE ce qui se produirait.")
     print("   Le REQ est le registre des entités PRIVÉES.")
     print("   Elle ne dit donc RIEN de :")
     print("     • les entités PUBLIQUES — aucun registre pivot n'est choisi (D27 ⬜),")
@@ -100,6 +110,11 @@ def main(argv: list[str] | None = None) -> int:
 
         resolus: list[tuple] = []   # (company, neq, score)
         sans_resolution = 0
+        #: Les quatre familles, telles que le MOTEUR les décide. *Le classement
+        #: vient de `neq_retenu` et du seuil du produit, jamais d'une règle
+        #: recopiée* — sinon le compte ne se comparerait pas à la ventilation du
+        #: diagnostic, qui utilise les mêmes.
+        familles: Counter = Counter()
         for i, company in enumerate(orphelins):
             if i and i % 1000 == 0:
                 print(f"   … {milliers(i)} examinés", flush=True)
@@ -109,7 +124,14 @@ def main(argv: list[str] | None = None) -> int:
             neq = neq_retenu(matches)
             if neq is None:
                 sans_resolution += 1
+                if not matches:
+                    familles["aucun candidat"] += 1
+                elif matches[0].score < SEUIL_RESOLUTION_CONFIANTE:
+                    familles["trop faible"] += 1
+                else:
+                    familles["ambigu"] += 1
                 continue
+            familles["RETENU"] += 1
             resolus.append((company, neq, matches[0].score))
 
         # Qui détient déjà quoi.
@@ -135,8 +157,18 @@ def main(argv: list[str] | None = None) -> int:
         print("\n" + "-" * 78)
         print("CE QUE LA RÉSOLUTION TROUVE (identique dans les deux formes)")
         print("-" * 78)
-        print(f"\n   un NEQ est RETENU pour      : {milliers(len(resolus))}")
-        print(f"   aucun NEQ retenu            : {milliers(sans_resolution)}")
+        print(f"\n   un NEQ est RETENU pour      : {milliers(len(resolus))} dossier(s)")
+        print(f"   aucun NEQ retenu            : {milliers(sans_resolution)} dossier(s)")
+        print("\n   LA VENTILATION PAR DÉCISION DU MOTEUR — en DOSSIERS")
+        print("   (comparable ligne à ligne à celle du diagnostic : mêmes fonctions,")
+        print("    mêmes seuils, même unité)\n")
+        for libelle in ("RETENU", "ambigu", "trop faible", "aucun candidat"):
+            n = familles.get(libelle, 0)
+            print(f"      {libelle:<18} {milliers(n):>8}  {_part(n, len(orphelins))}")
+        total_familles = sum(familles.values())
+        if total_familles != len(orphelins):
+            print(f"\n   ⚠️ {milliers(total_familles)} classés pour {milliers(len(orphelins))}"
+                  " dossiers — un dossier a échappé au classement.")
 
         print("\n" + "-" * 78)
         print("CE QUE LA FORME ACTUELLE PEUT EN FAIRE — un nom, un dossier")
@@ -146,6 +178,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"   PERDUS, contesté dans le lot: {milliers(perdants)}")
         print("\n   ⚠️ « Perdu » veut dire : le produit SAIT quelle entreprise c'est,")
         print("      et n'a nulle part où le mettre.")
+        print("\n" + "   " + "=" * 72)
+        print("   ⚠️ CE QUE CE COMPTE NE DIT PAS, ET IL FAUT LE LIRE AVANT LE CHIFFRE")
+        print("   " + "=" * 72)
+        print("""
+   Qu'un dossier se résolve au rejeu NE DIT PAS que le NEQ est le bon.
+   **Le score dit la RESSEMBLANCE, pas l'IDENTITÉ.** Deux entreprises
+   peuvent porter des raisons sociales quasi identiques, et un score de
+   100 sur deux entités différentes est une fausse résolution — la seule
+   chose qu'un total ne montre jamais.
+
+   Ce compte borne CE QUI EST RÉCUPÉRABLE. Il ne valide aucun appariement.
+   Les paires se regardent une à une (`reresolution_neq --comparer N`),
+   et c'est ce regard-là qui autorise une écriture, jamais ce total.
+""")
 
         print("\n" + "-" * 78)
         print("CE QU'UN DOSSIER À PLUSIEURS NOMS EN FERAIT")
@@ -166,6 +212,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"   dossiers en trop            : {milliers(len(resolus) - distincts)}")
         print("\n   Un compte de DOSSIERS répond « combien de lignes », jamais")
         print("   « combien d'entreprises ». La seconde question est celle qui compte.")
+
+        print("\n" + "-" * 78)
+        print("CE QUE LA PASSE DE REPRISE TRAITERAIT — et ce qu'elle laisserait")
+        print("-" * 78)
+        print(f"\n   NEQ libres, posables par la passe : {milliers(posables)} dossier(s)")
+        print("\n   ⚠️ L'instantané du 16 septembre en portait 736. **Si le chiffre")
+        print("      ci-dessus est nettement plus grand, appliquer la passe sur un")
+        print("      vieil instantané traiterait une fraction du problème en donnant")
+        print("      l'impression de l'avoir traité.** Le rapport des deux décide si")
+        print("      la passe est l'outil ou seulement un acompte — et une passe")
+        print("      relancée aujourd'hui recalcule sa propre liste.")
 
         distribution = Counter(len(v) for v in par_neq.values())
         print("\n   dossiers par NEQ visé :")
