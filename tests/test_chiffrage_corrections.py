@@ -26,11 +26,17 @@ def test_le_retrait_des_parentheses_ne_touche_que_les_parentheses():
     assert _sans_parentheses(None) == ""
 
 
-@pytest.fixture()
-def population(db_session, monkeypatch):
+def _cible_declaree(monkeypatch):
+    """Les DEUX cibles nommées. *`refuser_si_cible_non_choisie` refuse l'outil
+    quand l'une manque — et ce refus est la raison d'être de la garde : sans
+    lui, l'outil créerait une base vide et rendrait son verdict dessus.*"""
     monkeypatch.setenv("FALKYE_DB_URL", "sqlite:////tmp/essai-produit.sqlite3")
     monkeypatch.setenv("FALKYE_MIROIR_DB_URL", "sqlite:////tmp/essai-miroirs.sqlite3")
 
+
+@pytest.fixture()
+def population(db_session, monkeypatch):
+    _cible_declaree(monkeypatch)
     registre = "11888935 canada inc"
     db_session.add(REQEntry(neq="1188893500", nom=registre,
                             nom_normalise=normaliser(registre), statut="IMMATRICULÉE"))
@@ -59,7 +65,7 @@ def test_ce_que_la_mesure_ne_dira_pas_vient_AVANT_les_chiffres(population, capsy
     chiffres = sortie.index("dossiers sans NEQ")
     assert avant < chiffres, "l'avertissement est APRÈS les chiffres"
     assert "CRÉE UN DOSSIER NEUF" in sortie
-    assert "seuil de 92 NE BOUGE PAS" in sortie
+    assert "les DEUX échelles ne bougent pas" in sortie
 
 
 def test_les_parentheses_sont_ventilees_par_famille(population, capsys):
@@ -76,7 +82,7 @@ def test_labaissement_rend_LES_DEUX_chiffres(population, capsys):
     sortie = capsys.readouterr().out
     assert "CE QU'IL RÉCUPÈRE" in sortie
     assert "CE QU'IL LAISSE PASSER" in sortie
-    assert "PLUS DE DEUX dossiers" in sortie, (
+    assert "PLUS DE 2 dossiers" in sortie, (
         "le faux n'est pas mesuré — le chiffrage ferait paraître l'abaissement "
         "gratuit"
     )
@@ -107,3 +113,172 @@ def test_le_seuil_du_produit_nest_pas_modifie(population):
     avant = resolution.SEUIL_RESOLUTION_CONFIANTE
     chiffrage_corrections.main(["--seuil-simule", "80"])
     assert resolution.SEUIL_RESOLUTION_CONFIANTE == avant == 92.0
+
+
+# ---------------------------------------------------------------------------
+# LE DÉFAUT DU 2026-09-17 : l'instrument recopiait le scoreur du moteur
+# ---------------------------------------------------------------------------
+#
+# La première version rescorait à la main — `fuzz.WRatio` contre la SEULE
+# dénomination sociale élue, sans les autres noms du NEQ et sans le bonus de
+# ville. Elle annonçait **-338 RETENUS** là où la correction n'y était pour
+# rien. *Les deux décors ci-dessous sont les deux moitiés de ce défaut.*
+
+
+@pytest.fixture()
+def population_pont(db_session, monkeypatch):
+    """Un dossier RETENU **par le pont `req_noms`**, pas par la dénomination élue.
+
+    `Ferme M.G. Bellavance` s'apparie à `9224-5842 Québec inc.` — le nom parlant
+    est dans `req_noms`, le nom numérique est la dénomination élue. *Rescorer
+    contre la seule dénomination élue rendrait un score au plancher.*
+    """
+    from falkye.models.req_nom import REQNom
+
+    _cible_declaree(monkeypatch)
+    elu = "9224-5842 Quebec inc"
+    db_session.add(REQEntry(neq="9224584200", nom=elu,
+                            nom_normalise=normaliser(elu), statut="IMMATRICULÉE"))
+    parlant = "Ferme M.G. Bellavance"
+    db_session.add(REQNom(neq="9224584200", nom=parlant, statut="V",
+                          type_nom="AUTRE NOM UTILISE AU QUEBEC",
+                          nom_normalise=normaliser(parlant)))
+    db_session.add(Company(neq=None, nom_detecte=parlant,
+                           nom_detecte_normalise=normaliser(parlant)))
+    db_session.commit()
+    monkeypatch.setattr("falkye.db.get_session", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    return db_session
+
+
+def test_la_simulation_ne_perd_PAS_un_dossier_tenu_par_le_pont(population_pont, capsys):
+    """⚠️ **Le test qui aurait attrapé les -338.**
+
+    Aucune parenthèse nulle part : la correction (a) ne peut RIEN changer ici.
+    *Si le dossier passe de RETENU à autre chose, c'est l'instrument qui a
+    bougé, pas la population.*
+    """
+    assert chiffrage_corrections.main([]) == 0
+    sortie = capsys.readouterr().out
+    # ⚠️ Le test doit d'abord ÊTRE dans le cas qu'il prétend garder : un
+    # dossier RETENU par le pont. *Sans cette ligne, « 0 perdu » passerait
+    # aussi sur une population où rien n'a jamais été retenu.*
+    assert "RETENU                     1" in sortie, sortie
+    assert "RETENUS perdus : 0" in sortie, (
+        "un dossier sans la moindre parenthèse a changé de famille — la seconde "
+        "passe ne rejoue pas le scoreur du moteur"
+    )
+
+
+@pytest.fixture()
+def population_ville(db_session, monkeypatch):
+    """Un dossier RETENU **grâce au bonus de ville** (+5), et par lui seul.
+
+    ⚠️ **Le score du NOM est 90.00 — sous le seuil.** *C'est le bonus de ville
+    qui le porte à 95.* Un décor où le nom seul passerait déjà ne verrouillerait
+    rien : il resterait RETENU des deux côtés, avec ou sans le défaut.
+
+    **Et aucune parenthèse nulle part** : la correction (a) ne peut rien y
+    changer, donc toute perte est imputable à l'instrument.
+    """
+    _cible_declaree(monkeypatch)
+    registre = "11888935 canada inc"
+    db_session.add(REQEntry(neq="1111111111", nom=registre,
+                            nom_normalise=normaliser(registre),
+                            ville="Longueuil", statut="IMMATRICULÉE"))
+    detecte = "11888935 Canada inc Workstaff"
+    db_session.add(Company(neq=None, nom_detecte=detecte, ville="Longueuil",
+                           nom_detecte_normalise=normaliser(detecte)))
+    db_session.commit()
+    monkeypatch.setattr("falkye.db.get_session", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    return db_session
+
+
+def test_la_simulation_garde_le_bonus_de_ville(population_ville, capsys):
+    from rapidfuzz import fuzz
+
+    # Le décor tient-il sa promesse? *Le nom seul doit échouer.*
+    assert fuzz.WRatio(normaliser("11888935 Canada inc Workstaff"),
+                       normaliser("11888935 canada inc")) == 90.0
+    assert chiffrage_corrections.main([]) == 0
+    sortie = capsys.readouterr().out
+    assert "RETENU                     1" in sortie, sortie
+    assert "RETENUS perdus : 0" in sortie, (
+        "le bonus de ville a disparu entre les deux passes — le scoreur est "
+        "recopié au lieu d'être emprunté"
+    )
+
+
+def test_le_temoin_de_lecart_en_vigueur_rend_zero(population, capsys):
+    """À l'écart en vigueur, la simulation rejoue la règle actuelle : **le gain
+    doit être nul**. *Un gain non nul dirait que la simulation et le moteur ne
+    classent pas pareil, et tout le tableau serait à jeter.*"""
+    assert chiffrage_corrections.main([]) == 0
+    sortie = capsys.readouterr().out
+    ligne = next(l for l in sortie.splitlines() if "TÉMOIN" in l)
+    assert ligne.split("│")[-1].split("←")[0].strip() == "0", (
+        f"le témoin ne rend pas 0 : {ligne!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# LA DESTINATION, ET NON LE SEUL GAIN
+# ---------------------------------------------------------------------------
+
+
+def test_le_seuil_abaisse_rend_la_DESTINATION_de_ce_qui_franchit(population, capsys):
+    """⚠️ **Le second refus du 2026-09-17.** 1 623 dossiers franchissaient le
+    seuil simulé, 79 étaient annoncés « récupérés », et les 1 544 autres
+    n'apparaissaient nulle part. *Franchir le seuil et devenir RETENU ne sont
+    pas le même événement — l'écart minimal sépare les deux.*"""
+    assert chiffrage_corrections.main([]) == 0
+    sortie = capsys.readouterr().out
+    assert "où va la masse qui le franchit" in sortie
+    assert "destination au seuil simulé" in sortie
+    assert "franchissent" in sortie and "SANS devenir RETENUS" in sortie
+    # Les quatre familles sont nommées dans le tableau de destination.
+    bloc = sortie[sortie.index("destination au seuil simulé"):]
+    for famille in ("RETENU", "ambigu", "trop faible", "aucun candidat"):
+        assert famille in bloc
+
+
+def test_lecart_est_chiffre_et_son_FAUX_vient_en_premier(population, capsys):
+    """⚠️ *L'écart est plus dangereux que le seuil, pas moins* — il fait trancher
+    entre deux candidats proches. **Le faux se lit avant le gain.**"""
+    assert chiffrage_corrections.main([]) == 0
+    sortie = capsys.readouterr().out
+    assert "ÉCART MINIMAL ABAISSÉ" in sortie
+    entete = next(l for l in sortie.splitlines() if "│" in l and "gain" in l)
+    assert entete.index("FAUX") < entete.index("gain"), (
+        "le gain se lit avant le faux — un chiffrage qui ferait paraître "
+        "l'abaissement de l'écart gratuit"
+    )
+    assert "CETTE ÉCHELLE EST PLUS DANGEREUSE QUE LE SEUIL" in sortie
+    assert "8879690699" in sortie, "la forme de faux connue n'est pas nommée"
+
+
+def test_les_DEUX_echelles_sont_declarees_immobiles(population, capsys):
+    assert chiffrage_corrections.main([]) == 0
+    sortie = capsys.readouterr().out
+    assert "les DEUX échelles ne bougent pas" in sortie
+    assert "écart minimal 8" in sortie
+
+
+def test_les_perdus_sont_ventiles_par_presence_de_parenthese(population, capsys):
+    """*Si les perdus se concentrent chez ceux qui portent une parenthèse, la
+    perte est un mécanisme. Sinon, l'instrument est en cause.* **Le chiffrage
+    doit permettre de trancher entre les deux.**"""
+    assert chiffrage_corrections.main([]) == 0
+    sortie = capsys.readouterr().out
+    assert "parenthèse DANS LE NOM DÉTECTÉ" in sortie
+    assert "AUCUNE parenthèse dans le nom détecté" in sortie
+    assert "dossiers dont le PRÉFIXE change" in sortie
+
+
+def test_lecart_du_produit_nest_pas_modifie(population):
+    from falkye import resolution
+
+    avant = resolution.SEUIL_AMBIGUITE_ECART_MIN
+    chiffrage_corrections.main(["--seuil-simule", "80"])
+    assert resolution.SEUIL_AMBIGUITE_ECART_MIN == avant == 8.0

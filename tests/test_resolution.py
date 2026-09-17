@@ -161,3 +161,106 @@ def test_statut_radie_propage_depuis_req(db_session):
 
     company = resolve_company(db_session, _raw("Entreprise Fermee inc."))
     assert company.statut_legal.value == "radiee"
+
+
+# ---------------------------------------------------------------------------
+# LES DEUX ÉCHELLES, SIMULABLES SANS ÊTRE DÉPLAÇABLES  (2026-09-17)
+# ---------------------------------------------------------------------------
+#
+# `neq_retenu` et `resolve_neq_by_name` acceptent désormais des paramètres de
+# SIMULATION. **Le risque que ces tests gardent** : qu'un de ces paramètres
+# change la règle en production au lieu de servir une mesure.
+
+
+class _FauxEntree:
+    def __init__(self, neq):
+        self.neq = neq
+
+
+class _FauxMatch:
+    def __init__(self, neq, score):
+        self.entry = _FauxEntree(neq)
+        self.score = score
+
+
+def test_neq_retenu_sans_parametres_est_la_regle_du_produit():
+    """*Les défauts sont les constantes du module, et rien d'autre.*"""
+    from falkye import resolution
+
+    limite = [_FauxMatch("A", resolution.SEUIL_RESOLUTION_CONFIANTE), _FauxMatch("B", 0.0)]
+    juste_dessous = [
+        _FauxMatch("A", resolution.SEUIL_RESOLUTION_CONFIANTE - 0.01),
+        _FauxMatch("B", 0.0),
+    ]
+    assert resolution.neq_retenu(limite) == "A"
+    assert resolution.neq_retenu(juste_dessous) is None
+    # Et le second trop proche reste un refus, aux défauts.
+    serre = [_FauxMatch("A", 99.0), _FauxMatch("B", 99.0 - resolution.SEUIL_AMBIGUITE_ECART_MIN + 0.1)]
+    assert resolution.neq_retenu(serre) is None
+
+
+def test_les_parametres_de_simulation_ne_touchent_pas_les_constantes():
+    """⚠️ **La garde qui compte.** *Un appelant peut simuler une autre échelle;
+    il ne peut pas la poser.* Les deux échelles se changent avec Alexandre."""
+    from falkye import resolution
+
+    avant = (resolution.SEUIL_RESOLUTION_CONFIANTE, resolution.SEUIL_AMBIGUITE_ECART_MIN)
+    matches = [_FauxMatch("A", 80.0), _FauxMatch("B", 79.0)]
+    assert resolution.neq_retenu(matches, seuil=70.0, ecart_min=0.0) == "A"
+    assert (resolution.SEUIL_RESOLUTION_CONFIANTE, resolution.SEUIL_AMBIGUITE_ECART_MIN) == avant
+    assert avant == (92.0, 8.0)
+
+
+def test_famille_de_separe_le_seuil_de_lecart():
+    """⚠️ *Un dossier peut échouer parce que le score est bas OU parce que le
+    second est trop proche* — et les deux n'appellent pas le même correctif."""
+    from falkye.resolution import famille_de
+
+    assert famille_de([]) == "aucun candidat"
+    assert famille_de([_FauxMatch("A", 50.0)]) == "trop faible"
+    assert famille_de([_FauxMatch("A", 99.0), _FauxMatch("B", 98.0)]) == "ambigu"
+    assert famille_de([_FauxMatch("A", 99.0), _FauxMatch("B", 50.0)]) == "RETENU"
+    # Le même dossier, deux échelles : le seuil ne le retient pas, l'écart si.
+    bloque_par_lecart = [_FauxMatch("A", 91.0), _FauxMatch("B", 90.0)]
+    assert famille_de(bloque_par_lecart) == "trop faible"
+    assert famille_de(bloque_par_lecart, seuil=90.0) == "ambigu", (
+        "le seuil abaissé le fait FRANCHIR sans le faire RETENIR — c'est la "
+        "distinction que le chiffrage du 2026-09-17 avait manquée"
+    )
+    assert famille_de(bloque_par_lecart, seuil=90.0, ecart_min=0.5) == "RETENU"
+
+
+def test_le_transformateur_de_formes_ne_touche_que_le_chemin_de_simulation(db_session):
+    """`transformer_forme=None` — le chemin de production — doit rendre
+    exactement ce qu'il rendait. *Et le transformateur doit voir le nom PUBLIÉ,
+    pas la forme normalisée, sinon il n'y a plus de parenthèse à retirer.*"""
+    from falkye.models.company import Company  # noqa: F401 -- enregistre le modèle
+    from falkye.models.req_entry import REQEntry
+    from falkye.sources import req as req_source
+    from falkye.sources.column_mapping import normaliser
+
+    publie = "Fabrications Meridien (Groupe Nordet) inc."
+    db_session.add(REQEntry(neq="2222222222", nom=publie,
+                            nom_normalise=normaliser(publie), statut="IMMATRICULÉE"))
+    db_session.commit()
+
+    vus: list[str] = []
+
+    def retirer(nom: str) -> str:
+        vus.append(nom)
+        import re
+        return re.sub(r"\s*\([^)]*\)", "", nom)
+
+    sans = req_source.resolve_neq_by_name(db_session, "Fabrications Meridien inc.")
+    avec = req_source.resolve_neq_by_name(
+        db_session, "Fabrications Meridien inc.", transformer_forme=retirer
+    )
+    assert vus and any("(" in n for n in vus), (
+        "le transformateur reçoit une forme NORMALISÉE — `normaliser` a déjà "
+        "remplacé les parenthèses par des espaces, donc le retrait serait un "
+        "no-op déguisé en mesure"
+    )
+    assert avec[0].score > sans[0].score, (
+        "retirer le groupe entre parenthèses côté registre doit rapprocher les "
+        "deux chaînes"
+    )

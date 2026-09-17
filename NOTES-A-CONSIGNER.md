@@ -1981,3 +1981,153 @@ seuil — et un cas unique n'est pas encore un incident.**
 
 *Le coût est de deux passes : retirer la parenthèse change aussi le PRÉFIXE, donc la RÉCUPÉRATION —
 la simuler sans rejouer la récupération mesurerait autre chose.*
+
+---
+
+## N88 — Un instrument qui recopie la règle du moteur mesure sa propre copie, et l'attribue à la correction
+
+*(2026-09-17, relevé par Alexandre sur la sortie du chiffrage.)*
+
+Le chiffrage annonçait **-338 RETENUS** après retrait des parenthèses, et **l'annotation juste en
+dessous disait que cette correction ne peut que RAPPROCHER des chaînes**. Les deux étaient dans la
+même sortie.
+
+⚠️ **Alexandre n'a pas choisi la plus plausible des deux versions.** *« Soit le retrait s'applique
+aussi au miroir, soit la simulation a un défaut. Ce qui trancherait : sur les 338 perdus, combien
+portaient une parenthèse dans le nom détecté? »* **Une contradiction se tranche par une mesure, pas
+par la vraisemblance.**
+
+**Ce que la lecture a rendu.** La seconde passe rescorait à la main :
+
+```python
+rescores.append((fuzz.WRatio(cible, normaliser(_sans_parentheses(m.entry.nom))), m))
+```
+
+*Le moteur, lui, fait deux choses que cette ligne ne fait pas* :
+
+| | le moteur | la recopie |
+|---|---|---|
+| **les noms** | le MEILLEUR des noms du NEQ, `req_noms` compris | la seule dénomination sociale élue |
+| **la ville** | `+5` quand elle concorde | rien |
+
+Mesuré sur le cas type : `Ferme M.G. Bellavance` → **100 au moteur, 30 à la recopie**. Et un dossier
+tenu par le bonus de ville : **95 au moteur, 90 à la recopie** — sous le seuil.
+
+⚠️ **Les scores plus bas tombaient tous du même côté, et le tableau les imputait à la correction.**
+
+**C'est le cas 41 — le garde recopié — dans mon propre outil, contre une règle écrite dans la
+docstring que je recopiais** : *« Un outil qui la rejouerait en la recopiant mesurerait sa propre
+copie. »* `neq_retenu` et `requete_nom_exact` avaient été extraites pour ça. **Le scoreur, lui, ne
+l'était pas — et c'est là que l'outil a recopié.**
+
+**Le correctif** : `resolve_neq_by_name` accepte `transformer_forme`, `None` en production. La
+simulation emprunte donc le scoreur entier — regroupement par NEQ, `req_noms`, bonus de ville — au
+lieu d'en écrire un à côté.
+
+⚠️ **Et le transformateur reçoit le nom PUBLIÉ, jamais la forme normalisée.** *`normaliser` remplace
+déjà la ponctuation par des espaces : « Canada inc. (Workstaff) » y est « canada inc workstaff ».*
+**Les parenthèses ont disparu comme caractères, leur contenu est resté comme mot.** Simuler le
+retrait sur la colonne normalisée aurait rendu **un no-op déguisé en mesure**.
+
+**Le test qui l'aurait attrapé** : *un dossier sans la moindre parenthèse, RETENU par le pont — la
+correction ne peut rien y changer, donc toute perte est imputable à l'instrument.*
+
+---
+
+## N89 — L'annotation qui promet qu'une correction « ne peut que rapprocher » est fausse dès qu'elle touche la RÉCUPÉRATION
+
+*(2026-09-17, exigé par Alexandre.)*
+
+*« Si les 338 perdus ne portaient pas de parenthèse, la perte vient du côté registre et c'est un
+mécanisme, pas un bogue — mais alors l'avertissement est faux tel qu'il est écrit. »*
+
+**Deux effets, et ils ne vont pas dans le même sens :**
+
+- **côté DÉTECTÉ**, retirer la parenthèse change le premier mot, donc le **préfixe**, donc **quelles
+  lignes le `GLOB` rend**. *Elle DÉPLACE la récupération autant qu'elle rapproche les chaînes* — et
+  un déplacement peut **perdre** un appariement qui marchait;
+- **côté REGISTRE**, elle ne change que les **scores** : la récupération cherche le préfixe du nom
+  **détecté** dans la colonne stockée, et la simulation ne réécrit pas cette colonne.
+
+⚠️ **Une correction appliquée À L'IMPORT, elle, réécrirait `nom_normalise` — et changerait alors la
+récupération des DEUX côtés.** *Ce n'est pas la même correction, et elle ne se chiffre pas avec la
+même passe.*
+
+**Aucune correction de données n'est « gratuite » quand la récupération est ancrée sur la tête de la
+chaîne.** L'annotation dit maintenant les deux effets, et la ventilation des perdus (avec
+parenthèse / sans) permet de trancher mécanisme contre défaut.
+
+---
+
+## N90 — Compter ce qui FRANCHIT un seuil n'est pas compter ce qu'on RÉCUPÈRE : deux échelles, deux refus
+
+*(2026-09-17, relevé par Alexandre — l'écart de 1 544.)*
+
+```
+[ 90 – 91[            1 623 dossiers
+seuil abaissé à 90 :     79 récupérés
+```
+
+*« Environ 1 544 franchissent donc le seuil abaissé sans devenir RETENU. »* **Le chiffrage les avait
+tous perdus en route**, et « 79 récupérés » se lisait comme si les 1 544 autres n'existaient pas.
+
+**La cause** : le moteur porte **DEUX échelles**, et une seule était simulée.
+
+| | ce qu'elle dit | ce qu'elle produit quand elle refuse |
+|---|---|---|
+| **seuil, 92** | *« le candidat ressemble assez »* | `trop faible` |
+| **écart minimal, 8** | *« le second ne ressemble pas trop »* | `ambigu` |
+
+⚠️ **Une masse retenue par la seconde échelle disparaît d'un chiffrage qui ne simule que la
+première.** *Ce n'est pas le seuil qui retient les 1 544 — c'est l'écart.*
+
+**La règle** : toute masse qui franchit un seuil simulé est **suivie jusqu'à sa destination**, par
+famille et par palier. Un gain seul n'est pas un chiffrage.
+
+**Et la taxonomie est passée dans le moteur** (`falkye/resolution.py::famille_de`) : quatre familles,
+un seul endroit. *Trois outils la recalculaient chacun à sa façon.*
+
+---
+
+## N91 — L'écart minimal est plus dangereux que le seuil, et personne n'en avait parlé de la journée
+
+*(2026-09-17, décision de méthode d'Alexandre.)*
+
+*« L'écart de 8 est une seconde échelle, et elle n'a jamais été rouverte. »*
+
+⚠️ **Le seuil dit « le candidat ressemble assez ». L'écart dit « le SECOND ne ressemble pas trop ».**
+*L'abaisser, c'est accepter de trancher entre deux candidats proches* — **la situation exacte des 26
+organisations publiques distinctes à 95-100 sur le NEQ `8879690699`.**
+
+**Donc le chiffrage de l'écart rend le FAUX AVANT le gain** — l'ordre des colonnes est la mesure.
+*Un tableau qui montre d'abord ce qu'on gagne fait lire le reste comme un détail.*
+
+**Trois colonnes de faux, et la troisième est propre à l'écart** : les dossiers nouvellement retenus
+dont **le second candidat est une AUTRE entité** à portée de l'écart abaissé. *Chacun est une
+décision entre deux entreprises différentes, prise par la machine.*
+
+⚠️ **Un TÉMOIN dans le tableau** : à l'écart en vigueur, le gain **doit être 0**. *Un gain non nul
+dirait que la simulation et le moteur ne classent pas pareil, et tout le tableau serait à jeter.*
+
+**Et deux changements d'échelle ensemble ne s'additionnent pas — ils se multiplient**, parce que
+chacun retire une garde que l'autre ne remplace pas.
+
+⚠️ **Ni 92 ni 8 ne bougent.** *Deux échelles existantes, et elles se changent avec Alexandre, jamais
+dans une demande de mesure.*
+
+---
+
+## N92 — Ce que les chiffres établissent, et qui ne bouge plus
+
+*(2026-09-17, Alexandre.)*
+
+**Les parenthèses sont un petit motif** : **259 dossiers sur 8 931**, dont **205 chez les trop
+faibles**. *Même corrigé parfaitement, le plafond est 205.* **Le cas `(Workstaff)` était réel; il
+n'est pas le mur.**
+
+**Et la distribution répond à la question de fond** : **2 713 dossiers à 85-88**, **1 623 à 90-91**,
+**1 885 à moins de quatre points du seuil**.
+
+> ⚠️ **Le mur n'est pas que le bon candidat soit absent. C'est qu'il est là et qu'il ne passe pas.**
+
+*Ce ne sont pas des appariements sans rapport — ce sont des appariements qui manquent de peu.*
