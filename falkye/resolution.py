@@ -61,8 +61,16 @@ def _find_unresolved_company(db_session: Session, nom_detecte: str) -> Company |
     return trouve
 
 
-def neq_retenu(matches: list) -> str | None:
+def neq_retenu(
+    matches: list, seuil: float | None = None, ecart_min: float | None = None
+) -> str | None:
     """Le NEQ qu'on retient parmi des candidats, ou None si c'est ambigu.
+
+    ⚠️ `seuil` et `ecart_min` valent `None` en production, et la règle est alors
+    strictement celle des constantes du module. **Ils existent pour les outils
+    qui SIMULENT une autre échelle, et pour rien d'autre** : un appelant du
+    pipeline qui les renseignerait changerait la règle sans passer par Alexandre.
+    *Les deux échelles se changent avec lui, jamais dans une mesure.*
 
     **Séparée de son appel à dessein.** La règle — assez sûr ET assez détaché du
     second — est ce qui décide qu'une entreprise est identifiée ou pas. Un outil
@@ -74,9 +82,38 @@ def neq_retenu(matches: list) -> str | None:
         return None
     top = matches[0]
     second_score = matches[1].score if len(matches) > 1 else 0.0
-    assez_sur = top.score >= SEUIL_RESOLUTION_CONFIANTE
-    assez_detache = top.score - second_score >= SEUIL_AMBIGUITE_ECART_MIN or len(matches) == 1
+    seuil = SEUIL_RESOLUTION_CONFIANTE if seuil is None else seuil
+    ecart_min = SEUIL_AMBIGUITE_ECART_MIN if ecart_min is None else ecart_min
+    assez_sur = top.score >= seuil
+    assez_detache = top.score - second_score >= ecart_min or len(matches) == 1
     return top.entry.neq if (assez_sur and assez_detache) else None
+
+
+def famille_de(matches: list, seuil: float | None = None, ecart_min: float | None = None) -> str:
+    """La FAMILLE d'un appariement — la taxonomie des mesures, en un seul endroit.
+
+    Quatre issues, et **elles n'appellent pas le même correctif** : `RETENU` (la
+    règle tranche), `ambigu` (assez sûr, pas assez détaché du second),
+    `trop faible` (le meilleur ne franchit pas le seuil), `aucun candidat` (la
+    récupération n'a rien rendu).
+
+    ⚠️ **Deux échelles, deux familles.** *Un dossier peut échouer parce que le
+    score est bas OU parce que le second est trop proche* — confondre les deux
+    fait attribuer au seuil une masse que l'écart retient. C'est exactement la
+    confusion qu'`outils/chiffrage_corrections.py` a produite le 2026-09-17, en
+    annonçant 79 dossiers récupérés là où 1 623 franchissaient le seuil simulé.
+    """
+    if neq_retenu(matches, seuil=seuil, ecart_min=ecart_min) is not None:
+        return "RETENU"
+    if not matches:
+        return "aucun candidat"
+    seuil = SEUIL_RESOLUTION_CONFIANTE if seuil is None else seuil
+    return "trop faible" if matches[0].score < seuil else "ambigu"
+
+
+#: L'ordre d'affichage des familles, pour que deux tableaux se lisent l'un sous
+#: l'autre. *Une taxonomie qui change d'ordre selon l'outil se compare mal.*
+FAMILLES = ("RETENU", "ambigu", "trop faible", "aucun candidat")
 
 
 def resolve_company(db_session: Session, raw: RawSignal) -> Company:

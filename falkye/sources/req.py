@@ -48,7 +48,7 @@ import io
 import logging
 import re
 import zipfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime, timezone
@@ -1361,13 +1361,67 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
     return candidates
 
 
+def _formes_transformees(
+    db_session: Session, candidates: list, transformer_forme: "Callable[[str], str]"
+) -> dict[str, list[str]]:
+    """Les formes de chaque NEQ, reconstruites depuis les noms BRUTS, transformées,
+    puis renormalisées. **Chemin de SIMULATION uniquement.**
+
+    ⚠️ **Pourquoi les noms bruts, et pas la colonne normalisée.** `_normaliser`
+    remplace la ponctuation par des espaces : `« Canada inc. (Workstaff) »`
+    devient `« canada inc workstaff »`. *Les parenthèses ont disparu comme
+    caractères, et leur CONTENU est resté comme mot.* Une transformation qui
+    retire « le contenu entre parenthèses » ne peut donc rien faire sur la forme
+    normalisée — elle n'y trouve plus de parenthèse à laquelle s'accrocher.
+
+    **Simuler le retrait côté registre depuis `nom_normalise` rendrait un
+    NO-OP déguisé en mesure.** D'où la relecture des noms publiés.
+    """
+    formes: dict[str, list[str]] = {}
+    neqs = [c.neq for c in candidates]
+    for c in candidates:
+        forme = _normaliser(transformer_forme(c.nom or ""))
+        if forme:
+            formes.setdefault(c.neq, []).append(forme)
+    for neq, nom in db_session.execute(
+        select(REQNom.neq, REQNom.nom).where(REQNom.neq.in_(neqs))
+    ).all():
+        forme = _normaliser(transformer_forme(nom or ""))
+        if forme:
+            formes.setdefault(neq, []).append(forme)
+    return formes
+
+
 def resolve_neq_by_name(
-    db_session: Session, nom: str, ville: str | None = None, limit: int = 5
+    db_session: Session,
+    nom: str,
+    ville: str | None = None,
+    limit: int = 5,
+    transformer_forme: Callable[[str], str] | None = None,
 ) -> list[REQMatch]:
     """Résout un nom d'entreprise en candidats NEQ, par correspondance floue sur le
     miroir local. Nécessite que ingest_snapshot() ait déjà été exécuté au moins une
     fois (sinon la table req_entries est vide et rien ne peut être résolu — c'est
-    un état normal avant le premier scan REQ, pas une erreur)."""
+    un état normal avant le premier scan REQ, pas une erreur).
+
+    `transformer_forme` reçoit le nom PUBLIÉ de chaque forme du registre (jamais
+    sa forme normalisée — voir `_formes_transformees`), et son résultat est
+    renormalisé avant d'être scoré. **Il vaut `None` en production et le chemin est alors
+    strictement celui d'avant** — il existe pour qu'un outil qui SIMULE une
+    correction de données (ex. retirer le contenu entre parenthèses des deux
+    côtés) emprunte ce scoreur au lieu d'en recopier un à côté.
+
+    ⚠️ *Recopier ce scoreur, c'est mesurer sa copie* : il regroupe par NEQ, prend
+    le MEILLEUR des noms de chaque NEQ (`req_noms` compris) et ajoute le bonus de
+    ville. Une copie qui scorerait la seule dénomination sociale élue, sans bonus,
+    rendrait des scores plus bas — et ferait passer un défaut d'instrument pour
+    une perte de la correction. *(Hameçon posé le 2026-09-17, après exactement
+    cette confusion.)*
+
+    Il ne touche PAS la récupération : `candidats_par_nom` cherche sur le nom
+    DÉTECTÉ. Transformer le nom détecté change donc les lignes rendues; le
+    transformateur, lui, ne change que les scores.
+    """
     nom_norm = _normaliser(nom)
     if not nom_norm:
         return []
@@ -1402,6 +1456,9 @@ def resolve_neq_by_name(
         )
     ).all():
         noms_par_neq.setdefault(neq, []).append(forme)
+
+    if transformer_forme is not None:
+        noms_par_neq = _formes_transformees(db_session, candidates, transformer_forme)
 
     by_neq = {c.neq: c for c in candidates}
     scores: list[tuple[str, float]] = []
