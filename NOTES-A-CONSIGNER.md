@@ -2782,3 +2782,80 @@ exécution**, et `journaliser_candidat_fusion` n'a aucune garde de doublon.
 **La question « que se passe-t-il si on l'applique deux fois » a donc DEUX
 réponses**, une par famille d'écriture. *Poser la question une seule fois pour
 tout le geste aurait rendu « idempotent » sans réserve.*
+
+---
+
+## N121 — Un écart de 16 000 qu'on avait noté sans l'expliquer portait la réponse à la question
+
+*(2026-09-17.)*
+
+**La question** : le 6 009 de `impact_tous_les_noms` est-il un gain disponible, ou déjà en base?
+
+**La réponse était dans un écart relevé et laissé de côté** : l'outil annonce **1 521 816** noms en
+vigueur, `req_noms` en porte **1 505 879**. *On avait noté « environ 16 000 » et on était passé à
+autre chose.*
+
+```
+1 521 816  −  15 937  =  1 505 879
+                ↑ paires (NEQ, nom normalisé) en double, mesurées le 16 septembre
+```
+
+⚠️ **L'écart n'était pas des noms manquants : c'étaient les mêmes noms comptés deux fois** — deux
+`TYP_NOM_ASSUJ` portant la même graphie. **Le pont les déduplique par sa clé composite; la mesure
+additionne des lignes.**
+
+**Et la lecture du code ferme la boucle** : `_charger_tous_les_noms` et `impact_tous_les_noms` lisent
+le même fichier, les mêmes colonnes (`NEQ`, `NOM_ASSUJ`, `STAT_NOM`), le même filtre et la même
+normalisation. *Les deux ensembles sont identiques.*
+
+> **Donc les 6 009 sont déjà en base à la ligne près, et ne représentent aucune récupération
+> disponible. La piste des noms en vigueur est close — par arithmétique, sans relancer une mesure.**
+
+**La leçon** : *un écart qu'on ne sait pas expliquer n'est pas un détail de comptage — c'est une
+question ouverte, et elle peut porter la réponse d'une autre.* **« Environ 16 000 » aurait dû être
+tranché le jour où il est apparu; il aurait épargné une mesure et une conception.**
+
+---
+
+## N122 — Un filtre échoue FERMÉ, et un pont vide ressemble à une archive plus petite
+
+*(2026-09-17, trouvé en concevant le traitement de l'archive.)*
+
+```python
+if (row.get("STAT_NOM") or "").strip().upper() != "V":
+    continue
+```
+
+⚠️ **Si `STAT_NOM` est renommée, `.get` rend `None`, la comparaison est vraie pour TOUTE ligne, et
+`req_noms` se vide.** *L'import rend « 0 noms indexés » et se déclare réussi.*
+
+> **Un filtre qui échoue fermé ne produit pas une erreur, il produit une population.** *Et une
+> population vide est indistinguable d'une source qui a maigri.*
+
+**Le remède n'est pas une vérification de colonne** — il y en a déjà une, par lecture de l'arbre
+syntaxique, et elle est bonne. **C'est un PLANCHER sur la part retenue** : `Nom.csv` rend aujourd'hui
+~32,7 % de lignes en vigueur, et une part qui s'effondre est **un refus bruyant, pas un compte plus
+petit**. *Et le seuil se pose au registre des sources, avec ceux de la quarantaine — un retrait
+anormal met la source en quarantaine, il ne réduit pas le miroir.*
+
+⚠️ **Le garde des colonnes couvre les fichiers qu'on LIT.** Il ne dit rien d'un septième CSV qui
+apparaîtrait : `FICHIERS_REQ_REELS` vérifie une présence, jamais une absence d'inattendu.
+
+---
+
+## N123 — L'identité d'une édition se calcule sur son contenu, jamais sur son nom
+
+*(2026-09-17.)*
+
+**Le REQ publie deux archives par mois, le 2 et le 16.** *Et rien, dans le miroir, ne dit de quelle
+édition il vient* — donc rien ne peut dire qu'une tentative a échoué contre celle du 2 septembre, et
+**rien ne sait qu'il faut réessayer après un import.**
+
+⚠️ **L'empreinte ne peut pas être le nom du fichier.** *Un humain renomme, télécharge deux fois,
+garde une copie.* **Elle se calcule sur le contenu, et sans décompresser** : les `file_size` et les
+`CRC` des membres CSV, lus dans le répertoire du zip — *`zipfile` les expose déjà, et `inspect_zip`
+les lit déjà.*
+
+> **Deux archives identiques rendent la même empreinte; deux éditions différentes ne peuvent pas la
+> partager.** *C'est ce qui rend l'invalidation automatique au réimport — par la clé, pas par une
+> tâche d'entretien.*
