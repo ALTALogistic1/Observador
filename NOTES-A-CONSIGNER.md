@@ -2969,3 +2969,101 @@ apercevrait, parce que les deux chiffres continueraient d'exister.
 > **Un test qui verrouille une identité doit verrouiller aussi le jour où elle
 > cesse d'être vraie.** *Celui-ci vérifie maintenant les deux moitiés : que le
 > pont ne filtre plus, et que la conclusion est datée.*
+
+---
+
+## N129 — Le second temps a livré, et il a déplacé le problème plutôt que de le supprimer
+
+*(2026-09-17, mesuré sur l'hôte.)*
+
+```
+RETENU          780  →  2 634   +1 854
+ambigu        3 435  →  5 002   +1 567
+trop faible   4 603  →  1 257   −3 346
+✓ RETENUS perdus : 0            ← le témoin passe
+```
+
+**Les « trop faibles » ont chuté de 73 %, et la garantie structurelle tient** :
+rien de ce qui marchait n'a bougé. *L'import a coûté 39,9 minutes et un pic de
+3 976 Mo sur 7 758 — 51 %, contre 33 minutes et 3 535 Mo avant.* `req_noms` porte
+**5 071 984 formes**, l'index par mots **14 989 589 couples**.
+
+⚠️ **Mais 1 567 dossiers sont passés de « trop faible » à « ambigu ».** *Ce n'est
+ni un gain ni une perte : c'est un déplacement.* **Le nom a donné tout ce qu'il
+avait** — un ambigu n'est pas un dossier sans candidat, c'est un dossier avec
+DEUX candidats que le nom ne sépare pas.
+
+> **Un correctif qui réussit change la forme du problème restant.** *Mesurer
+> seulement le gain aurait caché que la population suivante n'est plus la même,
+> et que les outils d'hier ne s'y appliquent plus.*
+
+---
+
+## N130 — « Je ne sais pas » n'est pas « non » — la règle qui sépare un départageur d'un filtre
+
+*(2026-09-17, à l'écriture des trois départageurs.)*
+
+Un départage n'est prononcé que si **trois** conditions tiennent :
+
+1. le **dossier** porte le fait;
+2. **exactement un** concurrent est compatible;
+3. ⚠️ **tous les autres concurrents PORTENT le fait** et sont incompatibles.
+
+**Sans la troisième, un candidat sans code postal serait écarté pour n'avoir pas
+de code postal** — *et le départageur deviendrait un filtre sur le REMPLISSAGE du
+registre, pas sur l'identité.* **Le registre est rempli à 65,7 % côté domicile :
+le filtre écarterait un tiers des candidats sans rien savoir d'eux.**
+
+**Et les issues de refus sont nommées séparément**, parce qu'elles appellent
+trois correctifs différents : *fait absent au dossier* (promouvoir un champ),
+*fait absent chez un concurrent* (compléter le miroir), *plusieurs compatibles*
+(il faut un autre fait).
+
+⚠️ **Une quatrième issue n'est pas un départage : « le fait les exclut tous ».**
+*Soit le bon candidat n'est pas dans le lot, soit le fait est sale.* **C'est un
+signal, et il se compte à part.**
+
+---
+
+## N131 — Un code postal lu par fenêtre glissante invente des codes qui n'existent pas
+
+*(2026-09-17, attrapé en écrivant le test.)*
+
+`'St-Isidore, QC J0L  2A'` compacté donne `STISIDOREQCJ0L2A`. **Une lecture
+caractère par caractère y trouve `J0L` — qui est le vrai — mais aussi `L2A`, qui
+a exactement la forme d'une région de tri et n'en est pas une.** *De même
+`G6V1A1` contient `V1A`.*
+
+⚠️ **Un faux code rend un mauvais candidat « compatible », donc produit un FAUX
+DÉPARTAGE** — le seul coût que ce départageur puisse avoir, et il naît de la
+lecture, pas de la donnée.
+
+**Le correctif : lire des JETONS, jamais une fenêtre.** *On découpe sur les
+non-alphanumériques, on teste chaque jeton, et on recolle avec le suivant parce
+que `J0L 2A1` s'écrit en deux jetons.*
+
+**Et l'EIMT donne souvent un code TRONQUÉ** — cinq caractères sur six. *Comparer
+un tronqué à un complet sur six rendrait toujours faux, et le départageur
+paraîtrait inutile alors qu'il est mal lu.* **Deux niveaux : le code complet, et
+la région de tri qui reste comparable.**
+
+---
+
+## N132 — Deux classifications qui ne se joignent pas par code : le dire plutôt que d'inventer la table
+
+*(2026-09-17.)*
+
+Le SEAO classe en **UNSPSC**, le REQ en **CAE**, et **aucune table ne les relie**.
+*Inventer une correspondance serait décider à la place d'Alexandre, sur une
+matière qui appartient au chantier 22.*
+
+**Donc le départageur par activité compare les LIBELLÉS, et c'est une faiblesse
+assumée.** ⚠️ **Ce qu'il rend est un PLANCHER** de ce que l'activité donnerait
+avec la vraie table.
+
+*Et les mots vides sont retirés — « autres », « services », « généraux », « non
+classés ailleurs »* : **les garder ferait « concorder » une boulangerie et une
+plomberie sur « autres services »**, ce qui est pire qu'aucun départage.
+
+> **Un départageur qui se sait plancher est utilisable; un départageur qui se
+> croit complet fait décider sur un chiffre qui n'est pas le sien.**
