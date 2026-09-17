@@ -3067,3 +3067,103 @@ plomberie sur « autres services »**, ce qui est pire qu'aucun départage.
 
 > **Un départageur qui se sait plancher est utilisable; un départageur qui se
 > croit complet fait décider sur un chiffre qui n'est pas le sien.**
+
+---
+
+## N133 — Un repli n'est pas un second avis : il ne franchit pas une contradiction établie
+
+*(2026-09-17, construction du départageur d'adresse.)*
+
+La ville a été demandée **comme repli du code postal, dans le même départageur**.
+Un repli se déclenche quand le niveau précédent **n'a pas tranché** — et il y a
+**quatre façons de ne pas trancher, dont une seule n'en est pas une** :
+
+| issue du code postal | la ville parle? |
+|---|---|
+| le dossier ne porte pas le fait | oui |
+| un concurrent ne porte pas le fait | oui |
+| plusieurs concurrents compatibles | oui |
+| ⚠️ **aucun concurrent compatible** | ⚠️ **NON** |
+
+⚠️ **« Le fait les exclut tous » n'est pas un silence : c'est un démenti.** *Le
+code postal du dossier contredit tous les candidats. Laisser la ville — plus
+grossière — en désigner un rendrait un départage dont on sait déjà qu'un fait
+plus précis le dément.*
+
+**Sur l'hôte, 443 dossiers sont dans ce cas.** *Ce sont ceux que la section 4 de
+`outils/departage_par_ladresse.py` regarde au lieu de les trancher.*
+
+> **Un repli répond à « je ne sais pas ». Il n'a rien à répondre à « non ».**
+
+---
+
+## N134 — Une non-régression se rend STRUCTURELLE, ou elle reste une intention
+
+*(2026-09-17.)*
+
+La non-régression sur les **2 634 retenus** a été demandée comme **critère, pas
+comme effet secondaire acceptable**. Trois façons de la tenir, et elles ne valent
+pas la même chose :
+
+1. *« Le départageur ne s'applique qu'aux ambigus »* — **une intention.** Rien
+   n'empêche un appelant futur de l'appeler ailleurs.
+2. **La garde** : `departager_le_dossier` lève `PasUnAmbigu` sur tout dossier que
+   le nom a déjà tranché. *L'appel ÉCHOUE au lieu de réussir discrètement.*
+3. **La vérification sur les retenus RÉELS**, un par un, et **un code de sortie
+   non nul si elle tombe** — *parce qu'une garde qu'on n'exécute jamais est une
+   intention avec un nom de fonction.*
+
+⚠️ **Et un critère qu'on ne peut pas faire échouer n'en est pas un** : un test
+retire la garde et vérifie que l'outil sort en erreur au lieu de continuer.
+
+> **Une garde protège quand elle refuse. Une garde qu'on décrit protège une
+> phrase.**
+
+---
+
+## N135 — Un échantillon se tire à pas constant, jamais en tête
+
+*(2026-09-17.)*
+
+Pour dire lequel des deux — *le bon candidat n'est pas dans le lot*, ou *le fait
+est sale* — il faut un échantillon des 443 exclusions. ⚠️ **Prendre les N
+premiers promeut l'ordre de la base au rang de critère** *(cas 19)* — c'est
+exactement ce qui avait fait lire « sept sur dix en tête d'alphabet » comme une
+fréquence, alors que la mesure A a montré que la coupe tombe au milieu.
+
+**Le tirage se fait donc à pas constant sur toute la population**, et le pas est
+écrit dans la sortie.
+
+Et la lecture se fait en **deux temps dont un seul coûte** :
+
+1. **gratuit** — le bon candidat était-il déjà rendu, *hors de la fenêtre des
+   concurrents*?
+2. **coûteux** — sinon, était-il *hors du lot récupéré*? Il faut relancer la
+   récupération à borne élargie, et **c'est ce temps-là que la section chiffre**.
+
+⚠️ **Et la dernière ligne ne tranche pas.** *« Aucun candidat compatible même à
+la borne élargie » se lit aussi bien comme « l'entreprise n'est pas au registre »
+que comme « le code postal lu est celui d'un tiers ».* **Ce que l'échantillon
+sépare, c'est ce qui est mécaniquement vérifiable; le reste demande une paire
+lue — et c'est CETTE relecture-là qui décide du prix, pas la machine.**
+
+---
+
+## N136 — Une garde qui lit des LIGNES ne distingue pas le code du commentaire qui le cite
+
+*(2026-09-17.)*
+
+`tests/test_format_des_nombres.py` interdit la substitution posée sur la ligne
+entière au lieu de la valeur *(N. voir `outils/nombres.py`)*. **Elle a refusé un
+fichier où l'idiome n'était que dans un COMMENTAIRE qui l'expliquait.**
+
+⚠️ *Le code était juste; c'est l'explication qui a fait tomber la garde.* Et
+`nombres.py` est exempté **par son nom**, précisément parce qu'il cite l'idiome
+dans sa docstring pour l'enseigner.
+
+**Ce n'est pas un défaut de la garde** : une garde textuelle est bon marché et
+sans faux négatif, et la payer en faux positifs sur les commentaires est le bon
+échange. *Mais il faut le savoir, sinon on « corrige » du code déjà correct.*
+
+> **Une garde qui coûte trois lignes et attrape tout vaut mieux qu'une garde
+> exacte que personne n'écrit. L'écrire dans son message, c'est ce qui manque.**

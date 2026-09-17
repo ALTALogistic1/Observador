@@ -35,51 +35,37 @@ from __future__ import annotations
 import argparse
 from collections import Counter, defaultdict
 
+from outils.departageur_adresse import (
+    CLES_ADRESSE,  # noqa: F401 -- **empruntée, pas recopiée** (voir plus bas)
+    champs_des_dossiers,
+    concurrents_de,
+    faits_des_dossiers,
+    faits_du_candidat,
+    texte_des_champs as _texte_des_champs,
+)
 from outils.departageurs import (
     AUCUN_COMPATIBLE,
     DEPARTAGE,
     ISSUES,
     Fait,
-    codes_postaux,
     departager,
     fait_de_lactivite,
-    fait_de_la_ville,
 )
 from outils.nombres import milliers
-from outils.villes_des_signaux import villes_des_signaux
 
-#: Les clés de `Signal.champs` où une adresse peut vivre — **y compris imbriquée**.
-#: *Le SEAO range la sienne sous `adresse_entreprise_adjudicataire`; l'EIMT la met
-#: à plat.* Une liste, parce que c'est une observation et non une norme.
-CLES_ADRESSE = ("adresse", "code_postal", "adresse_entreprise_adjudicataire")
+# ⚠️ **`CLES_ADRESSE`, la lecture des faits d'adresse et le découpage des
+# concurrents sont EMPRUNTÉS à `outils/departageur_adresse.py`.** *Une mesure qui
+# lit une adresse pendant que la construction en lit une autre est un rapport sur
+# une population imaginaire* — et un départageur recopié à la main est déjà
+# arrivé une fois (cas 41).
 
-#: Où vit une classification d'activité côté signal.
+#: Où vit une classification d'activité côté signal. *Seule la lecture de
+#: l'ACTIVITÉ reste ici : elle n'est pas construite, et n'a donc pas de module.*
 CLES_ACTIVITE = ("secteur_nature_contrat", "secteur_activite", "profession")
 
 
 def _part(k: int, n: int) -> str:
     return f"{100 * k / n:.1f} %" if n else "—"
-
-
-def _texte_des_champs(champs: dict, cles) -> str:
-    """Tout le texte des clés demandées, imbrication comprise — *aplati, parce
-    qu'un code postal rangé un niveau plus bas est un code postal quand même.*"""
-    morceaux: list[str] = []
-
-    def _plonger(valeur):
-        if isinstance(valeur, dict):
-            for v in valeur.values():
-                _plonger(v)
-        elif isinstance(valeur, (list, tuple)):
-            for v in valeur:
-                _plonger(v)
-        elif valeur is not None:
-            morceaux.append(str(valeur))
-
-    for cle in cles:
-        if cle in (champs or {}):
-            _plonger(champs[cle])
-    return " ".join(morceaux)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -100,7 +86,6 @@ def main(argv: list[str] | None = None) -> int:
 
     from falkye.db import get_session
     from falkye.models.company import Company
-    from falkye.models.signal import Signal
     from falkye.resolution import (
         SEUIL_AMBIGUITE_ECART_MIN,
         SEUIL_RESOLUTION_CONFIANTE,
@@ -155,24 +140,18 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         ids = {c.id for c, _ in ambigus}
-        villes = villes_des_signaux(session, ids)
-        champs_par_dossier: dict[int, dict] = defaultdict(dict)
-        for company_id, champs in session.execute(
-            select(Signal.company_id, Signal.champs).execution_options(yield_per=2000)
-        ):
-            if company_id in ids and champs:
-                champs_par_dossier[company_id].update(champs)
+        champs_par_dossier = champs_des_dossiers(session, ids)
+        # ⚠️ **Les faits d'adresse viennent du module qui les CONSTRUIT.** *Les
+        # deux niveaux se mesurent ici séparément, mais ils se LISENT là-bas.*
+        adresses = faits_des_dossiers(
+            session, [c for c, _ in ambigus], champs=champs_par_dossier
+        )
 
         def _fait_ville(company) -> Fait | None:
-            vue = villes.get(company.id)
-            return fait_de_la_ville(company.ville or (vue.ville if vue else None))
+            return adresses[company.id].ville
 
         def _fait_postal(company) -> Fait | None:
-            texte = " ".join(filter(None, [
-                company.adresse, company.code_postal,
-                _texte_des_champs(champs_par_dossier.get(company.id, {}), CLES_ADRESSE),
-            ]))
-            return codes_postaux(texte)
+            return adresses[company.id].code_postal
 
         def _fait_activite(company) -> Fait | None:
             texte = " ".join(filter(None, [
@@ -182,9 +161,8 @@ def main(argv: list[str] | None = None) -> int:
             return fait_de_lactivite(texte)
 
         DEPARTAGEURS = (
-            ("ville", _fait_ville, lambda e: fait_de_la_ville(e.ville)),
-            ("code postal", _fait_postal,
-             lambda e: codes_postaux(" ".join(filter(None, [e.adresse, e.code_postal])))),
+            ("ville", _fait_ville, lambda e: faits_du_candidat(e).ville),
+            ("code postal", _fait_postal, lambda e: faits_du_candidat(e).code_postal),
             ("activité", _fait_activite, lambda e: fait_de_lactivite(e.secteur_libelle)),
         )
 
@@ -195,10 +173,9 @@ def main(argv: list[str] | None = None) -> int:
         exemples: dict[str, list[str]] = defaultdict(list)
 
         for company, matches in ambigus:
-            haut = matches[0].score
-            concurrents = [
-                m for m in matches if haut - m.score < SEUIL_AMBIGUITE_ECART_MIN
-            ]
+            # ⚠️ **Le découpage des concurrents est EMPRUNTÉ**, pas refait ici :
+            # *c'est lui qui définit la population de tous les départageurs.*
+            concurrents = concurrents_de(matches)
             for nom, du_dossier, du_candidat in DEPARTAGEURS:
                 issue, gagnant = departager(
                     du_dossier(company), [du_candidat(m.entry) for m in concurrents]
