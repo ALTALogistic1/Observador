@@ -77,6 +77,64 @@ def _sans_champs_de_travail(paire: dict) -> dict:
     return {k: v for k, v in paire.items() if not k.startswith("_")}
 
 
+#: Les champs que `falkye/resolution.py::_enrich_from_req` réécrit après avoir
+#: posé un NEQ. **La liste est ici parce que l'instantané doit couvrir EXACTEMENT
+#: ce que le geste touche** — un champ ajouté là-bas et oublié ici rendrait le
+#: retour arrière partiel, en silence. *Un test compare les deux.*
+CHAMPS_ENRICHIS = (
+    "nom_officiel_req", "statut_legal", "adresse", "ville", "region",
+    "code_postal", "secteur_activite_code", "secteur_activite_libelle",
+)
+
+
+def _champs_enrichis(company) -> dict:
+    """L'état d'avant des champs que l'enrichissement va réécrire."""
+    return {
+        champ: getattr(getattr(company, champ), "value", getattr(company, champ))
+        for champ in CHAMPS_ENRICHIS
+    }
+
+
+def _defaire(db_session, chemin: Path) -> int:
+    """Rejoue l'instantané à l'envers. **Et refuse de toucher ce qui a bougé
+    depuis** : un dossier dont le NEQ n'est plus celui qu'on avait posé n'est
+    plus le nôtre, et le défaire écraserait quelqu'un d'autre."""
+    import json as _json
+
+    from falkye.models.company import Company, StatutLegal, StatutResolution
+
+    contenu = _json.loads(chemin.read_text(encoding="utf-8"))
+    a_defaire = contenu.get("a_poser", [])
+    print(f"   instantané : {chemin}")
+    print(f"   NEQ posés à défaire : {len(a_defaire)}\n")
+    defaits = ignores = introuvables = 0
+    for p in a_defaire:
+        company = db_session.get(Company, p["company_id"])
+        if company is None:
+            introuvables += 1
+            continue
+        if company.neq != p["neq"]:
+            ignores += 1
+            continue
+        company.neq = p["neq_avant"]
+        if p.get("statut_avant"):
+            company.statut_resolution = StatutResolution(p["statut_avant"])
+        for champ, valeur in (p.get("champs_avant") or {}).items():
+            if champ == "statut_legal":
+                setattr(company, champ, StatutLegal(valeur) if valeur else None)
+            else:
+                setattr(company, champ, valeur)
+        defaits += 1
+    db_session.commit()
+    print(f"   défaits      : {defaits}")
+    print(f"   ignorés      : {ignores}   (le NEQ a changé depuis — plus le nôtre)")
+    if introuvables:
+        print(f"   introuvables : {introuvables}")
+    print("\n   ⚠️ Les rapprochements JOURNALISÉS ne sont pas retirés : ce sont des")
+    print("      observations, pas des écritures sur les dossiers.")
+    return 0
+
+
 def _resoudre_une(db_session, company) -> tuple[str | None, list]:
     """`(neq retenu ou None, matches)` — **par le chemin de production**.
 
@@ -100,6 +158,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="ÉCRIRE (défaut : rapport seul, aucune écriture)")
     parser.add_argument("--comparer", type=int, default=0, metavar="N",
                         help="montrer N paires « nom détecté / nom du registre »")
+    parser.add_argument("--depuis", type=int, default=0, metavar="K",
+                        help="commencer à la K-ième paire — pour les regarder PAR LOT")
+    parser.add_argument("--defaire", default=None, metavar="FICHIER",
+                        help="rejouer un instantané à l'envers")
     parser.add_argument("--limite", type=int, default=None,
                         help="n'examiner que les N premières (mise au point)")
     parser.add_argument("--instantane", default=str(DOSSIER_INSTANTANE),
@@ -127,6 +189,12 @@ def main(argv: list[str] | None = None) -> int:
 
     session = get_session()
     try:
+        if args.defaire:
+            print("\n" + "=" * 78)
+            print("DÉFAIRE UNE REPRISE")
+            print("=" * 78 + "\n")
+            return _defaire(session, Path(args.defaire))
+
         requete = select(Company).where(Company.neq.is_(None)).order_by(Company.id)
         if args.limite:
             requete = requete.limit(args.limite)
@@ -158,6 +226,13 @@ def main(argv: list[str] | None = None) -> int:
                 # L'état d'AVANT, pour que l'instantané soit réversible.
                 "neq_avant": None,
                 "statut_avant": getattr(company.statut_resolution, "value", None),
+                # ⚠️ **Et les huit champs que `_enrich_from_req` réécrit.**
+                # *Sans eux, défaire rendait le NEQ et laissait l'adresse, la
+                # ville, le secteur et le statut légal du registre* — un dossier
+                # ni dans son état d'avant, ni dans celui d'après. **« Réversible »
+                # ne veut rien dire si l'instantané ne porte qu'une partie de ce
+                # que le geste touche.** *(Relevé le 2026-09-17, avant d'appliquer.)*
+                "champs_avant": _champs_enrichis(company),
                 # Sert à départager une collision interne au lot. Préfixé `_`
                 # parce qu'il est retiré avant l'écriture de l'instantané : ce
                 # fichier porte l'état d'avant, pas les intermédiaires de calcul.
@@ -282,12 +357,14 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.comparer:
             print("\n" + "=" * 78)
-            print(f"LES PAIRES — {min(args.comparer, len(libres))} sur {len(libres)} à poser")
+            lot = libres[args.depuis: args.depuis + args.comparer]
+            print(f"LES PAIRES — {args.depuis + 1} à {args.depuis + len(lot)} "
+                  f"sur {len(libres)} à poser")
             print("=" * 78)
             print("\n⚠️ Lire le NOM DU REGISTRE contre le NOM DÉTECTÉ. Un score de 100 sur")
             print("   deux raisons sociales différentes est une fausse résolution, et c'est")
             print("   la seule chose qu'un total ne montre jamais.\n")
-            for p in libres[: args.comparer]:
+            for p in lot:
                 ecart = p["score"] - p["second"]
                 print(f"   #{p['company_id']}  {p['neq']}   score {p['score']:.1f}"
                       f"  (2e {p['second']:.1f}, écart {ecart:.1f}, {p['candidats']} candidats)")
@@ -297,10 +374,12 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"      ville    : {p['ville']}")
                 print()
             if pris:
+                lot_pris = pris[args.depuis: args.depuis + args.comparer]
                 print("-" * 78)
-                print(f"ET LES {min(args.comparer, len(pris))} PREMIERS NEQ DÉJÀ PRIS — rien ne sera touché")
+                print(f"ET LES NEQ DÉJÀ PRIS {args.depuis + 1} à "
+                      f"{args.depuis + len(lot_pris)} sur {len(pris)} — rien ne sera touché")
                 print("-" * 78 + "\n")
-                for p in pris[: args.comparer]:
+                for p in lot_pris:
                     print(f"   #{p['company_id']} « {p['nom_detecte']} »")
                     print(f"      voudrait {p['neq']}, déjà porté par "
                           f"#{p['detenteur_id']} « {p['detenteur_nom']} »")
@@ -374,11 +453,46 @@ def main(argv: list[str] | None = None) -> int:
             poses += 1
 
         journalises = 0
+        deja_journalises = 0
         from falkye.models.diagnostic_journal import DiagnosticJournal, TypeDiagnostic
+
+        def _deja_au_journal(principal_id: int, candidat_id: int | None,
+                             type_diagnostic) -> bool:
+            """⚠️ **La passe était idempotente sur les DOSSIERS et ne l'était pas
+            sur le JOURNAL** *(relevé le 2026-09-17, avant d'appliquer)*.
+
+            Un dossier posé sort de la population — `Company.neq IS NULL` ne le
+            rend plus. **Mais un dossier CONSERVÉ y reste, donc il était
+            re-journalisé à chaque exécution.** *Et c'est précisément la file
+            qu'un humain doit dépiler : la polluer de doublons rend le travail
+            plus long à chaque relance.*
+            """
+            requete = select(DiagnosticJournal.id).where(
+                DiagnosticJournal.type_diagnostic == type_diagnostic,
+                DiagnosticJournal.company_id_principal == principal_id,
+                DiagnosticJournal.statut == "a_examiner",
+            )
+            requete = requete.where(
+                DiagnosticJournal.company_id_candidat.is_(None)
+                if candidat_id is None
+                else DiagnosticJournal.company_id_candidat == candidat_id
+            )
+            return session.execute(requete.limit(1)).scalar_one_or_none() is not None
 
         for p in pris:
             company = session.get(Company, p["company_id"])
             if company is None:
+                continue
+            attendu = (
+                TypeDiagnostic.PROBLEME_AUTRE_CHANTIER
+                if p.get("detenteur_id") is None
+                else TypeDiagnostic.CANDIDAT_FUSION_ENTREPRISE
+            )
+            principal = (company.id if p.get("detenteur_id") is None
+                         else p["detenteur_id"])
+            candidat = None if p.get("detenteur_id") is None else company.id
+            if _deja_au_journal(principal, candidat, attendu):
+                deja_journalises += 1
                 continue
             if p.get("detenteur_id") is None:
                 # ⚠️ **UN GROUPE REFUSÉ N'A PAS DE PRINCIPAL, ET C'EST LE FOND.**
@@ -421,6 +535,9 @@ def main(argv: list[str] | None = None) -> int:
         if tardifs:
             print(f"   pris entre rapport et écriture : {tardifs}   (journalisés, non posés)")
         print(f"   rapprochements journalisés : {journalises}   (aucune fusion)")
+        if deja_journalises:
+            print(f"   déjà au journal            : {deja_journalises}   "
+                  f"(non redoublés)")
         print("\n" + "=" * 78)
         print("   Pour défaire : l'instantané ci-dessus porte l'état d'avant de")
         print("   chaque dossier touché (neq_avant, statut_avant).")

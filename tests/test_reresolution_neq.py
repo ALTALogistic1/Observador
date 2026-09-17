@@ -379,3 +379,148 @@ def test_les_refuses_sont_JOURNALISES_sans_principal(decor_famille_dentites):
             "précisément qu'on ne sait pas lequel est le bon"
         )
         assert "refusée" in e.texte_description
+
+
+# ---------------------------------------------------------------------------
+# LES TROIS QUESTIONS D'ALEXANDRE, AVANT D'APPLIQUER  (2026-09-17)
+# ---------------------------------------------------------------------------
+#
+# *Ce qui se passe si on l'applique deux fois, ce qui est journalisé, et comment
+# on revient en arrière.* **Deux des trois avaient un défaut.**
+
+
+def test_linstantane_couvre_EXACTEMENT_ce_que_lenrichissement_reecrit():
+    """⚠️ **Le défaut trouvé le 2026-09-17, avant d'appliquer.**
+
+    L'instantané ne portait que `neq` et `statut_resolution`. *Or
+    `_enrich_from_req` réécrit huit autres champs* — défaire rendait le NEQ et
+    laissait l'adresse, la ville, le secteur et le statut légal du registre :
+    **un dossier ni dans son état d'avant, ni dans celui d'après.**
+
+    Ce test compare la liste de l'instantané au CODE de l'enrichissement. *Un
+    champ ajouté là-bas et oublié ici rendrait le retour arrière partiel, en
+    silence.*
+    """
+    import ast
+    import inspect
+
+    from falkye import resolution
+    from outils.reresolution_neq import CHAMPS_ENRICHIS
+
+    source = inspect.getsource(resolution._enrich_from_req)
+    arbre = ast.parse(source.strip())
+    ecrits = {
+        cible.attr
+        for noeud in ast.walk(arbre)
+        if isinstance(noeud, ast.Assign)
+        for cible in noeud.targets
+        if isinstance(cible, ast.Attribute)
+        and isinstance(cible.value, ast.Name)
+        and cible.value.id == "company"
+    }
+    manquants = ecrits - set(CHAMPS_ENRICHIS)
+    assert not manquants, (
+        f"`_enrich_from_req` réécrit {sorted(manquants)}, que l'instantané ne "
+        "porte pas — le retour arrière serait partiel, et en silence"
+    )
+
+
+def test_defaire_remet_le_dossier_dans_son_etat_davant(decor, db_session, tmp_path, capsys):
+    """*Sans commande pour défaire, « réversible » reste une intention.*"""
+    from sqlalchemy import select
+
+    from falkye.models.company import Company
+    from outils import reresolution_neq
+
+    assert reresolution_neq.main(["--appliquer", "--instantane", str(tmp_path)]) == 0
+    capsys.readouterr()
+    fichiers = sorted(tmp_path.glob("reresolution-*.json"))
+    assert fichiers, "aucun instantané écrit"
+
+    db_session.expire_all()
+    poses = db_session.execute(
+        select(Company).where(Company.neq.is_not(None))
+    ).scalars().all()
+    assert poses, "le décor n'a rien posé — ce test ne verrouille rien"
+
+    assert reresolution_neq.main(["--defaire", str(fichiers[-1])]) == 0
+    sortie = capsys.readouterr().out
+    assert "défaits      :" in sortie
+    # ⚠️ Seuls les dossiers de l'instantané sont concernés. *Le DÉTENTEUR
+    # portait déjà son NEQ avant la passe : le défaire serait défaire ce que la
+    # passe n'a jamais fait.*
+    import json as _json
+
+    db_session.expire_all()
+    instantane = _json.loads(fichiers[-1].read_text(encoding="utf-8"))
+    touches = [x["company_id"] for x in instantane["a_poser"]]
+    assert touches, "l'instantané ne liste aucun dossier posé"
+    for company_id in touches:
+        company = db_session.get(Company, company_id)
+        assert company.neq is None, f"#{company_id} porte encore un NEQ"
+        assert company.nom_officiel_req is None, (
+            "l'enrichissement n'a pas été défait — l'instantané est partiel"
+        )
+
+
+def test_defaire_NE_TOUCHE_PAS_un_dossier_dont_le_NEQ_a_change(decor, db_session, tmp_path):
+    """⚠️ *Un dossier dont le NEQ n'est plus celui qu'on avait posé n'est plus le
+    nôtre, et le défaire écraserait quelqu'un d'autre.*"""
+    from sqlalchemy import select
+
+    from falkye.models.company import Company
+    from outils import reresolution_neq
+
+    assert reresolution_neq.main(["--appliquer", "--instantane", str(tmp_path)]) == 0
+    fichiers = sorted(tmp_path.glob("reresolution-*.json"))
+    db_session.expire_all()
+    pose = db_session.execute(
+        select(Company).where(Company.neq.is_not(None))
+    ).scalars().first()
+    pose.neq = "9999999999"      # un tiers est passé par là
+    db_session.commit()
+
+    assert reresolution_neq.main(["--defaire", str(fichiers[-1])]) == 0
+    db_session.expire_all()
+    assert db_session.get(Company, pose.id).neq == "9999999999", (
+        "le NEQ d'un tiers a été écrasé"
+    )
+
+
+def test_comparer_pagine_avec_depuis(decor, capsys):
+    """*« Si `--comparer` peut le faire par lot »* — il le peut maintenant."""
+    from outils import reresolution_neq
+
+    assert reresolution_neq.main(["--comparer", "1"]) == 0
+    assert "LES PAIRES — 1 à 1" in capsys.readouterr().out
+    assert reresolution_neq.main(["--comparer", "1", "--depuis", "1"]) == 0
+    assert "LES PAIRES — 2 à" in capsys.readouterr().out
+
+
+def test_appliquer_DEUX_FOIS_ne_redouble_pas_le_JOURNAL(decor, db_session, tmp_path, capsys):
+    """⚠️ **Le défaut trouvé le 2026-09-17, avant d'appliquer.**
+
+    La passe était idempotente sur les DOSSIERS — un dossier posé sort de
+    `Company.neq IS NULL` — **et pas sur le JOURNAL** : un dossier CONSERVÉ y
+    reste, donc il était re-journalisé à chaque exécution. *Et c'est la file
+    qu'un humain doit dépiler.*
+    """
+    from sqlalchemy import func, select as _select
+
+    from falkye.models.diagnostic_journal import DiagnosticJournal
+    from outils import reresolution_neq
+
+    def compter():
+        return db_session.execute(
+            _select(func.count()).select_from(DiagnosticJournal)
+        ).scalar()
+
+    assert reresolution_neq.main(["--appliquer", "--instantane", str(tmp_path)]) == 0
+    apres_un = compter()
+    assert apres_un > 0, "le décor n'a rien journalisé — ce test ne verrouille rien"
+    capsys.readouterr()
+
+    assert reresolution_neq.main(["--appliquer", "--instantane", str(tmp_path)]) == 0
+    sortie = capsys.readouterr().out
+    assert compter() == apres_un, "le journal a été redoublé par la seconde passe"
+    assert "déjà au journal" in sortie, sortie

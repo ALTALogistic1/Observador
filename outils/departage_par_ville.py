@@ -47,32 +47,12 @@ import argparse
 from collections import Counter, defaultdict
 
 from outils.nombres import milliers
-
-#: Les clés de `Signal.champs` qui portent une ville TELLE QUELLE, selon les
-#: connecteurs. *Une clé par graphie rencontrée — la liste est une observation,
-#: pas une norme.*
-CLES_VILLE = ("ville", "city", "municipalite", "locality")
-
-#: La clé qui porte une adresse COMBINÉE, dont la ville doit être extraite.
-CLE_ADRESSE = "adresse"
-
-
-def _ville_depuis_adresse(adresse: str | None) -> str | None:
-    """La municipalité d'une adresse EIMT — `'St-Isidore, QC J0L 2A'` → `'St-Isidore'`.
-
-    ⚠️ **UNE CONVENTION DE LECTURE, PAS UN CHAMP.** *Rien n'est promu, rien n'est
-    écrit : cette fonction existe pour COMPTER ce qui serait disponible si le
-    correctif de promotion était fait.* **Le correctif, lui, se décide avec
-    Alexandre et sur ce chiffre.**
-
-    La forme observée est « municipalité, PROVINCE code postal ». On prend ce qui
-    précède la première virgule — *et une adresse qui n'en porte pas ne rend
-    rien, plutôt qu'une chaîne entière prise pour une ville.*
-    """
-    if not adresse or "," not in adresse:
-        return None
-    tete = adresse.split(",")[0].strip()
-    return tete or None
+from outils.villes_des_signaux import (
+    CLE_ADRESSE,  # noqa: F401 -- gardé pour les tests qui vérifient la convention
+    CLES_VILLE,  # noqa: F401
+    ville_depuis_adresse as _ville_depuis_adresse,
+    villes_des_signaux,
+)
 
 
 def _part(k: int, n: int) -> str:
@@ -140,43 +120,14 @@ def main(argv: list[str] | None = None) -> int:
         orphelins = list(session.execute(requete).scalars().all())
 
         # --- Les villes disponibles par dossier, et d'où elles viennent ------
-        #
-        # ⚠️ **Pas « la première rencontrée ».** *Un dossier peut porter plusieurs
-        # signaux, et retenir celui que la base rend en premier promeut l'ordre
-        # du fichier au rang de critère (cas 19).* On récolte TOUT, on préfère
-        # une clé EXPLICITE à une tête d'adresse dérivée, et on compte les
-        # dossiers dont les signaux se contredisent.
-        vues: dict[int, list[tuple[int, str, str, str]]] = defaultdict(list)
-        interessants = {c.id for c in orphelins}
-        for company_id, champs, source_id in session.execute(
-            select(Signal.company_id, Signal.champs, Signal.source_id)
-            .execution_options(yield_per=2000)
-        ):
-            if company_id not in interessants:
-                continue
-            champs = champs or {}
-            for cle in CLES_VILLE:
-                valeur = champs.get(cle)
-                if valeur:
-                    vues[company_id].append(
-                        (0, str(valeur), f"champs[{cle!r}]", source_id or "?")
-                    )
-                    break
-            else:
-                depuis = _ville_depuis_adresse(champs.get(CLE_ADRESSE))
-                if depuis:
-                    vues[company_id].append(
-                        (1, depuis, "champs['adresse'] (tête)", source_id or "?")
-                    )
-
-        villes_signal: dict[int, tuple[str, str, str]] = {}
-        contradictoires = 0
-        for company_id, lot in vues.items():
-            distinctes = {normaliser(v) for _, v, _, _ in lot}
-            if len(distinctes) > 1:
-                contradictoires += 1
-            rang, ville, provenance, source = sorted(lot)[0]
-            villes_signal[company_id] = (ville, provenance, source)
+        # ⚠️ **Empruntée, pas recopiée.** *La mesure et le correctif de promotion
+        # doivent lire la MÊME ville — sinon la mesure compte une chose pendant
+        # que l'écriture en pose une autre.*
+        trouvees = villes_des_signaux(session, {c.id for c in orphelins})
+        villes_signal: dict[int, tuple[str, str, str]] = {
+            cid: (v.ville, v.provenance, v.source_id) for cid, v in trouvees.items()
+        }
+        contradictoires = sum(1 for v in trouvees.values() if v.contradictoire)
 
         # --- La population : les AMBIGUS ------------------------------------
         print("-" * 78)
