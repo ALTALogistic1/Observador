@@ -30,6 +30,7 @@ from falkye.models.profile import Profile, ProfileNeed  # noqa: F401
 from falkye.models.profile_need_client_cible import ProfileNeedClientCible  # noqa: F401
 from falkye.models.profile_need_sphere import ProfileNeedSphere  # noqa: F401
 from falkye.models.req_entry import REQEntry  # noqa: F401
+from falkye.models.req_mot import REQMot, REQMotFrequence  # noqa: F401
 from falkye.models.req_nom import REQNom  # noqa: F401
 from falkye.models.req_etablissement_entry import REQEtablissementEntry  # noqa: F401
 from falkye.models.retroaction_pertinence import RetroactionPertinence  # noqa: F401

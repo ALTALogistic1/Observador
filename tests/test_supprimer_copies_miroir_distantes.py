@@ -41,15 +41,16 @@ def base_produit(monkeypatch, tmp_path):
 
 
 def test_la_liste_vient_des_modeles(base_produit):
-    """Neuf tables, et elles viennent de BaseMiroir — pas d'une constante.
+    """Onze tables, et elles viennent de BaseMiroir — pas d'une constante.
 
-    Neuf depuis le 2026-09-16 : `req_noms` s'ajoute. **Ce compte a rougi tout
-    seul quand la table est arrivée, et c'est exactement son rôle** — une table
-    de miroir ajoutée sans passer ici serait une table que l'outil de purge ne
-    connaîtrait pas, donc une copie distante qu'il laisserait derrière lui.
+    Neuf le 2026-09-16 avec `req_noms`; **onze le 2026-09-17** avec `req_mots` et
+    `req_mots_frequence`. **Ce compte a rougi tout seul les deux fois, et c'est
+    exactement son rôle** — une table de miroir ajoutée sans passer ici serait une
+    table que l'outil de purge ne connaîtrait pas, donc une copie distante qu'il
+    laisserait derrière lui.
     """
     noms = outil.tables_miroir()
-    assert len(noms) == 9
+    assert len(noms) == 11
     assert "req_entries" in noms
     assert "diff_run_historique" in noms
     assert "diff_quarantaines" in noms

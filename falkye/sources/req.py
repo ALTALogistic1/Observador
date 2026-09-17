@@ -47,6 +47,7 @@ import csv
 import io
 import logging
 import re
+import sys
 import zipfile
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -260,28 +261,96 @@ def _charger_index_noms(zf: zipfile.ZipFile) -> dict[str, str]:
 _INTERVALLE_COMMIT_NOMS = 20000
 
 
+#: ⚠️ **LES QUATRE GISEMENTS DE NOMS DE L'ARCHIVE** *(inventaire du 2026-09-17,
+#: sur l'archive du 2 septembre — le produit n'en indexait qu'UN, filtré)*.
+#:
+#: `(gisement, fichier, colonne du nom, colonne de statut ou None)`
+#:
+#: ⚠️ **`DENOMN_SOC` de `FusionScissions.csv` n'est PAS une relation NEQ→NEQ.**
+#: *Classée comme telle par lecture trop rapide, elle est restée ignorée une
+#: journée de plus.* La relation est `NEQ_ASSUJ_REL`; la dénomination est **un nom
+#: rattaché à un NEQ vivant**, rempli à 99,9 %.
+#:
+#: ⚠️ **Tout gisement ajouté ici doit AUSSI être déclaré à `_LECTEURS_PAR_CSV`**,
+#: sans quoi ses colonnes sortent de la vérification d'en-tête, en silence.
+GISEMENTS_DE_NOMS: tuple[tuple[str, str, str, str | None], ...] = (
+    ("NOM_ASSUJ", "Nom.csv", "NOM_ASSUJ", "STAT_NOM"),
+    ("NOM_ETRNG", "Nom.csv", "NOM_ASSUJ_LANG_ETRNG", "STAT_NOM"),
+    ("NOM_ETAB", "Etablissements.csv", "NOM_ETAB", None),
+    ("DENOMN_SOC", "FusionScissions.csv", "DENOMN_SOC", None),
+)
+
+#: Le statut porté par une forme qu'aucune colonne ne qualifie. *Ni « en vigueur »
+#: ni « retiré » — le fichier ne le dit pas, et l'inventer serait affirmer.*
+STATUT_NON_QUALIFIE = "?"
+
+
+def _relever_la_borne_de_champ() -> None:
+    """⚠️ **Sans ça, la lecture LÈVE sur `OBJET_SOC`.** *Le champ d'objet social
+    dépasse la borne par défaut de `csv` (131 072 caractères), et l'erreur tombe
+    au milieu du fichier — donc après des minutes de travail.*
+
+    **Relevée à la plus grande valeur que la plateforme accepte**, en redescendant
+    tant qu'elle refuse : `sys.maxsize` dépasse un `long` C sur certaines
+    plateformes, et `field_size_limit` le refuse alors.
+    """
+    borne = sys.maxsize
+    while True:
+        try:
+            csv.field_size_limit(borne)
+            return
+        except OverflowError:
+            borne //= 2
+
+
+def _lecteur_csv(zf: zipfile.ZipFile, fichier: str) -> "Iterator[dict[str, str]]":
+    """Un `DictReader` sur un membre du zip, avec les trois pièges de l'archive
+    réelle désarmés *(vérifiés sur l'archive du 2 septembre)*.
+
+    1. ⚠️ **Le BOM colle au premier nom de colonne** — `﻿NEQ` et non `NEQ`.
+       `utf-8-sig` le retire, **et les en-têtes sont nettoyées en plus** : un
+       fichier relu autrement ne doit pas faire échouer `row.get("NEQ")` en
+       silence.
+    2. ⚠️ **`newline=""`**, comme la documentation de `csv` l'exige. *`OBJET_SOC`
+       porte des retours de ligne dans des champs entre guillemets* — une
+       traduction de fin de ligne par la couche texte couperait un enregistrement
+       en deux.
+    3. ⚠️ **La borne de champ relevée**, sinon la lecture lève.
+
+    *Et c'est pourquoi un compte de LIGNES PHYSIQUES est faux : 2 955 115 lignes
+    pour 2 955 114 enregistrements. On compte des enregistrements.*
+    """
+    _relever_la_borne_de_champ()
+    with zf.open(fichier) as brut:
+        texte = io.TextIOWrapper(brut, encoding="utf-8-sig", errors="replace", newline="")
+        lecteur = csv.reader(texte)
+        entete = [(colonne or "").lstrip("\ufeff").strip() for colonne in next(lecteur, [])]
+        for rangee in lecteur:
+            yield dict(zip(entete, rangee))
+
+
 def _charger_tous_les_noms(
-    zf: zipfile.ZipFile, db_session: Session, limite: int | None = None
+    zf: zipfile.ZipFile,
+    db_session: Session,
+    limite: int | None = None,
+    gisements: tuple[tuple[str, str, str, str | None], ...] | None = None,
+    statuts_retenus: frozenset[str] | None = None,
 ) -> int:
-    """Écrit **TOUS les noms EN VIGUEUR** de chaque NEQ dans `req_noms`.
+    """Écrit dans `req_noms` **toutes les formes des QUATRE gisements de noms**.
 
     **Pourquoi une passe SÉPARÉE, et pas l'index en mémoire.** L'import tient déjà
     simultanément l'index des noms élus (~2,7 M), celui des établissements et deux
-    instantanés — *pic mesuré à 3 535 Mo pour 8 Go d'hôte.* **Ajouter 1,7 million
-    de chaînes à ce pic serait une décision qu'on n'a pas prise.** Cette passe
-    relit `Nom.csv` en flux et écrit par lots : **la mémoire ne bouge pas, le coût
-    est une seconde lecture du fichier.**
+    instantanés — *pic mesuré à 3 535 Mo pour 8 Go d'hôte.* Cette passe relit les
+    fichiers **en flux** et écrit par lots : **la mémoire ne bouge pas, le coût
+    est une lecture de plus.**
 
-    ⚠️ **Seuls les noms EN VIGUEUR (`STAT_NOM='V'`) entrent.** *L'historique des
-    noms retirés ferait apparier une entreprise sous un nom qu'elle n'utilise
-    plus* — et une résolution vers une entreprise qui a changé de nom il y a dix
-    ans est une fausse résolution, pas un rappel de plus. **C'est une décision, et
-    elle est révisable : le champ `statut` est conservé pour qu'elle puisse l'être
-    sans réimport.**
+    `statuts_retenus` filtre sur la colonne de statut du gisement, quand il en a
+    une. **`None` veut dire : tout garder**, et le statut réel est écrit en
+    colonne pour que la décision se révise **sans réimport**.
 
     ⚠️ **Le nom ÉLU y figure aussi**, et c'est volontaire : la table répond seule à
-    « quels noms mènent à ce NEQ », sans avoir à joindre `REQEntry`. *Une table qui
-    ne porte que les exceptions oblige tous ses lecteurs à connaître la règle.*
+    « quels noms mènent à ce NEQ », sans joindre `REQEntry`. *Une table qui ne
+    porte que les exceptions oblige tous ses lecteurs à connaître la règle.*
 
     Rend le nombre de lignes écrites.
     """
@@ -294,14 +363,14 @@ def _charger_tous_les_noms(
     #   1. un RÉIMPORT réécrit les mêmes clés. Avec `add`, la seconde insertion
     #      lève `IntegrityError` et fait tomber l'import entier — mesuré sur les
     #      tests du 2026-09-16.
-    #   2. ~4,4 M de lignes passées par l'ORM une à une coûteraient des dizaines
-    #      de minutes; par lots de dictionnaires, c'est une écriture en masse.
+    #   2. des millions de lignes passées par l'ORM une à une coûteraient des
+    #      dizaines de minutes; par lots de dictionnaires, c'est une écriture en
+    #      masse.
     # `OR IGNORE` est propre à SQLite, et le miroir EST toujours SQLite
     # (`outils/import_miroir_req.py` refuse toute autre cible avant de démarrer).
     requete = insert(REQNom).prefix_with("OR IGNORE")
 
     ecrites = 0
-    lues = 0
     lot: list[dict] = []
     vus: set[tuple[str, str]] = set()
 
@@ -313,42 +382,153 @@ def _charger_tous_les_noms(
             lot = []
             vus.clear()  # les lots suivants ne peuvent plus entrer en conflit entre eux
 
-    with zf.open("Nom.csv") as raw:
-        text = io.TextIOWrapper(raw, encoding="utf-8-sig", errors="replace")
-        for row in csv.DictReader(text):
+    # ⚠️ Les gisements d'un MÊME fichier se lisent en UNE passe. *Deux passes sur
+    # `Nom.csv` (4,65 M d'enregistrements) pour deux colonnes de la même rangée
+    # coûteraient le double sans rien rendre de plus.*
+    par_fichier: dict[str, list[tuple[str, str, str | None]]] = {}
+    for gisement, fichier, colonne, colonne_statut in (gisements or GISEMENTS_DE_NOMS):
+        par_fichier.setdefault(fichier, []).append((gisement, colonne, colonne_statut))
+
+    presents = set(zf.namelist())
+    for fichier, colonnes in par_fichier.items():
+        if fichier not in presents:
+            # ⚠️ **Signalé, jamais avalé.** *Un fichier attendu et absent est un
+            # changement de forme de l'archive* — la revue d'archive le refuse
+            # bruyamment; ici on note pour que le journal d'import le porte.
+            logger.warning(
+                "REQ: %s absent de l'archive — gisements %s non chargés",
+                fichier, [g for g, _, _ in colonnes],
+            )
+            continue
+        lues = 0
+        for rangee in _lecteur_csv(zf, fichier):
             if limite is not None and lues >= limite:
                 break
             lues += 1
-            neq = (row.get("NEQ") or "").strip()
-            nom = (row.get("NOM_ASSUJ") or "").strip()
-            if not neq or not nom:
+            neq = (rangee.get("NEQ") or "").strip()
+            if not neq:
                 continue
-            if (row.get("STAT_NOM") or "").strip().upper() != "V":
-                continue
-            nom_norm = _normaliser(nom)
-            if not nom_norm:
-                # Un nom qui se normalise en chaîne vide n'apparierait rien et
-                # apparierait TOUT — c'est le défaut du 15 septembre, refusé ici.
-                continue
-            cle = (neq, nom_norm)
-            if cle in vus:
-                # Deux types de nom peuvent porter la même graphie. `OR IGNORE`
-                # l'absorberait, mais le retirer ici évite d'envoyer la ligne.
-                continue
-            vus.add(cle)
-            lot.append({
-                "neq": neq,
-                "nom_normalise": nom_norm,
-                "nom": nom,
-                "statut": (row.get("STAT_NOM") or "").strip(),
-                "type_nom": (row.get("TYP_NOM_ASSUJ") or "").strip(),
-            })
-            ecrites += 1
-            if len(lot) >= _INTERVALLE_COMMIT_NOMS:
-                _vider()
-                logger.info("REQ: %s noms en vigueur indexés jusqu'ici", ecrites)
+            for gisement, colonne, colonne_statut in colonnes:
+                nom = (rangee.get(colonne) or "").strip()
+                if not nom:
+                    continue
+                statut = (
+                    (rangee.get(colonne_statut) or "").strip().upper()
+                    if colonne_statut else STATUT_NON_QUALIFIE
+                )
+                if (
+                    colonne_statut
+                    and statuts_retenus is not None
+                    and statut not in statuts_retenus
+                ):
+                    continue
+                nom_norm = _normaliser(nom)
+                if not nom_norm:
+                    # Un nom qui se normalise en chaîne vide n'apparierait rien
+                    # et apparierait TOUT — c'est le défaut du 15 septembre.
+                    continue
+                cle = (neq, nom_norm)
+                if cle in vus:
+                    # Deux gisements peuvent porter la même graphie pour le même
+                    # NEQ. `OR IGNORE` l'absorberait; le retirer ici évite
+                    # d'envoyer la ligne.
+                    continue
+                vus.add(cle)
+                lot.append({
+                    "neq": neq,
+                    "nom_normalise": nom_norm,
+                    "nom": nom,
+                    "statut": statut,
+                    "type_nom": (rangee.get("TYP_NOM_ASSUJ") or "").strip(),
+                    "gisement": gisement,
+                })
+                ecrites += 1
+                if len(lot) >= _INTERVALLE_COMMIT_NOMS:
+                    _vider()
+                    logger.info("REQ: %s formes indexées jusqu'ici", ecrites)
+        _vider()
+        logger.info("REQ: %s — %s enregistrement(s) lus", fichier, lues)
     _vider()
     return ecrites
+
+
+def construire_index_par_mots(db_session: Session) -> tuple[int, int]:
+    """Reconstruit `req_mots` et `req_mots_frequence` **depuis `req_noms`**.
+
+    **Deux requêtes, et rien ne passe par la mémoire de Python.** *Le découpage
+    en mots se fait en SQL, sur `nom_normalise` — qui ne porte que `[a-z0-9 ]`,
+    donc une espace sépare deux mots et rien d'autre.*
+
+    ⚠️ **Reconstruction TOTALE, jamais incrémentale.** *Une reconstruction
+    partielle laisserait une moitié périmée, et c'est invisible.*
+
+    ⚠️ **Le découpeur doit être LE MÊME des deux côtés.** L'index est bâti sur
+    `nom_normalise`; la requête découpe le nom cherché avec `mots_du_nom`, sur la
+    même forme normalisée. *Deux découpeurs différents feraient baisser le rappel
+    sans qu'aucune erreur ne se produise.*
+
+    Rend `(couples, mots distincts)`.
+    """
+    from sqlalchemy import func, select as _select, text
+
+    from falkye.models.req_mot import REQMot, REQMotFrequence
+
+    # ⚠️ **Le SQL brut doit être ROUTÉ explicitement.** *La session est liée par
+    # MODÈLE — `Company` va à la base distante, `REQMot` au miroir local — et un
+    # `text()` ne porte aucune métadonnée, donc SQLAlchemy ne sait pas où
+    # l'envoyer et lève.* **C'est le découpage produit/miroir qui l'exige, et
+    # c'est bien qu'il lève plutôt que de deviner.**
+    def _brut(requete: str) -> None:
+        db_session.execute(
+            text(requete).execution_options(
+                synchronize_session=False
+            ),
+            bind_arguments={"mapper": REQMot},
+        )
+
+    _brut("DELETE FROM req_mots")
+    _brut("DELETE FROM req_mots_frequence")
+    db_session.commit()
+
+    # Le découpage récursif : une ligne par (mot, NEQ). SQLite n'a pas de
+    # `split`, donc on consomme la chaîne mot à mot dans une CTE.
+    _brut("""
+        INSERT OR IGNORE INTO req_mots (mot, neq)
+        WITH decoupe(neq, mot, reste) AS (
+            SELECT neq,
+                   CASE WHEN instr(nom_normalise, ' ') = 0 THEN nom_normalise
+                        ELSE substr(nom_normalise, 1, instr(nom_normalise, ' ') - 1) END,
+                   CASE WHEN instr(nom_normalise, ' ') = 0 THEN ''
+                        ELSE substr(nom_normalise, instr(nom_normalise, ' ') + 1) END
+              FROM req_noms
+             WHERE nom_normalise <> ''
+            UNION ALL
+            SELECT neq,
+                   CASE WHEN instr(reste, ' ') = 0 THEN reste
+                        ELSE substr(reste, 1, instr(reste, ' ') - 1) END,
+                   CASE WHEN instr(reste, ' ') = 0 THEN ''
+                        ELSE substr(reste, instr(reste, ' ') + 1) END
+              FROM decoupe
+             WHERE reste <> ''
+        )
+        SELECT mot, neq FROM decoupe WHERE mot <> ''
+    """)
+    db_session.commit()
+
+    _brut("""
+        INSERT OR IGNORE INTO req_mots_frequence (mot, neqs)
+        SELECT mot, COUNT(*) FROM req_mots GROUP BY mot
+    """)
+    db_session.commit()
+
+    couples = db_session.execute(
+        _select(func.count()).select_from(REQMot)
+    ).scalar() or 0
+    mots = db_session.execute(
+        _select(func.count()).select_from(REQMotFrequence)
+    ).scalar() or 0
+    logger.info("REQ: index par mots — %s couples, %s mots distincts", couples, mots)
+    return couples, mots
 
 
 def _charger_index_etablissements(zf: zipfile.ZipFile) -> dict[str, list[_EtabLeger]]:
@@ -644,6 +824,17 @@ _LECTEURS_PAR_CSV = {
     "Etablissements.csv": "_charger_index_etablissements",
 }
 
+#: ⚠️ **Les colonnes des gisements se DÉCLARENT, elles ne se lisent pas par AST.**
+#: *La passe des gisements fait `rangee.get(colonne)` où `colonne` vient de
+#: `GISEMENTS_DE_NOMS` — un littéral qu'aucun arbre syntaxique ne voit.* **Sans
+#: cette déclaration, les quatre gisements sortaient de la vérification d'en-tête
+#: en silence**, ce qui est exactement le défaut que le garde existe pour
+#: attraper. *(Relevé à l'écriture, le 2026-09-17.)*
+#:
+#: `TYP_NOM_ASSUJ` n'y figure pas volontairement : la passe le lit au mieux, il
+#: n'existe que dans `Nom.csv`, et il DÉCRIT sans DÉCIDER. *Le déclarer ferait
+#: refuser l'import sur les deux autres fichiers.*
+
 
 def colonnes_brutes_lues(source_module: str, nom_fonction: str) -> set[str]:
     """Les en-têtes CSV que cette fonction lit RÉELLEMENT, extraites de son code.
@@ -719,6 +910,20 @@ def colonnes_couvertes_par_la_quarantaine(source_module: str) -> set[str]:
     return couvertes
 
 
+def colonnes_des_gisements() -> dict[str, set[str]]:
+    """Par fichier, les colonnes dont la passe des gisements a BESOIN.
+
+    **`NEQ` en fait toujours partie** — sans lui, une forme ne mène nulle part.
+    """
+    par_fichier: dict[str, set[str]] = {}
+    for _gisement, fichier, colonne, colonne_statut in GISEMENTS_DE_NOMS:
+        colonnes = par_fichier.setdefault(fichier, {"NEQ"})
+        colonnes.add(colonne)
+        if colonne_statut:
+            colonnes.add(colonne_statut)
+    return par_fichier
+
+
 def colonnes_declarees_absentes(
     entetes: dict[str, list[str]], source_module: str | None = None
 ) -> dict[str, list[str]]:
@@ -754,9 +959,16 @@ def colonnes_declarees_absentes(
         source_module = Path(__file__).read_text(encoding="utf-8")
     couvertes = colonnes_couvertes_par_la_quarantaine(source_module)
     absentes: dict[str, list[str]] = {}
-    for csv_nom, fonction in _LECTEURS_PAR_CSV.items():
+    # ⚠️ DEUX sources de vérité, et il faut les deux : l'AST pour les lecteurs
+    # qui nomment leurs colonnes en littéral, la déclaration pour la passe des
+    # gisements, qui les prend dans une table.
+    des_gisements = colonnes_des_gisements()
+    a_verifier = set(_LECTEURS_PAR_CSV) | set(des_gisements)
+    for csv_nom in sorted(a_verifier):
         presentes = set(entetes.get(csv_nom) or [])
-        lues = colonnes_brutes_lues(source_module, fonction)
+        fonction = _LECTEURS_PAR_CSV.get(csv_nom)
+        lues = colonnes_brutes_lues(source_module, fonction) if fonction else set()
+        lues |= des_gisements.get(csv_nom, set())
         # Les colonnes que la quarantaine surveille sont RETIRÉES d'ici : sur
         # celles-là le moteur de diff a déjà une réponse, meilleure que le refus.
         manquantes = sorted(lues - presentes - couvertes)
@@ -952,9 +1164,21 @@ def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | 
     # la résolution, des jours plus tard.
     refuser_si_colonnes_absentes(
         {
-            "Entreprise.csv": _en_tete_csv(zf, "Entreprise.csv"),
-            "Nom.csv": _en_tete_csv(zf, "Nom.csv"),
-            "Etablissements.csv": _en_tete_csv(zf, "Etablissements.csv"),
+            # ⚠️ **Les en-têtes se collectent sur TOUS les fichiers que le code
+            # lit, gisements compris.** *Un fichier lu et non collecté rend une
+            # en-tête VIDE au garde, qui refuse alors un import valide* — donc le
+            # garde serait retiré au premier faux positif, et ne protégerait plus
+            # rien. **Un membre ABSENT rend bien une liste vide, et là le refus
+            # est le comportement voulu** : un fichier attendu et absent doit
+            # échouer bruyamment.
+            **{
+                fichier: (
+                    _en_tete_csv(zf, fichier) if fichier in zf.namelist() else []
+                )
+                for fichier in sorted(
+                    set(_LECTEURS_PAR_CSV) | set(colonnes_des_gisements())
+                )
+            },
         }
     )
 
@@ -1025,10 +1249,25 @@ def _ingest_zip_req_reel(db_session: Session, zf: zipfile.ZipFile, limit: int | 
             db_session.commit()
             logger.info("REQ (fichier réel): %s lignes de résolution appliquées jusqu'ici", i)
 
-    # TOUS les noms, en passe séparée — après l'upsert, jamais avant : si le
-    # miroir n'a pas été écrit, les noms n'ont rien à indexer.
+    # TOUS les noms des QUATRE gisements, en passe séparée — après l'upsert,
+    # jamais avant : si le miroir n'a pas été écrit, les noms n'ont rien à
+    # indexer.
     stats.noms_alternatifs = _charger_tous_les_noms(zf, db_session, limite=limit)
-    logger.info("REQ: %s noms en vigueur indexés dans req_noms", stats.noms_alternatifs)
+    logger.info("REQ: %s formes indexées dans req_noms", stats.noms_alternatifs)
+
+    # ---- L'INDEX PAR MOTS, reconstruit ENTIÈREMENT ------------------------
+    # ⚠️ **Après les noms, et depuis `req_noms` — jamais depuis les fichiers.**
+    # *Un index bâti sur une autre source que la table qu'il indexe se
+    # désynchronise, et c'est invisible.*
+    construire_index_par_mots(db_session)
+
+    # ---- LE TÉMOIN DU DÉCOUPEUR ------------------------------------------
+    # ⚠️ **La seule dégradation silencieuse que l'index par mots puisse subir :
+    # deux découpeurs différents.** *L'index découpe en SQL, la requête découpe
+    # en Python — si les deux divergeaient, le rappel baisserait sans qu'aucune
+    # erreur ne se produise.* **Donc on vérifie qu'un nom connu se retrouve
+    # lui-même, et l'import REFUSE sinon.**
+    refuser_si_le_decoupeur_diverge(db_session)
 
     if rapport_entreprise.run_reference:
         # Run de référence (jamais de candidat, mandat chantier 1) : amorce
@@ -1447,6 +1686,154 @@ def _formes_transformees(
     return formes
 
 
+class DecoupeurDivergent(RuntimeError):
+    """L'index par mots et la requête ne découpent pas pareil. **L'import
+    refuse**, parce que le défaut ne se verrait nulle part ailleurs."""
+
+
+def refuser_si_le_decoupeur_diverge(db_session: Session, combien: int = 20) -> None:
+    """Un nom de `req_noms` doit se retrouver LUI-MÊME par l'index par mots.
+
+    ⚠️ **C'est le seul garde possible contre deux découpeurs.** *Une divergence
+    ne lève pas, ne journalise rien, et ne se voit qu'à la baisse du rappel —
+    des jours plus tard, sur un chiffre qu'on attribuera à autre chose.*
+
+    **Vingt formes prises dans l'ordre de la clé** — donc reproductibles, et pas
+    un tirage. *Chacune doit rendre son propre NEQ parmi les candidats.*
+    """
+    from falkye.models.req_nom import REQNom
+
+    echantillon = db_session.execute(
+        select(REQNom.neq, REQNom.nom_normalise)
+        .where(REQNom.nom_normalise != "")
+        .order_by(REQNom.neq, REQNom.nom_normalise)
+        .limit(combien)
+    ).all()
+    manques: list[tuple[str, str]] = []
+    for neq, forme in echantillon:
+        trouves = {c.neq for c in candidats_par_mot_rare(db_session, forme)}
+        if neq not in trouves:
+            manques.append((neq, forme))
+    if not manques:
+        return
+    detail = "; ".join(f"{neq} ← {forme!r}" for neq, forme in manques[:5])
+    raise DecoupeurDivergent(
+        "REQ : l'index par mots ne retrouve pas des formes qu'il porte — "
+        f"{len(manques)} sur {len(echantillon)} témoins échouent ({detail}). "
+        "L'index et la requête ne découpent pas pareil : `mots_du_nom` d'un côté, "
+        "le découpage SQL de `construire_index_par_mots` de l'autre. Une "
+        "divergence ne lève nulle part ailleurs — elle fait seulement baisser le "
+        "rappel, et le chiffre sera attribué à autre chose."
+    )
+
+
+def mots_du_nom(nom_norm: str) -> list[str]:
+    """Le découpage en mots d'une forme normalisée.
+
+    ⚠️ **LE MÊME des deux côtés, et c'est la seule dégradation silencieuse qui
+    guette l'index par mots.** *`construire_index_par_mots` découpe sur l'espace
+    en SQL; cette fonction découpe sur l'espace en Python.* **Si les deux
+    divergeaient, le rappel baisserait sans qu'aucune erreur ne se produise** —
+    d'où une fonction nommée, empruntée, et un témoin à chaque import.
+
+    `nom_normalise` ne porte que `[a-z0-9 ]` *(`column_mapping.normaliser`)* :
+    une espace sépare deux mots, et rien d'autre ne sépare quoi que ce soit.
+    """
+    return [mot for mot in nom_norm.split(" ") if mot]
+
+
+#: Au-delà de ce nombre de NEQ, un mot est jugé trop courant pour borner seul le
+#: lot — on l'INTERSECTE alors avec le deuxième plus rare. *C'est le point aveugle
+#: nommé dans la conception du 17 septembre : « les entreprises du québec » n'a
+#: aucun mot rare, et l'intersection est ce qui le rattrape.*
+#:
+#: ⚠️ **Ce n'est pas une échelle de décision** — ni seuil de score, ni écart. Il
+#: ne change jamais QUI est retenu : il change combien de formes sont présentées
+#: au scoreur. *Une valeur plus basse rend un lot plus petit, jamais un
+#: appariement différent à lot égal.*
+MOT_TROP_COURANT = 5000
+
+
+def candidats_par_mot_rare(
+    db_session: Session,
+    nom_norm: str,
+    limite: int | None = None,
+    journal: dict | None = None,
+) -> list[REQEntry]:
+    """Les entrées dont au moins une forme partage **le mot le plus RARE** du nom.
+
+    **Pourquoi le plus rare et non le premier.** *`ferme leger parent` se
+    récupère par `parent`* — quelques dizaines de NEQ — **au lieu de `ferme`, qui
+    en rend 23 061 dont on ne voit que 8,7 %.**
+
+    ⚠️ **Et si même le plus rare est trop courant, on INTERSECTE avec le
+    deuxième.** *C'est le point aveugle des noms faits de mots courants, et il est
+    traité plutôt que laissé ouvert.*
+
+    Rend une liste d'`REQEntry`, comme `candidats_par_nom` — *pour que le second
+    temps passe par le même scorage, sans le savoir.*
+    """
+    from falkye.models.req_mot import REQMot, REQMotFrequence
+
+    if limite is None:
+        limite = LIMITE_CANDIDATS_PAR_NOM
+    mots = mots_du_nom(nom_norm)
+    if journal is not None:
+        journal["mots_du_nom"] = len(mots)
+    if not mots:
+        return []
+
+    frequences = dict(db_session.execute(
+        select(REQMotFrequence.mot, REQMotFrequence.neqs).where(
+            REQMotFrequence.mot.in_(mots)
+        )
+    ).all())
+    # ⚠️ **À fréquence ÉGALE, le mot le plus LONG gagne** — et le départage par
+    # ordre alphabétique est refusé. *Sur un index réel « du » est partout, donc
+    # jamais le plus rare; mais rien ne garantit qu'un mot vide ne se retrouve
+    # pas à égalité, et choisir alors « du » plutôt que « mondiale » serait un
+    # tirage promu en critère.* **La longueur est une règle énoncée, contestable
+    # et reproductible; l'alphabet n'est rien de tout ça.**
+    connus = sorted((n, -len(mot), mot) for mot, n in frequences.items())
+    connus = [(n, mot) for n, _longueur, mot in connus]
+    if journal is not None:
+        journal["mots_connus"] = len(connus)
+        journal["frequence_du_plus_rare"] = connus[0][0] if connus else None
+    if not connus:
+        # ⚠️ **Aucun mot du nom n'est à l'index.** *Ce n'est pas « pas de
+        # candidat » : c'est « l'index ne connaît pas ce vocabulaire »*, et les
+        # deux appellent des correctifs différents.
+        if journal is not None:
+            journal["aucun_mot_a_lindex"] = True
+        return []
+
+    combien, mot = connus[0]
+    requete = select(REQMot.neq).where(REQMot.mot == mot)
+    if combien > MOT_TROP_COURANT and len(connus) > 1:
+        # L'intersection est faite par SQLite, pas en mémoire.
+        second = connus[1][1]
+        requete = requete.intersect(
+            select(REQMot.neq).where(REQMot.mot == second)
+        )
+        if journal is not None:
+            journal["mot_intersecte"] = second
+    # ⚠️ **Le bind explicite.** *Un `INTERSECT` produit un SELECT composé dont
+    # SQLAlchemy ne sait plus déduire la base* — la session est liée par MODÈLE,
+    # et le composé n'en porte aucun. **Il lève plutôt que de deviner, et c'est
+    # bien : deviner enverrait la requête à la base du produit.**
+    neqs = list(db_session.execute(
+        requete.limit(limite), bind_arguments={"mapper": REQMot}
+    ).scalars().all())
+    if journal is not None:
+        journal["mot_retenu"] = mot
+        journal["neqs_par_le_mot"] = len(neqs)
+    if not neqs:
+        return []
+    return list(db_session.execute(
+        select(REQEntry).where(REQEntry.neq.in_(neqs))
+    ).scalars().all())
+
+
 def resolve_neq_by_name(
     db_session: Session,
     nom: str,
@@ -1455,6 +1842,7 @@ def resolve_neq_by_name(
     transformer_forme: Callable[[str], str] | None = None,
     limite_candidats: int | None = None,
     journal: dict | None = None,
+    elargir: bool = True,
 ) -> list[REQMatch]:
     """Résout un nom d'entreprise en candidats NEQ, par correspondance floue sur le
     miroir local. Nécessite que ingest_snapshot() ait déjà été exécuté au moins une
@@ -1489,6 +1877,19 @@ def resolve_neq_by_name(
 
     `journal`, comme pour `candidats_par_nom`, est rempli avec ce que la
     récupération a fait. `None` en production.
+
+    ## ⚠️ DEUX TEMPS — et le second ne s'exécute que là où le premier échoue
+
+    **Premier temps** : le préfixe, inchangé. **Si `neq_retenu` rend un NEQ, on
+    s'arrête là.** *Les 805 dossiers retenus aujourd'hui ne voient jamais le
+    second temps : la non-régression est STRUCTURELLE, pas mesurée.*
+
+    **Second temps** : les NEQ qui partagent **le mot le plus RARE** du nom
+    (`candidats_par_mot_rare`), ajoutés en **UNION** au lot du préfixe — *jamais
+    en remplacement*. Puis le même scorage, par la même fonction.
+
+    `elargir=False` coupe le second temps — **pour mesurer l'état d'avant**, et
+    pour rien d'autre.
     """
     nom_norm = _normaliser(nom)
     if not nom_norm:
@@ -1500,6 +1901,54 @@ def resolve_neq_by_name(
         journal=journal,
         **({} if limite_candidats is None else {"limite": limite_candidats}),
     )
+    matches = _scorer(db_session, nom_norm, candidates, ville, limit, transformer_forme)
+
+    # ---- LE SECOND TEMPS ----------------------------------------------------
+    #
+    # ⚠️ **Il ne s'exécute QUE là où le premier a échoué**, et c'est ce qui rend
+    # la non-régression STRUCTURELLE : *les 805 dossiers retenus aujourd'hui ne
+    # voient jamais cette branche.* **Toutes les autres directions envisagées le
+    # 17 septembre demandaient une non-régression MESURÉE; celle-ci la rend
+    # impossible à violer.**
+    #
+    # Ce qu'il élargit avec : **le mot le plus RARE du nom**, pas le premier.
+    # *`l industrie mondiale du nord` se récupère par `mondiale`, et le gisement
+    # de 309 788 lignes du préfixe `l` n'est jamais touché.*
+    if not elargir:
+        return matches
+    from falkye.resolution import neq_retenu  # importé ici : `resolution` importe
+    #                                           ce module, donc pas au sommet.
+    if neq_retenu(matches) is not None:
+        return matches
+    supplement = candidats_par_mot_rare(
+        db_session, nom_norm, limite=limite_candidats, journal=journal
+    )
+    deja = {c.neq for c in candidates}
+    neufs = [c for c in supplement if c.neq not in deja]
+    if journal is not None:
+        journal["second_temps"] = True
+        journal["mots_neufs"] = len(neufs)
+    if not neufs:
+        return matches
+    # ⚠️ **UNION, jamais remplacement.** *Le lot du préfixe reste présenté* — un
+    # candidat que le préfixe trouvait et que les mots ne trouvent pas ne doit
+    # pas disparaître.
+    return _scorer(
+        db_session, nom_norm, list(candidates) + neufs, ville, limit, transformer_forme
+    )
+
+
+def _scorer(
+    db_session: Session,
+    nom_norm: str,
+    candidates: list,
+    ville: str | None,
+    limit: int,
+    transformer_forme: "Callable[[str], str] | None",
+) -> list[REQMatch]:
+    """Le SCORAGE, séparé de la RÉCUPÉRATION — *pour que le second temps rejoue
+    la même règle et non une copie.* **C'est la leçon des -338 du 17 septembre,
+    appliquée à la structure plutôt qu'à un outil.**"""
     if not candidates:
         return []
 

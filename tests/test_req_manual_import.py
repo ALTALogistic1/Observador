@@ -262,7 +262,19 @@ _ENTETE_ENTREPRISE = [
     "ADR_DOMCL_LIGN3_ADR",
     "ADR_DOMCL_LIGN4_ADR",
 ]
-_ENTETE_NOM = ["NEQ", "NOM_ASSUJ", "STAT_NOM", "TYP_NOM_ASSUJ", "DAT_INIT_NOM_ASSUJ", "DAT_FIN_NOM_ASSUJ"]
+# ⚠️ **`NOM_ASSUJ_LANG_ETRNG` ajoutée le 2026-09-17** — elle existe dans
+# l'archive réelle depuis toujours et le produit ne la lisait pas. *Un décor qui
+# l'omet fait refuser l'import, et le garde a raison de refuser : un décor plus
+# pauvre que la réalité fait passer des tests qui ne prouvent rien.*
+# ⚠️ **En FIN d'en-tête, pas au milieu.** *Les décors écrivent des listes
+# POSITIONNELLES : insérer une colonne au milieu décale silencieusement toutes
+# les valeurs, et le test rougit sur un nom au lieu d'une colonne.*
+_ENTETE_NOM = ["NEQ", "NOM_ASSUJ", "STAT_NOM", "TYP_NOM_ASSUJ",
+               "DAT_INIT_NOM_ASSUJ", "DAT_FIN_NOM_ASSUJ", "NOM_ASSUJ_LANG_ETRNG"]
+#: `FusionScissions.csv` porte `DENOMN_SOC` — **une dénomination sociale remplie à
+#: 99,9 %, pas une relation NEQ→NEQ.** *Classée comme telle par lecture trop
+#: rapide le 17 septembre, elle est restée ignorée une journée de plus.*
+_ENTETE_FUSIONS = ["NEQ", "DENOMN_SOC", "NEQ_ASSUJ_REL", "TYP_EVEN"]
 _ENTETE_ETABLISSEMENTS = [
     "NEQ",
     "NO_SUF_ETAB",
@@ -277,20 +289,28 @@ _ENTETE_ETABLISSEMENTS = [
 ]
 
 
-def _ecrire_zip_req_reel(tmp_path, *, entreprises, noms, etablissements, nom_zip="req_reel.zip"):
+def _ecrire_zip_req_reel(tmp_path, *, entreprises, noms, etablissements,
+                         fusions=None, nom_zip="req_reel.zip"):
     """Construit un .zip avec la vraie structure à 3 CSV requise (Entreprise.csv
     + Nom.csv + Etablissements.csv), en-têtes réelles, entreprises fictives."""
     chemin = tmp_path / nom_zip
 
     def _buf(entete, lignes):
+        # ⚠️ Une ligne plus COURTE que l'en-tête est complétée par des vides.
+        # *Sinon l'ajout d'une colonne au décor obligerait à retoucher trente
+        # listes à la main, et la retouche est là où les fautes entrent.*
         w = [",".join(entete)]
-        w += [",".join(str(v) for v in ligne) for ligne in lignes]
+        for ligne in lignes:
+            valeurs = [str(v) for v in ligne]
+            valeurs += [""] * (len(entete) - len(valeurs))
+            w.append(",".join(valeurs))
         return "\n".join(w)
 
     with zipfile.ZipFile(chemin, "w") as zf:
         zf.writestr("Entreprise.csv", _buf(_ENTETE_ENTREPRISE, entreprises))
         zf.writestr("Nom.csv", _buf(_ENTETE_NOM, noms))
         zf.writestr("Etablissements.csv", _buf(_ENTETE_ETABLISSEMENTS, etablissements))
+        zf.writestr("FusionScissions.csv", _buf(_ENTETE_FUSIONS, fusions or []))
     return str(chemin)
 
 
@@ -515,6 +535,7 @@ def test_ingest_zip_reel_colonne_pertinente_retiree_met_en_quarantaine_reqentry_
             "Nom.csv", _buf(_ENTETE_NOM, [["9990000008", "Entreprise Fictive Zeta inc.", "V", "N", "1994-01-01", ""]])
         )
         zf.writestr("Etablissements.csv", _buf(_ENTETE_ETABLISSEMENTS, []))
+        zf.writestr("FusionScissions.csv", ",".join(_ENTETE_FUSIONS))
 
     stats2 = ingest_snapshot(db_session, fichier_local=str(chemin2))
     assert stats2.quarantaine is True

@@ -30,13 +30,47 @@ def test_tous_les_noms_en_vigueur_dun_neq_sont_gardes(db_session, tmp_path):
     assert {n.nom_normalise for n in noms} == {"9224 5842 quebec inc", "ferme m g bellavance"}
 
 
-def test_seuls_les_noms_en_vigueur_entrent(db_session, tmp_path):
+def test_TOUS_les_statuts_entrent_et_le_statut_est_porte_en_colonne(db_session, tmp_path):
+    """⚠️ **La décision a changé le 2026-09-17** *(Alexandre)*.
+
+    Avant : seuls les noms `STAT_NOM='V'` entraient. *Le motif était bon — un
+    nom retiré ferait apparier une entreprise sous un nom qu'elle n'utilise
+    plus.* **Mais le filtre jetait 3 129 272 lignes, et le produit n'avait aucun
+    moyen de réviser la décision sans réimport.**
+
+    Maintenant : **tout entre, et le statut est écrit en colonne.** *La règle qui
+    dit quoi faire d'un nom retiré se pose dans le moteur, pas dans le
+    chargeur* — et elle se change sans relire 630 Mo.
+    """
     zf = _zip_nom([
         ["1111111111", "Nom Actuel inc.", "V", "M", "2020-01-01", ""],
         ["1111111111", "Ancien Nom inc.", "A", "M", "1998-01-01", "2020-01-01"],
     ], tmp_path)
-    assert _charger_tous_les_noms(zf, db_session) == 1
+    assert _charger_tous_les_noms(zf, db_session) == 2
+    par_statut = {n.statut: n.nom for n in db_session.query(REQNom).all()}
+    assert par_statut == {"V": "Nom Actuel inc.", "A": "Ancien Nom inc."}
+
+
+def test_le_filtre_par_statut_reste_DISPONIBLE(db_session, tmp_path):
+    """*La décision est révisable dans les deux sens* — `statuts_retenus` rend
+    l'ancien comportement sans toucher au chargeur."""
+    zf = _zip_nom([
+        ["1111111111", "Nom Actuel inc.", "V", "M", "2020-01-01", ""],
+        ["1111111111", "Ancien Nom inc.", "A", "M", "1998-01-01", "2020-01-01"],
+    ], tmp_path)
+    assert _charger_tous_les_noms(
+        zf, db_session, statuts_retenus=frozenset({"V"})
+    ) == 1
     assert db_session.query(REQNom).one().nom == "Nom Actuel inc."
+
+
+def test_le_gisement_est_porte_en_colonne(db_session, tmp_path):
+    """*Quatre gisements dans une table : savoir d'où vient une forme est ce qui
+    permet de peser sa valeur plus tard.*"""
+    zf = _zip_nom([["1111111111", "Nom Actuel inc.", "V", "M", "2020-01-01", ""]],
+                  tmp_path)
+    assert _charger_tous_les_noms(zf, db_session) == 1
+    assert db_session.query(REQNom).one().gisement == "NOM_ASSUJ"
 
 
 def test_un_nom_qui_se_normalise_en_VIDE_est_refuse(db_session, tmp_path):
