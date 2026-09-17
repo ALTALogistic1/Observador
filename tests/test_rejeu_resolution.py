@@ -18,7 +18,7 @@ import pytest
 from falkye.models.company import Company
 from falkye.models.req_entry import REQEntry
 from falkye.sources.column_mapping import normaliser
-from outils import apport_noms_multiples
+from outils import rejeu_resolution
 
 
 @pytest.fixture()
@@ -50,7 +50,7 @@ def population(db_session, monkeypatch):
 
 
 def test_le_posable_et_le_perdu_sont_distingues(population, capsys):
-    assert apport_noms_multiples.main(["--exemples", "0"]) == 0
+    assert rejeu_resolution.main(["--exemples", "0"]) == 0
     sortie = capsys.readouterr().out
     assert "NEQ posés                   : 1" in sortie
     assert "PERDUS, NEQ déjà porté      : 1" in sortie, (
@@ -61,20 +61,20 @@ def test_le_posable_et_le_perdu_sont_distingues(population, capsys):
 def test_le_gain_est_le_perdu(population, capsys):
     """*« Perdu » veut dire : le produit SAIT quelle entreprise c'est, et n'a
     nulle part où le mettre.* Le gain de la forme neuve, c'est exactement ça."""
-    assert apport_noms_multiples.main(["--exemples", "0"]) == 0
+    assert rejeu_resolution.main(["--exemples", "0"]) == 0
     assert "GAIN sur la forme actuelle  : 1" in capsys.readouterr().out
 
 
 def test_les_NEQ_distincts_sont_rapportes(population, capsys):
     """**Un compte de dossiers répond « combien de lignes », jamais « combien
     d'entreprises ».**"""
-    assert apport_noms_multiples.main(["--exemples", "0"]) == 0
+    assert rejeu_resolution.main(["--exemples", "0"]) == 0
     sortie = capsys.readouterr().out
     assert "NEQ DISTINCTS visés         : 2" in sortie
 
 
 def test_ce_que_rien_ne_resout_est_compte_a_part(population, capsys):
-    assert apport_noms_multiples.main(["--exemples", "0"]) == 0
+    assert rejeu_resolution.main(["--exemples", "0"]) == 0
     assert "aucun NEQ retenu            : 1" in capsys.readouterr().out
 
 
@@ -82,7 +82,7 @@ def test_loutil_NECRIT_RIEN(population):
     from sqlalchemy import select
 
     avant = {c.id: c.neq for c in population.execute(select(Company)).scalars().all()}
-    assert apport_noms_multiples.main(["--exemples", "0"]) == 0
+    assert rejeu_resolution.main(["--exemples", "0"]) == 0
     population.expire_all()
     apres = {c.id: c.neq for c in population.execute(select(Company)).scalars().all()}
     assert avant == apres, "l'outil de MESURE a modifié la base"
@@ -98,9 +98,50 @@ def test_le_perimetre_est_dans_la_sortie(population, capsys):
     (D43 : ils n'existent comme entité nulle part). *Un lecteur qui prendrait
     son total pour la population entière se tromperait de moitié.*
     """
-    assert apport_noms_multiples.main(["--exemples", "0"]) == 0
+    assert rejeu_resolution.main(["--exemples", "0"]) == 0
     sortie = capsys.readouterr().out
     assert "PÉRIMÈTRE DE CETTE MESURE" in sortie
     assert "D27" in sortie and "D43" in sortie, (
         "le périmètre ne nomme pas les décisions ouvertes qui le bornent"
     )
+
+
+def test_les_quatre_familles_sont_ventilees(population, capsys):
+    """**La ventilation doit se comparer ligne à ligne à celle du diagnostic** —
+    mêmes fonctions, mêmes seuils, même unité. *Deux ventilations calculées
+    autrement ne se comparent pas, et l'écart se lirait comme un mouvement.*"""
+    assert rejeu_resolution.main(["--exemples", "0"]) == 0
+    sortie = capsys.readouterr().out
+    assert "LA VENTILATION PAR DÉCISION DU MOTEUR" in sortie
+    for famille in ("RETENU", "ambigu", "trop faible", "aucun candidat"):
+        assert famille in sortie, f"la famille « {famille} » manque"
+    assert "en DOSSIERS" in sortie, "l'unité n'est pas dite"
+
+
+def test_le_caveat_sur_la_ressemblance_est_ecrit(population, capsys):
+    """⚠️ **Qu'un dossier se résolve ne dit pas que le NEQ est le bon.**
+
+    *Le score dit la ressemblance, pas l'identité* — et un score de 100 sur deux
+    entités différentes est une fausse résolution, la seule chose qu'un total ne
+    montre jamais. **Le compte borne ce qui est récupérable; il ne valide aucun
+    appariement.**
+    """
+    assert rejeu_resolution.main(["--exemples", "0"]) == 0
+    sortie = capsys.readouterr().out
+    assert "RESSEMBLANCE" in sortie and "IDENTITÉ" in sortie
+    assert "ne valide aucun appariement" in sortie
+
+
+def test_le_rapport_avec_linstantane_est_dit(population, capsys):
+    """*Appliquer la passe sur un vieil instantané traiterait une fraction du
+    problème en donnant l'impression de l'avoir traité.*"""
+    assert rejeu_resolution.main(["--exemples", "0"]) == 0
+    sortie = capsys.readouterr().out
+    assert "736" in sortie
+    assert "acompte" in sortie
+
+
+def test_il_annonce_quil_NECRIT_RIEN(population, capsys):
+    """La portée déclarée, pas seulement la portée respectée."""
+    assert rejeu_resolution.main(["--exemples", "0"]) == 0
+    assert "N'ÉCRIT RIEN" in capsys.readouterr().out

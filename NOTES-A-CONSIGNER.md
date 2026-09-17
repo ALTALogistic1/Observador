@@ -1833,3 +1833,32 @@ les années et les fragments de NEQ. *Une garde qui crie pour un millésime fini
 le cas 34 dans la garde elle-même.* **Ce qui est refusé est la FORME d'un compte humain** — quatre
 chiffres avec séparateur de milliers. *Une année ne s'écrit jamais avec un séparateur, un NEQ non
 plus, et les seuils vivent dans des constantes nommées.*
+
+### N83 — Le rejeu en lecture seule : étendu plutôt que dupliqué
+
+**La mesure demandée** *(Alexandre, 2026-09-17)* : rejouer la résolution **en lecture seule** sur les
+8 931 et compter ce qui se résoudrait aujourd'hui.
+
+⚠️ **La machinerie existait déjà.** `apport_noms_multiples.py` parcourait la même population, avec
+`resolve_neq_by_name` + `neq_retenu`, et séparait déjà NEQ libre / déjà porté. *Il lui manquait
+seulement la ventilation en quatre familles.* **Une cinquième passe sur 8 931 aurait coûté une
+seconde traversée complète du miroir pour recalculer ce qui était déjà calculé.**
+
+**Étendu, puis renommé `rejeu_resolution.py`** — *nommer ce que l'outil FAIT.* L'apport des noms
+multiples devient une section; le rejeu devient le titre.
+
+**Trois ajouts au-delà de la ventilation :**
+
+1. ⚠️ **Le caveat qui décide de la lecture** : *qu'un dossier se résolve au rejeu ne dit pas que le
+   NEQ est le bon. Le score dit la RESSEMBLANCE, pas l'IDENTITÉ.* **Le compte borne ce qui est
+   récupérable; il ne valide aucun appariement** — ce sont les paires, une à une, qui autorisent une
+   écriture.
+2. **Le rapport avec les 736 de l'instantané du 16.** *Si le rejeu en rend nettement plus,
+   appliquer la passe sur un vieil instantané traiterait une fraction du problème en donnant
+   l'impression de l'avoir traité.* **Le rapport des deux décide si la passe est l'outil ou
+   seulement un acompte.**
+3. **L'unité dans le périmètre** — des DOSSIERS, jamais des formes normalisées.
+
+*Et la ventilation reprend les fonctions et les seuils du diagnostic, pour que les deux comptes se
+comparent ligne à ligne : deux ventilations calculées autrement ne se comparent pas, et l'écart se
+lirait comme un mouvement (N56).*

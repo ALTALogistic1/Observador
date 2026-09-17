@@ -952,3 +952,52 @@ reste humain.
 l'environnement ne décidait de rien pour eux — *mais ils s'appuyaient sur le repli que tout
 appelant réel doit refuser.* Déclarer la cible dans leur fixture n'est pas un contournement, c'est
 dire « oui, quelqu'un a choisi ».
+
+## Cas 42 — Le critère de sélection qui présélectionne le résultat *(guide d'ingénierie)*
+
+**Le fait** *(2026-09-17)*. Une trace d'appariement devait montrer **pourquoi certains dossiers ne
+se résolvent pas**. Son sélecteur retenait les dossiers sans NEQ **dont le nom normalisé existait
+par correspondance EXACTE dans le miroir**.
+
+Les trois cas tracés ont rendu : forme stockée et recalculée identiques, un seul candidat, la borne
+ne coupe pas, **score 100 contre un seuil de 92**. Sortie identique au caractère près sur deux
+exécutions.
+
+⚠️ **Le sélecteur avait établi AVANT DE TRACER que le NEQ existait et qu'il était trouvable par nom
+exact.** *Il ne choisissait donc pas parmi les dossiers qui échouent — il choisissait parmi ceux
+dont il avait déjà démontré qu'ils devaient réussir.* **Aucun dossier qui échoue n'a été regardé, et
+c'était l'objet de la mesure.**
+
+**LA RÈGLE. Un critère de sélection qui présélectionne le résultat n'échantillonne pas une
+population : il illustre une conclusion.**
+
+⚠️ **Et ce qui rend cette forme difficile à voir est qu'elle produit des sorties PARFAITEMENT
+COHÉRENTES.** *Les trois cas étaient justes, reproductibles, et sans intérêt.* Rien dans la sortie
+ne pouvait le signaler : elle ne mentait sur aucun chiffre. **Ce n'est pas le cas 30 — l'instrument
+ne fabrique pas sa preuve; ce n'est pas le cas 33 non plus — sa portée n'est pas seulement plus
+étroite. Le périmètre est DÉFINI PAR LA RÉPONSE CHERCHÉE.**
+
+**Ce qui l'a rendue visible** : l'en-tête de chaque cas écrivait son propre critère — *« NEQ attendu
+1172943020, trouvé par nom EXACT dans le miroir »*. **La sortie disait comment le cas avait été
+choisi, et c'est cette ligne-là qui a trahi le défaut**, pas les chiffres. *Un instrument qui
+imprime son critère de sélection à côté de ses résultats peut être pris en défaut par son lecteur;
+un instrument qui ne l'imprime pas, jamais.*
+
+**Le correctif.** Le classement passe par `neq_retenu` — **la fonction de décision du produit** — et
+l'échantillon prend N dossiers de **chaque famille** : retenu, ambigu, trop faible, aucun candidat.
+*Un cas par famille dit plus que trois cas de la même.* Une famille vide rend « zéro dans ce qui a
+été parcouru », **jamais « zéro dans la population »**.
+
+### ⚠️ Et la garde écrite le même jour est tombée dans le cas 34
+
+Un test devait refuser les comptes de population figés dans le code — *après qu'un `4 873` périmé
+eut été trouvé dans un bloc de PORTÉE, celui qui existe précisément pour borner la mesure.* **Son
+premier jet attrapait les années (`2026`) et les fragments de NEQ (`9309-3927`).**
+
+*Une garde qui crie pour un millésime finit par être ignorée* — et une garde ignorée ne garde rien.
+Resserrée sur **la forme d'un compte humain** : quatre chiffres avec séparateur de milliers. *Une
+année ne s'écrit jamais avec un séparateur, un NEQ non plus, et les seuils vivent dans des
+constantes nommées.*
+
+**Les deux moitiés de ce cas disent la même chose sous deux angles** : *un instrument est aussi
+exposé que ce qu'il mesure, et il faut lui appliquer la règle qu'il applique.*
