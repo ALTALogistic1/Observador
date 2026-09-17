@@ -2407,3 +2407,126 @@ avoir une opinion.
 
 **Reste environ 7 100 dossiers**, et l'hypothèse de la borne est ce qui décide
 s'ils sont entamables.
+
+---
+
+## N105 — Un `ORDER BY` alphabétique rend le tirage reproductible ET systématiquement mauvais
+
+*(2026-09-17, établi par Alexandre sur les dix paires.)*
+
+**Sept des dix candidats retenus sont en TÊTE ALPHABÉTIQUE de leur préfixe** :
+`LES " 100 " AILE`, `FERME 100 MILES`, `J 2 B`, `La 115e`, `L'0EIL A LA TOUCHE`.
+
+**Le mécanisme, et il est entier dans l'ordre de trois caractères :**
+
+```
+" " < "0" … "9" < "a" … "z"
+```
+
+*`normaliser` remplace la ponctuation par des espaces* — `LES " 100 " AILE`
+devient `les 100 aile` — **et l'espace trie avant les chiffres, qui trient avant
+les lettres.** Le lot de 2 000 est donc rempli par le début de l'ordre
+alphabétique, et **l'`ORDER BY` posé le 16 septembre garantit qu'on regarde
+toujours ce même début.**
+
+> ⚠️ **Le correctif de la reproductibilité a figé le mauvais tirage.** *Il n'a
+> rien cassé — il a rendu constant ce qui était aléatoire, et le constant se
+> trouve être mauvais.*
+
+**Mesuré** : `ferme` → 23 061 lignes, **8,7 % vues**. `les` → 163 296 lignes,
+**1,2 %**. `l` → 309 788 lignes, **0,6 %**.
+
+**Et la coupe se concentre là où ça échoue** : 74,3 % des trop faibles ont un lot
+coupé, contre 26,0 % des RETENU. *Préfixe parlant : 57,1 %. Préfixe numérique :
+0,2 %.*
+
+---
+
+## N106 — Une distribution concentrée sur UNE valeur n'est pas une population, c'est un calcul
+
+*(2026-09-17, Alexandre.)*
+
+**Le score 85,50 revient huit fois sur dix.** *C'est ce que `WRatio` rend quand
+seul le PREMIER MOT correspond.*
+
+> **Le pic de 2 713 dossiers est un PLANCHER TECHNIQUE, pas une distribution de
+> ressemblance.**
+
+⚠️ **Conséquence, et elle ferme un chantier** : *un plancher de calcul ne se
+franchit pas par un réglage d'échelle.* **Abaisser le seuil à 85 ne récupérerait
+pas 2 713 appariements proches — il accepterait 2 713 noms qui partagent un mot
+et rien d'autre.**
+
+*« Ce ne sont pas des appariements qui manquent de peu — ce sont des noms qui
+partagent le premier mot. »* **Aucune des dix paires n'était l'entreprise
+cherchée.**
+
+**La contre-épreuve à faire, et elle est dans la mesure** : la distribution des
+valeurs EXACTES. *Si une seule valeur pèse l'essentiel du pic, la cause est le
+calcul; si les valeurs sont étalées, c'est une population.*
+
+---
+
+## N107 — Une constante écrite en valeur par défaut est décorative : Python l'évalue une fois, à l'import
+
+*(2026-09-17, découvert par un test qui passait sur un lot qu'il croyait coupé.)*
+
+```python
+def candidats_par_nom(…, limite: int = LIMITE_CANDIDATS_PAR_NOM):   # ⛔
+```
+
+**La constante existait, le code la nommait, et la changer n'avait aucun effet.**
+*Ni dans un test, ni dans un outil, ni au déploiement.*
+
+```python
+def candidats_par_nom(…, limite: int | None = None):
+    if limite is None:
+        limite = LIMITE_CANDIDATS_PAR_NOM                            # ✓
+```
+
+> **Une constante qu'on ne peut pas faire varier n'est pas la source de vérité,
+> c'est une copie de plus** — celle du jour de l'import.
+
+**Et le même jour, une trace portait `BORNE_MOTEUR = 2000` en dur.** *Un
+diagnostic qui annonce une borne que le moteur n'applique plus ment sur ce qu'il
+diagnostique.* **Elle est empruntée maintenant**, et un test vérifie que c'est le
+MÊME objet, pas la même valeur.
+
+---
+
+## N108 — Un garde qui écarte les pires cas doit COMPTER ce qu'il écarte, sinon le biais devient le résultat
+
+*(2026-09-17.)*
+
+La mesure C lève la borne, donc charge **tout le gisement du préfixe** : `l` rend
+**309 788 lignes**. Un plafond mémoire est nécessaire.
+
+⚠️ **Et ce plafond écarte exactement les cas où la borne fait le plus mal.**
+*Mesurer « ce qu'une borne levée rapporterait » en excluant les gros gisements
+mesurerait le contraire de la question.*
+
+**Donc : le plafond se déclare, les refus se comptent, et leurs gisements
+s'affichent** — pour dire ce qu'un plafond relevé coûterait. *C'est la même règle
+que le cas 34 : un garde couvre ce que la mesure a couvert, et il doit dire où
+il s'arrête.*
+
+**Et le budget s'annonce AVANT d'être dépensé** : taille de l'échantillon, règle
+de tirage, lignes à charger, plus gros gisement retenu, ordre de grandeur mémoire
+*avec son hypothèse par ligne, annoncée comme une estimation et pas comme une
+mesure.*
+
+---
+
+## N109 — Les deux côtés d'une simulation prennent les MÊMES entrées, y compris celles qu'on croit accessoires
+
+*(2026-09-17, attrapé à l'écriture.)*
+
+La mesure C rejouait la récupération **sans la ville**, alors que le score de
+référence l'avait **avec** (`+5` quand elle concorde).
+
+⚠️ *La borne levée aurait paru PIRE qu'elle n'est, et l'écart aurait été attribué
+à la borne.* **C'est le défaut des -338, en miroir** — la fois précédente un côté
+avait le bonus et l'autre non; cette fois-ci le côté privé était le nouveau.
+
+> **Une comparaison ne compare que ce qui ne change pas à côté.** *La ville
+> n'était pas le sujet, et c'est exactement ce qui la rendait facile à oublier.*

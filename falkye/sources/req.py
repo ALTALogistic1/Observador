@@ -1235,7 +1235,7 @@ LIMITE_CANDIDATS_PAR_NOM = 2000
 def candidats_par_nom(
     db_session: Session,
     nom_norm: str,
-    limite: int = LIMITE_CANDIDATS_PAR_NOM,
+    limite: int | None = None,
     journal: dict | None = None,
 ) -> list[REQEntry]:
     """Les entrées du miroir soumises au score flou — **extraite pour être empruntée**.
@@ -1260,6 +1260,15 @@ def candidats_par_nom(
     lieu d'en recopier une à côté *(même règle que `requete_nom_exact`,
     `neq_retenu` et `famille_de`)*.
     """
+    # ⚠️ **La borne est lue À L'APPEL, pas figée à la définition.** *Écrite en
+    # valeur par défaut (`limite: int = LIMITE_CANDIDATS_PAR_NOM`), la constante
+    # était décorative : Python l'évalue une fois à l'import, et la changer
+    # ensuite — dans un test, dans un outil — n'avait aucun effet.* **Une
+    # constante qu'on ne peut pas faire varier n'est pas la source de vérité,
+    # c'est une copie de plus.** *(Relevé le 2026-09-17, par un test qui passait
+    # sur un lot non coupé.)*
+    if limite is None:
+        limite = LIMITE_CANDIDATS_PAR_NOM
     if journal is not None:
         journal["limite"] = limite
         journal["prefixe"] = nom_norm.split(" ")[0] if nom_norm else ""
@@ -1358,6 +1367,7 @@ def candidats_par_nom(
     if journal is not None:
         journal["pont_manquants"] = len(manquants)
         journal["rognage"] = 0
+        journal["pont_ajoutes"] = 0
     if manquants:
         # ⚠️ UNE PART RÉSERVÉE, et non « ce qui reste ». **Corrigé le 2026-09-16,
         # après un réimport qui n'a rien changé du tout.**
@@ -1389,6 +1399,8 @@ def candidats_par_nom(
                 journal["rognage"] = len(candidates) - place
             candidates = list(candidates)[:place]
         a_chercher = manquants[: limite - len(candidates)]
+        if journal is not None:
+            journal["pont_ajoutes"] = len(a_chercher)
         if a_chercher:
             candidates = list(candidates) + list(
                 db_session.execute(
@@ -1441,6 +1453,8 @@ def resolve_neq_by_name(
     ville: str | None = None,
     limit: int = 5,
     transformer_forme: Callable[[str], str] | None = None,
+    limite_candidats: int | None = None,
+    journal: dict | None = None,
 ) -> list[REQMatch]:
     """Résout un nom d'entreprise en candidats NEQ, par correspondance floue sur le
     miroir local. Nécessite que ingest_snapshot() ait déjà été exécuté au moins une
@@ -1464,12 +1478,28 @@ def resolve_neq_by_name(
     Il ne touche PAS la récupération : `candidats_par_nom` cherche sur le nom
     DÉTECTÉ. Transformer le nom détecté change donc les lignes rendues; le
     transformateur, lui, ne change que les scores.
+
+    `limite_candidats` remplace la borne de RÉCUPÉRATION. Il vaut `None` en
+    production — la borne est alors `LIMITE_CANDIDATS_PAR_NOM`, comme avant.
+
+    ⚠️ **Il existe pour SIMULER une borne levée, sur un échantillon, et pour rien
+    d'autre.** *Un préfixe comme `l` rend 309 788 lignes : une borne levée en
+    production coûterait sur CHAQUE résolution ce qu'une mesure coûte une fois.*
+    Le passer depuis le pipeline serait un changement de règle sans Alexandre.
+
+    `journal`, comme pour `candidats_par_nom`, est rempli avec ce que la
+    récupération a fait. `None` en production.
     """
     nom_norm = _normaliser(nom)
     if not nom_norm:
         return []
 
-    candidates = candidats_par_nom(db_session, nom_norm)
+    candidates = candidats_par_nom(
+        db_session,
+        nom_norm,
+        journal=journal,
+        **({} if limite_candidats is None else {"limite": limite_candidats}),
+    )
     if not candidates:
         return []
 

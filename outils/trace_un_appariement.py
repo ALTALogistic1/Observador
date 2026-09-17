@@ -54,7 +54,11 @@ import sys
 #: `LIMITE_CANDIDATS = 500`, qui borne le dédoublonnage entre `Company`.
 #: *Deux bornes, deux tables, deux chemins, et les confondre fait chercher
 #: le mur du mauvais côté.*
-BORNE_MOTEUR = 2000
+#:
+#: ⚠️ **EMPRUNTÉE, plus recopiée** *(2026-09-17)*. Elle valait `2000` en dur
+#: ici : une trace qui annonce une borne que le moteur n'applique plus mentirait
+#: sur ce qu'elle diagnostique.
+from falkye.sources.req import LIMITE_CANDIDATS_PAR_NOM as BORNE_MOTEUR
 
 DETAIL_MAX = 40
 
