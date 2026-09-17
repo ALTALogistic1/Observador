@@ -157,3 +157,26 @@ def test_les_echelles_ne_bougent_pas(population):
     assert saturation_de_la_borne.main([]) == 0
     assert resolution.SEUIL_RESOLUTION_CONFIANTE == 92.0
     assert resolution.SEUIL_AMBIGUITE_ECART_MIN == 8.0
+
+
+def test_la_borne_est_lue_A_LAPPEL_et_non_figee_a_limport(db_session, monkeypatch):
+    """⚠️ **Une constante qu'on ne peut pas faire varier n'est pas la source de
+    vérité, c'est une copie de plus.**
+
+    *Écrite en valeur par défaut (`limite: int = LIMITE_CANDIDATS_PAR_NOM`), la
+    constante était décorative* : Python l'évalue une fois à l'import, et la
+    changer ensuite n'avait aucun effet. **Un test l'a découvert en passant sur
+    un lot qu'il croyait coupé et qui ne l'était pas.**
+    """
+    for i in range(6):
+        nom = f"Gestion Boreal {i}"
+        db_session.add(REQEntry(neq=f"70000000{i}", nom=nom,
+                                nom_normalise=normaliser(nom), statut="IMMATRICULÉE"))
+    db_session.commit()
+
+    monkeypatch.setattr(req_source, "LIMITE_CANDIDATS_PAR_NOM", 2)
+    journal: dict = {}
+    lot = req_source.candidats_par_nom(db_session, normaliser("Gestion Boreal"),
+                                       journal=journal)
+    assert journal["limite"] == 2, "la borne du module n'est pas celle qui a servi"
+    assert len(lot) == 2

@@ -76,15 +76,16 @@ def test_la_borne_du_moteur_nest_pas_celle_du_dedoublonnage():
     journée.
     """
     from falkye.dedup_entreprises import LIMITE_CANDIDATS
-    from falkye.sources.req import candidats_par_nom
+    from falkye.sources.req import LIMITE_CANDIDATS_PAR_NOM
     from outils.trace_un_appariement import BORNE_MOTEUR
-    import inspect
 
     assert BORNE_MOTEUR != LIMITE_CANDIDATS, "les deux bornes ont convergé — ce test a vieilli"
-    defaut = inspect.signature(candidats_par_nom).parameters["limite"].default
-    assert BORNE_MOTEUR == defaut, (
-        f"le diagnostic annonce {BORNE_MOTEUR} et le moteur borne à {defaut} : "
-        "la trace mentirait sur la borne qu'elle diagnostique"
+    # ⚠️ **La borne est EMPRUNTÉE, pas recopiée.** *Le 2026-09-17, elle valait
+    # `2000` en dur dans la trace et `None` dans la signature du moteur — la
+    # comparaison par `inspect` ne tenait plus, et la trace aurait annoncé une
+    # borne que le moteur n'applique plus.*
+    assert BORNE_MOTEUR is LIMITE_CANDIDATS_PAR_NOM, (
+        "la trace a sa PROPRE borne — elle mentirait sur celle qu'elle diagnostique"
     )
 
 
