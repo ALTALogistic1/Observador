@@ -267,3 +267,115 @@ def test_la_collision_est_annoncee_AVANT_decrire(decor_collision, capsys):
     assert "COLLISIONS dans le lot" in sortie, (
         "le rapport ne dit pas que deux dossiers visent le même NEQ"
     )
+
+
+@pytest.fixture()
+def decor_famille_dentites(db_session, tmp_path, monkeypatch):
+    """**Le groupe des 26, réduit à trois.** Trois organisations RÉELLEMENT
+    DISTINCTES dont les noms convergent vers un même NEQ libre.
+
+    *C'est le cas du NEQ 8879690699 : CISSS, CIUSSS, CHUM, centres
+    hospitaliers — 26 dossiers, scores de 95 à 100, et aucun n'est le bon.*
+    """
+    from datetime import datetime, timezone
+
+    monkeypatch.setenv("FALKYE_DB_URL", "sqlite:////tmp/essai-produit.sqlite3")
+    monkeypatch.setenv("FALKYE_MIROIR_DB_URL", "sqlite:////tmp/essai-miroirs.sqlite3")
+    monkeypatch.setattr(reresolution_neq, "DOSSIER_INSTANTANE", tmp_path)
+
+    registre = "centre integre de sante et de services sociaux"
+    db_session.add(
+        REQEntry(neq="8888888888", nom=registre, nom_normalise=normaliser(registre),
+                 statut="IMMATRICULÉE")
+    )
+    ids = []
+    for i, nom in enumerate((
+        "Centre integre de sante et de services sociaux A",
+        "Centre integre de sante et de services sociaux B",
+        "Centre integre de sante et de services sociaux C",
+    )):
+        c = Company(neq=None, nom_detecte=nom, nom_detecte_normalise=normaliser(nom),
+                    first_detected_at=datetime(2025, 1, i + 1, tzinfo=timezone.utc))
+        db_session.add(c)
+        db_session.flush()
+        ids.append(c.id)
+    db_session.commit()
+    monkeypatch.setattr("falkye.db.get_session", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    return {"ids": ids, "session": db_session}
+
+
+def test_au_dela_de_deux_pretendants_AUCUN_ne_recoit_le_neq(decor_famille_dentites):
+    """⛔ **Le refus qui gate l'écriture.**
+
+    *Le nombre de prétendants est une preuve CONTRE l'appariement.* Deux
+    dossiers qui convergent, c'est un doublon plausible. Au-delà, c'est un nom
+    qui désigne une FAMILLE d'entités — et l'ancienneté désignerait un gagnant
+    dans un groupe dont aucun membre n'est probablement le bon.
+
+    ⚠️ **Sans ce refus, le plus ancien des 26 CISSS aurait reçu le NEQ.**
+    """
+    assert reresolution_neq.main(["--appliquer"]) == 0
+    session = decor_famille_dentites["session"]
+    session.expire_all()
+    porteurs = [i for i in decor_famille_dentites["ids"]
+                if session.get(Company, i).neq is not None]
+    assert not porteurs, (
+        f"le(s) dossier(s) {porteurs} ont reçu le NEQ alors que trois dossiers le "
+        "visaient — le refus en bloc n'a pas joué"
+    )
+
+
+def test_le_refus_est_annonce_AVANT_decrire(decor_famille_dentites, capsys):
+    """*Une écriture refusée en silence se lit comme une écriture qui n'avait
+    pas lieu d'être* — et personne ne saurait qu'un groupe attend un humain."""
+    assert reresolution_neq.main([]) == 0
+    sortie = capsys.readouterr().out
+    assert "REFUSÉS EN BLOC" in sortie
+    assert "preuve CONTRE l'appariement" in sortie
+
+
+def test_deux_pretendants_restent_departages(decor_famille_dentites, db_session):
+    """**La garde ne doit pas être trop large** — le cas à DEUX est celui pour
+    lequel la conservation et l'ancienneté ont été décidées, et il reste traité.
+    *Une garde qui refuse aussi le cas qu'elle devait laisser passer coûte le
+    gain qu'on venait de gagner.*"""
+    from sqlalchemy import select
+
+    troisieme = db_session.get(Company, decor_famille_dentites["ids"][2])
+    db_session.delete(troisieme)
+    db_session.commit()
+
+    assert reresolution_neq.main(["--appliquer"]) == 0
+    db_session.expire_all()
+    porteurs = [i for i in decor_famille_dentites["ids"][:2]
+                if db_session.get(Company, i).neq == "8888888888"]
+    assert len(porteurs) == 1, "à deux prétendants, le plus ancien doit encore l'obtenir"
+    assert porteurs[0] == decor_famille_dentites["ids"][0], "ce n'est pas le plus ancien"
+
+
+def test_les_refuses_sont_JOURNALISES_sans_principal(decor_famille_dentites):
+    """⚠️ **Sans ce test, les 26 disparaissaient du journal.**
+
+    Le `continue` d'origine les écartait en silence, et *« refusé » se serait lu
+    comme « jamais rencontré »*.
+
+    Et ils ne peuvent PAS être journalisés comme candidats de fusion : cette
+    entrée-là affirme que l'un des deux est le bon — **exactement ce que le refus
+    vient de refuser d'affirmer.**
+    """
+    from sqlalchemy import select
+
+    from falkye.models.diagnostic_journal import DiagnosticJournal, TypeDiagnostic
+
+    assert reresolution_neq.main(["--appliquer"]) == 0
+    session = decor_famille_dentites["session"]
+    entrees = list(session.execute(select(DiagnosticJournal)).scalars().all())
+    assert len(entrees) == 3, f"{len(entrees)} entrées pour 3 dossiers refusés"
+    for e in entrees:
+        assert e.type_diagnostic == TypeDiagnostic.PROBLEME_AUTRE_CHANTIER
+        assert e.company_id_candidat is None, (
+            "un candidat de fusion a été affirmé sur un groupe dont le refus dit "
+            "précisément qu'on ne sait pas lequel est le bon"
+        )
+        assert "refusée" in e.texte_description

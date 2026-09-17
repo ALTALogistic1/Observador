@@ -1862,3 +1862,69 @@ multiples devient une section; le rejeu devient le titre.
 *Et la ventilation reprend les fonctions et les seuils du diagnostic, pour que les deux comptes se
 comparent ligne à ligne : deux ventilations calculées autrement ne se comparent pas, et l'écart se
 lirait comme un mouvement (N56).*
+
+### N84 — Le nombre de prétendants est une preuve d'une autre nature que le score
+
+**Le fait** *(2026-09-17, relevé par Alexandre)*. Le NEQ `8879690699` attirait **26 dossiers** —
+CISSS de la Montérégie-Centre, CISSS Gaspésie, CIUSSS de l'Outaouais, CHUM, Centre universitaire de
+santé McGill, Institut de Cardiologie, Centre régional de la Baie-James… **26 organisations
+RÉELLEMENT DISTINCTES, scores de 95 à 100.**
+
+**Sa question gate une écriture, et la réponse était « oui, elle écrirait ».** La passe départageait
+par l'ancienneté : *le plus ancien des 26 aurait reçu le NEQ.*
+
+**LA RÈGLE. Le nombre de prétendants est lui-même une preuve CONTRE l'appariement, et d'une autre
+nature que le score.** *Deux dossiers qui convergent, c'est un doublon plausible — la situation pour
+laquelle la conservation a été pensée. Vingt-six, c'est un nom qui désigne une FAMILLE d'entités*, et
+l'ancienneté y désignerait un gagnant dans un groupe dont **aucun membre n'est probablement le
+bon.**
+
+⚠️ **Et ce n'est pas un réglage de seuil.** *Les noms se ressemblent réellement; le scoreur ne se
+trompe pas, il répond à une autre question que celle qu'on lui pose.* **Monter le seuil n'y ferait
+rien — ces scores sont à 100.**
+
+**Refus posé** : au-delà de `PRETENDANTS_MAX_POUR_TRANCHER = 2`, personne ne l'obtient. *Le refus ne
+peut que RÉDUIRE les écritures, jamais en produire une.* Un test vérifie aussi que **le cas à DEUX
+reste départagé** — une garde qui refuserait aussi le cas qu'elle devait laisser passer coûterait le
+gain qu'on venait de gagner.
+
+⚠️ **Et un trou trouvé en l'écrivant : les refusés n'étaient pas journalisés.** Le `continue`
+d'origine les écartait en silence, et **« refusé » se serait lu comme « jamais rencontré ».** *Ils ne
+peuvent pas non plus être journalisés comme candidats de fusion : cette entrée-là affirme que l'un des
+deux est le bon — exactement ce que le refus vient de refuser d'affirmer.* Journalisés comme
+problème à examiner, rattachés au seul dossier concerné.
+
+**Le constat au-delà du cas, et il est à nommer plutôt qu'à corriger** *(Alexandre)* : **si 26
+organisations publiques distinctes convergent vers un même NEQ à 95-100, le rapprochement par nom
+sur les entités publiques produit du faux avec une confiance élevée.** *Et ce sont précisément les
+entités que le périmètre déclare ne pas couvrir — D27 et D28 ouvertes.*
+
+### N85 — Deux chiffres qui ne tiennent pas ensemble désignent l'étape d'avant
+
+**Le recoupement d'Alexandre** : 6 414 dossiers portent un nom présent au registre, 4 733 sont
+classés « candidats trop faibles ». *Les deux ensembles se recouvrent forcément.* **Un dossier dont
+le nom est littéralement dans le registre ne devrait pas avoir de candidats faibles.**
+
+⚠️ **Et son argument sur le scoreur retourne le soupçon de la bonne façon** : *le bloc des 26 montre
+un scoreur GÉNÉREUX — des noms différents obtiennent 95 à 100.* **S'il donne 100 à deux entités
+distinctes, il ne peut pas rendre « trop faible » sur un nom exact.** Donc le défaut est **en amont
+du score, dans la RÉCUPÉRATION** : si le bon candidat n'est jamais présenté au scoreur, le verdict
+est « trop faible » sur des candidats sans rapport, **et rien dans le compte ne le dirait.**
+
+**Ce qui n'a jamais été regardé, et il a raison** : `prefix = nom_norm.split(" ")[0]` — **le premier
+mot, rien d'autre.** *Les trois cas tracés portaient tous un nom numérique* (`10320633 Canada inc.`
+→ préfixe `10320633`, unique, une ligne rendue). **On ne sait rien de ce que ça donne sur « Bâtiments
+d'acier Finar inc. »** — préfixe `batiments`, des milliers de lignes, et une borne qui tranche une
+tranche alphabétique.
+
+**La trace rend désormais** : la règle d'extraction et le préfixe obtenu, un avertissement quand il
+est numérique *(« ces cas ne disent rien des noms ordinaires »)* ou très court, le nombre de lignes
+avant la borne, **et si le repli par sous-chaîne a servi** — celui qui coûte 98 % du budget pour
+14 % des appels.
+
+⚠️ **Et le jumeau exact est désormais cherché MÊME QUAND LE MOTEUR ÉCHOUE**, pour que l'étape 5
+réponde à la seule question qui compte : **le bon candidat était-il ABSENT du lot, ou PRÉSENT et mal
+scoré?** *Les deux verdicts s'appellent « trop faible » et n'ont pas la même cause.*
+
+*Ce n'est pas une présélection du résultat (cas 42) : la sélection porte sur l'ÉCHEC — la famille
+vient de `neq_retenu` — et le jumeau n'est cherché qu'ensuite.*
