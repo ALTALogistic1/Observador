@@ -51,6 +51,17 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+#: Au-delà de ce nombre de dossiers visant un même NEQ libre, **personne ne
+#: l'obtient**. *Deux prétendants, c'est un doublon plausible — la situation pour
+#: laquelle la conservation a été pensée. Au-delà, c'est un nom qui désigne une
+#: FAMILLE d'entités*, et départager par l'ancienneté y perd tout sens.
+#:
+#: ⚠️ **Ce n'est pas un seuil de score.** Le NEQ 8879690699 attirait 26 CISSS,
+#: CIUSSS et centres hospitaliers distincts avec des scores de 95 à 100 — *monter
+#: le seuil n'y ferait rien.* **Le nombre de prétendants est une preuve d'une
+#: autre nature que le score.**
+PRETENDANTS_MAX_POUR_TRANCHER = 2
+
 #: Où l'instantané d'avant est déposé. Le même répertoire que les témoins et le
 #: miroir — le seul que les unités peuvent écrire (`ReadWritePaths`).
 DOSSIER_INSTANTANE = Path("/var/lib/falkye")
@@ -185,6 +196,7 @@ def main(argv: list[str] | None = None) -> int:
             par_neq.setdefault(paire["neq"], []).append(paire)
 
         collisions = {neq: v for neq, v in par_neq.items() if len(v) > 1}
+        refuses_en_bloc: dict[str, int] = {}
         libres = []
         for neq, pretendants in par_neq.items():
             if len(pretendants) == 1:
@@ -204,6 +216,41 @@ def main(argv: list[str] | None = None) -> int:
             # est juste : il décide seulement qui PORTE le NEQ pendant qu'un
             # humain regarde la paire. **C'est la conservation qui rend ce choix
             # bon marché** — le perdant n'est pas perdu, il est journalisé.
+            # ⛔ **AU-DELÀ DE DEUX PRÉTENDANTS, PERSONNE NE L'OBTIENT.**
+            #
+            # *Le fait qui a écrit ce refus* (2026-09-17, relevé par Alexandre) :
+            # **le NEQ 8879690699 attirait 26 dossiers** — CISSS de la
+            # Montérégie-Centre, CISSS Gaspésie, CIUSSS de l'Outaouais, CHUM,
+            # Centre universitaire de santé McGill, Institut de Cardiologie…
+            # **26 organisations RÉELLEMENT DISTINCTES, scores de 95 à 100.**
+            #
+            # ⚠️ **Le nombre de prétendants est lui-même une preuve CONTRE
+            # l'appariement.** Deux dossiers qui convergent, c'est un doublon
+            # plausible — la situation pour laquelle la conservation a été
+            # pensée. *Vingt-six, c'est un nom qui désigne une FAMILLE d'entités,
+            # et l'ancienneté n'y a plus aucun sens* : elle désignerait un
+            # gagnant dans un groupe dont probablement AUCUN membre n'est le bon.
+            #
+            # **Ce n'est pas un réglage de seuil.** Les noms se ressemblent
+            # réellement; le scoreur ne se trompe pas, il répond à une autre
+            # question que celle qu'on lui pose. *Monter le seuil n'y ferait
+            # rien — ces scores sont à 100.*
+            #
+            # **Le refus ne peut que RÉDUIRE les écritures**, jamais en produire
+            # une. Les 26 restent des dossiers séparés, tous journalisés.
+            if len(pretendants) > PRETENDANTS_MAX_POUR_TRANCHER:
+                for pretendant in pretendants:
+                    pretendant["detenteur_id"] = None
+                    pretendant["detenteur_nom"] = None
+                    pretendant["motif"] = (
+                        f"REFUS — {len(pretendants)} dossiers visent ce NEQ; "
+                        "le nombre de prétendants est une preuve contre "
+                        "l'appariement, et aucun ne l'obtient"
+                    )
+                    pris.append(pretendant)
+                refuses_en_bloc[neq] = len(pretendants)
+                continue
+
             pretendants.sort(key=lambda x: (x["_anciennete"] is None,
                                             x["_anciennete"], x["company_id"]))
             gagnant, *perdants = pretendants
@@ -219,6 +266,17 @@ def main(argv: list[str] | None = None) -> int:
             en_trop = sum(len(v) for v in collisions.values()) - len(collisions)
             print(f"   dont COLLISIONS dans le lot    : {len(collisions)} NEQ visés par "
                   f"plusieurs dossiers, {en_trop} dossier(s) écarté(s)")
+        if refuses_en_bloc:
+            total_refuses = sum(refuses_en_bloc.values())
+            print(f"\n   ⛔ REFUSÉS EN BLOC              : {len(refuses_en_bloc)} NEQ, "
+                  f"{total_refuses} dossier(s) — AUCUN ne reçoit son NEQ")
+            print(f"      Au-delà de {PRETENDANTS_MAX_POUR_TRANCHER} prétendants, le nombre")
+            print("      est une preuve CONTRE l'appariement : un nom qui désigne une")
+            print("      famille d'entités, pas une entreprise. L'ancienneté n'y a")
+            print("      aucun sens — elle désignerait un gagnant dans un groupe dont")
+            print("      aucun membre n'est probablement le bon.")
+            for neq, combien in sorted(refuses_en_bloc.items(), key=lambda kv: -kv[1])[:5]:
+                print(f"         {neq}  ×{combien}")
         print(f"   NEQ retenu, NEQ DÉJÀ PRIS      : {len(pris)}   (conservés, jamais fusionnés)")
         print(f"   aucun NEQ retenu               : {non_resolues}")
 
@@ -316,10 +374,39 @@ def main(argv: list[str] | None = None) -> int:
             poses += 1
 
         journalises = 0
+        from falkye.models.diagnostic_journal import DiagnosticJournal, TypeDiagnostic
+
         for p in pris:
             company = session.get(Company, p["company_id"])
+            if company is None:
+                continue
+            if p.get("detenteur_id") is None:
+                # ⚠️ **UN GROUPE REFUSÉ N'A PAS DE PRINCIPAL, ET C'EST LE FOND.**
+                # `journaliser_candidat_fusion` demande deux dossiers et affirme
+                # que l'un est le bon — *exactement ce qu'on vient de refuser
+                # d'affirmer.* Le journaliser ainsi contredirait le refus.
+                #
+                # Journalisé donc comme un PROBLÈME à examiner, rattaché au seul
+                # dossier concerné. **Sans ça, les 26 disparaissaient du
+                # journal** : le `continue` d'origine les écartait en silence, et
+                # « refusé » se serait lu comme « jamais rencontré ».
+                session.add(DiagnosticJournal(
+                    type_diagnostic=TypeDiagnostic.PROBLEME_AUTRE_CHANTIER,
+                    profile_id=None,
+                    texte_description=(
+                        f"Reprise NEQ refusée — #{company.id} « {company.nom_detecte} » "
+                        f"vise {p['neq']} ({p.get('motif', '')}). Score {p['score']}, "
+                        f"registre « {p['nom_registre']} »."
+                    ),
+                    statut="a_examiner",
+                    company_id_principal=company.id,
+                    company_id_candidat=None,
+                    score_similarite=p["score"],
+                ))
+                journalises += 1
+                continue
             detenteur = session.get(Company, p["detenteur_id"])
-            if company is None or detenteur is None:
+            if detenteur is None:
                 continue
             # Le DÉTENTEUR est le principal : il porte déjà le NEQ, donc il est
             # le dossier que le registre désigne. Le rapprochement est proposé,

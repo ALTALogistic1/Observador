@@ -97,6 +97,37 @@ def _famille(matches, neq_decide) -> str:
     return "trop_faible" if matches[0].score < SEUIL_RESOLUTION_CONFIANTE else "ambigu"
 
 
+def _jumeau_exact(forme: str | None) -> str | None:
+    """Le NEQ dont le nom normalisé est EXACTEMENT celui du dossier, s'il existe.
+
+    **Ce n'est pas une présélection du résultat** *(cas 42)* : on sélectionne sur
+    l'ÉCHEC — la famille vient de `neq_retenu` — et on cherche ensuite si la
+    bonne réponse existait. *Sélectionner des échecs dont on sait que la réponse
+    existe est la seule façon de distinguer « absent du lot » de « présent et mal
+    scoré ».*
+    """
+    if not forme:
+        return None
+    from sqlalchemy import select
+
+    from falkye.db import get_session
+    from falkye.models.req_entry import REQEntry
+    from falkye.models.req_nom import REQNom
+
+    session = get_session()
+    try:
+        trouve = session.execute(
+            select(REQEntry.neq).where(REQEntry.nom_normalise == forme).limit(1)
+        ).scalar_one_or_none()
+        if trouve is None:
+            trouve = session.execute(
+                select(REQNom.neq).where(REQNom.nom_normalise == forme).limit(1)
+            ).scalar_one_or_none()
+        return trouve
+    finally:
+        session.close()
+
+
 def _tracer_depuis_la_base(par_famille: int, familles: tuple[str, ...]) -> int:
     """Trace N dossiers PAR FAMILLE d'échec, classés par la décision du moteur.
 
@@ -178,8 +209,18 @@ def _tracer_depuis_la_base(par_famille: int, familles: tuple[str, ...]) -> int:
             print("#" * 78)
             argv = ["--nom", company.nom_detecte,
                     "--forme-stockee", company.nom_detecte_normalise or ""]
-            if decide:
-                argv += ["--neq", decide]
+            # ⚠️ **LE JUMEAU EXACT, CHERCHÉ MÊME QUAND LE MOTEUR ÉCHOUE.**
+            #
+            # *C'est la question qui compte* (Alexandre, 2026-09-17) : un dossier
+            # classé « trop faible » dont le nom est LITTÉRALEMENT au registre —
+            # le bon candidat était-il ABSENT du lot présenté au scoreur, ou
+            # PRÉSENT et mal scoré? **Les deux verdicts s'appellent « trop
+            # faible » et n'ont pas la même cause.**
+            #
+            # Sans ce `--neq`, l'étape 5 se saute et la question reste ouverte.
+            attendu = decide or _jumeau_exact(company.nom_detecte_normalise)
+            if attendu:
+                argv += ["--neq", attendu]
             if company.ville:
                 argv += ["--ville", company.ville]
             main(argv)
@@ -355,6 +396,17 @@ def main(argv: list[str] | None = None) -> int:
             select(func.count()).select_from(REQEntry)
             .where(REQEntry.nom_normalise.op("GLOB")(f"{prefixe}*"))
         ).scalar() or 0
+        print("\n   ⚠️ LA RÈGLE QUI EXTRAIT LE PRÉFIXE, ET CE QU'ELLE DONNE ICI")
+        print("      `prefix = nom_norm.split(\" \")[0]` — LE PREMIER MOT, rien d'autre.")
+        print(f"      nom normalisé  : {apercu(nom_norm, 52)}")
+        print(f"      → préfixe      : {prefixe!r}   ({len(prefixe)} caractères)")
+        if prefixe.isdigit():
+            print("      Ce préfixe est NUMÉRIQUE : quasi unique, donc la récupération")
+            print("      est presque parfaite. ⚠️ *Les trois premiers cas tracés étaient")
+            print("      tous de cette forme, et ils ne disent rien des noms ordinaires.*")
+        elif len(prefixe) <= 4:
+            print("      ⚠️ Préfixe TRÈS COURT : il retiendra un très grand nombre de")
+            print("         lignes, et la borne tranchera une tranche alphabétique.")
         print(f"\n   ⚠️ LA BORNE — préfixe {prefixe!r}")
         print(f"      lignes AVANT la borne   : {sans_borne}")
         print(f"      borne de candidats_par_nom : {BORNE_MOTEUR}")
@@ -365,8 +417,14 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("      ✅ la borne ne coupe pas : tous les candidats du préfixe sont là.")
             print("         Si le bon candidat manque, ce n'est PAS la borne.")
-        if n_prefixe == 0 and candidats:
-            print("   ⚠️ LE REPLI A SERVI : le préfixe n'a rien rendu.")
+        if n_prefixe == 0:
+            print("\n   ⛔ LE PRÉFIXE N'A RIEN RENDU — le repli par SOUS-CHAÎNE a servi.")
+            print("      *Documenté comme coûtant 98 % du budget de résolution pour")
+            print("      14 % des appels* : ce chemin-ci est celui qui coûte cher, et")
+            print("      il n'a aucun index — le balayage est dans la nature de la")
+            print("      requête, pas dans le plan.")
+        else:
+            print(f"\n   ✅ Le préfixe a rendu {n_prefixe} ligne(s) : le repli n'a PAS servi.")
         print()
         for i, c in enumerate(candidats[:DETAIL_MAX], start=1):
             stocke = c.nom_normalise
