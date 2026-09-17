@@ -152,7 +152,7 @@ La récupération extrait un préfixe — `prefix = nom_norm.split(" ")[0]`, **l
 " "  <  "0" … "9"  <  "a" … "z"
 ```
 
-`normaliser` ayant déjà transformé `LES " 100 " AILE` en `les 100 aile`, **la tranche commence par les chiffres et la ponctuation et n'atteint jamais les lettres.** *Le correctif de la reproductibilité a figé le mauvais tirage : il n'a rien cassé, il a rendu constant ce qui était aléatoire, et le constant se trouve être mauvais.*
+`normaliser` ayant déjà transformé `LES " 100 " AILE` en `les 100 aile`, **ces noms-là occupent bien la tête de la tranche.** *Le correctif de la reproductibilité a figé le tirage : il n'a rien cassé, il a rendu constant ce qui était aléatoire.*
 
 **Lecture de dix paires du pic 85-88** (`outils/paires_du_pic.py`, 17 septembre) :
 
@@ -167,9 +167,64 @@ La récupération extrait un préfixe — `prefix = nom_norm.split(" ")[0]`, **l
 
 **Aucun des dix n'est l'entreprise cherchée.** Sept sur dix sont en tête alphabétique de leur préfixe. Le score **85,50 revient huit fois sur dix** — c'est ce que `WRatio` rend quand seul le premier mot correspond, vérifié au banc.
 
-⚠️ **Lecture, et elle porte sur dix cas** : le pic de 2 713 dossiers dans la fenêtre 85-88 serait un **plancher de calcul**, pas une distribution de ressemblance. **Si le recomptage le confirme, aucun réglage d'échelle ne le franchira** — un plancher ne se franchit pas en abaissant une échelle. *La mesure qui l'établit, la distribution des valeurs exactes sur la population, est ouverte à la section 17.*
+**Des deux observations, une seule a survécu au recomptage.** *La valeur 85,50 est confirmée sur la population — section 7bis. La tête alphabétique, non — juste en dessous.*
 
-⚠️ **Une coupe n'est pas une perte.** Un préfixe qui rend 51 000 lignes dont la bonne est douzième alphabétique sature **et** récupère. Le compte borne le risque; l'établir demande une vérité de terrain qui n'existe pas. *Dix paires ne sont pas une proportion — le recomptage sur la population est ouvert au 17 septembre.*
+### ⚠️ Et l'explication qu'on en avait tirée est DÉMENTIE — mesure A, 17 septembre
+
+**Ce que ce document disait avant le recomptage** : *« la tranche commence par les chiffres et la ponctuation et n'atteint jamais les lettres. »* **C'est faux.**
+
+```
+lots coupés AVANT LA PREMIÈRE LETTRE : 17 sur 4 217   (0,4 %)
+
+au point de coupe          lots     part
+espace puis lettre        4 072    96,6 %
+lettre collée               123     2,9 %
+hors préfixe                 17     0,4 %
+CHIFFRE collé                 5     0,1 %
+espace puis CHIFFRE           0     0,0 %
+```
+
+**La coupe tombe au MILIEU de l'alphabet, pas avant les lettres.** Et dans la tranche entière, le non alphabétique après le préfixe pèse **776 568 candidats sur 6 342 752 — 12,2 %.** *Pas la majorité.*
+
+> ⚠️ **La lecture des dix paires montrait un mécanisme RÉEL mais RARE.** *Sept sur dix en tête alphabétique était un artefact du tirage, pas une fréquence.* **Dix cas disent qu'une chose EXISTE; ils ne disent jamais COMBIEN DE FOIS.**
+
+**Deux recoupements internes confirment que la mesure lit le bon objet.** Les 17 lots « avant la première lettre » sont **exactement** les 17 lots « hors préfixe » — les seuls où le préfixe n'a rien rendu et où le repli par sous-chaîne a servi. Et 6 342 752 candidats pour 4 217 lots font **1 504 par lot**, contre une tranche théorique de `2 000 − 2 000//4 = 1 500` : *la part réservée au pont est bien retirée de l'ordre alphabétique.*
+
+**Ce qui reste vrai, et ne bouge pas** : la borne coupe **4 217** lots, **74,3 %** chez les trop faibles, `ferme` vu à **8,7 %**.
+
+**Ce qui change, c'est la QUESTION.** Le bon candidat est-il **après** le point de coupe, ou **n'existe-t-il pas**? ⚠️ *C'est la mesure C, et elle n'a pas encore rendu.* **Rien n'est écrit ici sur la borne comme CAUSE avant qu'elle rende.**
+
+⚠️ **Une coupe n'est pas une perte.** Un préfixe qui rend 51 000 lignes dont la bonne est douzième alphabétique sature **et** récupère. Le compte borne le risque; l'établir demande une vérité de terrain qui n'existe pas.
+
+---
+
+## 7bis. Le pic 85-88 est un PLANCHER DE CALCUL — mesuré sur la population
+
+**Mesuré le 17 septembre** (`outils/recomptage_du_plancher.py`, mesure B), sur l'hôte, environnement chargé, cible distante, aucun repli.
+
+```
+valeur exacte    dossiers    part
+85.50               2 419   89,2 %
+85.71                  69    2,5 %
+87.50                  41    1,5 %
+
+dont [85 – 86[ : 2 505  (92,3 % du pic)
+```
+
+**La valeur dominante pèse 89,2 % du pic.** *Une distribution de RESSEMBLANCE ne se concentre pas sur une valeur; un PLANCHER de calcul, si.* **85,50 est ce que `WRatio` rend quand seul le premier mot correspond**, vérifié au banc.
+
+```
+mots en commun avec le meilleur candidat, sur les 2 505 du plancher
+le PREMIER MOT seulement   2 107   84,1 %
+deux mots                    302   12,1 %
+AUCUN mot en commun            2    0,1 %
+```
+
+*Comparé à **toutes** les formes publiées du NEQ, en gardant le **meilleur** recouvrement — donc **84,1 %** est un plancher : même la forme la plus favorable du registre ne partage que le premier mot.*
+
+> ⚠️ **Le pic de 2 713 est un plancher de calcul, et aucun réglage d'échelle ne le franchira.** *Ce sont des dossiers dont le candidat n'a rien à voir* — abaisser le seuil à 85 n'accepterait pas 2 713 appariements proches, il accepterait 2 713 noms qui partagent un mot et rien d'autre.
+
+**Ce que 7bis ne dit pas** : *pourquoi* le bon candidat est absent du lot. Il peut être après le point de coupe, ou ne pas exister. **C'est la mesure C.**
 
 ---
 
@@ -180,6 +235,7 @@ La récupération extrait un préfixe — `prefix = nom_norm.split(" ")[0]`, **l
 | NOM_ETAB (`Etablissements.csv`) | **5** sur 2 517 mesurées, toutes en forme `IND` | 16 sept | close |
 | Parenthèses retirées des deux côtés | **+17 / −13**, plafond 205 dossiers | 17 sept | close |
 | Seuil abaissé à 90 | **79** retenus de plus | 17 sept | close |
+| Le pic 85-88 comme réserve d'appariements proches | **plancher de calcul** — 89,2 % à 85,50 *(section 7bis)* | 17 sept | close |
 | Corporations Canada comme pont | **0** — sans objet | 16 sept | close |
 | Rejeu complet de la résolution | **0** — ventilation identique | 16 sept | close |
 
@@ -284,6 +340,10 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 | 11 | les 8 931 seraient majoritairement hors registre | l'immatriculation est obligatoire |
 | 12 | `LIMITE_CANDIDATS = 500` du dédoublonnage | mauvais mécanisme — la borne qui décide est `candidats_par_nom` |
 | 13 | le préfixe sur les trois premiers cas tracés | leurs préfixes étaient numériques, donc muets |
+| 14 | le pic 85-88 serait une réserve d'appariements qui manquent de peu | 89,2 % du pic sur une seule valeur, 84,1 % ne partagent que le premier mot *(7bis)* |
+| 15 | la tranche serait remplie par la tête alphabétique, chiffres et ponctuation | la coupe tombe au milieu de l'alphabet — 96,6 % sur « espace puis lettre » *(section 7)* |
+
+⚠️ **Les deux dernières ne sont pas de la même famille que les treize premières.** *Elles ne demandaient pas pourquoi la comparaison échoue : elles proposaient une EXPLICATION de ce qu'on venait de voir.* **Et elles sont tombées de la même manière — par recomptage sur la population, jamais par un cas de plus.**
 
 **La règle que cette série a produite** (code de conduite, 16 sept) : *quand plusieurs hypothèses bien mesurées tombent, la question est mal posée. Le remède n'est pas une dixième de la même famille — c'est un cas entier tracé de bout en bout.* **Et : avant de demander pourquoi une comparaison échoue, vérifier que les deux termes existent.**
 
@@ -381,7 +441,7 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 ## 17. Ce qui reste ouvert
 
 **En mesure, au 17 septembre**
-- Le recomptage du plancher — composition de la tranche, part de la valeur 85,50, et ce qu'une borne levée récupérerait (mesures A, B, C). *Outil livré, jamais exécuté sur la base réelle.*
+- Le recomptage du plancher, **mesure C seule** — ce qu'une borne levée récupérerait. *Les mesures **A** et **B** ont tourné le 17 septembre sur l'hôte et sont versées aux sections 7 et 7bis; **C est en cours**.* ⚠️ **Elle portera sur un échantillon de 200 dossiers, avec un plafond de gisement qui écarte précisément les plus gros cas** — *le chiffre qu'elle rendra sera un PLANCHER du gain, jamais une estimation.*
 - Le code postal : le second terme qui se recouvre entre l'EIMT et le REQ, **jamais regardé**.
 - La trace sur un nom ordinaire — la réserve sur le préfixe parlant, encore non testée sur un cas réel.
 - La normalisation des municipalités sur les 612 sans concordance. *Observation non mesurée : une part semble relever de l'écriture — « St-Apollinaire » contre « Saint-Apollinaire ».*
