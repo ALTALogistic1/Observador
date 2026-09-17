@@ -36,6 +36,11 @@ TABLES_MIROIR = {
     # en jetait 1 705 806 à chaque import.
     "req_noms",
     "req_etablissements",
+    # L'index par MOTS, et la fréquence qui permet de choisir le mot le plus
+    # rare (2026-09-17). ⚠️ *Reconstruits ENTIÈREMENT depuis `req_noms` à chaque
+    # import — jamais incrémentalement, une moitié périmée étant invisible.*
+    "req_mots",
+    "req_mots_frequence",
     "corporations_federales_entries",
     "licences_municipales_entries",
     # État de diff : reconstruit par un run de référence sur la source.

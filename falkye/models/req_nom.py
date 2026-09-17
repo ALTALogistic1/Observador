@@ -59,6 +59,29 @@ class REQNom(BaseMiroir):
     #: c'est ce qui manquait à `comparaison()` le 15 septembre.
     nom: Mapped[str] = mapped_column(String(500), nullable=False)
 
+    #: ⚠️ **DE QUEL GISEMENT LA FORME VIENT** *(ajoutée le 2026-09-17)*.
+    #:
+    #: **Le fait qui l'ajoute** : l'archive porte QUATRE gisements de noms, et le
+    #: produit n'en indexait qu'un, filtré. *L'inventaire du 17 septembre, sur
+    #: l'archive du 2 :*
+    #:
+    #: | gisement | fichier | formes |
+    #: |---|---|---|
+    #: | `NOM_ASSUJ` | `Nom.csv` | 4 651 087 |
+    #: | `NOM_ETRNG` | `Nom.csv`, colonne `NOM_ASSUJ_LANG_ETRNG` | 412 459 |
+    #: | `NOM_ETAB` | `Etablissements.csv` | 257 531 |
+    #: | `DENOMN_SOC` | `FusionScissions.csv` | 132 448 |
+    #:
+    #: ⚠️ **`DENOMN_SOC` n'est pas une relation NEQ→NEQ.** *Classée comme telle le
+    #: 17 septembre par lecture trop rapide du fichier, et le gisement est resté
+    #: ignoré une journée de plus.* La relation, c'est `NEQ_ASSUJ_REL` (78,5 %);
+    #: la dénomination est **un nom rattaché à un NEQ vivant**, rempli à 99,9 %.
+    #:
+    #: **Nullable** : les lignes écrites avant cette colonne n'en portent pas, et
+    #: `None` se lit « gisement inconnu, écrit avant le 17 septembre » — jamais
+    #: « aucun gisement ».
+    gisement: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
     #: `STAT_NOM` et `TYP_NOM_ASSUJ` tels quels, jamais interprétés ici. Un nom
     #: « en vigueur, dénomination sociale » et un nom « en vigueur, autre nom »
     #: ne valent pas la même chose pour un humain qui arbitre, et ranger les deux

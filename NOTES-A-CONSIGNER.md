@@ -2859,3 +2859,113 @@ les lit déjà.*
 > **Deux archives identiques rendent la même empreinte; deux éditions différentes ne peuvent pas la
 > partager.** *C'est ce qui rend l'invalidation automatique au réimport — par la clé, pas par une
 > tâche d'entretien.*
+
+---
+
+## N124 — J'ai classé un fichier entier sur son NOM, et un gisement est resté ignoré une journée de plus
+
+*(2026-09-17, relevé par Alexandre après ouverture complète de l'archive.)*
+
+**Écrit dans ma conception** : *« deux fichiers de relations NEQ→NEQ qui sont en
+aval. »* **`FusionScissions.csv` porte `DENOMN_SOC` — une dénomination sociale
+remplie à 99,9 %, 132 448 formes rattachées à des NEQ vivants.** *La relation,
+c'est `NEQ_ASSUJ_REL`; la dénomination est un nom, et je ne l'avais pas
+regardée.*
+
+**L'inventaire réel est de QUATRE gisements de noms, pas un :**
+
+| gisement | fichier | formes | exploité avant le 17 |
+|---|---|---|---|
+| `NOM_ASSUJ` | `Nom.csv` | 4 651 087 | oui, filtré `STAT_NOM='V'` |
+| `NOM_ASSUJ_LANG_ETRNG` | `Nom.csv` | 412 459 | **non — colonne jamais lue** |
+| `NOM_ETAB` | `Etablissements.csv` | 257 531 | non, pour apparier |
+| `DENOMN_SOC` | `FusionScissions.csv` | 132 448 | **non — classé « en aval »** |
+
+⚠️ **Le nom du fichier décrivait son ÉVÉNEMENT, pas son CONTENU.** *Un fichier
+qui s'appelle « fusions et scissions » contient aussi les noms des entreprises
+qui fusionnent* — et `inspect_zip` existait depuis le 31 août pour le dire en
+quelques kilo-octets.
+
+> **Classer un fichier sur son nom est la même faute que compter une colonne sur
+> son libellé.** *La commande qui tranche coûte dix secondes.*
+
+---
+
+## N125 — Un garde par lecture de l'arbre syntaxique ne voit pas ce qui vient d'une table
+
+*(2026-09-17, trouvé à l'écriture.)*
+
+`colonnes_brutes_lues` extrait les en-têtes lues en cherchant `row.get("…")` dans
+l'AST — **et c'est un bon garde**, il attrape même la virgule oubliée entre deux
+littéraux.
+
+⚠️ **Mais la passe des quatre gisements fait `rangee.get(colonne)`, où `colonne`
+vient de `GISEMENTS_DE_NOMS`.** *Aucun arbre syntaxique ne peut lire une valeur
+qui n'est pas là.* **Les quatre gisements sortaient donc de la vérification
+d'en-tête en silence** — exactement le défaut que le garde existe pour attraper.
+
+**Le correctif : deux sources de vérité, et il faut les deux.** *L'AST pour les
+lecteurs qui nomment leurs colonnes en littéral, une DÉCLARATION pour ceux qui
+les prennent dans une table.* **Et un test qui retire chaque colonne de gisement
+une à une et vérifie que le garde refuse.**
+
+> **Un garde a une portée, et sa portée s'écrit à côté de sa sortie** *(cas 33)*.
+> *Celui-ci couvrait « les colonnes nommées en dur », et le code avait cessé de
+> les nommer en dur.*
+
+---
+
+## N126 — Un index et sa requête ont deux découpeurs, et leur divergence ne lève nulle part
+
+*(2026-09-17, en construisant l'index par mots.)*
+
+L'index est bâti **en SQL** — une CTE récursive qui coupe `nom_normalise` sur
+l'espace. La requête découpe **en Python**, par `mots_du_nom`.
+
+⚠️ **Si les deux divergeaient, aucune erreur ne se produirait.** *Le rappel
+baisserait, et le chiffre serait attribué à autre chose* — au seuil, à l'écart,
+à la population. **C'est la seule dégradation silencieuse que cet index puisse
+subir, et elle est invisible par construction.**
+
+**Le garde : un TÉMOIN à chaque import.** *Vingt formes prises dans l'ordre de la
+clé — donc reproductibles, pas un tirage — doivent se retrouver ELLES-MÊMES par
+l'index.* **Une seule qui échoue fait REFUSER l'import.**
+
+> **Quand deux chemins doivent rendre la même chose et qu'aucun ne peut vérifier
+> l'autre, la seule garde est un aller-retour.**
+
+---
+
+## N127 — À fréquence égale, l'alphabet n'est pas un critère
+
+*(2026-09-17.)*
+
+La récupération par mots choisit **le mot le plus rare**. *Sur un index réel
+« du » est partout, donc jamais le plus rare* — **mais rien ne garantit qu'un mot
+vide ne se retrouve pas à égalité**, et l'ordre naturel d'un tri Python aurait
+alors choisi `du` plutôt que `mondiale`.
+
+⚠️ **Un départage alphabétique est un tirage promu en critère** — *c'est le même
+défaut que la tranche du `LIMIT`, un étage plus haut.*
+
+**La règle retenue : à fréquence égale, le mot le plus LONG gagne.** *Elle est
+énoncée, contestable et reproductible; l'alphabet n'est rien de tout ça.*
+
+---
+
+## N128 — Une conclusion vraie d'un état du code doit porter sa date
+
+*(2026-09-17.)*
+
+Le matin, l'arithmétique fermait la piste des noms en vigueur :
+`1 521 816 − 15 937 = 1 505 879`, exactement `count(*)` de `req_noms`. **Elle
+tenait parce que le pont filtrait `STAT_NOM='V'`, comme l'outil de mesure.**
+
+**Le même jour, la décision a changé : tout entre.** ⚠️ *Donc l'identité ne vaut
+QUE pour le miroir chargé avant ce changement.* **Après le prochain import,
+comparer les deux comptes n'aura plus de sens** — et personne ne s'en
+apercevrait, parce que les deux chiffres continueraient d'exister.
+
+> **Un test qui verrouille une identité doit verrouiller aussi le jour où elle
+> cesse d'être vraie.** *Celui-ci vérifie maintenant les deux moitiés : que le
+> pont ne filtre plus, et que la conclusion est datée.*

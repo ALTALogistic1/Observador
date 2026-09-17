@@ -81,10 +81,21 @@ def _brancher(db_session, monkeypatch, companies):
 # est DÉJÀ EN BASE, et ne représente aucune récupération disponible.*
 
 
-def test_le_pont_et_loutil_lisent_le_MEME_ensemble():
-    """**L'identité qui ferme la piste des noms en vigueur.** *Vérifiée au code,
-    pas supposée* — si l'un des deux changeait de filtre ou de colonne, la
-    conclusion « déjà en base » tomberait, et ce test avec elle."""
+def test_le_pont_ne_filtre_PLUS_par_statut_et_la_conclusion_du_0_est_DATEE():
+    """⚠️ **Une conclusion vraie d'un état du code, et le code a changé.**
+
+    Le 2026-09-17 au matin, l'arithmétique fermait la piste des noms en vigueur :
+    `1 521 816 − 15 937 = 1 505 879`, exactement `count(*)` de `req_noms`. **Elle
+    tenait parce que le pont filtrait `STAT_NOM = 'V'`, comme l'outil.**
+
+    **Le même jour, Alexandre a décidé que tout entre.** *Donc l'identité ne vaut
+    QUE pour le miroir chargé avant ce changement* — celui du 16 septembre, avec
+    l'archive du 2. **Après le prochain import, `req_noms` portera bien plus que
+    le compte en vigueur de l'outil, et comparer les deux n'aura plus de sens.**
+
+    Ce test verrouille les deux moitiés : *le pont ne filtre plus*, et *la
+    conclusion du 0 est datée*.
+    """
     import inspect
     import pathlib
 
@@ -92,12 +103,32 @@ def test_le_pont_et_loutil_lisent_le_MEME_ensemble():
 
     pont = inspect.getsource(req._charger_tous_les_noms)
     outil = pathlib.Path("outils/impact_tous_les_noms.py").read_text(encoding="utf-8")
-    for cle in ("NEQ", "NOM_ASSUJ", "STAT_NOM"):
-        assert f'"{cle}"' in pont, f"le pont ne lit plus {cle}"
+    for cle in ("NEQ", "NOM_ASSUJ"):
+        assert f'"{cle}"' in pont or cle in str(req.GISEMENTS_DE_NOMS), (
+            f"le pont ne lit plus {cle}"
+        )
         assert f'"{cle}"' in outil, f"l'outil ne lit plus {cle}"
-    assert '!= "V"' in pont, "le pont ne filtre plus sur STAT_NOM = V"
-    assert '== "V"' in outil or '!= "V"' in outil, "l'outil ne distingue plus V"
+    assert "statuts_retenus" in pont, (
+        "le pont ne porte plus de filtre par statut, même optionnel — la décision "
+        "cesserait d'être révisable sans réimport"
+    )
+    assert "STAT_NOM" in str(req.GISEMENTS_DE_NOMS), (
+        "les gisements ne déclarent plus la colonne de statut"
+    )
     assert "normaliser" in pont and "normaliser" in outil
+
+
+def test_le_pont_garde_TOUS_les_statuts_par_defaut():
+    """*La décision du 2026-09-17, vérifiée sur la signature et non sur une
+    intention* — `statuts_retenus=None` veut dire « tout garder »."""
+    import inspect
+
+    from falkye.sources import req
+
+    defaut = inspect.signature(
+        req._charger_tous_les_noms
+    ).parameters["statuts_retenus"].default
+    assert defaut is None, "le pont filtre encore par défaut"
 
 
 def test_larithmetique_de_lecart_de_16000():
