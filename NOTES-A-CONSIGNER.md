@@ -2269,3 +2269,141 @@ provenances annoncerait comme gain ce qui est déjà appliqué.**
 l'adresse dans `champs` sans jamais la passer à `RawSignal.adresse`. **Le champ
 existe, la donnée existe, le pont entre les deux n'existe pas** — et **le
 correctif attend ce chiffre, il ne le précède pas.**
+
+---
+
+## N99 — Un correctif qui ferme un défaut peut laisser l'inquiétude entière : dire LAQUELLE des deux moitiés il a fermée
+
+*(2026-09-17.)*
+
+Alexandre : *« `candidats_par_nom` fait `LIMIT 2000` sans `ORDER BY`. »*
+
+**L'`ORDER BY` a été posé le 2026-09-16** — après son propre relevé. *Et il ne
+règle pas ce qu'il vise.*
+
+| | avant | après l'`ORDER BY` |
+|---|---|---|
+| **le lot change-t-il entre deux exécutions?** | oui | **non** — fermé |
+| **le lot contient-il la bonne ligne?** | inconnu | ⚠️ **toujours inconnu** |
+
+> **Trier par `nom_normalise` rend le tirage REPRODUCTIBLE, pas MEILLEUR.** Sur
+> 50 000 « gestion… », les 2 000 retenus restent une tranche alphabétique.
+
+⚠️ **Répondre « c'est corrigé » aurait fermé la bonne moitié et enterré
+l'autre.** *Et l'autre porte sur tout ce qui a été mesuré depuis deux jours :
+seuil, écart, parenthèses, ville — tout opère sur un lot dont personne n'a
+vérifié qu'il contient le bon candidat.*
+
+---
+
+## N100 — Une borne qui COUPE n'est pas une PERTE, et le compte des coupes borne le risque sans l'établir
+
+*(2026-09-17.)*
+
+*Un préfixe qui rend 51 000 lignes dont la bonne est la douzième alphabétique
+SATURE ET RÉCUPÈRE.* **La saturation est une condition nécessaire de la perte,
+jamais sa preuve.**
+
+⚠️ **Établir la perte demanderait de connaître le bon candidat** — donc une
+vérité de terrain qui n'existe pas. *C'est un autre chantier, et il se décide
+après celui-ci.*
+
+**Ce qui rend le compte utile quand même, c'est sa forme négative** : *si la
+borne ne sature JAMAIS, le lot est complet et l'hypothèse ne récupère rien.*
+**Le chantier se ferme alors sans avoir été construit** — et c'est le meilleur
+rendement qu'une mesure puisse avoir.
+
+**Et « 2 000 sur 2 100 » n'est pas « 2 000 sur 51 000 »** : la taille du gisement
+se mesure à côté de la coupe, sinon le mot « saturé » couvre les deux.
+
+---
+
+## N101 — Une règle de tirage doit être ÉNONCÉE pour pouvoir être contestée
+
+*(2026-09-17, exigé par Alexandre.)*
+
+*« Si les dix sont pris par `id` croissant, c'est le cas 19 — le tri du fichier
+promu en échantillon. »*
+
+**L'ordre des `id` est l'ordre d'arrivée des signaux, donc celui des fichiers
+sources** : dix premiers, c'est dix dossiers de la même source, du même
+trimestre, souvent du même secteur.
+
+**La règle retenue, en quatre lignes, parce qu'une règle qu'on ne peut pas lire
+ne peut pas être refusée :** tri par score croissant; rangs régulièrement espacés
+sur toute la fenêtre; un seul dossier par préfixe de récupération; à score égal,
+l'`id` — *la seule part arbitraire, et elle est bornée aux ex æquo.*
+
+⚠️ **Et le mode « les dix premiers » existe, en l'annonçant** : *un échantillon
+qui ne représente rien reste utile si personne ne croit qu'il représente quelque
+chose.* **Ce qui nuit n'est pas le mauvais échantillon, c'est le mauvais
+échantillon silencieux.**
+
+---
+
+## N102 — Une distribution dit COMBIEN; elle ne dit jamais QUOI
+
+*(2026-09-17, Alexandre.)*
+
+**2 713 dossiers sur 4 733 ont leur meilleur score dans une fenêtre de TROIS
+POINTS.**
+
+> *Une distribution naturelle ne fait pas ça — c'est une différence systématique
+> qui se répète et coûte toujours à peu près les mêmes points.* **Et personne ne
+> l'a jamais regardée.**
+
+⚠️ **Trois jours de ventilations n'ont rien ouvert; un cas entier a nommé le mur
+en une commande.** *Le pic est une preuve qu'il y a quelque chose, et une
+incapacité à dire quoi.*
+
+**La contrepartie, et elle est obligatoire** : ce qu'une lecture ouvre doit être
+**RECOMPTÉ** avant de devenir un chantier. *Le cas `(Workstaff)` a nommé le mur;
+le chiffrage a dit qu'il pesait 205 dossiers sur 8 931 — réel, et pas le mur.*
+
+---
+
+## N103 — Une borne recopiée en dur ment le jour où la borne change
+
+*(2026-09-17.)*
+
+`candidats_par_nom` portait `limite: int = 2000`. **Un outil qui mesure la
+saturation en écrivant `2000` continuerait d'annoncer « saturé » sur une borne
+devenue 5 000** — *ou l'inverse, plus silencieusement.*
+
+**La borne est devenue `LIMITE_CANDIDATS_PAR_NOM`, et l'outil la LIT.** *Même
+règle que `requete_nom_exact`, `neq_retenu` et `famille_de` : ce qui décide se
+nomme une fois et s'emprunte.*
+
+**Et la récupération elle-même s'instrumente par un `journal` optionnel**, `None`
+en production : *combien chaque requête a rendu, quel repli a servi, si le pont a
+rogné la liste.* **Un outil qui aurait recopié les requêtes pour les compter
+aurait mesuré sa copie** — c'est déjà arrivé une fois cette semaine, et ça a coûté
+338 dossiers imaginaires.
+
+---
+
+## N104 — Ce que les deux mesures du 17 ont rendu, et qui ne bouge plus
+
+*(2026-09-17, Alexandre.)*
+
+**Les parenthèses — piste CLOSE.** La correction rend **+17** et en casse **13**.
+*« FERME BELLEVUE (1997) INC. » privée de sa parenthèse passe de 86 à 95 contre
+« Ferme Bellevue et Fils inc. », et l'écart s'effondre.* **Négligeable, pas
+fausse** — et le compteur d'instrument à **0** valide le tableau.
+
+**Le départage par ville** : **1 111 sur 3 244 ambigus — 34,2 %**. Le gisement est
+bien `Signal.champs` jamais promue : **2 484 dossiers, tous EIMT**.
+
+| | |
+|---|---|
+| le gagnant était **déjà seul mieux scoré** | **963** |
+| le gagnant est **un autre candidat** | **45** |
+| **ex æquo** — le score ne tranchait pas | **103** |
+
+⚠️ **Elle CONFIRME plus qu'elle ne CORRIGE.** *Le score se trompe rarement de
+gagnant* — 45 fois sur 1 111. **Ce que la ville apporte, c'est le déblocage, pas
+la correction** — et les 103 ex æquo sont les seuls cas où elle est la seule à
+avoir une opinion.
+
+**Reste environ 7 100 dossiers**, et l'hypothèse de la borne est ce qui décide
+s'ils sont entamables.

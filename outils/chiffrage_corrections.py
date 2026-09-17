@@ -64,6 +64,7 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 
+from outils.formes_registre import formes_publiees
 from outils.nombres import milliers
 
 #: Le contenu entre parenthèses, avec les parenthèses. *Non gourmand, pour que
@@ -506,32 +507,6 @@ def main(argv: list[str] | None = None) -> int:
         session.close()
 
 
-def _formes_publiees(session, neqs: list[str]) -> list[tuple[str, str]]:
-    """Les noms PUBLIÉS d'un lot de NEQ, avec la table d'où chacun vient.
-
-    *Aucun score n'est calculé ici.* **On montre les formes, on ne rejoue pas le
-    scoreur** — c'est précisément la recopie qui a produit les -338. Voir ce que
-    le registre écrit suffit à répondre à « d'où vient ce candidat ».
-    """
-    from sqlalchemy import select
-
-    from falkye.models.req_entry import REQEntry
-    from falkye.models.req_nom import REQNom
-
-    if not neqs:
-        return []
-    formes: list[tuple[str, str]] = []
-    for nom in session.execute(
-        select(REQEntry.nom).where(REQEntry.neq.in_(neqs))
-    ).scalars():
-        formes.append((nom or "", "req_entries (dénomination élue)"))
-    for nom in session.execute(
-        select(REQNom.nom).where(REQNom.neq.in_(neqs))
-    ).scalars():
-        formes.append((nom or "", "req_noms (autre nom)"))
-    return formes
-
-
 def _un_candidat_a_une_parenthese(session, r: "Releve") -> bool:
     """Une parenthèse existe-t-elle QUELQUE PART dans ce que la récupération rend?
 
@@ -547,7 +522,7 @@ def _un_candidat_a_une_parenthese(session, r: "Releve") -> bool:
     if not nom_norm:
         return False
     neqs = [c.neq for c in candidats_par_nom(session, nom_norm)]
-    return any("(" in nom for nom, _ in _formes_publiees(session, neqs))
+    return any("(" in nom for _, nom, _ in formes_publiees(session, neqs))
 
 
 def _tracer_un_perdu(session, r: "Releve", famille_apres: str, formes_max: int = 6) -> None:
@@ -575,7 +550,7 @@ def _tracer_un_perdu(session, r: "Releve", famille_apres: str, formes_max: int =
         if m is None:
             continue
         print(f"         {etiquette} {m.entry.neq} — ses formes au registre :")
-        for nom, table in _formes_publiees(session, [m.entry.neq])[:formes_max]:
+        for _, nom, table in formes_publiees(session, [m.entry.neq])[:formes_max]:
             marque = "  ( )" if "(" in nom else ""
             print(f"            {nom[:46]!r:<50} {table}{marque}")
 
