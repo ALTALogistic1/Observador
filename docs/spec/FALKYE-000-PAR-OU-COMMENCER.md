@@ -73,16 +73,17 @@ décision explicite, et ne pas la croire absente du corpus.*
 |---|---|
 | Qu'est-ce qu'on bâtit, et pourquoi ce choix plutôt qu'un autre? | `charte-falkye.md` — **tranche en cas de contradiction** |
 | Que fait le produit aujourd'hui, concrètement? | `falkye-specifications-produit.md` |
+| Pourquoi 8 931 entreprises n'ont-elles pas d'identité? | `falkye-chantier-3-4-identite-appariement.md` — **le chantier en cours**, avec la campagne de mesure du 14 au 17 septembre |
 | Sur quoi travailler, dans quel ordre, et pourquoi cet ordre? | `falkye-audit-et-mandat.md` — **contient les 29 chantiers** |
 | Que veut dire ce mot? | Le **glossaire**, en tête de l'audit — cinq mots portent deux sens |
 | Qu'est-ce qui n'est pas tranché, et qui doit le trancher? | Le **registre des décisions ouvertes**, en tête de l'audit |
 | Comment sait-on qu'un travail est vraiment fini? | `falkye-guide-ingenierie.md` |
-| Cette erreur, est-ce qu'on l'a déjà faite? | `falkye-journal-des-cas.md` — 28 incidents réels |
+| Cette erreur, est-ce qu'on l'a déjà faite? | `falkye-journal-des-cas.md` — 42 incidents réels |
 | Peut-on utiliser cette source légalement? | `falkye-cadre-legal.md` — **avant d'activer, jamais après** |
 | À qui vend-on, et contre qui? | `strategie-et-personas.md` |
 | Ce territoire est-il servi? | **Le Québec seulement.** Tout ce qui est hors Québec est en veilleuse — *stratégie §3, décision du 4 septembre 2026*. Une source hors Québec n'est retenue que si elle améliore les résultats **au Québec** |
 | Quelles sources existent, lesquelles ajouter? | `falkye-sources-spheres-verifiees.md` et `falkye-recommandations-sources.md` |
-| Comment faire *ce* chantier précis? | `falkye-chantier-<n>-<nom>.md` — six existent |
+| Comment faire *ce* chantier précis? | `falkye-chantier-<n>-<nom>.md` — sept existent : 1, 2, **3+4**, 21, 22, 28, 29 |
 | Où en étaient les travaux? | Le document de reprise du moment — **il ne se met pas à jour : il s'écrit à neuf à chaque passation, puis se jette.** Le reste du corpus, lui, se maintient |
 
 **Règle d'arbitrage : charte, puis audit, puis mandat.** Une fiche de l'audit est le mandat par défaut;
