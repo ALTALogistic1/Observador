@@ -2131,3 +2131,141 @@ n'est pas le mur.**
 > ⚠️ **Le mur n'est pas que le bon candidat soit absent. C'est qu'il est là et qu'il ne passe pas.**
 
 *Ce ne sont pas des appariements sans rapport — ce sont des appariements qui manquent de peu.*
+
+---
+
+## N93 — Un préalable a évité une mesure qui aurait rendu zéro, et ce zéro aurait accusé la chose au lieu du champ
+
+*(2026-09-17.)*
+
+```
+dossiers SANS NEQ     : 8 931
+dont avec une adresse : 0  (0.0 %)      ⛔
+```
+
+**Zéro des dossiers à apparier ne porte d'adresse.** *La mesure d'appariement par
+adresse qu'on s'apprêtait à demander aurait rendu zéro* — et **ce zéro se serait
+lu comme « l'adresse ne sert à rien »**, alors qu'il n'aurait rien dit de
+l'adresse, seulement du champ.
+
+⚠️ **C'est la série d'hypothèses du 14 au 16 septembre, évitée pour la première
+fois avant d'être tombée** : le second terme de la comparaison n'existait pas.
+
+> **Un préalable n'est pas une étape de plus. C'est ce qui empêche un chiffre
+> d'être vrai et de désigner la mauvaise cause.**
+
+---
+
+## N94 — Deux niveaux de précision ne sont pas deux graphies : aucune normalisation ne les rejoint
+
+*(2026-09-17, Alexandre.)*
+
+```
+produit  : 'St-Isidore, QC J0L  2A'
+registre : '200 rue des Commandeurs'   ville='Lévis'
+```
+
+**L'EIMT donne une municipalité, une province, un code postal. Le REQ donne un
+numéro civique et une rue.**
+
+⚠️ *Ce n'est pas un problème de normalisation, et aucune quantité de
+normalisation ne le réglera.* **On ne fait pas descendre une municipalité au
+numéro civique.** *Le mur de la forme est distinct du mur du remplissage, et il
+survit à un remplissage parfait.*
+
+**Ce qui se recouvre, c'est la VILLE** — et peut-être le code postal. *La mesure
+se pose donc sur l'intersection, pas sur le champ.*
+
+---
+
+## N95 — Une colonne qui rend le même chiffre que sa voisine n'ajoute rien : elle la répète
+
+*(2026-09-17, relevé par Alexandre.)*
+
+Le chiffrage de l'écart rendait le gain **et** une colonne « 2e NEQ à moins de ».
+*À chaque ligne, les deux étaient égaux* — **138 et 138, 2 097 et 2 097**.
+
+**C'était une identité, pas une mesure** : tout dossier récupéré par un écart
+abaissé avait, par construction, un second à moins de 8 points.
+
+⚠️ **Le contenu utile restait vrai** — *tout ce qu'un abaissement de l'écart
+récupère, il le récupère en tranchant entre deux entités* — **mais il était
+énoncé par une colonne qui ne pouvait pas dire autre chose.**
+
+> **Une colonne doit pouvoir CONTREDIRE celle d'à côté. Si elle ne le peut pas,
+> elle n'est pas une seconde mesure, c'est la première réécrite.**
+
+---
+
+## N96 — Trois lectures d'une perte, pas deux : ma propre règle de lecture accusait l'instrument pour un mécanisme
+
+*(2026-09-17, relevé par Alexandre.)*
+
+*« 9 perdus sur 13 ne portent aucune parenthèse, alors que ta propre règle de
+lecture dit que ce cas signale l'instrument. »*
+
+**La règle que j'avais écrite n'avait que deux branches**, et la seconde était
+fausse :
+
+| | ce qui change | verdict |
+|---|---|---|
+| **parenthèse au nom DÉTECTÉ** | le préfixe, donc les lignes récupérées | mécanisme |
+| **parenthèse chez un CANDIDAT** | le score du candidat, qui perd un discriminant | ⚠️ **mécanisme aussi** |
+| **aucune parenthèse NULLE PART** | rien ne peut avoir changé | **instrument** |
+
+*Mesuré sur un cas construit* : détecté `Solutions BCITI inc` → `100` contre
+`85.5`, **RETENU**. Parenthèse retirée côté registre, `Solutions BCITI (Groupe
+Nordet) inc` devient identique au premier → `100` contre `100`, **AMBIGU**.
+**Une perte réelle, et le registre a perdu ce qui séparait deux entreprises.**
+
+⚠️ **Le compteur qui accuse l'instrument ne compte plus que la troisième
+branche**, et il la mesure sur le VRAI pool de récupération — *pas sur les cinq
+candidats rendus, parce que le score d'un NEQ vient du meilleur de ses noms.*
+
+---
+
+## N97 — Un signal trop faible pour IDENTIFIER peut être assez fort pour EXCLURE
+
+*(2026-09-17, raisonnement d'Alexandre.)*
+
+**« Lévis » ne désigne aucune entreprise.** *Apparier depuis rien avec une ville
+est impossible, et c'est pour ça que l'adresse paraissait sans usage.*
+
+**Mais départager deux candidats DÉJÀ TROUVÉS est une autre opération** : si l'un
+est à St-Isidore et l'autre à Laval, la question est réglée — **sans toucher à
+aucune échelle**.
+
+> **Les 3 244 ambigus ne manquent pas de TOLÉRANCE. Il leur manque un signal qui
+> ne dépend pas du nom.**
+
+⚠️ *Et un départage ÉCARTE un candidat; il n'en CONFIRME aucun.* **Une ville qui
+concorde ne prouve pas l'identité** — deux entreprises distinctes peuvent partager
+une ville, et c'est le cas courant à Montréal.
+
+**La question qui décide si le correctif vaut la peine** : le candidat retenu par
+la ville est-il celui qui avait **déjà** le meilleur score? *S'il l'est presque
+toujours, la ville confirme sans apporter. Si c'est souvent l'autre, le score se
+trompait de gagnant* — **et c'est un fait beaucoup plus lourd**.
+
+⚠️ **Trois issues, pas deux.** *Quand plusieurs concurrents partagent le meilleur
+score, la question n'a pas de réponse* — et les compter comme « confirmé » ferait
+paraître la ville inutile là où **elle est la seule à avoir une opinion**.
+
+---
+
+## N98 — Mesurer l'apport d'un signal que le moteur consomme déjà le compterait deux fois
+
+*(2026-09-17.)*
+
+`resolve_neq_by_name` **ajoute déjà +5 quand `Company.ville` concorde**. *Là où la
+ville est promue, le signal est en partie consommé — et l'ambiguïté a SURVÉCU au
+bonus.*
+
+⚠️ **Le gisement est donc là où la ville N'EST PAS promue** : présente dans
+`Signal.champs`, jamais vue par le moteur. **Un plafond qui mélangerait les deux
+provenances annoncerait comme gain ce qui est déjà appliqué.**
+
+*Et le champ n'est pas promu pour rien* : `falkye/sources/eimt.py` capture
+l'adresse dans `champs` sans jamais la passer à `RawSignal.adresse`. **Le champ
+existe, la donnée existe, le pont entre les deux n'existe pas** — et **le
+correctif attend ce chiffre, il ne le précède pas.**

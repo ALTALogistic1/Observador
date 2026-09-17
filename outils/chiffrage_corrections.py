@@ -136,6 +136,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limite", type=int, default=None, help="borner (mise au point)")
     parser.add_argument("--sans-simulation-parentheses", action="store_true",
                         help="sauter la seconde passe (coûteuse)")
+    parser.add_argument("--perdus-traces", type=int, default=5,
+                        help="combien de dossiers perdus tracer en détail")
     args = parser.parse_args(argv)
 
     from sqlalchemy import select
@@ -460,29 +462,122 @@ def main(argv: list[str] | None = None) -> int:
               f"{milliers(len(perdus) - perdus_avec):>10}")
         print(f"\n   dossiers dont le PRÉFIXE change : {milliers(prefixe_change)}")
         print("""
-   ⚠️ COMMENT SE LIT CETTE VENTILATION
+   ⚠️ COMMENT SE LIT CETTE VENTILATION — TROIS LECTURES, PAS DEUX
 
-      Un dossier SANS parenthèse dans le nom détecté reçoit exactement la même
-      chaîne aux deux passes : même préfixe, mêmes lignes récupérées. S'il
-      change de famille, la cause est le retrait CÔTÉ REGISTRE, et rien d'autre.
+      ⚠️ *Corrigé le 2026-09-17 : la version précédente n'en donnait que deux,
+      et faisait conclure « l'instrument est en cause » sur un cas qui est un
+      MÉCANISME. Alexandre l'a relevé — 9 perdus sur 13 sans parenthèse.*
 
-      Un dossier AVEC parenthèse peut changer pour l'une ou l'autre raison, et
-      la ligne « préfixe change » dit combien ont vu leur récupération se
-      déplacer.
+      1. AVEC parenthèse au nom détecté — la chaîne envoyée change, donc le
+         PRÉFIXE, donc les lignes récupérées. *La correction DÉPLACE la
+         récupération.* Mécanisme.
 
-      *Si les perdus se concentrent chez ceux qui portent une parenthèse, la
-      perte est un MÉCANISME et non un défaut : la correction déplace la
-      récupération. Si elle se concentre chez ceux qui n'en portent pas,
-      l'instrument est en cause et le chiffre ne vaut rien.*
+      2. SANS parenthèse au nom détecté — la même chaîne est envoyée aux deux
+         passes, mêmes lignes récupérées. Mais un CANDIDAT peut, lui, porter
+         une parenthèse : la lui retirer change son score, et peut lui faire
+         perdre un discriminant qui le détachait du second. **Mécanisme aussi,
+         côté registre** — pas un défaut d'instrument.
+
+      3. AUCUNE parenthèse NULLE PART — ni au nom détecté, ni chez aucun
+         candidat. **Là seulement l'instrument est en cause**, parce que rien
+         dans les données n'a pu changer. C'est la ligne « ⛔ » ci-dessous, et
+         elle DOIT valoir zéro.
 """)
+        # ⚠️ La seule ligne qui accuse l'instrument. *Les deux autres lectures
+        # décrivent des mécanismes; celle-ci décrit une impossibilité.*
+        sans_aucune = [
+            r for r in perdus
+            if not r.parenthese and not _un_candidat_a_une_parenthese(session, r)
+        ]
+        marque = "⛔" if sans_aucune else "✓ "
+        print(f"   {marque} perdus SANS aucune parenthèse, ni au nom ni chez leurs "
+              f"candidats : {milliers(len(sans_aucune))}")
+        if sans_aucune:
+            print("      ⚠️ Rien dans les données n'a pu changer pour ceux-là. "
+                  "L'instrument est en cause.")
+
         if perdus:
-            print("   quelques perdus, pour les regarder :\n")
-            for r in perdus[:5]:
-                print(f"      [{'( )' if r.parenthese else '   '}] {r.nom[:52]:<52}"
-                      f"  {r.top:>6.2f} → {apres[r.id]}")
+            print("\n   LES PERDUS, TRACÉS — quel second apparaît après le retrait,")
+            print("   et d'où il vient :\n")
+            for r in perdus[:args.perdus_traces]:
+                _tracer_un_perdu(session, r, apres[r.id])
         return 0
     finally:
         session.close()
+
+
+def _formes_publiees(session, neqs: list[str]) -> list[tuple[str, str]]:
+    """Les noms PUBLIÉS d'un lot de NEQ, avec la table d'où chacun vient.
+
+    *Aucun score n'est calculé ici.* **On montre les formes, on ne rejoue pas le
+    scoreur** — c'est précisément la recopie qui a produit les -338. Voir ce que
+    le registre écrit suffit à répondre à « d'où vient ce candidat ».
+    """
+    from sqlalchemy import select
+
+    from falkye.models.req_entry import REQEntry
+    from falkye.models.req_nom import REQNom
+
+    if not neqs:
+        return []
+    formes: list[tuple[str, str]] = []
+    for nom in session.execute(
+        select(REQEntry.nom).where(REQEntry.neq.in_(neqs))
+    ).scalars():
+        formes.append((nom or "", "req_entries (dénomination élue)"))
+    for nom in session.execute(
+        select(REQNom.nom).where(REQNom.neq.in_(neqs))
+    ).scalars():
+        formes.append((nom or "", "req_noms (autre nom)"))
+    return formes
+
+
+def _un_candidat_a_une_parenthese(session, r: "Releve") -> bool:
+    """Une parenthèse existe-t-elle QUELQUE PART dans ce que la récupération rend?
+
+    ⚠️ **Sur le VRAI pool, pas sur les cinq candidats rendus.** *Le score d'un
+    NEQ vient du meilleur de ses noms; regarder seulement les cinq retenus
+    laisserait passer la forme qui a effectivement bougé.* On emprunte donc
+    `candidats_par_nom`, la récupération du moteur.
+    """
+    from falkye.sources.column_mapping import normaliser
+    from falkye.sources.req import candidats_par_nom
+
+    nom_norm = normaliser(r.nom or "")
+    if not nom_norm:
+        return False
+    neqs = [c.neq for c in candidats_par_nom(session, nom_norm)]
+    return any("(" in nom for nom, _ in _formes_publiees(session, neqs))
+
+
+def _tracer_un_perdu(session, r: "Releve", famille_apres: str, formes_max: int = 6) -> None:
+    """Un dossier perdu, de bout en bout : **quel second apparaît après le
+    retrait, et d'où il vient.** *La question d'Alexandre, du 2026-09-17.*"""
+    from falkye.sources import req as req_source
+
+    print(f"      {'─' * 68}")
+    print(f"      {r.nom[:66]}")
+    print(f"      parenthèse au nom détecté : "
+          f"{'OUI' if r.parenthese else 'NON — la même chaîne est envoyée aux deux passes'}")
+    print(f"      AVANT : RETENU   top={r.top:>6.2f} ({r.neq_top})   "
+          f"2e={r.second:>6.2f} ({r.neq_second})")
+    apres = req_source.resolve_neq_by_name(
+        session, _sans_parentheses(r.nom), transformer_forme=_sans_parentheses
+    )
+    if not apres:
+        print(f"      APRÈS : {famille_apres} — aucun candidat")
+        return
+    second = apres[1] if len(apres) > 1 else None
+    print(f"      APRÈS : {famille_apres:<14} top={apres[0].score:>6.2f} "
+          f"({apres[0].entry.neq})   "
+          + (f"2e={second.score:>6.2f} ({second.entry.neq})" if second else "2e= —"))
+    for etiquette, m in (("top", apres[0]), ("2e", second)):
+        if m is None:
+            continue
+        print(f"         {etiquette} {m.entry.neq} — ses formes au registre :")
+        for nom, table in _formes_publiees(session, [m.entry.neq])[:formes_max]:
+            marque = "  ( )" if "(" in nom else ""
+            print(f"            {nom[:46]!r:<50} {table}{marque}")
 
 
 @dataclass
