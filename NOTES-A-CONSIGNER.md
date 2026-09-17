@@ -2612,3 +2612,68 @@ La mesure A a rendu deux chiffres qui n'étaient pas demandés et qui l'ont vali
 ⚠️ **Aucun des deux n'était le but de la mesure.** *Ils disent que l'instrument a lu la tranche alphabétique et pas autre chose* — et c'est précisément ce qu'un chiffre cohérent et faux ne peut pas offrir.
 
 > **Une mesure qui ne rend qu'un chiffre ne peut pas être vérifiée; une mesure qui en rend deux liés se vérifie elle-même.** *Quatre instruments de ce chantier ont produit des chiffres cohérents et faux — le recoupement interne est le seul garde qui les aurait attrapés sans une seconde mesure.*
+
+---
+
+## N114 — La clé de récupération était un MOT VIDE, et c'est une apostrophe devenue une espace
+
+*(2026-09-17, après la mesure C.)*
+
+`normaliser` remplace la ponctuation par des espaces. **Donc le « premier mot » d'un nom n'est pas son premier mot :**
+
+| nom publié | forme normalisée | préfixe de récupération |
+|---|---|---|
+| `L'INDUSTRIE MONDIALE DU NORD INC.` | `l industrie mondiale du nord inc` | **`l`** |
+| `S.E.N.C. Beaulieu et Fils` | `s e n c beaulieu et fils` | **`s`** |
+
+**La récupération s'ancre sur le mot qui ne dit rien**, et `industrie`, `mondiale`, `nord`, `beaulieu`
+sont dans la chaîne sans jamais servir. ⚠️ **Les trois préfixes que le plafond de C a dû refuser — `l`
+(309 788 lignes), `s` (221 412), `le` (205 071) — sont exactement ceux-là.**
+
+> **Le gisement n'est pas gros parce que le nom est courant. Il est gros parce que la clé est vide.**
+
+*C'est aussi ce qui range les quatre directions* : celle qui utilise les AUTRES mots règle ces cas par
+construction; celle qui réduit le volume les laisse. **Régler `ferme` et pas `le`, c'est régler la
+moitié du problème, littéralement.**
+
+---
+
+## N115 — Le coût dominant d'une résolution est le SCORAGE, pas la requête — donc un meilleur lot coûte MOINS
+
+*(2026-09-17.)*
+
+Par résolution : deux `GLOB` indexés bornés, deux replis possibles, une jointure — **puis
+`process.extractOne` sur ~2 000 groupes avec toutes leurs formes.** *Le temps est là.*
+
+⚠️ **Conséquence, et elle renverse l'intuition** : lever la borne sur `l` ne multiplie pas une requête,
+**il multiplie par 155 le nombre de formes à scorer.** Et inversement, **une récupération qui présente
+300 formes pertinentes au lieu de 2 000 arbitraires est MOINS chère qu'aujourd'hui, pas plus.**
+
+> **« Plus de portée » et « plus cher » ne sont pas la même phrase.** *On les avait confondues depuis le
+> début : la borne était traitée comme une protection de coût, alors qu'elle protège d'un coût qu'un
+> meilleur index supprimerait.*
+
+---
+
+## N116 — Une structure qui rend la non-régression IMPOSSIBLE vaut mieux qu'une qui la mesure
+
+*(2026-09-17, en départageant quatre directions.)*
+
+Trois des quatre directions envisagées changent le lot présenté au scoreur — donc exposent les **805**
+dossiers déjà retenus, *et demandent une non-régression mesurée.*
+
+**La quatrième — récupérer en deux temps, n'élargir que si le premier temps a échoué — ne les expose
+pas** : le second temps ne s'exécute jamais là où le premier a réussi.
+
+> ⚠️ **Ce n'est pas une garantie plus forte, c'est une garantie d'une autre nature.** *Une non-régression
+> mesurée vaut le jour où on l'a mesurée; une non-régression structurelle vaut tant que la structure
+> tient.*
+
+**Et le prix de cette garantie est ailleurs, il faut le dire** : la résolution tourne **par signal**, et
+une résolution réussie n'écrit jamais dans le dossier qui a échoué. *Donc « seuls les échecs paient »
+veut dire « les mêmes échecs paient, à chaque cycle, indéfiniment ».* **Le journal des tentatives —
+`(forme, édition du miroir, verdict)` — borne ce coût, et sa clé le fait s'invalider tout seul au
+réimport.**
+
+⚠️ *Préalable non satisfait* : **« l'édition du miroir » n'existe pas** — aucune marque de niveau
+instantané dans les modèles du miroir, seulement des dates par ligne.
