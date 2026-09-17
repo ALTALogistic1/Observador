@@ -75,6 +75,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--chemin", required=True, help="l'archive, ou le répertoire")
     parser.add_argument("--exemples", type=int, default=15)
+    parser.add_argument("--tous-les-statuts", action="store_true",
+                        help="mesurer AUSSI les noms PLUS EN VIGUEUR (STAT_NOM ≠ V)")
     args = parser.parse_args(argv)
 
     try:
@@ -132,8 +134,17 @@ def main(argv: list[str] | None = None) -> int:
         interessantes = set(non_resolues) | set(resolues)
 
         # --- une seule passe sur Nom.csv -----------------------------------
-        neqs_par_forme: dict[str, set[str]] = {}
+        # ⚠️ **DEUX INDEX, PAS UN** *(ajouté le 2026-09-17)*. Le pont `req_noms`
+        # ne porte que les noms EN VIGUEUR — même fichier, même filtre, même
+        # normalisation que cet outil. *Donc tout gain mesuré sur les noms en
+        # vigueur est DÉJÀ EN BASE, et ne représente aucune récupération
+        # disponible.* **Ce qui reste de `Nom.csv`, ce sont les noms PLUS EN
+        # VIGUEUR**, et il faut les compter à part pour que le gain du
+        # traitement de l'archive soit lisible.
+        neqs_en_vigueur: dict[str, set[str]] = {}
+        neqs_anciens: dict[str, set[str]] = {}
         lignes_en_vigueur = 0
+        lignes_anciennes = 0
         formes_vides = 0
         lues = 0
         with zipfile.ZipFile(archive) as zf:
@@ -145,15 +156,28 @@ def main(argv: list[str] | None = None) -> int:
                     neq = (rangee.get("NEQ") or "").strip()
                     if not nom or not neq:
                         continue
-                    if (rangee.get("STAT_NOM") or "").strip().upper() != "V":
+                    en_vigueur = (rangee.get("STAT_NOM") or "").strip().upper() == "V"
+                    if not en_vigueur and not args.tous_les_statuts:
                         continue
                     forme = normaliser(nom)
                     if not forme:
                         formes_vides += 1
                         continue
-                    lignes_en_vigueur += 1
+                    if en_vigueur:
+                        lignes_en_vigueur += 1
+                        cible = neqs_en_vigueur
+                    else:
+                        lignes_anciennes += 1
+                        cible = neqs_anciens
                     if forme in interessantes:
-                        neqs_par_forme.setdefault(forme, set()).add(neq)
+                        cible.setdefault(forme, set()).add(neq)
+
+        # Le total, pour les sections qui raisonnent sur « tous les noms lisibles ».
+        neqs_par_forme: dict[str, set[str]] = {
+            forme: set(neqs) for forme, neqs in neqs_en_vigueur.items()
+        }
+        for forme, neqs in neqs_anciens.items():
+            neqs_par_forme.setdefault(forme, set()).update(neqs)
 
         # --- 1. le volume ---------------------------------------------------
         print("\n" + "=" * 78)
@@ -163,6 +187,9 @@ def main(argv: list[str] | None = None) -> int:
         basse, haute = estimer_duree(lignes_en_vigueur)
         print(f"\n   lignes de Nom.csv lues        : {milliers(lues)}")
         print(f"   noms EN VIGUEUR à indexer     : {milliers(lignes_en_vigueur)}")
+        if args.tous_les_statuts:
+            print(f"   noms PLUS EN VIGUEUR          : {milliers(lignes_anciennes)}"
+                  f"   ← jamais indexés à ce jour")
         print(f"   écartés (normalisés vides)    : {milliers(formes_vides)}")
         print(f"\n   taille estimée de req_noms    : ~{octets / 1024 / 1024:.0f} Mo"
               f"   ({OCTETS_PAR_LIGNE} o/ligne, ordre de grandeur)")
@@ -172,12 +199,33 @@ def main(argv: list[str] | None = None) -> int:
         print("   ⚠️ La mémoire ne bouge PAS : la passe relit Nom.csv en flux et")
         print("      écrit par lots, elle n'ajoute rien au pic de 3 535 Mo.")
 
+        # --- 1bis. CE QUI EST DÉJÀ EN BASE, ET CE QUI NE L'EST PAS ----------
+        print("\n" + "=" * 78)
+        print("1bis. ⚠️ CE QUI EST DÉJÀ EN BASE — à lire avant le gain")
+        print("=" * 78)
+        print(f"""
+   `req_noms` est chargé depuis CE MÊME FICHIER, avec LE MÊME filtre
+   (STAT_NOM = 'V'), LE MÊME nom de colonne et LA MÊME normalisation
+   (`falkye/sources/req.py::_charger_tous_les_noms`).
+
+   ⚠️ DONC TOUT GAIN MESURÉ SUR LES NOMS EN VIGUEUR EST DÉJÀ EN BASE, et ne
+   représente AUCUNE récupération disponible. Le seul écart entre les deux
+   comptes est la déduplication des paires (NEQ, nom normalisé) — deux types
+   de nom portant la même graphie.
+
+   Ce qui reste vraiment de `Nom.csv`, c'est {milliers(lignes_anciennes) if args.tous_les_statuts
+       else 'les noms PLUS EN VIGUEUR'} ligne(s) de noms
+   PLUS EN VIGUEUR{'' if args.tous_les_statuts else ' — relancer avec --tous-les-statuts pour les compter'}.
+""")
+
         # --- 2. le gain -----------------------------------------------------
         print("\n" + "=" * 78)
         print("2. LE GAIN — non résolues qui trouveraient un NEQ")
         print("=" * 78)
         gain: Counter = Counter()
         exemples_gain: list = []
+        neuf: Counter = Counter()
+        exemples_neuf: list = []
         for forme, companies in non_resolues.items():
             neqs = neqs_par_forme.get(forme) or set()
             if not neqs:
@@ -187,11 +235,49 @@ def main(argv: list[str] | None = None) -> int:
                 if len(exemples_gain) < args.exemples:
                     exemples_gain.append((companies[0], next(iter(neqs))))
             else:
-                gain[f"PLUSIEURS NEQ — ambigu, le moteur refusera"] += len(companies)
+                gain["PLUSIEURS NEQ — ambigu, le moteur refusera"] += len(companies)
+
+            # ⚠️ **LE SEUL CHIFFRE QUI COMPTE POUR DÉCIDER** : ce que le
+            # traitement de l'archive rattacherait EN PLUS du pont d'aujourd'hui.
+            en_vigueur = neqs_en_vigueur.get(forme) or set()
+            anciens = neqs_anciens.get(forme) or set()
+            if en_vigueur:
+                neuf["déjà atteignable par un nom EN VIGUEUR — dans le pont"] += len(companies)
+            elif len(anciens) == 1:
+                neuf["⇒ NEUF : atteignable SEULEMENT par un nom PLUS EN VIGUEUR"] += len(companies)
+                if len(exemples_neuf) < args.exemples:
+                    exemples_neuf.append((companies[0], next(iter(anciens))))
+            elif anciens:
+                neuf["plusieurs NEQ anciens — ambigu par construction"] += len(companies)
+            else:
+                neuf["aucun nom, ni en vigueur ni ancien"] += len(companies)
         print()
         for classe, n in gain.most_common():
             marque = "   ←" if classe.startswith("UN SEUL") else ""
             print(f"   {n:>7}  {classe}{marque}")
+        if args.tous_les_statuts:
+            print("\n" + "-" * 78)
+            print("2bis. ⚠️ LE CHIFFRE QUI DÉCIDE — le gain NEUF du traitement")
+            print("-" * 78)
+            print("\n   « Neuf » veut dire : que le pont d'aujourd'hui N'ATTEINT PAS.\n")
+            for classe, n in neuf.most_common():
+                marque = "   ←" if classe.startswith("⇒") else ""
+                print(f"   {milliers(n):>9}  {classe}{marque}")
+            gain_neuf = neuf.get(
+                "⇒ NEUF : atteignable SEULEMENT par un nom PLUS EN VIGUEUR", 0)
+            print(f"""
+   ⇒ GAIN NEUF DU TRAITEMENT DE L'ARCHIVE : {milliers(gain_neuf)} dossier(s)
+
+   ⚠️ C'est un PLAFOND, comme tout appariement exact : le moteur applique
+      encore son seuil de 92, son écart de 8 et sa borne de récupération.
+   ⚠️ Et un nom PLUS EN VIGUEUR peut appartenir à une AUTRE entreprise
+      aujourd'hui — c'est une forme de faux que le pont actuel n'a pas.
+""")
+            if exemples_neuf:
+                print("   quelques gains neufs :")
+                for company, neq in exemples_neuf[:args.exemples]:
+                    print(f"      {(company.nom_detecte or '')[:52]:<54} → {neq}")
+
         francs = gain.get("UN SEUL NEQ — résolution franche", 0)
         print(f"\n   → {francs} entreprise(s) se résoudraient franchement.")
         print("   ⚠️ « Franchement » veut dire : un seul NEQ pour ce nom. Le moteur")
