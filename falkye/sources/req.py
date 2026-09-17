@@ -1220,8 +1220,24 @@ def get_by_neq(db_session: Session, neq: str) -> REQEntry | None:
 #: mesurera sur le rendement par chemin, jamais ici.
 PART_RESERVEE_AUX_AUTRES_NOMS = 4
 
+#: La borne du lot soumis au score. **Nommée pour qu'un outil qui la mesure ne
+#: la recopie pas** : un outil qui écrirait `2000` en dur continuerait à annoncer
+#: « saturé » sur une borne qui aurait changé, ou le contraire.
+#:
+#: ⚠️ **Ce n'est pas un classement par pertinence.** L'`ORDER BY` posé le
+#: 2026-09-16 rend le tirage REPRODUCTIBLE, pas MEILLEUR : sur 50 000
+#: « gestion… », les 2 000 retenus restent une tranche alphabétique. *Savoir
+#: combien de fois cette tranche est une COUPE est une mesure à part —
+#: `outils/saturation_de_la_borne.py`.*
+LIMITE_CANDIDATS_PAR_NOM = 2000
 
-def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) -> list[REQEntry]:
+
+def candidats_par_nom(
+    db_session: Session,
+    nom_norm: str,
+    limite: int = LIMITE_CANDIDATS_PAR_NOM,
+    journal: dict | None = None,
+) -> list[REQEntry]:
     """Les entrées du miroir soumises au score flou — **extraite pour être empruntée**.
 
     `resolve_neq_by_name` rend un classement; il ne dit pas si la liste est vide
@@ -1236,7 +1252,17 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
     mot, puis repli sur les six premiers caractères. *Une différence en tête — un
     article, un préfixe juridique, une enseigne au lieu de la raison sociale —
     n'abaisse pas le score : elle empêche le candidat d'être récupéré du tout.*
+
+    `journal`, s'il est fourni, est REMPLI avec ce que la récupération a fait :
+    combien de lignes chaque requête a rendues, si un repli a servi, si le pont a
+    rogné la liste principale. **Il vaut `None` en production et ne change rien
+    au résultat** — il existe pour qu'un outil mesure la VRAIE récupération au
+    lieu d'en recopier une à côté *(même règle que `requete_nom_exact`,
+    `neq_retenu` et `famille_de`)*.
     """
+    if journal is not None:
+        journal["limite"] = limite
+        journal["prefixe"] = nom_norm.split(" ")[0] if nom_norm else ""
     prefix = nom_norm.split(" ")[0]
     # ⚠️ **`ORDER BY` OBLIGATOIRE AVEC `LIMIT`** *(2026-09-16, relevé par
     # Alexandre)*. Un `LIMIT` sans ordre ne rend pas « les 2 000 meilleurs » : il
@@ -1275,6 +1301,9 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
         .scalars()
         .all()
     )
+    if journal is not None:
+        journal["glob_principal"] = len(candidates)
+        journal["repli_principal"] = not candidates
     if not candidates:
         # repli : recherche par sous-chaîne si le préfixe est trop restrictif
         candidates = (
@@ -1308,6 +1337,9 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
         .scalars()
         .all()
     )
+    if journal is not None:
+        journal["pont_glob"] = len(autres)
+        journal["repli_pont"] = not autres
     if not autres:
         autres = (
             db_session.execute(
@@ -1319,7 +1351,13 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
             .scalars()
             .all()
         )
+    if journal is not None:
+        journal["principal_retenu"] = len(candidates)
+        journal["pont_brut"] = len(autres)
     manquants = [n for n in dict.fromkeys(autres) if n not in neqs_deja]
+    if journal is not None:
+        journal["pont_manquants"] = len(manquants)
+        journal["rognage"] = 0
     if manquants:
         # ⚠️ UNE PART RÉSERVÉE, et non « ce qui reste ». **Corrigé le 2026-09-16,
         # après un réimport qui n'a rien changé du tout.**
@@ -1347,6 +1385,8 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
         reserve = min(len(manquants), max(1, limite // PART_RESERVEE_AUX_AUTRES_NOMS))
         place = limite - reserve
         if len(candidates) > place:
+            if journal is not None:
+                journal["rognage"] = len(candidates) - place
             candidates = list(candidates)[:place]
         a_chercher = manquants[: limite - len(candidates)]
         if a_chercher:
@@ -1358,6 +1398,9 @@ def candidats_par_nom(db_session: Session, nom_norm: str, limite: int = 2000) ->
                 .all()
             )
 
+    if journal is not None:
+        journal["total"] = len(candidates)
+        journal["sature"] = len(candidates) >= limite
     return candidates
 
 
