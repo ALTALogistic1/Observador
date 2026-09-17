@@ -173,7 +173,19 @@ Elle rend les trois chiffres qui départagent la direction 1 :
 
 ⚠️ **Et elle coûte ce que coûterait la construction de l'index, sans l'écrire** : *une passe de découpage sur les 4,24 M de formes.* **Donc elle mesure aussi le coût d'import de la direction 1, en le payant une fois.**
 
-**Mesure E — le coût en ambiguïté, sur l'outil qui existe déjà.** `outils/impact_tous_les_noms.py`, écrit le 16 septembre pour la réserve d'Alexandre sur le pont, **n'a jamais été lancé.** *Il mesure exactement le seul risque des directions 1 et 3 : combien d'entreprises DÉJÀ RÉSOLUES verraient apparaître un concurrent.* **Un correctif qui gagne 114 et en perd 300 n'est pas un correctif.**
+**Mesure E — le coût en ambiguïté de l'ÉLARGISSEMENT.** *Combien de dossiers aujourd'hui RETENUS deviendraient ambigus si le lot présenté au scoreur changeait.* **Un correctif qui gagne 114 et en perd 300 n'est pas un correctif.**
+
+> ⚠️ **CORRIGÉ LE 2026-09-17, après relevé d'Alexandre.** *La première version de ce document désignait `outils/impact_tous_les_noms.py` comme étant la mesure E.* **C'est faux, et l'erreur est du genre qu'elle-même dénonce** : cet outil mesure ce que **garder tous les noms À L'IMPORT** change — il compare `Nom.csv` sur disque aux dossiers du produit et **ne consulte jamais `req_noms`**. *Sa section « coût » porte sur l'ajout de noms au pont, pas sur un changement de clé de récupération.*
+>
+> **« Garder tous les noms à l'import » et « changer la clé de récupération » sont deux corrections distinctes, sur deux mécanismes distincts, avec deux coûts distincts.** *Chiffrer l'une en croyant chiffrer l'autre ferait décider sur le mauvais chiffre.*
+
+**E n'existe donc pas, et elle ne peut pas exister avant la direction** : *son lot de comparaison est celui que la direction retenue présenterait.* **Ce qui EST mesurable tout de suite, et qui la borne par le haut :**
+
+**E₀ — la fragilité des 805.** *Combien des 805 retenus ont un second candidat à moins de `8 + δ` points*, pour δ allant de 0 à 10. **Un dossier dont le second est à 9 points bascule dès qu'un candidat un peu meilleur entre dans le lot; un dossier dont le second est à 40 ne bascule pour aucune direction.** *C'est un plafond du risque, indépendant de la direction, et il se mesure aujourd'hui.*
+
+**Mesure F — ce que l'outil de l'import a réellement rendu, et la contradiction qu'il ouvre.** `outils/impact_tous_les_noms.py` annonce **6 009 résolutions franches**. ⚠️ *Six mille ne peut pas coexister avec 805 retenus, et le rejeu du 16 septembre a rendu la ventilation chiffre pour chiffre.* **`outils/chaine_du_nom_exact.py` tranche** : il part du MIROIR et suit la chaîne maillon par maillon — *au miroir? un seul NEQ? dans le lot? retenu?* — **et chaque chute nomme son mécanisme.**
+
+> **Si le compte « au miroir, un seul NEQ » est proche de 6 009, les noms sont déjà en base** et le 6 009 est le même mur vu depuis l'import — *il ne passe pas devant l'index par mots.* **S'il est très inférieur, il manque vraiment des noms au miroir, et cette correction-là passe devant tout le reste.**
 
 ---
 
@@ -183,6 +195,6 @@ Elle rend les trois chiffres qui départagent la direction 1 :
 
 **3 se mesure, ne se construit pas** — l'arithmétique la range au second ordre, et sa version « filtre à l'import » est à refuser telle quelle.
 
-⚠️ **Rien de tout cela ne se commence avant D et E.** *La direction 1 a un point aveugle non mesuré, et les directions 1 et 3 ont un coût en ambiguïté non mesuré. Les deux mesures existent ou tiennent en un outil.*
+⚠️ **Rien de tout cela ne se commence avant D, E₀ et F.** *La direction 1 a un point aveugle non mesuré; les directions 1 et 3 ont un coût en ambiguïté non mesuré; et **F passe avant tout**, parce qu'elle peut renverser l'ordre des priorités.* **E pleine et entière attend la direction — son lot de comparaison est celui que la direction présenterait.**
 
 **Et les échelles ne bougent pas** : seuil **92**, écart **8**, borne de production **2 000**.

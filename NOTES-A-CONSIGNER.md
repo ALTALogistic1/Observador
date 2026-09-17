@@ -2677,3 +2677,108 @@ réimport.**
 
 ⚠️ *Préalable non satisfait* : **« l'édition du miroir » n'existe pas** — aucune marque de niveau
 instantané dans les modèles du miroir, seulement des dates par ligne.
+
+---
+
+## N117 — J'ai désigné un outil comme mesurant une chose qu'il ne mesure pas, et l'erreur est exactement celle qu'il dénonce
+
+*(2026-09-17, relevé par Alexandre.)*
+
+**Écrit dans la conception** : *« E, le coût en ambiguïté, sur
+`outils/impact_tous_les_noms.py`, écrit le 16 septembre pour cette réserve exacte
+et jamais lancé. »* **Faux.**
+
+`impact_tous_les_noms` mesure ce que **garder tous les noms À L'IMPORT** change :
+il compare `Nom.csv` **sur disque** aux dossiers du produit, **et ne consulte
+jamais `req_noms`.** *Sa section « coût » porte sur l'ajout de noms au pont, pas
+sur un changement de clé de récupération.*
+
+| | mécanisme | coût propre |
+|---|---|---|
+| **garder tous les noms à l'import** | ce que le miroir CONTIENT | volume, durée d'import, concurrents qui apparaissent |
+| **changer la clé de récupération** | ce que le lot PRÉSENTE | scorage par résolution, non-régression des 805 |
+
+> ⚠️ **Chiffrer l'une en croyant chiffrer l'autre ferait décider sur le mauvais
+> chiffre** *(Alexandre)*. **Et c'est ce que le nom « mesure E » a failli faire
+> faire.**
+
+**La leçon, et elle est sur moi** : *un outil ne mesure pas ce que son sujet
+suggère, il mesure ce que son code lit.* **Vérifier quelle table il interroge
+avant de lui donner un rôle** — `impact_tous_les_noms` n'ouvre jamais le miroir,
+et ça se voit en dix lignes de lecture.
+
+---
+
+## N118 — Deux chiffres qui ne peuvent pas être vrais ensemble désignent une chaîne, pas une erreur
+
+*(2026-09-17, relevé par Alexandre.)*
+
+**6 009 résolutions franches** *(`impact_tous_les_noms`)* contre **805 retenus**
+*(rejeu complet du 16, ventilation identique chiffre pour chiffre)*.
+
+⚠️ **Aucun des deux n'est faux.** *Ils mesurent deux points différents d'une même
+chaîne*, et l'écart entre eux est la somme de ce qui casse entre les deux :
+
+```
+1. le nom est-il AU MIROIR (req_entries ∪ req_noms)?      ← manque à l'import
+2. combien de NEQ DISTINCTS portent cette forme?          ← ambiguïté du nom
+3. le NEQ est-il DANS LE LOT que la récupération rend?     ← LA BORNE
+4. que décide le moteur (seuil 92, écart 8)?               ← les échelles
+```
+
+**La bonne réaction n'était pas de choisir lequel croire, c'était de mesurer où
+la chaîne casse** — et **chaque chute nomme son mécanisme**, donc son correctif.
+
+⚠️ **Et le premier maillon renverse ou non l'ordre des priorités.** *Si les noms
+sont déjà au miroir, le 6 009 est le même mur vu depuis l'import et il ne passe
+pas devant l'index par mots. S'ils manquent vraiment, cette correction passe
+devant tout le reste.* **La question ne se tranche pas par le raisonnement.**
+
+---
+
+## N119 — « Réversible » se vérifie champ par champ, pas geste par geste
+
+*(2026-09-17, trouvé en répondant aux trois questions d'Alexandre avant d'appliquer.)*
+
+L'instantané de la passe de reprise portait `neq` et `statut_resolution`. ⚠️ *Or
+`_enrich_from_req` réécrit **huit autres champs*** — `nom_officiel_req`,
+`statut_legal`, `adresse`, `ville`, `region`, `code_postal` et les deux du
+secteur.
+
+> **Défaire rendait le NEQ et laissait le reste : un dossier ni dans son état
+> d'avant, ni dans celui d'après.** *L'outil affirmait pourtant porter « l'état
+> d'avant de chaque dossier touché ».*
+
+**Trois correctifs, et le troisième est celui qui tient :**
+
+1. l'instantané capture les huit champs;
+2. `--defaire` existe — *« pour défaire, l'instantané porte l'état d'avant »
+   était une phrase, pas une commande*, et c'est le reproche que l'outil
+   adressait lui-même au chemin d'archive du diff;
+3. **un test compare la liste de l'instantané au CODE de l'enrichissement**, par
+   lecture de l'arbre syntaxique. *Un champ ajouté là-bas et oublié ici rendrait
+   le retour arrière partiel, en silence.*
+
+**Et défaire REFUSE de toucher ce qui a bougé depuis** : un dossier dont le NEQ
+n'est plus celui qu'on avait posé n'est plus le nôtre.
+
+---
+
+## N120 — Idempotent sur les dossiers ne veut pas dire idempotent sur le journal
+
+*(2026-09-17.)*
+
+La passe de reprise est idempotente sur les **écritures aux dossiers** : un
+dossier posé sort de la population, puisqu'elle se définit par
+`Company.neq IS NULL`.
+
+⚠️ **Mais un dossier CONSERVÉ y reste** — donc il était **re-journalisé à chaque
+exécution**, et `journaliser_candidat_fusion` n'a aucune garde de doublon.
+
+> **Et c'est précisément la file qu'un humain doit dépiler.** *La polluer de
+> doublons rend le travail plus long à chaque relance* — l'effet est invisible
+> dans la base et visible seulement pour la personne qui trie.
+
+**La question « que se passe-t-il si on l'applique deux fois » a donc DEUX
+réponses**, une par famille d'écriture. *Poser la question une seule fois pour
+tout le geste aurait rendu « idempotent » sans réserve.*
