@@ -2530,3 +2530,46 @@ avait le bonus et l'autre non; cette fois-ci le côté privé était le nouveau.
 
 > **Une comparaison ne compare que ce qui ne change pas à côté.** *La ville
 > n'était pas le sujet, et c'est exactement ce qui la rendait facile à oublier.*
+
+---
+
+## N110 — Un tableau dont les lignes ont plus de colonnes que l'en-tête : la colonne muette était celle qui portait le sens
+
+*(2026-09-17, trouvé en versant le chantier 3+4 au corpus.)*
+
+Le tableau de l'écart arrivait ainsi :
+
+```
+| écart | NEQ > 2 dossiers | 2e NEQ à moins de | gain |     ← 4 colonnes
+| 6     | 1 | 26 | 138 | 138 |                              ← 5 valeurs
+| 8     | 1 | 26 | **0** ← témoin |                          ← 3 valeurs
+```
+
+**L'en-tête avait perdu « dossiers dans ces groupes »**, et la ligne du témoin avait perdu son `0`.
+*La sortie de l'outil en rend cinq; la transcription à la main en a gardé quatre.*
+
+⚠️ **Ce qui rend ce défaut coûteux, c'est qu'il se lit quand même.** Un rendu Markdown coupe
+silencieusement les cellules en trop : le tableau s'affiche, aligné, **avec `26` sous « 2e NEQ à moins
+de » et `138` sous « gain »** — deux chiffres exacts rangés sous les mauvais titres.
+
+> **Une colonne de trop ne casse rien. Elle décale tout.**
+
+**Le garde qui l'attrape est trivial** : compter les barres verticales de chaque ligne d'un bloc et les
+comparer à l'en-tête. *Il tourne en une seconde sur tout le corpus.*
+
+---
+
+## N111 — Un compte dans un document d'aiguillage vieillit en silence, parce que personne ne relit l'aiguilleur
+
+*(2026-09-17.)*
+
+`FALKYE-000-PAR-OU-COMMENCER.md` annonçait **« six existent »** pour les documents de chantier et
+**« 28 incidents réels »** pour le journal des cas. *Au 17 septembre : sept, et quarante-deux.*
+
+**C'est le même défaut que `profil_des_6176.py`**, déplacé d'un nom de fichier vers une table de
+renvois : *un chiffre écrit à côté de la chose qu'il compte, là où personne ne va le vérifier — parce
+qu'on ouvre l'aiguilleur pour savoir OÙ aller, jamais pour le relire.*
+
+⚠️ **Et l'aiguilleur est le document le plus lu du corpus**, donc celui dont un chiffre faux circule le
+plus. **La liste des chantiers y est maintenant nommée** — `1, 2, 3+4, 21, 22, 28, 29` — *une liste se
+périme aussi, mais elle se périme VISIBLEMENT : un document manquant se voit, un « six » ne se voit pas.*
