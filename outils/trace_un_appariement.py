@@ -9,7 +9,7 @@ le trouve pas — et c'est là qu'est le mur. »*
 
 **Pourquoi un cas entier plutôt qu'une distribution de plus.** Trois hypothèses
 ont été mesurées et sont tombées : *le seuil* (la masse est trop basse), *la
-normalisation* (rejeu à zéro gain sur 4 873), *le champ `nom_normalise`*. **Il
+normalisation* (rejeu à zéro gain), *le champ `nom_normalise`*. **Il
 reste la récupération des candidats, et rien d'autre** — et une distribution ne
 dira pas si une ligne précise est dans une liste précise. **Un compte agrégé
 répond « combien »; il ne répond jamais « où ».**
@@ -36,7 +36,7 @@ propre copie*, et c'est exactement l'écart qu'on cherche.
 
 ⚠️ **PORTÉE.** Lecture seule, sur le miroir local. Un seul nom. *Ce qu'il montre
 vaut pour CE cas* — **une cause établie sur une ligne n'est pas une cause
-établie sur 4 873**, et l'étape 5 dit laquelle des deux familles ce cas rejoint.
+établie sur la population**, et l'étape 8 dit ce que le moteur DÉCIDE.
 
 Usage :
     python3 outils/trace_un_appariement.py --nom "9309-3927 Quebec inc" \\
@@ -75,20 +75,48 @@ def sql_emis(requete) -> str:
         return f"(non littéralisable : {type(exc).__name__}) {requete}"
 
 
-def _tracer_depuis_la_base(combien: int) -> int:
-    """Trace N dossiers de la population QUI ÉCHOUE, choisis par la base.
+#: Les familles de la ventilation, telles que le MOTEUR les décide.
+#: *Une famille nommée ici et calculée autrement ailleurs ne serait pas la même
+#: famille* — c'est `neq_retenu` qui tranche, jamais une règle recopiée.
+FAMILLES = ("resoluble", "ambigu", "trop_faible", "aucun_candidat")
 
-    **Le critère, et il est opérationnel plutôt que narratif** : un dossier sans
-    NEQ dont le nom normalisé **existe pourtant dans le miroir** — soit comme
-    dénomination élue (`req_entries`), soit comme nom en vigueur (`req_noms`).
 
-    *C'est la définition exacte de « le second terme de la comparaison existe ».*
-    **Le produit a le nom sous les yeux et ne s'en sert pas** — ce qui échoue
-    n'est donc pas de TROUVER le nom, c'est de DÉCIDER lequel.
+def _famille(matches, neq_decide) -> str:
+    """Dans quelle famille le MOTEUR range ce dossier.
 
-    ⚠️ **Choisis par `id` croissant, pas au hasard.** *Deux exécutions doivent
-    tracer les mêmes dossiers* — sinon la trace n'est pas relisable, et c'est le
-    même défaut que la borne sans ordre.
+    ⚠️ **Le classement vient de `neq_retenu`**, la fonction que le produit
+    appelle. *Recopier la règle ici ferait échantillonner des familles que le
+    produit ne connaît pas.*
+    """
+    from falkye.resolution import SEUIL_RESOLUTION_CONFIANTE
+
+    if not matches:
+        return "aucun_candidat"
+    if neq_decide is not None:
+        return "resoluble"
+    return "trop_faible" if matches[0].score < SEUIL_RESOLUTION_CONFIANTE else "ambigu"
+
+
+def _tracer_depuis_la_base(par_famille: int, familles: tuple[str, ...]) -> int:
+    """Trace N dossiers PAR FAMILLE d'échec, classés par la décision du moteur.
+
+    ⚠️ **Le critère précédent était faux, et son défaut mérite d'être écrit**
+    *(relevé par Alexandre, 2026-09-17)*. Il retenait les dossiers **dont le nom
+    normalisé existait par correspondance EXACTE dans le miroir** — c'est-à-dire
+    *ceux dont il avait déjà démontré qu'ils devaient réussir*. **Trois cas
+    tracés, trois scores de 100, et aucun dossier qui échoue n'avait été
+    regardé.**
+
+    *Un critère de sélection qui présélectionne le résultat n'échantillonne pas
+    une population : il illustre une conclusion.*
+
+    **Ici, chaque dossier est classé par `neq_retenu` — la décision du moteur —
+    et l'échantillon prend N de CHAQUE famille.** *Un cas par famille dit plus
+    que trois cas de la même.*
+
+    ⚠️ **Par `id` croissant à l'intérieur de chaque famille**, donc
+    reproductible; et **non représentatif**, donc annoncé comme tel — un ordre
+    de table promu en échantillon est le cas 19.
     """
     from sqlalchemy import select
 
@@ -99,48 +127,62 @@ def _tracer_depuis_la_base(combien: int) -> int:
         return code
 
     from falkye.models.company import Company
-    from falkye.models.req_entry import REQEntry
-    from falkye.models.req_nom import REQNom
+    from falkye.resolution import neq_retenu
+    from falkye.sources import req as req_source
 
     session = get_session()
     try:
-        choisis: list[Company] = []
+        choisis: dict[str, list] = {f: [] for f in familles}
+        vus = 0
         for company in session.execute(
             select(Company).where(Company.neq.is_(None)).order_by(Company.id)
-            .execution_options(yield_per=500)
+            .execution_options(yield_per=200)
         ).scalars():
-            forme = company.nom_detecte_normalise
-            if not forme:
-                continue
-            existe = session.execute(
-                select(REQEntry.neq).where(REQEntry.nom_normalise == forme).limit(1)
-            ).scalar_one_or_none()
-            if existe is None:
-                existe = session.execute(
-                    select(REQNom.neq).where(REQNom.nom_normalise == forme).limit(1)
-                ).scalar_one_or_none()
-            if existe is not None:
-                choisis.append((company, existe))
-            if len(choisis) >= combien:
+            if all(len(v) >= par_famille for v in choisis.values()):
                 break
+            vus += 1
+            matches = req_source.resolve_neq_by_name(
+                session, company.nom_detecte, ville=company.ville
+            )
+            decide = neq_retenu(matches)
+            f = _famille(matches, decide)
+            if f in choisis and len(choisis[f]) < par_famille:
+                choisis[f].append((company, decide))
     finally:
         session.close()
 
-    if not choisis:
-        print("Aucun dossier sans NEQ dont le nom existe dans le miroir.", file=sys.stderr)
-        print("Ce zéro est une MESURE : la population décrite n'existe pas.", file=sys.stderr)
+    total = sum(len(v) for v in choisis.values())
+    print("=" * 78)
+    print("ÉCHANTILLON PAR FAMILLE D'ÉCHEC — classées par `neq_retenu`")
+    print("=" * 78)
+    print(f"\n   dossiers examinés pour remplir l'échantillon : {vus}")
+    for f in familles:
+        manque = "" if len(choisis[f]) >= par_famille else "   ⚠️ INCOMPLET"
+        print(f"      {f:<16} {len(choisis[f])}/{par_famille}{manque}")
+    print("\n   ⚠️ Par id croissant DANS chaque famille : reproductible, et NON")
+    print("      représentatif. Un ordre de table promu en échantillon est le")
+    print("      cas 19 — ces cas montrent un MÉCANISME, jamais une proportion.")
+    for f in familles:
+        if not choisis[f]:
+            print(f"\n   ⚠️ Famille « {f} » : AUCUN dossier trouvé dans les {vus} examinés.")
+            print("      Ce n'est pas zéro dans la population — c'est zéro dans ce")
+            print("      qui a été parcouru. Relancer avec --par-famille plus bas,")
+            print("      ou accepter que cette famille soit rare en tête de table.")
+    if not total:
         return 1
 
-    for i, (company, neq_attendu) in enumerate(choisis, start=1):
-        print("\n" + "#" * 78)
-        print(f"# CAS {i}/{len(choisis)} — dossier #{company.id}"
-              f"   (NEQ attendu {neq_attendu}, trouvé par nom EXACT dans le miroir)")
-        print("#" * 78)
-        argv = ["--nom", company.nom_detecte, "--neq", neq_attendu,
-                "--forme-stockee", company.nom_detecte_normalise or ""]
-        if company.ville:
-            argv += ["--ville", company.ville]
-        main(argv)
+    for f in familles:
+        for i, (company, decide) in enumerate(choisis[f], start=1):
+            print("\n" + "#" * 78)
+            print(f"# FAMILLE « {f} » — cas {i}/{len(choisis[f])} — dossier #{company.id}")
+            print("#" * 78)
+            argv = ["--nom", company.nom_detecte,
+                    "--forme-stockee", company.nom_detecte_normalise or ""]
+            if decide:
+                argv += ["--neq", decide]
+            if company.ville:
+                argv += ["--ville", company.ville]
+            main(argv)
     return 0
 
 
@@ -150,9 +192,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--nom", help="le nom détecté, tel que la source l'a livré")
     parser.add_argument(
-        "--depuis-la-base", type=int, default=0, metavar="N",
-        help="tracer N dossiers CHOISIS dans la population qui échoue : sans NEQ, "
-             "et dont le nom normalisé EXISTE pourtant dans le miroir",
+        "--par-famille", type=int, default=0, metavar="N",
+        help="tracer N dossiers de CHAQUE famille d'échec — résoluble, ambigu, "
+             "trop faible, aucun candidat — classées par la décision du moteur",
+    )
+    parser.add_argument(
+        "--familles", default=",".join(FAMILLES),
+        help=f"les familles à échantillonner, séparées par des virgules ({', '.join(FAMILLES)})",
     )
     parser.add_argument("--attendu", default=None,
                         help="le nom du miroir qu'on s'attend à voir apparier")
@@ -164,11 +210,15 @@ def main(argv: list[str] | None = None) -> int:
              "forme RECALCULÉE (posée automatiquement par --depuis-la-base)",
     )
     args = parser.parse_args(argv)
-    if not args.nom and not args.depuis_la_base:
-        parser.error("donner --nom, ou --depuis-la-base N")
+    if not args.nom and not args.par_famille:
+        parser.error("donner --nom, ou --par-famille N")
 
-    if args.depuis_la_base:
-        return _tracer_depuis_la_base(args.depuis_la_base)
+    if args.par_famille:
+        demandees = tuple(f.strip() for f in args.familles.split(",") if f.strip())
+        inconnues = [f for f in demandees if f not in FAMILLES]
+        if inconnues:
+            parser.error(f"famille(s) inconnue(s) : {inconnues}. Connues : {list(FAMILLES)}")
+        return _tracer_depuis_la_base(args.par_famille, demandees)
 
     try:
         from rapidfuzz import fuzz, process
@@ -177,6 +227,12 @@ def main(argv: list[str] | None = None) -> int:
         from falkye.db import get_session
         from falkye.models.req_entry import REQEntry
         from falkye.sources.column_mapping import normaliser
+        from falkye.models.company import Company
+        from falkye.resolution import (
+            SEUIL_AMBIGUITE_ECART_MIN,
+            SEUIL_RESOLUTION_CONFIANTE,
+            neq_retenu,
+        )
         from falkye.sources.req import candidats_par_nom, resolve_neq_by_name
     except ImportError as exc:  # pragma: no cover - dépend de l'environnement
         print(f"Import impossible ({exc}). Lancer depuis la racine du dépôt.", file=sys.stderr)
@@ -205,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
         print("UN APPARIEMENT, EN ENTIER")
         print("=" * 78)
         print("\nPORTÉE : lecture seule, miroir local, UN seul nom.")
-        print("         Ce qui est montré vaut pour CE cas, pas pour les 4 873.")
+        print("         Ce qui est montré vaut pour CE cas, et pour lui seul.")
 
         # --- 1. la normalisation -----------------------------------------
         print("\n" + "-" * 78)
@@ -444,9 +500,67 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"\n   ⚠️ --ville {args.ville!r} donné : un bonus de +5 a pu s'appliquer,")
                 print("      ce qui explique un écart de exactement 5 points avec le recalcul.")
 
+        # --- 8. LA DÉCISION, ET CE QUE LA PRODUCTION EN FAIT ----------------
+        # ⚠️ **L'étape qui manquait, et son absence a produit une
+        # contradiction** *(relevée par Alexandre, 2026-09-17)* : trois dossiers
+        # scoraient 100 contre un seuil de 92 et restaient sans NEQ. *La trace
+        # s'arrêtait au score et annonçait « la fonction DU MOTEUR » — ce qui
+        # était vrai de la RÉCUPÉRATION et faux de la DÉCISION.*
+        print("\n" + "-" * 78)
+        print("8. LA DÉCISION DU MOTEUR — `neq_retenu`, la fonction du produit")
+        print("-" * 78)
+        neq_decide = neq_retenu(matches)
+        top = matches[0].score if matches else 0.0
+        second = matches[1].score if len(matches) > 1 else 0.0
+        print(f"\n   seuil de confiance       : {SEUIL_RESOLUTION_CONFIANTE:.0f}")
+        print(f"   écart minimal au second  : {SEUIL_AMBIGUITE_ECART_MIN:.0f}")
+        print(f"   top {top:.2f}, second {second:.2f}, écart {top - second:.2f}")
+        if neq_decide is None:
+            if not matches:
+                print("\n   ⛔ AUCUN CANDIDAT RÉCUPÉRÉ.")
+            elif top < SEUIL_RESOLUTION_CONFIANTE:
+                print("\n   ⛔ TROP FAIBLE — le meilleur candidat n'atteint pas le seuil.")
+            else:
+                print("\n   ⛔ AMBIGU — assez sûr, pas assez détaché du second.")
+        else:
+            print(f"\n   ✅ NEQ RETENU : {neq_decide}")
+            occupant = session.execute(
+                select(Company).where(Company.neq == neq_decide)
+            ).scalar_one_or_none()
+            print("\n" + "   " + "=" * 72)
+            print("   ⚠️ ET POURTANT CE DOSSIER EST SANS NEQ. Les deux sont vrais.")
+            print("   " + "=" * 72)
+            print("""
+   Ce que `resolve_company` fait d'un NEQ retenu :
+
+       company = SELECT Company WHERE neq = <retenu>
+       if company is None: company = Company(neq=…)   ← un NOUVEAU dossier
+       company.statut_resolution = RESOLU
+
+   ⚠️ **Il ne répare JAMAIS le dossier non résolu qu'on trace.** Il écrit
+      dans un dossier CLÉ PAR NEQ — celui qui existe, ou un neuf. Le dossier
+      sans NEQ reste sans NEQ, indéfiniment.
+
+   Et rien ne le réessaie : `generer_notifications` n'appelle jamais
+   `resolve_company` (N36). **Un dossier qui a échoué une fois n'est plus
+   jamais interrogé, quoi qu'il arrive au miroir ensuite.**
+
+   Donc un score de 100 aujourd'hui ne contredit pas l'absence de NEQ :
+   il dit que la résolution ÉCHOUAIT le jour de la création du dossier,
+   et que personne n'a redemandé depuis. **Ce n'est pas un mur
+   d'appariement — c'est le cercle.**
+""")
+            if occupant is not None:
+                print(f"   ⚠️ Et le NEQ {neq_decide} est DÉJÀ PORTÉ par #{occupant.id}")
+                print(f"      « {occupant.nom_detecte} » — donc même une passe de reprise")
+                print("      ne pourrait pas le poser ici : c'est le cas « conservation ».")
+            else:
+                print(f"   Le NEQ {neq_decide} n'est porté par aucun dossier :")
+                print("      une passe de reprise le poserait sans conflit.")
+
         print("\n" + "=" * 78)
-        print("   Rien n'a été écrit. Ce cas dit où est le mur POUR LUI —")
-        print("   l'étendre aux 4 873 demande de le rejouer sur les 4 873.")
+        print("   Rien n'a été écrit. Ce cas dit où est le mur POUR LUI, et rien")
+        print("   de plus — l'étendre demande de le rejouer sur la population.")
         return 0
     finally:
         session.close()

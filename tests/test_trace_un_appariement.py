@@ -86,3 +86,74 @@ def test_la_borne_du_moteur_nest_pas_celle_du_dedoublonnage():
         f"le diagnostic annonce {BORNE_MOTEUR} et le moteur borne à {defaut} : "
         "la trace mentirait sur la borne qu'elle diagnostique"
     )
+
+
+def test_le_classement_des_familles_vient_du_MOTEUR():
+    """⚠️ **Le critère précédent présélectionnait le résultat.**
+
+    Il retenait les dossiers dont le nom existait par correspondance EXACTE dans
+    le miroir — *ceux dont il avait déjà démontré qu'ils devaient réussir*. Trois
+    cas tracés, trois scores de 100, **et aucun dossier qui échoue regardé.**
+
+    *Un critère de sélection qui présélectionne le résultat n'échantillonne pas
+    une population : il illustre une conclusion.*
+
+    Ici le classement passe par `neq_retenu`, la fonction du produit.
+    """
+    from dataclasses import dataclass
+
+    from falkye.resolution import SEUIL_AMBIGUITE_ECART_MIN, SEUIL_RESOLUTION_CONFIANTE
+    from outils.trace_un_appariement import _famille
+
+    @dataclass
+    class M:
+        score: float
+
+    haut = SEUIL_RESOLUTION_CONFIANTE + 1
+    assert _famille([], None) == "aucun_candidat"
+    assert _famille([M(haut)], "1111111111") == "resoluble"
+    assert _famille([M(SEUIL_RESOLUTION_CONFIANTE - 1)], None) == "trop_faible"
+    # Assez sûr, pas assez détaché : le moteur rend None, et c'est « ambigu ».
+    assert _famille([M(haut), M(haut - SEUIL_AMBIGUITE_ECART_MIN + 1)], None) == "ambigu"
+
+
+def test_une_famille_inconnue_est_refusee():
+    """*Une faute de frappe dans `--familles` rendrait un échantillon vide qui se
+    lirait comme « cette famille n'existe pas dans la population ».*"""
+    import pytest as _pytest
+
+    from outils import trace_un_appariement
+
+    with _pytest.raises(SystemExit):
+        trace_un_appariement.main(["--par-famille", "1", "--familles", "nimporte_quoi"])
+
+
+def test_aucun_compte_perime_ne_traine_dans_le_fichier():
+    """**Un périmètre qui annonce une population non définie ne borne rien.**
+
+    Le bloc de portée citait `4 873` trois fois — un compte du 15 septembre qui
+    n'est plus dans aucune ventilation. *Et cette fois le chiffre était dans le
+    texte qui existe précisément pour dire ce que la mesure couvre.*
+    """
+    import re
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parent.parent / "outils" / "trace_un_appariement.py"
+    texte = source.read_text(encoding="utf-8")
+    # ⚠️ **Resserrée après un premier jet trop large** — il attrapait les années
+    # (`2026`) et les fragments de NEQ (`9309-3927`). *Une garde qui crie pour un
+    # millésime finit par être ignorée* : c'est le cas 34 dans la garde
+    # elle-même.
+    #
+    # Ce qu'on refuse est la FORME d'un compte humain : quatre chiffres ou plus
+    # avec un séparateur de milliers — « 4 873 », « 8 931 ». *Une année ne
+    # s'écrit jamais avec un séparateur, et un NEQ non plus.* Les bornes et les
+    # seuils (`2000`, `500`, `92`) s'écrivent sans séparateur et vivent dans des
+    # constantes nommées.
+    suspects = re.findall(r"(?<![\d\-])\d[\u202f ]\d{3}(?![\d\-])", texte)
+    restants = sorted(set(suspects))
+    assert not restants, (
+        f"comptes de population écrits en dur : {restants}. "
+        "Un compte recopié se périme, et dans un bloc de portée il fait croire "
+        "que la mesure borne une population qui n'existe plus."
+    )

@@ -1772,3 +1772,64 @@ correctif** — aucune valeur par défaut n'est posée.
 *Deux pièges de comptage traités dans la sortie : un dossier à deux sources compte dans les deux
 colonnes — **un total de colonnes n'est pas un total de dossiers** — et un dossier SANS signal n'a
 aucune source, donc échappe entièrement au croisement.*
+
+### N80 — La contradiction venait d'une étape manquante, et la trouvaille la dépasse
+
+**Le relevé d'Alexandre** *(2026-09-17)* : trois dossiers tracés scorent **100 contre un seuil de
+92**, huit points de marge, et sont pourtant sans NEQ. *« Les deux ne peuvent pas être vrais en même
+temps. »*
+
+**C'est sa version (a), vérifiée au code : la trace s'arrêtait au SCORE.** Elle appelait
+`resolve_neq_by_name` et **jamais `neq_retenu`.** *Elle annonçait « la fonction DU MOTEUR » — vrai
+de la RÉCUPÉRATION, faux de la DÉCISION.*
+
+⚠️ **Mais l'étape ajoutée rend plus que la décision, et c'est le mécanisme qui agissait sans qu'on
+le sache.** Voici ce que `resolve_company` fait d'un NEQ retenu :
+
+```python
+company = SELECT Company WHERE neq = <retenu>
+if company is None: company = Company(neq=…)   ← un NOUVEAU dossier
+company.statut_resolution = RESOLU
+```
+
+**Il ne répare JAMAIS le dossier non résolu.** Il écrit dans un dossier **clé par NEQ** — celui qui
+existe, ou un neuf. *Le dossier sans NEQ reste sans NEQ, indéfiniment.* Et rien ne le réessaie
+(N36).
+
+**Donc les deux affirmations sont vraies, et la contradiction n'en était pas une** : un score de 100
+aujourd'hui dit que la résolution **échouait le jour de la création du dossier**, et que personne
+n'a redemandé depuis. ⚠️ **Ce n'est pas un mur d'appariement — c'est le cercle, et il a une seconde
+moitié que N36 ne nommait pas : même si on redemandait, la réponse s'écrirait ailleurs.**
+
+### N81 — Un critère de sélection qui présélectionne le résultat illustre une conclusion
+
+**Le défaut, relevé par Alexandre.** Mon sélecteur retenait les dossiers **dont le nom normalisé
+existait par correspondance EXACTE dans le miroir** — *c'est-à-dire ceux dont il avait déjà démontré
+qu'ils devaient réussir.* **Trois cas tracés, trois scores de 100, et aucun dossier qui échoue
+regardé.** *C'était l'objet de la mesure.*
+
+**LA RÈGLE. Un critère de sélection qui présélectionne le résultat n'échantillonne pas une
+population : il illustre une conclusion.** *Et il est d'autant plus difficile à voir qu'il produit
+des sorties parfaitement cohérentes — les trois cas étaient justes, reproductibles, et sans
+intérêt.*
+
+**Remplacé** : chaque dossier est classé par `neq_retenu`, **la décision du moteur**, et
+l'échantillon prend N de **chaque famille** — résoluble, ambigu, trop faible, aucun candidat. *Un cas
+par famille dit plus que trois cas de la même.* Une famille vide dit « zéro dans ce qui a été
+parcouru », jamais « zéro dans la population ».
+
+### N82 — Un compte périmé dans le texte qui existe pour borner la mesure
+
+**Troisième population non expliquée en deux jours**, après les 6 176 et le territoire du registre :
+le bloc de portée de la trace citait **4 873** trois fois. *Un compte du 15 septembre, devenu 5 211
+puis 4 733, et qui n'est plus dans aucune ventilation.*
+
+⚠️ **Et cette fois le chiffre était dans le TEXTE DE PORTÉE** — celui qui existe précisément pour
+dire ce que la mesure couvre. **Un périmètre qui annonce une population non définie ne borne rien**;
+il donne l'apparence d'une portée déclarée à une phrase qui ne désigne plus personne.
+
+**Rendu exigible** — et la garde a dû être resserrée après un premier jet trop large qui attrapait
+les années et les fragments de NEQ. *Une garde qui crie pour un millésime finit par être ignorée :
+le cas 34 dans la garde elle-même.* **Ce qui est refusé est la FORME d'un compte humain** — quatre
+chiffres avec séparateur de milliers. *Une année ne s'écrit jamais avec un séparateur, un NEQ non
+plus, et les seuils vivent dans des constantes nommées.*
