@@ -2573,3 +2573,42 @@ qu'on ouvre l'aiguilleur pour savoir OÙ aller, jamais pour le relire.*
 ⚠️ **Et l'aiguilleur est le document le plus lu du corpus**, donc celui dont un chiffre faux circule le
 plus. **La liste des chantiers y est maintenant nommée** — `1, 2, 3+4, 21, 22, 28, 29` — *une liste se
 périme aussi, mais elle se périme VISIBLEMENT : un document manquant se voit, un « six » ne se voit pas.*
+
+---
+
+## N112 — Dix cas disent qu'une chose EXISTE; ils ne disent jamais COMBIEN DE FOIS
+
+*(2026-09-17, établi par le recomptage, mesure A.)*
+
+Sur dix paires du pic, **sept candidats étaient en tête alphabétique de leur préfixe** — `LES " 100 " AILE`, `FERME 100 MILES`, `J 2 B`, `La 115e`. **On en a tiré une explication** : *la tranche commence par les chiffres et la ponctuation et n'atteint jamais les lettres.*
+
+**Le recomptage la dément :**
+
+```
+lots coupés AVANT LA PREMIÈRE LETTRE : 17 sur 4 217   (0,4 %)
+au point de coupe : « espace puis lettre » 4 072   96,6 %
+dans la tranche entière : non alphabétique 776 568 / 6 342 752   12,2 %
+```
+
+⚠️ **Le mécanisme est RÉEL. Sa fréquence ne l'était pas.** *Sept sur dix était un artefact du tirage, pas une proportion* — et l'explication qu'on en a tirée était fausse **alors que chacun des dix cas était exact.**
+
+> **Un cas entier ouvre une question; il ne la ferme pas.** La règle du 16 septembre disait de tracer un cas quand les ventilations ne rendent rien. **Elle ne disait pas de conclure dessus** — et c'est la moitié qui manquait.
+
+**Ce qui survit, et ce n'est pas rien** : la borne coupe 4 217 lots, dont 74,3 % des trop faibles. *Ce qui tombe, c'est l'explication de POURQUOI la coupe fait mal.* **La question redevient ouverte, et c'est un progrès : elle était fermée sur une erreur.**
+
+**Le contre-exemple utile, le même jour** : l'autre observation des dix paires — *85,50 huit fois sur dix* — a été **confirmée** par le même recomptage, à 89,2 % du pic. *Un échantillon n'est pas systématiquement trompeur; il est systématiquement muet sur les fréquences.*
+
+---
+
+## N113 — Le recoupement interne d'une mesure : ce qui dit qu'un instrument lit bien l'objet qu'il prétend lire
+
+*(2026-09-17.)*
+
+La mesure A a rendu deux chiffres qui n'étaient pas demandés et qui l'ont validée :
+
+- **les 17 lots « coupés avant la première lettre » sont EXACTEMENT les 17 lots « hors préfixe »** — les seuls où le préfixe n'a rien rendu et où le repli par sous-chaîne a servi. *Deux comptes obtenus par deux chemins différents dans le même passage, et ils coïncident.*
+- **6 342 752 candidats pour 4 217 lots font 1 504 par lot**, contre une tranche théorique de `limite − limite//4 = 1 500`. *La part réservée au pont est bien retirée de l'ordre alphabétique, et l'écart de 4 est la part des lots où le pont n'avait pas 500 candidats à offrir.*
+
+⚠️ **Aucun des deux n'était le but de la mesure.** *Ils disent que l'instrument a lu la tranche alphabétique et pas autre chose* — et c'est précisément ce qu'un chiffre cohérent et faux ne peut pas offrir.
+
+> **Une mesure qui ne rend qu'un chiffre ne peut pas être vérifiée; une mesure qui en rend deux liés se vérifie elle-même.** *Quatre instruments de ce chantier ont produit des chiffres cohérents et faux — le recoupement interne est le seul garde qui les aurait attrapés sans une seconde mesure.*
