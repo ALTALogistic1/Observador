@@ -13,11 +13,16 @@ le chantier 22** — *sa comparaison par libellé est un plancher, et sa mesure 
 1. ⚠️ **La non-régression sur les RETENUS — en premier, parce que c'est un
    CRITÈRE et non un effet secondaire acceptable.** *Si elle échoue, l'outil
    sort en erreur et les chiffres qui suivent ne valent rien.*
-2. **Ce que l'adresse sépare, par NIVEAU** — le code postal, puis ce que la ville
-   ajoute EN REPLI, et pourquoi elle se tait là où elle se tait.
-3. **Les cas où un fait CORRIGE le score** — *« ce sont eux à regarder en
-   premier »*, et ils se paginent **à part** (`--corrections N --depuis K`).
-4. **« Les exclut tous »** — *soit le bon candidat n'est pas dans le lot, soit le
+2. **Ce que l'adresse sépare, par NIVEAU** — code complet, région de tri, ville —
+   ⚠️ **et ce que le découpage a changé**, avec son critère : *aucun départage
+   perdu, aucun gagnant déplacé.*
+3. **Ce que chaque niveau apporte SEUL**, rejoué sur toute la population —
+   *un niveau qui ne sépare rien que le précédent ne séparait déjà ne mérite pas
+   son rang.*
+4. **Les cas où un fait CORRIGE le score** — *« ce sont eux à regarder en
+   premier »*, et ils se paginent **à part** (`--corrections N --depuis K`),
+   **avec le niveau qui a tranché sur chaque ligne**.
+5. **« Les exclut tous »** — *soit le bon candidat n'est pas dans le lot, soit le
    fait est sale.* **Sur un échantillon, lequel des deux — et ce que coûterait de
    le savoir sur toute la population.**
 
@@ -43,11 +48,16 @@ from collections import Counter
 
 from outils.departageur_adresse import (
     ISSUES_QUI_APPELLENT_LE_REPLI,
-    NIVEAU_CODE_POSTAL,
+    NIVEAU_CODE_COMPLET,
+    NIVEAU_REGION_DE_TRI,
     NIVEAU_VILLE,
     NIVEAUX,
+    NIVEAUX_DAVANT,
+    NOMS_DES_NIVEAUX,
+    Niveau,
     PasUnAmbigu,
     champs_des_dossiers,
+    departager_ladresse,
     departager_le_dossier,
     faits_des_dossiers,
     faits_du_candidat,
@@ -99,12 +109,20 @@ def _echantillon(population: list, combien: int) -> list:
     return [population[int(i * pas)] for i in range(combien)]
 
 
+def _formes(fait) -> str:
+    return ",".join(sorted(fait.formes)[:3]) if fait is not None else "—"
+
+
 def _ligne_candidat(match, faits, marque: str = " ") -> str:
+    """⚠️ **Les deux résolutions du code postal s'affichent SÉPARÉMENT.** *Une
+    paire tranchée sur `G5R` et une paire tranchée sur `G5R3Y8` ne valent pas la
+    même chose, et les écrire dans la même colonne rendait la seconde
+    indiscernable de la première.*"""
     entry = match.entry
-    cp = sorted(faits.code_postal.formes)[:3] if faits.code_postal else "—"
     return (f"      {marque} {entry.neq}  {match.score:>6.2f}  "
-            f"{(entry.nom or '')[:38]:<40} ville={(entry.ville or '—')[:22]!r:<24} "
-            f"cp={cp}")
+            f"{(entry.nom or '')[:34]:<36} ville={(entry.ville or '—')[:18]!r:<20} "
+            f"complet={_formes(faits.code_complet):<16} "
+            f"tri={_formes(faits.region_de_tri)}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -160,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
 
    ⚠️ LA VILLE NE PARLE JAMAIS LÀ OÙ LE CODE POSTAL A EXCLU TOUT LE MONDE.
    Ce serait bâtir un départage PAR-DESSUS une contradiction établie — la
-   section 4 regarde ces cas-là au lieu de les trancher.
+   section 5 regarde ces cas-là au lieu de les trancher.
 
    L'ACTIVITÉ N'EST PAS CONSTRUITE. 97 dossiers qu'elle seule séparait, et sa
    comparaison par libellé est un PLANCHER. Elle attend la table
@@ -239,21 +257,29 @@ def main(argv: list[str] | None = None) -> int:
         # ---- 2. CE QUE L'ADRESSE SÉPARE, PAR NIVEAU --------------------------
         n = len(ambigus)
         par_niveau_final: Counter = Counter()
-        issues_finales: Counter = Counter()
-        issues_du_niveau: dict[str, Counter] = {niv: Counter() for niv in NIVEAUX}
-        atteint_le_repli = 0
+        issues_du_niveau: dict[str, Counter] = {nom: Counter() for nom in NOMS_DES_NIVEAUX}
         departages: list[tuple] = []   # (company, matches, concurrents, departage)
         corrections: list[tuple] = []
         exclusions: list[tuple] = []
+        #: Les concurrents de chaque dossier, gardés pour la section 3. *Les
+        #: recalculer serait rejouer la récupération pour rien.*
+        concurrents_du_dossier: dict[int, list] = {}
+        # La forme d'AVANT, jouée en parallèle — **par un APPEL du même
+        # mécanisme**, jamais par une réécriture de ce qu'on veut comparer.
+        croisement: Counter = Counter()
+        gagnants_differents: list[tuple] = []
+        perdus: list[tuple] = []
 
         for company, matches in ambigus:
             faits = adresses[company.id]
             departage, concurrents = departager_le_dossier(matches, faits)
-            issues_finales[departage.issue] += 1
-            for niveau, issue in departage.par_niveau:
-                issues_du_niveau[niveau][issue] += 1
-            if departage.issue_du_niveau(NIVEAU_VILLE) is not None:
-                atteint_le_repli += 1
+            concurrents_du_dossier[company.id] = concurrents
+            davant = departager_ladresse(
+                faits, [faits_du_candidat(m.entry) for m in concurrents],
+                niveaux=NIVEAUX_DAVANT,
+            )
+            for nom, issue in departage.par_niveau:
+                issues_du_niveau[nom][issue] += 1
             if departage.prononce:
                 par_niveau_final[departage.niveau] += 1
                 ligne = (company, matches, concurrents, departage)
@@ -262,53 +288,159 @@ def main(argv: list[str] | None = None) -> int:
                     corrections.append(ligne)
             elif departage.issue == AUCUN_COMPATIBLE:
                 exclusions.append((company, matches, concurrents, departage))
+            croisement[(departage.niveau, davant.prononce)] += 1
+            if davant.prononce and not departage.prononce:
+                perdus.append((company, matches, concurrents, departage))
+            elif davant.prononce and departage.gagnant != davant.gagnant:
+                gagnants_differents.append((company, departage, davant))
 
         separes = sum(par_niveau_final.values())
-        print("\n" + "-" * 78)
-        print("2. CE QUE L'ADRESSE SÉPARE — un départageur, deux niveaux")
-        print("-" * 78)
+        separes_davant = sum(k for (_, avant), k in croisement.items() if avant)
         L = LARGEUR_LIBELLE
-        titre_cp = "CODE POSTAL — le premier, et seul s'il le faut"
-        titre_ville = "VILLE — en REPLI, là où le code postal se tait"
-        print(f"\n   {'niveau qui a tranché':<{L}} {'dossiers':>9} {'part':>8}")
-        print(f"   {titre_cp:<{L}} "
-              f"{milliers(par_niveau_final[NIVEAU_CODE_POSTAL]):>9} "
-              f"{_part(par_niveau_final[NIVEAU_CODE_POSTAL], n):>8}")
-        print(f"   {titre_ville:<{L}} "
-              f"{milliers(par_niveau_final[NIVEAU_VILLE]):>9} "
-              f"{_part(par_niveau_final[NIVEAU_VILLE], n):>8}")
+        print("\n" + "-" * 78)
+        print("2. CE QUE L'ADRESSE SÉPARE — un départageur, TROIS niveaux")
+        print("-" * 78)
+        print("""
+   ⚠️ Le niveau unique d'avant mélangeait deux résolutions qui ne valent pas la
+      même chose. `codes_postaux` range la région de tri À CÔTÉ de chaque code
+      complet, donc deux faits s'intersectaient si et seulement si leurs RÉGIONS
+      DE TRI s'intersectaient — le code complet ne tranchait rien, jamais.
+
+      Un code COMPLET désigne un côté de rue, parfois un immeuble.
+      Une RÉGION DE TRI couvre une ville entière : `G5R` est Rivière-du-Loup.
+      *C'est de la ville déguisée en code postal, et ce découpage la dénude.*
+""")
+        titres = {
+            NIVEAU_CODE_COMPLET: "CODE POSTAL COMPLET — un immeuble, un côté de rue",
+            NIVEAU_REGION_DE_TRI: "RÉGION DE TRI — la finesse d'une ville, déclarée",
+            NIVEAU_VILLE: "VILLE — en repli, là où le code postal se tait",
+        }
+        print(f"   {'niveau qui a tranché':<{L}} {'dossiers':>9} {'part':>8}")
+        for nom in NOMS_DES_NIVEAUX:
+            print(f"   {titres[nom]:<{L}} {milliers(par_niveau_final[nom]):>9} "
+                  f"{_part(par_niveau_final[nom], n):>8}")
         total_adresse = "⇒ SÉPARÉS PAR L'ADRESSE"
         reste = "⛔ indépartageables par l'adresse"
-        print(f"   {total_adresse:<{L}} {milliers(separes):>9} "
-              f"{_part(separes, n):>8}")
-        print(f"\n   {reste:<{L}} "
-              f"{milliers(n - separes):>9} {_part(n - separes, n):>8}")
+        print(f"   {total_adresse:<{L}} {milliers(separes):>9} {_part(separes, n):>8}")
+        print(f"\n   {reste:<{L}} {milliers(n - separes):>9} {_part(n - separes, n):>8}")
         print("      *C'est un résultat, pas une absence de mesure.*")
 
-        print(f"\n   dossiers qui ATTEIGNENT le second niveau : {milliers(atteint_le_repli)}"
-              f"  ({_part(atteint_le_repli, n)})")
-        print("   ⚠️ La ville ne se demande que là où le code postal N'A PAS")
-        bloques = issues_du_niveau[NIVEAU_CODE_POSTAL].get(AUCUN_COMPATIBLE, 0)
-        print(f"      tranché. Et elle ne se demande JAMAIS sur les "
-              f"{milliers(bloques)} dossier(s)")
-        print("      où le code postal les exclut tous — voir la section 4.")
+        # --- le CRITÈRE de ce découpage : ne rien perdre ----------------------
+        print(f"\n   {'— ce que le découpage a CHANGÉ —':^{L + 20}}\n")
+        print(f"   {'séparés par la forme D AVANT (les deux résolutions mêlées)':<{L}} "
+              f"{milliers(separes_davant):>9}")
+        print(f"   {'séparés par la forme À TROIS NIVEAUX':<{L}} {milliers(separes):>9}")
+        ajoutes = croisement.get((NIVEAU_CODE_COMPLET, False), 0)
+        print(f"\n   {'⇒ AJOUTÉS par le code complet, que la région seule ratait':<{L}} "
+              f"{milliers(ajoutes):>9}")
+        print("      *Plusieurs candidats partageaient la région de tri; UN SEUL")
+        print("       partage le code complet. Le niveau fin tranche là où le")
+        print("       niveau grossier ne pouvait pas — c'est un gain, et il se")
+        print("       décide, il ne se subit pas.*")
+        print(f"\n   {'⛔ PERDUS — séparés avant, plus maintenant':<{L}} "
+              f"{milliers(len(perdus)):>9}")
+        print(f"   {'⛔ GAGNANT DIFFÉRENT du même dossier':<{L}} "
+              f"{milliers(len(gagnants_differents)):>9}")
+        if perdus or gagnants_differents:
+            print("\n   ⛔ CRITÈRE ÉCHOUÉ. Le découpage devait rendre la granularité")
+            print("      LISIBLE, pas écrire moins ni écrire autrement. Rien de ce")
+            print("      qui suit ne doit être lu.")
+            for company, _, _, dep in perdus[:5]:
+                print(f"      perdu : {(company.nom_detecte or '')[:50]}  {dep.issue}")
+            for company, dep, davant in gagnants_differents[:5]:
+                print(f"      gagnant : {(company.nom_detecte or '')[:40]}  "
+                      f"{davant.gagnant} → {dep.gagnant}")
+            return 1
+        print("\n   ✔ Aucun départage perdu, aucun gagnant déplacé. *Le découpage")
+        print("     nomme ce qui décidait déjà; il ne décide pas à sa place.*")
 
-        for niveau in NIVEAUX:
-            total_niveau = sum(issues_du_niveau[niveau].values())
-            print(f"\n   ▸ {niveau.upper()}   ({milliers(total_niveau)} dossier(s) consulté(s))")
+        # --- les issues de chaque niveau -------------------------------------
+        for rang, niveau in enumerate(NIVEAUX):
+            total_niveau = sum(issues_du_niveau[niveau.nom].values())
+            suivant = NIVEAUX[rang + 1] if rang + 1 < len(NIVEAUX) else None
+            print(f"\n   ▸ {niveau.nom.upper()}   "
+                  f"({milliers(total_niveau)} dossier(s) consulté(s))")
             for issue in ISSUES:
-                k = issues_du_niveau[niveau].get(issue, 0)
+                k = issues_du_niveau[niveau.nom].get(issue, 0)
                 if not k and issue not in (DEPARTAGE, AUCUN_COMPATIBLE):
                     continue
-                marque = "  ←" if issue == DEPARTAGE else ""
-                if issue in ISSUES_QUI_APPELLENT_LE_REPLI and niveau == NIVEAU_CODE_POSTAL:
+                marque = ""
+                if issue == DEPARTAGE:
+                    marque = "  ←"
+                elif suivant is None:
+                    marque = "  ⛔ fin"
+                elif issue in ISSUES_QUI_APPELLENT_LE_REPLI:
                     marque = "  → repli"
+                elif issue == AUCUN_COMPATIBLE:
+                    marque = ("  → repli (même fait, dégradé)"
+                              if suivant.degradation_du_precedent
+                              else "  ⛔ la ville NE PARLE PAS")
                 print(f"      {issue:<{LARGEUR_LIBELLE}} {milliers(k):>8} "
                       f"{_part(k, total_niveau):>8}{marque}")
+        print("""
+   ⚠️ « Le fait les exclut tous » se franchit vers une DÉGRADATION DU MÊME FAIT,
+      jamais vers un autre fait. Le code complet laisse donc parler la région de
+      tri — `G5R3A7` contre `G5R3Y8` s'excluent au code complet, et c'est
+      exactement ce que la dégradation tolère. La région de tri, elle, ne laisse
+      pas parler la ville : ce serait bâtir un départage PAR-DESSUS une
+      contradiction établie.
+""")
 
-        # ---- 3. LES CORRECTIONS — le lot à regarder en premier ---------------
+        # ---- 3. CE QUE CHAQUE NIVEAU APPORTE SEUL ---------------------------
+        print("-" * 78)
+        print("3. CE QUE CHAQUE NIVEAU APPORTE SEUL — mérite-t-il son rang?")
+        print("-" * 78)
+        print("""
+   ⚠️ Deux lectures, et la seconde seule répond à la question.
+
+      EN CASCADE (tableau 2), un niveau ne voit que ce que le précédent n'a pas
+      tranché : son compte EST déjà sa contribution marginale. Mais il ne dit
+      pas si ce niveau aurait su trancher ailleurs.
+
+      SEUL, chaque niveau est rejoué sur TOUTE la population comme s'il était le
+      seul fait. On voit alors ce qu'il couvre, ce qu'il partage avec les autres,
+      et ce qu'il est LE SEUL à savoir séparer.
+""")
+        seuls: dict[str, set[int]] = {}
+        for niveau in NIVEAUX:
+            couvre: set[int] = set()
+            for company, matches in ambigus:
+                dep = departager_ladresse(
+                    adresses[company.id],
+                    [faits_du_candidat(m.entry) for m in concurrents_du_dossier[company.id]],
+                    niveaux=(Niveau(niveau.nom),),
+                )
+                if dep.prononce:
+                    couvre.add(company.id)
+            seuls[niveau.nom] = couvre
+
+        # ⚠️ **La population se LIT, elle ne s'écrit pas dans le libellé.** *Un
+        # compte figé dans une étiquette donne l'autorité d'une mesure à un
+        # texte, et c'est l'endroit où personne ne va le vérifier.*
+        entete_seuls = f"niveau, joué SEUL sur les {milliers(n)} ambigus"
+        print(f"   {entete_seuls:<{L}} {'couvre':>9} {'LUI SEUL':>10}")
+        for niveau in NIVEAUX:
+            autres: set[int] = set()
+            for autre in NIVEAUX:
+                if autre.nom != niveau.nom:
+                    autres |= seuls[autre.nom]
+            propre = seuls[niveau.nom] - autres
+            print(f"   {niveau.nom:<{L}} {milliers(len(seuls[niveau.nom])):>9} "
+                  f"{milliers(len(propre)):>10}")
+        union: set[int] = set()
+        for niveau in NIVEAUX:
+            union |= seuls[niveau.nom]
+        somme = sum(len(seuls[niveau.nom]) for niveau in NIVEAUX)
+        print(f"\n   union des trois joués seuls : {milliers(len(union))}"
+              f"   recouvrement : {milliers(somme - len(union))}")
+        print("\n   ⚠️ Un niveau dont la colonne « LUI SEUL » est vide ne sépare rien")
+        print("      que les autres ne séparaient déjà — et ne mérite pas son rang.")
+        print("      *Mais la colonne « couvre » ne l'absout pas : couvrir beaucoup")
+        print("       en double ne vaut rien.*")
+
+        # ---- 4. LES CORRECTIONS — le lot à regarder en premier ---------------
         print("\n" + "-" * 78)
-        print("3. LES CAS OÙ UN FAIT CORRIGE LE SCORE — le lot à regarder en PREMIER")
+        print("4. LES CAS OÙ UN FAIT CORRIGE LE SCORE — le lot à regarder en PREMIER")
         print("-" * 78)
         print("""
    ⚠️ « Désigne un autre » n'est PAS une erreur : c'est le cas où le fait
@@ -317,10 +449,10 @@ def main(argv: list[str] | None = None) -> int:
 """)
         par_niveau_corrige: Counter = Counter(d.niveau for _, _, _, d in corrections)
         print(f"   {'niveau qui corrige':<{L}} {'dossiers':>9} {'des départages':>16}")
-        for niveau in NIVEAUX:
-            k = par_niveau_corrige.get(niveau, 0)
-            print(f"   {niveau:<{L}} {milliers(k):>9} "
-                  f"{_part(k, par_niveau_final[niveau]):>16}")
+        for nom in NOMS_DES_NIVEAUX:
+            k = par_niveau_corrige.get(nom, 0)
+            print(f"   {nom:<{L}} {milliers(k):>9} "
+                  f"{_part(k, par_niveau_final[nom]):>16}")
         print(f"   {'⇒ TOTAL à relire une à une':<{L}} "
               f"{milliers(len(corrections)):>9} "
               f"{_part(len(corrections), separes):>16}")
@@ -359,16 +491,16 @@ def main(argv: list[str] | None = None) -> int:
             print("   → = retenu par l'adresse    × = mieux scoré, écarté")
             print("   ⚠️ Un départage ÉCARTE un candidat; il n'en CONFIRME aucun.")
 
-        # ---- 4. « LES EXCLUT TOUS » — lequel des deux, et à quel prix --------
+        # ---- 5. « LES EXCLUT TOUS » — lequel des deux, et à quel prix --------
         print("\n" + "-" * 78)
-        print("4. « LE FAIT LES EXCLUT TOUS » — lequel des deux, sur un échantillon")
+        print("5. « LE FAIT LES EXCLUT TOUS » — lequel des deux, sur un échantillon")
         print("-" * 78)
         par_niveau_exclut: Counter = Counter(
             d.par_niveau[-1][0] for _, _, _, d in exclusions
         )
         print(f"\n   {'niveau qui exclut tout le monde':<{L}} {'dossiers':>9}")
-        for niveau in NIVEAUX:
-            print(f"   {niveau:<{L}} {milliers(par_niveau_exclut.get(niveau, 0)):>9}")
+        for nom in NOMS_DES_NIVEAUX:
+            print(f"   {nom:<{L}} {milliers(par_niveau_exclut.get(nom, 0)):>9}")
         print(f"   {'⇒ TOTAL':<{L}} {milliers(len(exclusions)):>9}")
         print("""
    ⚠️ Ce n'est PAS un départage : le fait du dossier ne concorde avec aucun
@@ -401,9 +533,15 @@ def main(argv: list[str] | None = None) -> int:
                 # ⚠️ **Un indicateur PAR CAS, jamais le compteur cumulé.** *Lire
                 # un total là où on interroge un dossier fait classer le
                 # deuxième cas d'après le premier.*
+                #
+                # ⚠️ Et il se lit sur le CODE COMPLET du dossier, quel que soit le
+                # niveau qui a exclu : *deux codes complets veulent dire deux
+                # adresses, et c'est vrai même quand c'est la région de tri qui a
+                # prononcé l'exclusion.*
+                complets = adresses[company.id].code_complet
                 plusieurs_codes = (
-                    niveau == NIVEAU_CODE_POSTAL
-                    and len({f for f in du_dossier.formes if len(f) == 6}) > 1
+                    niveau in (NIVEAU_CODE_COMPLET, NIVEAU_REGION_DE_TRI)
+                    and complets is not None and len(complets.formes) > 1
                 )
                 porte_plusieurs_codes += 1 if plusieurs_codes else 0
 
