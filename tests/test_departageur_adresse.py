@@ -27,30 +27,66 @@ def _faits(cp: str | None, ville: str | None) -> da.FaitsDAdresse:
 
 
 # ---------------------------------------------------------------------------
-# LE PREMIER NIVEAU — le code postal, et ses deux formes
+# LES TROIS NIVEAUX — et ce qui distingue les deux résolutions du code postal
 # ---------------------------------------------------------------------------
 
-def test_le_code_postal_tranche_SEUL_quand_il_suffit():
-    """*« Le code postal, en premier et seul s'il le faut. »*"""
+def test_la_compatibilite_du_fait_COMBINE_est_celle_de_la_REGION_DE_TRI():
+    """⚠️ **Le fait qui a fait naître les trois niveaux.**
+
+    *`codes_postaux` range `jeton[:3]` À CÔTÉ de chaque code complet.* Donc deux
+    faits combinés s'intersectent **si et seulement si** leurs régions de tri
+    s'intersectent — **le code complet ne tranchait rien, jamais.** *Wazoom
+    n'était pas un cas limite : c'était tout le niveau.*
+    """
+    paires = [("G5R 3A7", "G5R 3Y8"), ("H2N 1A1", "H2N 1A1"),
+              ("H2N 1A1", "H2N 5X9"), ("K2E 7L6", "K2E"),
+              ("G5R 3A7", "H2N 1A1")]
+    for a, b in paires:
+        fa, fb = _faits(a, None), _faits(b, None)
+        combine = fa.code_postal.compatible_avec(fb.code_postal)
+        region = (fa.region_de_tri is not None and fb.region_de_tri is not None
+                  and fa.region_de_tri.compatible_avec(fb.region_de_tri))
+        assert combine == region, (a, b)
+
+
+def test_le_CODE_COMPLET_tranche_ce_que_la_region_de_tri_ne_separait_pas():
+    """*Trois `TRIGONIX` dans la même région de tri : la région en laisse deux
+    debout, le code complet en laisse un.*"""
     d = da.departager_ladresse(
-        _faits("Levis, QC G7A 2B2", "Levis"),
-        [_faits("100 rue X G6V 1A1", "Levis"), _faits("200 rue Y G7A 2B2", "Levis")],
+        _faits("H2N 1A1", None), [_faits("H2N 1A1", None), _faits("H2N 5X9", None)]
     )
-    assert d.issue == DEPARTAGE
-    assert d.niveau == da.NIVEAU_CODE_POSTAL
-    assert d.gagnant == 1
-    # ⚠️ La ville n'a pas été consultée : elle n'aurait rien séparé ici (même
-    # ville des deux côtés), et surtout **c'est fini**.
-    assert d.par_niveau == ((da.NIVEAU_CODE_POSTAL, DEPARTAGE),)
+    assert (d.issue, d.niveau, d.gagnant) == (DEPARTAGE, da.NIVEAU_CODE_COMPLET, 0)
+    assert d.par_niveau == ((da.NIVEAU_CODE_COMPLET, DEPARTAGE),)
 
 
-def test_un_code_TRONQUE_tranche_sur_la_region_de_tri():
-    """⚠️ *L'EIMT écrit `'St-Isidore, QC J0L  2A'` — cinq caractères sur six.*"""
+def test_la_REGION_DE_TRI_parle_quand_le_code_complet_les_EXCLUT_TOUS():
+    """⚠️ **La porte à ne pas fermer — le cas `Wazoom`.**
+
+    *`G5R3A7` contre `G5R3Y8` s'excluent au code complet, et c'est exactement ce
+    que la dégradation tolère : même axe, résolution plus basse.* **Sans cette
+    porte, les départages de la région de tri disparaîtraient.**
+    """
+    d = da.departager_ladresse(
+        _faits("G5R 3A7", "Riviere-du-Loup"),
+        [_faits("G5R 3Y8", "CP 235"), _faits("H2N 1A1", "Montreal")],
+    )
+    assert d.par_niveau == (
+        (da.NIVEAU_CODE_COMPLET, AUCUN_COMPATIBLE),
+        (da.NIVEAU_REGION_DE_TRI, DEPARTAGE),
+    )
+    assert (d.niveau, d.gagnant) == (da.NIVEAU_REGION_DE_TRI, 0)
+
+
+def test_un_code_TRONQUE_va_droit_a_la_region_de_tri():
+    """⚠️ *L'EIMT écrit `'St-Isidore, QC J0L  2A'` — cinq caractères sur six.*
+    **Le dossier ne porte alors AUCUN code complet**, et le premier niveau se
+    tait au lieu d'exclure."""
     d = da.departager_ladresse(
         _faits("St-Isidore, QC J0L  2A", None),
         [_faits("1 rue A H2X 1Y4", None), _faits("2 rue B J0L 2A1", None)],
     )
-    assert (d.issue, d.niveau, d.gagnant) == (DEPARTAGE, da.NIVEAU_CODE_POSTAL, 1)
+    assert d.issue_du_niveau(da.NIVEAU_CODE_COMPLET) == SANS_FAIT_AU_DOSSIER
+    assert (d.niveau, d.gagnant) == (da.NIVEAU_REGION_DE_TRI, 1)
 
 
 def test_aucun_code_ne_sinvente_par_FENETRE_GLISSANTE():
@@ -58,12 +94,20 @@ def test_aucun_code_ne_sinvente_par_FENETRE_GLISSANTE():
     assert codes_postaux("St-Isidore QC") is None
 
 
+def test_un_fait_VIDE_a_une_resolution_rend_None_et_non_un_ensemble_vide():
+    """*Sinon « le dossier ne porte pas le fait » deviendrait « le fait ne
+    concorde avec personne » — un silence pris pour un démenti.*"""
+    faits = _faits("J0L", None)          # une région de tri seule
+    assert faits.region_de_tri is not None
+    assert faits.code_complet is None
+
+
 # ---------------------------------------------------------------------------
-# LE REPLI — trois portes ouvertes, une fermée
+# LE REPLI — trois portes ouvertes, et une qui dépend du niveau suivant
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("dossier_cp, concurrents_cp, issue_attendue", [
-    # le dossier ne porte pas de code postal
+    # le dossier ne porte pas de code postal du tout
     (None, ["G6V 1A1", "H2X 1Y4"], SANS_FAIT_AU_DOSSIER),
     # ⚠️ « inconnu ≠ non » — 837 dossiers bloqués là sur l'hôte
     ("G6V 1A1", ["G6V 1A1", None], SANS_FAIT_CHEZ_UN_CONCURRENT),
@@ -78,16 +122,17 @@ def test_la_ville_PARLE_quand_le_code_postal_na_pas_tranche(
         _faits(dossier_cp, "Levis"),
         [_faits(cp, v) for cp, v in zip(concurrents_cp, ["Laval", "Levis"])],
     )
-    assert d.issue_du_niveau(da.NIVEAU_CODE_POSTAL) == issue_attendue
+    assert d.issue_du_niveau(da.NIVEAU_REGION_DE_TRI) == issue_attendue
     assert (d.issue, d.niveau, d.gagnant) == (DEPARTAGE, da.NIVEAU_VILLE, 1)
 
 
-def test_la_ville_NE_PARLE_PAS_quand_le_code_postal_les_exclut_TOUS():
-    """⚠️ **La règle la plus importante du module.**
+def test_la_ville_NE_PARLE_PAS_quand_la_region_de_tri_les_exclut_TOUS():
+    """⚠️ **La porte fermée, et c'est la règle la plus importante du module.**
 
-    *Le code postal du dossier dément tous les candidats. Laisser la ville
-    désigner un gagnant rendrait un départage dont on sait déjà qu'un fait plus
-    précis le contredit.*
+    *Le code postal du dossier dément tous les candidats, à ses DEUX
+    résolutions. La ville est un AUTRE fait, plus grossier* — la laisser
+    désigner un gagnant serait bâtir un départage par-dessus une contradiction
+    établie.
     """
     d = da.departager_ladresse(
         _faits("Levis, QC G7A 2B2", "Levis"),
@@ -96,12 +141,14 @@ def test_la_ville_NE_PARLE_PAS_quand_le_code_postal_les_exclut_TOUS():
     )
     assert d.issue == AUCUN_COMPATIBLE
     assert d.niveau is None and d.gagnant is None
-    # ⚠️ Le second niveau n'a pas été CONSULTÉ — pas « consulté et muet ».
-    assert d.par_niveau == ((da.NIVEAU_CODE_POSTAL, AUCUN_COMPATIBLE),)
+    assert d.par_niveau == (
+        (da.NIVEAU_CODE_COMPLET, AUCUN_COMPATIBLE),
+        (da.NIVEAU_REGION_DE_TRI, AUCUN_COMPATIBLE),
+    )
     assert d.issue_du_niveau(da.NIVEAU_VILLE) is None
 
 
-def test_le_repli_dit_par_quel_maillon_le_premier_niveau_a_echoue():
+def test_le_repli_dit_par_quel_maillon_chaque_niveau_a_echoue():
     """*« La ville a séparé » ne dit pas si le code postal était muet ou bloqué
     par « inconnu ≠ non » — et ce sont deux correctifs différents.*"""
     d = da.departager_ladresse(
@@ -109,7 +156,8 @@ def test_le_repli_dit_par_quel_maillon_le_premier_niveau_a_echoue():
         [_faits(None, "Laval"), _faits("G6V 1A1", "Levis")],
     )
     assert d.par_niveau == (
-        (da.NIVEAU_CODE_POSTAL, SANS_FAIT_CHEZ_UN_CONCURRENT),
+        (da.NIVEAU_CODE_COMPLET, SANS_FAIT_CHEZ_UN_CONCURRENT),
+        (da.NIVEAU_REGION_DE_TRI, SANS_FAIT_CHEZ_UN_CONCURRENT),
         (da.NIVEAU_VILLE, DEPARTAGE),
     )
 
@@ -120,6 +168,46 @@ def test_aucun_niveau_ne_tranche_reste_un_RESULTAT():
     )
     assert d.issue == SANS_FAIT_AU_DOSSIER
     assert not d.prononce
+
+
+# ---------------------------------------------------------------------------
+# LA FORME D'AVANT — gardée pour MESURER l'écart, pas pour décider
+# ---------------------------------------------------------------------------
+
+def test_la_forme_DAVANT_se_rejoue_par_un_APPEL_du_meme_mecanisme():
+    """⚠️ *Un départageur recopié à la main est déjà arrivé une fois (cas 41).*"""
+    faits = _faits("G5R 3A7", "Riviere-du-Loup")
+    concurrents = [_faits("G5R 3Y8", "CP 235"), _faits("H2N 1A1", "Montreal")]
+    davant = da.departager_ladresse(faits, concurrents, niveaux=da.NIVEAUX_DAVANT)
+    assert (davant.issue, davant.niveau, davant.gagnant) == (
+        DEPARTAGE, da.NIVEAU_CODE_POSTAL, 0)
+
+
+def test_la_forme_a_trois_niveaux_ne_PERD_aucun_departage_de_la_forme_davant():
+    """⚠️ **Le critère du découpage** : *rendre la granularité lisible, pas
+    écrire moins ni écrire autrement.*
+
+    Toute compatibilité de la forme d'avant est une compatibilité de région de
+    tri; le code complet n'en ajoute jamais. **Donc un départage d'hier se
+    retrouve soit au code complet, soit à la région de tri — avec le même
+    gagnant.**
+    """
+    decors = [
+        ("G5R 3A7", ["G5R 3Y8", "H2N 1A1"]),
+        ("H2N 1A1", ["H2N 1A1", "H2N 5X9"]),
+        ("K2E 7L6", ["K2E 7L6", "H2X 1Y4"]),
+        ("J0L", ["J0L 2A1", "H2X 1Y4"]),
+        ("G6V 1A1", ["H2X 1Y4", "H7A 1B1"]),
+        (None, ["H2X 1Y4", "H7A 1B1"]),
+    ]
+    for cp, concurrents_cp in decors:
+        faits = _faits(cp, "Levis")
+        concurrents = [_faits(c, "Levis") for c in concurrents_cp]
+        davant = da.departager_ladresse(faits, concurrents, niveaux=da.NIVEAUX_DAVANT)
+        apres = da.departager_ladresse(faits, concurrents)
+        if davant.prononce:
+            assert apres.prononce, (cp, concurrents_cp)
+            assert apres.gagnant == davant.gagnant, (cp, concurrents_cp)
 
 
 # ---------------------------------------------------------------------------
@@ -172,13 +260,6 @@ def test_le_departageur_REFUSE_tout_ce_qui_nest_pas_ambigu(matches, famille):
     assert famille in str(capture.value)
 
 
-def test_un_ambigu_passe_la_garde_et_se_departage():
-    matches = [_Match("A", 95.0, cp="H2X 1Y4"), _Match("B", 94.0, cp="G6V 1A1")]
-    d, concurrents = da.departager_le_dossier(matches, _faits("G6V 1A1", None))
-    assert len(concurrents) == 2
-    assert (d.issue, d.niveau, d.gagnant) == (DEPARTAGE, da.NIVEAU_CODE_POSTAL, 1)
-
-
 def test_les_concurrents_sont_ceux_a_MOINS_DE_LECART_du_meilleur():
     """*C'est exactement l'ensemble sur lequel un abaissement de l'écart
     trancherait à l'aveugle.*"""
@@ -186,6 +267,13 @@ def test_les_concurrents_sont_ceux_a_MOINS_DE_LECART_du_meilleur():
 
     matches = [_Match("A", 95.0), _Match("B", 94.0), _Match("C", 95.0 - SEUIL_AMBIGUITE_ECART_MIN)]
     assert [m.entry.neq for m in da.concurrents_de(matches)] == ["A", "B"]
+
+
+def test_un_ambigu_passe_la_garde_et_se_departage():
+    matches = [_Match("A", 95.0, cp="H2X 1Y4"), _Match("B", 94.0, cp="G6V 1A1")]
+    d, concurrents = da.departager_le_dossier(matches, _faits("G6V 1A1", None))
+    assert len(concurrents) == 2
+    assert (d.issue, d.niveau, d.gagnant) == (DEPARTAGE, da.NIVEAU_CODE_COMPLET, 1)
 
 
 def test_les_echelles_ne_sont_pas_touchees():

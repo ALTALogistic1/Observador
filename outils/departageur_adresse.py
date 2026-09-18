@@ -64,12 +64,48 @@ from outils.departageurs import (
     fait_de_la_ville,
 )
 
-#: Les deux niveaux, **dans l'ordre où ils se demandent**. *L'ordre est la
-#: décision : le code postal d'abord, parce qu'il est plus précis et qu'il sépare
-#: deux fois plus.*
-NIVEAU_CODE_POSTAL = "code postal"
+NIVEAU_CODE_COMPLET = "code postal complet"
+NIVEAU_REGION_DE_TRI = "région de tri"
 NIVEAU_VILLE = "ville"
-NIVEAUX = (NIVEAU_CODE_POSTAL, NIVEAU_VILLE)
+#: Le niveau d'AVANT le 18 septembre — les deux résolutions confondues. *Gardé
+#: pour que la comparaison « hier / aujourd'hui » soit un APPEL du même
+#: mécanisme, et non une réécriture à la main de ce qu'on veut comparer.*
+NIVEAU_CODE_POSTAL = "code postal"
+
+
+@dataclass(frozen=True)
+class Niveau:
+    """Un niveau du départageur d'adresse, **et ce qu'il est par rapport au
+    précédent**.
+
+    ⚠️ `degradation_du_precedent` est la seule chose qui décide si
+    *« le fait les exclut tous »* laisse parler ce niveau. **C'est une propriété
+    de la TRANSITION, pas du niveau** — et l'écrire ici plutôt que dans une
+    condition évite qu'un troisième niveau hérite d'une règle écrite pour deux.
+    """
+
+    nom: str
+    #: ⚠️ Vrai quand ce niveau lit **le même fait, à une résolution plus basse**.
+    #: *Alors « exclut tous » ne ferme pas : c'est précisément ce que la
+    #: dégradation tolère.* Faux quand c'est **un autre fait** — et alors une
+    #: contradiction établie ne se contourne pas par plus grossier.
+    degradation_du_precedent: bool = False
+
+
+#: Les trois niveaux, **dans l'ordre où ils se demandent**. *L'ordre est la
+#: décision : du plus fin au plus grossier, et chacun compté à part pour qu'on
+#: sache sur quoi on écrit.*
+NIVEAUX = (
+    Niveau(NIVEAU_CODE_COMPLET),
+    Niveau(NIVEAU_REGION_DE_TRI, degradation_du_precedent=True),
+    Niveau(NIVEAU_VILLE),
+)
+
+#: La forme d'AVANT le 18 septembre. *Elle ne sert qu'à mesurer l'écart avec la
+#: forme d'aujourd'hui* — voir `outils/departage_par_ladresse.py`, section 2.
+NIVEAUX_DAVANT = (Niveau(NIVEAU_CODE_POSTAL), Niveau(NIVEAU_VILLE))
+
+NOMS_DES_NIVEAUX = tuple(n.nom for n in NIVEAUX)
 
 #: Les issues d'un niveau qui **laissent parler le suivant**. *Chacune veut dire
 #: « ce niveau n'a pas tranché », et aucune ne veut dire « ce niveau a tranché
@@ -80,8 +116,10 @@ ISSUES_QUI_APPELLENT_LE_REPLI = (
     PLUSIEURS_COMPATIBLES,
 )
 
-#: ⚠️ **L'issue qui FERME le départageur sans départager.** *Le fait du dossier
-#: dément tous les candidats; un fait moins précis n'a pas à le contredire.*
+#: ⚠️ **L'issue qui ne se franchit QUE vers une dégradation du même fait.** *Le
+#: fait du dossier dément tous les candidats : un AUTRE fait, plus grossier, n'a
+#: pas à le contredire; le MÊME fait, plus grossier, est exactement ce qu'on a
+#: prévu pour le tolérer.*
 ISSUES_QUI_FERMENT = (AUCUN_COMPATIBLE,)
 
 
@@ -136,18 +174,53 @@ def texte_des_champs(champs: dict | None, cles) -> str:
     return " ".join(morceaux)
 
 
+#: La longueur d'un code postal canadien compact, et celle d'une région de tri.
+#: *Deux chiffres nommés plutôt que deux `len(f) == 6` répandus dans le module.*
+LONGUEUR_CODE_COMPLET = 6
+LONGUEUR_REGION_DE_TRI = 3
+
+
+def _a_la_resolution(fait: Fait | None, longueur: int) -> Fait | None:
+    """Le même fait, **filtré à une seule résolution**. *Un fait vide n'est pas
+    un fait : il rend `None`, donc « le dossier ne porte pas le fait » plutôt
+    qu'une comparaison sur l'ensemble vide.*"""
+    if fait is None:
+        return None
+    formes = frozenset(f for f in fait.formes if len(f) == longueur)
+    return Fait(formes, fait.brut) if formes else None
+
+
 @dataclass(frozen=True)
 class FaitsDAdresse:
     """Ce qu'un côté — dossier ou candidat — sait de son adresse, **par niveau**.
 
-    *Les deux se lisent ensemble parce qu'ils viennent du même texte; ils se
-    comparent séparément parce qu'ils n'ont pas la même précision.*
+    ⚠️ **`code_postal` est les DEUX résolutions confondues, et c'est la forme
+    d'avant le 18 septembre.** *Elle est gardée parce qu'elle sert à mesurer
+    l'écart, et parce que `outils/mesure_des_departageurs.py` compare toujours
+    « le code postal » comme un tout.* **Elle ne décide plus rien.**
     """
 
     code_postal: Fait | None
     ville: Fait | None
 
+    @property
+    def code_complet(self) -> Fait | None:
+        """*Un côté de rue, parfois un immeuble.* **Deux entreprises qui le
+        partagent sont voisines ou à la même adresse.**"""
+        return _a_la_resolution(self.code_postal, LONGUEUR_CODE_COMPLET)
+
+    @property
+    def region_de_tri(self) -> Fait | None:
+        """⚠️ *`G5R` couvre Rivière-du-Loup en entier.* **C'est de la ville
+        déguisée en code postal** — et ce niveau existe pour qu'elle cesse de se
+        déguiser, pas pour qu'on la retire."""
+        return _a_la_resolution(self.code_postal, LONGUEUR_REGION_DE_TRI)
+
     def de_niveau(self, niveau: str) -> Fait | None:
+        if niveau == NIVEAU_CODE_COMPLET:
+            return self.code_complet
+        if niveau == NIVEAU_REGION_DE_TRI:
+            return self.region_de_tri
         if niveau == NIVEAU_CODE_POSTAL:
             return self.code_postal
         if niveau == NIVEAU_VILLE:
@@ -183,25 +256,39 @@ class Departage:
 
 
 def departager_ladresse(
-    du_dossier: FaitsDAdresse, des_concurrents: list[FaitsDAdresse]
+    du_dossier: FaitsDAdresse,
+    des_concurrents: list[FaitsDAdresse],
+    niveaux: tuple = NIVEAUX,
 ) -> Departage:
-    """Les deux niveaux, dans l'ordre, **avec le repli et son unique interdit**.
+    """Les niveaux, dans l'ordre, **avec le repli et sa seule porte fermée**.
 
-    ⚠️ *La ville ne parle pas quand le code postal a exclu tout le monde* — voir
-    l'entête du module : ce serait bâtir un départage par-dessus une
-    contradiction établie.
+    ⚠️ *« Le fait les exclut tous » se franchit vers une DÉGRADATION DU MÊME
+    FAIT, jamais vers un autre fait* — voir l'entête du module. Le code complet
+    laisse donc parler la région de tri; la région de tri ne laisse pas parler la
+    ville.
+
+    `niveaux` existe pour que la comparaison « hier / aujourd'hui » soit un APPEL
+    de ce mécanisme *(`NIVEAUX_DAVANT`)*, et non une réécriture à la main de ce
+    qu'on veut comparer. ⚠️ *Un départageur recopié à la main est déjà arrivé
+    une fois.*
     """
     par_niveau: list[tuple[str, str]] = []
-    for niveau in NIVEAUX:
+    for rang, niveau in enumerate(niveaux):
         issue, gagnant = departager(
-            du_dossier.de_niveau(niveau),
-            [faits.de_niveau(niveau) for faits in des_concurrents],
+            du_dossier.de_niveau(niveau.nom),
+            [faits.de_niveau(niveau.nom) for faits in des_concurrents],
         )
-        par_niveau.append((niveau, issue))
+        par_niveau.append((niveau.nom, issue))
         if issue == DEPARTAGE:
-            return Departage(issue, niveau, gagnant, tuple(par_niveau))
-        if issue not in ISSUES_QUI_APPELLENT_LE_REPLI:
-            return Departage(issue, None, None, tuple(par_niveau))
+            return Departage(issue, niveau.nom, gagnant, tuple(par_niveau))
+        if issue in ISSUES_QUI_APPELLENT_LE_REPLI:
+            continue
+        # Reste `AUCUN_COMPATIBLE`. La porte ne s'ouvre que si le niveau SUIVANT
+        # lit le même fait plus grossièrement.
+        suivant = niveaux[rang + 1] if rang + 1 < len(niveaux) else None
+        if suivant is not None and suivant.degradation_du_precedent:
+            continue
+        return Departage(issue, None, None, tuple(par_niveau))
     return Departage(par_niveau[-1][1], None, None, tuple(par_niveau))
 
 
@@ -317,7 +404,8 @@ def concurrents_de(matches, ecart_min: float | None = None) -> list:
 
 def departager_le_dossier(matches, du_dossier: FaitsDAdresse,
                           seuil: float | None = None,
-                          ecart_min: float | None = None) -> tuple[Departage, list]:
+                          ecart_min: float | None = None,
+                          niveaux: tuple = NIVEAUX) -> tuple[Departage, list]:
     """`(départage, concurrents)` — **le seul point d'entrée, garde comprise.**
 
     *Un appelant ne peut pas sauter la garde en oubliant de l'appeler : elle est
@@ -326,6 +414,6 @@ def departager_le_dossier(matches, du_dossier: FaitsDAdresse,
     refuser_si_ce_nest_pas_un_ambigu(matches, seuil=seuil, ecart_min=ecart_min)
     concurrents = concurrents_de(matches, ecart_min=ecart_min)
     departage = departager_ladresse(
-        du_dossier, [faits_du_candidat(m.entry) for m in concurrents]
+        du_dossier, [faits_du_candidat(m.entry) for m in concurrents], niveaux=niveaux
     )
     return departage, concurrents

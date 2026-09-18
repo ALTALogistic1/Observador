@@ -9,6 +9,7 @@ décor le vérifie sur un dossier où la ville aurait tranché sans hésiter.
 from __future__ import annotations
 
 import datetime as _dt
+import re
 
 import pytest
 from sqlalchemy import select
@@ -27,7 +28,7 @@ def _entree(db_session, neq, nom, **kw):
 
 @pytest.fixture()
 def decor(db_session, monkeypatch):
-    """Un retenu et trois ambigus, **un par comportement du départageur**.
+    """Un retenu et QUATRE ambigus, **un par comportement du départageur**.
 
     *Un décor où l'adresse sépare tout ne verrouillerait ni le repli ni son
     interdit.*
@@ -42,13 +43,24 @@ def decor(db_session, monkeypatch):
                      ville="Laval", code_postal="H7A 1B1",
                      nom_detecte_normalise=normaliser("Fisher Scientific Canada inc"))
 
-    # (a) séparé par le CODE POSTAL — même ville des deux côtés, elle ne sert à rien
+    # (a) séparé par le CODE POSTAL COMPLET — MÊME région de tri des deux côtés :
+    #     seule la résolution fine tranche, et c'est le cas `TRIGONIX`.
     _entree(db_session, "1000000001", "Gagnon Freres inc", ville="Levis",
             code_postal="G6V 1A1")
     _entree(db_session, "1000000002", "Gagnon Freres ltee", ville="Levis",
-            code_postal="G7A 2B2")
+            code_postal="G6V 5X9")
     par_code = Company(neq=None, nom_detecte="Gagnon Freres", ville="Levis",
                        nom_detecte_normalise=normaliser("Gagnon Freres"))
+
+    # (a2) séparé par la RÉGION DE TRI — les codes COMPLETS s'excluent tous.
+    #      C'est `Wazoom`, et c'est la porte à ne pas fermer.
+    _entree(db_session, "4000000001", "Wazoom Studio inc", ville="CP 235",
+            code_postal="G5R 3Y8")
+    _entree(db_session, "4000000002", "Wazoom Studio ltee", ville="Montreal",
+            code_postal="H2N 1A1")
+    par_region = Company(neq=None, nom_detecte="Wazoom Studio",
+                         code_postal="G5R 3A7",
+                         nom_detecte_normalise=normaliser("Wazoom Studio"))
 
     # (b) séparé par la VILLE EN REPLI — aucun code postal nulle part
     _entree(db_session, "2000000001", "Artelia Canada inc", ville="Quebec")
@@ -65,12 +77,12 @@ def decor(db_session, monkeypatch):
                      code_postal="J0L 2A1",
                      nom_detecte_normalise=normaliser("Zebulon Metaux"))
 
-    db_session.add_all([retenu, par_code, par_ville, exclut])
+    db_session.add_all([retenu, par_code, par_region, par_ville, exclut])
     db_session.flush()
     db_session.add(Signal(
         company_id=par_code.id, source_id="eimt", signal_type_id="recrutement_massif",
         detected_at=_dt.datetime(2026, 1, 1),
-        champs={"adresse": "Levis, QC G7A 2B2"},
+        champs={"adresse": "Levis, QC G6V 5X9"},
     ))
     db_session.commit()
     monkeypatch.setattr("falkye.db.get_session", lambda: db_session)
@@ -82,11 +94,20 @@ def _sortie(capsys):
     return capsys.readouterr().out
 
 
-def test_le_decor_donne_UN_retenu_et_TROIS_ambigus(decor, capsys):
+def _compte(ligne: str) -> str:
+    """Le nombre d'une ligne de tableau — *lu par motif, jamais par rang de
+    jeton* : ⚠️ une marque en fin de ligne (`→ repli`, `⛔ fin`) déplace tous
+    les index, et un test qui compte les jetons se met à lire le décor."""
+    trouve = re.search(r"\s(\d[\d ]*)\s+\d+\.\d %", ligne)
+    assert trouve, ligne
+    return trouve.group(1).strip()
+
+
+def test_le_decor_donne_UN_retenu_et_QUATRE_ambigus(decor, capsys):
     assert outil.main(["--echantillon", "0"]) == 0
     sortie = _sortie(capsys)
     assert "dont RETENUS      : 1" in sortie, sortie
-    assert "dont AMBIGUS      : 3" in sortie, sortie
+    assert "dont AMBIGUS      : 4" in sortie, sortie
 
 
 def test_ce_que_loutil_ne_dira_pas_vient_AVANT_les_chiffres(decor, capsys):
@@ -134,40 +155,103 @@ def test_le_critere_ECHOUE_BRUYAMMENT_si_la_garde_tombe(decor, capsys, monkeypat
 # ---------------------------------------------------------------------------
 
 def test_chaque_niveau_separe_SON_dossier(decor, capsys):
+    """*Un décor où un seul niveau sépare tout ne verrouillerait pas la
+    ventilation.*"""
     assert outil.main(["--echantillon", "0"]) == 0
     bloc = _sortie(capsys).split("2. CE QUE L'ADRESSE SÉPARE")[1]
-    ligne_cp = next(l for l in bloc.splitlines() if "CODE POSTAL — le premier" in l)
-    ligne_ville = next(l for l in bloc.splitlines() if "VILLE — en REPLI" in l)
-    # ⚠️ *La part est écrite « 33.3 % » — DEUX jetons.* Le nombre est l'avant-
-    # avant-dernier, et lire `[-2]` rendrait le pourcentage sans que rien ne le
-    # dise.
-    assert ligne_cp.split()[-3] == "1", ligne_cp
-    assert ligne_ville.split()[-3] == "1", ligne_ville
-    ligne_total = next(l for l in bloc.splitlines() if "SÉPARÉS PAR L'ADRESSE" in l)
-    assert ligne_total.split()[-3] == "2", ligne_total
+    # ⚠️ Les titres COMPLETS : « RÉGION DE TRI » tout court apparaît aussi dans
+    # le préambule en prose, et le test lirait alors le décor.
+    for titre in ("CODE POSTAL COMPLET — un immeuble",
+                  "RÉGION DE TRI — la finesse",
+                  "VILLE — en repli"):
+        assert _compte(next(l for l in bloc.splitlines() if titre in l)) == "1", titre
+    total = next(l for l in bloc.splitlines() if "SÉPARÉS PAR L'ADRESSE" in l)
+    assert _compte(total) == "3", total
 
 
-def test_le_dossier_ou_le_code_postal_EXCLUT_TOUT_reste_indepartage(decor, capsys):
+def test_la_REGION_DE_TRI_tranche_la_ou_le_code_complet_EXCLUT_TOUT(decor, capsys):
+    """⚠️ **La porte à ne pas fermer** — sans elle, `Wazoom` disparaîtrait."""
+    assert outil.main(["--echantillon", "0"]) == 0
+    sortie = _sortie(capsys)
+    bloc = sortie.split("▸ CODE POSTAL COMPLET")[1].split("▸ RÉGION DE TRI")[0]
+    ligne = next(l for l in bloc.splitlines() if "exclut tous" in l)
+    assert "repli (même fait, dégradé)" in ligne, ligne
+    assert _compte(ligne) == "2", ligne   # Wazoom + le dossier que la région exclut
+
+
+def test_la_ville_NE_PARLE_PAS_quand_la_region_de_tri_exclut_tout(decor, capsys):
     """⚠️ *La ville aurait désigné `3000000002` sans hésiter. Elle ne parle pas.*"""
     assert outil.main(["--echantillon", "0"]) == 0
     sortie = _sortie(capsys)
-    bloc = sortie.split("▸ CODE POSTAL")[1]
+    bloc = sortie.split("▸ RÉGION DE TRI")[1].split("▸ VILLE")[0]
     ligne = next(l for l in bloc.splitlines() if "exclut tous" in l)
-    assert ligne.split()[-3] == "1", ligne
-    assert "elle ne se demande JAMAIS sur les 1 dossier(s)" in sortie, sortie
-    bloc_ville = sortie.split("▸ VILLE")[1]
-    # ⚠️ **UN SEUL des trois ambigus atteint le second niveau.** *Celui que le
-    # code postal a tranché s'arrête là; celui qu'il a EXCLU ne passe pas.* Trois
-    # dossiers consultés au premier niveau, un au second — et c'est l'interdit du
-    # repli qui fait la différence entre 1 et 2.
-    assert "▸ CODE POSTAL   (3 dossier(s) consulté(s))" in sortie, sortie
-    assert "(1 dossier(s) consulté(s))" in bloc_ville.splitlines()[0], bloc_ville
+    assert "la ville NE PARLE PAS" in ligne, ligne
+    assert _compte(ligne) == "1", ligne
 
 
-def test_le_repli_dit_par_quel_maillon_le_code_postal_a_echoue(decor, capsys):
+def test_le_DECOUPAGE_ne_perd_aucun_departage_et_ne_deplace_aucun_gagnant(decor, capsys):
+    """⚠️ **Le critère du découpage.** *Rendre la granularité lisible, pas écrire
+    moins ni écrire autrement.*"""
     assert outil.main(["--echantillon", "0"]) == 0
-    bloc = _sortie(capsys).split("▸ CODE POSTAL")[1].split("▸ VILLE")[0]
-    assert "→ repli" in bloc, bloc
+    sortie = _sortie(capsys)
+    perdus = next(l for l in sortie.splitlines() if "PERDUS — séparés avant" in l)
+    deplaces = next(l for l in sortie.splitlines() if "GAGNANT DIFFÉRENT" in l)
+    assert perdus.split()[-1] == "0", perdus
+    assert deplaces.split()[-1] == "0", deplaces
+    assert "Aucun départage perdu, aucun gagnant déplacé" in sortie
+
+
+def test_le_code_complet_AJOUTE_ce_que_la_region_seule_ratait(decor, capsys):
+    """*`Gagnon Freres` partage `G6V` avec les deux candidats : la forme d'avant
+    ne tranchait pas. Le code complet, si.*"""
+    assert outil.main(["--echantillon", "0"]) == 0
+    sortie = _sortie(capsys)
+    ligne = next(l for l in sortie.splitlines() if "AJOUTÉS par le code complet" in l)
+    assert ligne.split()[-1] == "1", ligne
+    avant = next(l for l in sortie.splitlines() if "forme D AVANT" in l)
+    apres = next(l for l in sortie.splitlines() if "forme À TROIS NIVEAUX" in l)
+    assert avant.split()[-1] == "2" and apres.split()[-1] == "3", (avant, apres)
+
+
+def test_le_CRITERE_du_decoupage_echoue_bruyamment(decor, capsys, monkeypatch):
+    """⚠️ *Un critère qu'on ne peut pas faire échouer n'en est pas un.*
+
+    On casse la forme d'avant pour qu'elle prétende avoir tranché partout, et on
+    vérifie que l'outil SORT EN ERREUR plutôt que d'imprimer la suite.
+    """
+    from outils import departageur_adresse as da
+
+    vrai = outil.departager_ladresse
+
+    def _ment(faits, concurrents, niveaux=da.NIVEAUX):
+        if niveaux is da.NIVEAUX_DAVANT:
+            return da.Departage(outil.DEPARTAGE, da.NIVEAU_CODE_POSTAL, 0, ())
+        return vrai(faits, concurrents, niveaux=niveaux)
+
+    monkeypatch.setattr(outil, "departager_ladresse", _ment)
+    assert outil.main(["--echantillon", "0"]) == 1
+    sortie = _sortie(capsys)
+    assert "CRITÈRE ÉCHOUÉ" in sortie
+    assert "CE QUE CHAQUE NIVEAU APPORTE SEUL" not in sortie
+
+
+def test_ce_que_chaque_niveau_apporte_SEUL_est_rendu(decor, capsys):
+    """*Un niveau dont la colonne « LUI SEUL » est vide ne mérite pas son rang.*"""
+    assert outil.main(["--echantillon", "0"]) == 0
+    sortie = _sortie(capsys)
+    assert "3. CE QUE CHAQUE NIVEAU APPORTE SEUL" in sortie
+    bloc = sortie.split("joué SEUL sur les")[1]
+    # ⚠️ Joué SEUL, le code complet ne couvre QUE `Gagnon Freres` : `Wazoom` lui
+    # échappe (ses codes complets s'excluent) faute de repli vers la région.
+    ligne = next(l for l in bloc.splitlines() if l.strip().startswith("code postal complet"))
+    assert ligne.split()[-2] == "1", ligne
+    ville = next(l for l in bloc.splitlines() if l.strip().startswith("ville"))
+    # ⚠️ La ville SEULE couvre 2 dossiers, dont celui que la cascade REFUSE de
+    # trancher : *le tableau dit ce qu'elle saurait faire, pas ce qu'on la
+    # laisse faire.*
+    assert ville.split()[-2] == "2", ville
+    assert "recouvrement :" in sortie
+    assert "ne mérite pas son rang" in sortie
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +270,7 @@ def test_les_corrections_se_paginent_A_PART(decor, capsys):
     """*« Paginables à part, parce que ce sont eux à regarder en premier. »*"""
     assert outil.main(["--echantillon", "0", "--departages", "1"]) == 0
     sortie = _sortie(capsys)
-    assert "DÉPARTAGES 1 à 1 sur 2" in sortie, sortie
+    assert "DÉPARTAGES 1 à 1 sur 3" in sortie, sortie
     assert "tranché par :" in sortie
     assert "→ = retenu par l'adresse" in sortie
 
@@ -196,7 +280,8 @@ def test_la_pagination_montre_le_fait_BRUT_et_la_forme_COMPAREE(decor, capsys):
     assert outil.main(["--echantillon", "0", "--departages", "5"]) == 0
     sortie = _sortie(capsys)
     assert "au dossier  :" in sortie and "comparé sur :" in sortie
-    assert "'Levis, QC G7A 2B2'" in sortie, sortie
+    assert "'Levis, QC G6V 5X9'" in sortie, sortie
+    assert "complet=" in sortie and "tri=" in sortie
 
 
 def test_les_deux_paginations_ne_se_demandent_PAS_ENSEMBLE(decor):
@@ -208,7 +293,7 @@ def test_les_deux_paginations_ne_se_demandent_PAS_ENSEMBLE(decor):
 
 def test_depuis_decale_le_lot(decor, capsys):
     assert outil.main(["--echantillon", "0", "--departages", "1", "--depuis", "1"]) == 0
-    assert "DÉPARTAGES 2 à 2 sur 2" in _sortie(capsys)
+    assert "DÉPARTAGES 2 à 2 sur 3" in _sortie(capsys)
 
 
 # ---------------------------------------------------------------------------

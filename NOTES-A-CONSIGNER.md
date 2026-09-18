@@ -3278,3 +3278,110 @@ lira comme un état.**
 
 > **Nommer où le travail ira n'est pas le commencer. Remplir sa place d'avance,
 > si.**
+
+---
+
+## N141 — Le code postal ne tranchait rien : c'était la région de tri, sur 100 % des cas
+
+*(2026-09-18, relecture des 50 premières corrections par Alexandre.)*
+
+Le départageur d'adresse avait un niveau nommé « code postal ». **Il décidait
+entièrement à la résolution de la RÉGION DE TRI, et le code complet n'a jamais
+rien tranché.**
+
+Le mécanisme est dans la lecture des faits : `codes_postaux` range `jeton[:3]`
+**à côté** de chaque code complet. Deux faits s'intersectent donc *si et seulement
+si* leurs régions de tri s'intersectent — *tout code complet partagé implique sa
+région partagée, et l'inverse suffit déjà.*
+
+⚠️ **Alexandre l'a trouvé sur un cas; la construction a montré que c'était tout le
+niveau.**
+
+```
+Wazoom  au dossier : G5R3A7  →  9358-9570 Québec inc.  cp=['G5R', 'G5R3Y8']
+```
+
+> *Un seul candidat compatible sur une région de tri n'est pas une
+> identification : c'est de la ville déguisée en code postal, qui hérite de la
+> faiblesse de la ville **sans la déclarer**.* **`G5R` couvre Rivière-du-Loup en
+> entier.**
+
+**Ce qui rend le défaut coûteux n'est pas qu'il soit faux — c'est qu'il soit
+INVISIBLE.** *Un départage sur `G5R` et un départage sur `G5R3Y8` sortaient sous
+la même étiquette, et rien ne disait lequel on lisait.*
+
+> **Un niveau qui mélange deux résolutions annonce la précision de la plus fine
+> et rend la fiabilité de la plus grossière.**
+
+---
+
+## N142 — « Le fait les exclut tous » se franchit vers une DÉGRADATION du même fait, jamais vers un autre fait
+
+*(2026-09-18, en scindant le code postal en deux niveaux.)*
+
+N133 avait posé qu'*« un repli répond à “je ne sais pas”; il n'a rien à répondre
+à “non” »*. **Scinder le code postal a montré que la règle était trop large.**
+
+`G5R3A7` contre `G5R3Y8` : au code complet, **le fait les exclut tous**. Fermer
+là ferait disparaître le départage par région de tri — *et Alexandre a
+explicitement refusé de retirer la région de tri : elle tranche des cas justes,
+et la retirer coûterait des vrais pour éviter des faux.*
+
+**La distinction qui tient :**
+
+| le niveau suivant lit… | « exclut tous » | pourquoi |
+|---|---|---|
+| **le MÊME fait, dégradé** | **on franchit** | *c'est exactement ce que la dégradation existe pour tolérer* |
+| **un AUTRE fait** | ⚠️ **on ferme** | *bâtir un départage par-dessus une contradiction établie* |
+
+⚠️ **Et c'est une propriété de la TRANSITION, pas du niveau.** *L'écrire dans une
+condition (« si on est au code postal… ») ferait hériter un troisième niveau
+d'une règle pensée pour deux.* **Elle est donc portée par l'objet `Niveau` :
+`degradation_du_precedent`.**
+
+> **Une règle vérifiée sur deux cas n'est pas une règle : c'est une observation
+> qui n'a pas encore rencontré le troisième.**
+
+---
+
+## N143 — Un compte figé dans une étiquette, troisième occurrence — et cette fois dans un libellé de tableau
+
+*(2026-09-18.)*
+
+`profil_des_6176.py` portait une mesure périmée **dans son nom de fichier**; un
+test refuse depuis tout nom d'outil portant un compte. ⚠️ **Le même défaut vient
+de reparaître ailleurs** : un en-tête de colonne écrit
+`« niveau, joué SEUL sur les 5 002 »` **pendant que le code comptait la
+population réelle juste à côté**.
+
+*Sur le décor de test, l'en-tête annonçait 5 002 au-dessus d'un tableau de
+quatre lignes.* **Personne ne l'aurait vu sur l'hôte, où 5 002 se trouve être
+juste — jusqu'au jour où la population bouge.**
+
+**La garde existante ne pouvait pas l'attraper : elle lit les NOMS DE FICHIERS.**
+*Un chiffre recopié dans une chaîne de format est hors de sa portée.*
+
+> **Une étiquette qui porte un nombre est une mesure sans requête. Le nombre se
+> lit, il ne s'écrit pas.**
+
+---
+
+## N144 — Un test qui compte les jetons d'une ligne lit le décor, pas la mesure
+
+*(2026-09-18.)*
+
+Les tests du départageur vérifiaient un compte par `ligne.split()[-3]`. ⚠️
+**Ajouter une marque en fin de ligne — `→ repli`, `⛔ la ville NE PARLE PAS` — a
+déplacé tous les index, et les tests se sont mis à comparer des morceaux
+d'explication à des nombres.**
+
+*Le premier symptôme a été `assert '33.3' == '1'` : le test lisait le pourcentage
+en croyant lire le compte.* **Le second a été pire** : un titre en prose du
+préambule contenait « RÉGION DE TRI », et le test l'a trouvé avant la ligne du
+tableau.
+
+**Le correctif est de lire par MOTIF** — `\s(\d[\d ]*)\s+\d+\.\d %` — *et de
+citer les titres en entier plutôt que par fragment.*
+
+> **Un test qui repère sa valeur par position mesure la mise en page. Il tombe
+> quand on ajoute une explication, et il ment quand on en ajoute deux.**
