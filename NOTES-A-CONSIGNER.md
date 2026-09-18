@@ -3203,3 +3203,78 @@ dit leur ancienneté ne l'est pas.**
 
 > **Un garde-fou qui ne bloque pas n'a qu'une chose à faire : dire vrai. Celui-là
 > disait vraisemblable.**
+
+---
+
+## N138 — Ce qui fait d'un document un document de CHANTIER et non un relevé de mesures
+
+*(2026-09-18, arbitré par Alexandre sur les deux versions du 3+4.)*
+
+Deux versions du même document se sont présentées : douze sections et dix-huit.
+**L'écart n'était pas du contenu en plus — c'était six sections de STRUCTURE** :
+*Portée*, *Préalables*, *les points à construire*, *Tests exigés*, *Vérification
+macro*, *Ce qui doit être livré*.
+
+> **Ce sont elles qui font d'un document un document de chantier plutôt qu'un
+> relevé de mesures.** *(formulation d'Alexandre)*
+
+⚠️ **Un relevé de mesures dit ce qu'on a trouvé. Un document de chantier dit ce
+qu'on va construire, ce qu'on ne construira pas, ce qui doit exister avant, et
+comment on saura que c'est fini.** *Sans ces quatre, le document se lit — et ne
+commande rien.*
+
+**Et la section 7bis vaut mieux que ce qu'elle remplace, pour une raison
+générale** : *le texte d'origine affirmait le plancher de calcul sur **dix
+cas**; la version alignée le **recompte sur la population**.* **Dix cas disent
+qu'une chose existe; ils ne disent jamais combien de fois** — c'est la même
+règle qui a déjà mordu sur « sept sur dix en tête d'alphabet ».
+
+> **Un envoi ne prime pas sur le dépôt du seul fait d'être plus récent à
+> l'écran.** *Ce qui prime, c'est ce qui porte la structure et le recompte.*
+
+---
+
+## N139 — Une divergence nommée et LAISSÉE : quand le chiffre qui portait le risque est déjà juste
+
+*(2026-09-18, décision d'Alexandre.)*
+
+Le rappel du tampon lit les dates sous une forme que **85 notes sur 136** n'emploient
+pas : « la plus ancienne » se calcule donc sur 51. **Décision : ne pas corriger
+maintenant.**
+
+**Le motif est le bon, et il est réutilisable** : *le compte — combien de notes sont
+en attente — est juste depuis le correctif, et **c'est lui qui portait le
+risque**.* L'ancienneté est une information de confort; l'oubli d'une note est la
+perte que le tampon existe pour empêcher.
+
+⚠️ **Deux défauts dans le même outil ne valent pas le même prix, et les corriger
+ensemble parce qu'ils sont voisins est une erreur de priorité déguisée en
+propreté.** *Ce qui les distingue n'est pas leur taille : c'est lequel des deux
+laisse passer ce qu'on surveille.*
+
+**Ce qui rend la décision tenable, c'est qu'elle est ÉCRITE.** *Une divergence
+connue et notée est une dette; une divergence connue et tue est un piège pour le
+prochain lecteur, qui lira « la plus ancienne du 14 septembre » sans savoir que
+51 notes seulement ont voté.*
+
+---
+
+## N140 — Un renvoi vers un chantier non ouvert ne se comble pas d'avance
+
+*(2026-09-18, décision d'Alexandre.)*
+
+`falkye-le-cerveau.md` attribue la table `(code, rôle) → sphère` au **chantier 22**,
+et le document du 22 ne la nomme pas. **Renvoi vers un chantier, pas vers une
+section : rien n'est cassé, et le vérificateur du corpus ne le voit pas non plus.**
+
+**Décision : à nommer dans le document du 22 quand ce chantier s'ouvrira, pas
+avant.**
+
+⚠️ *Écrire d'avance dans le document d'un chantier fermé produit exactement ce que
+le cas 39 a coûté : un chantier réputé traité parce que son document en parle,
+alors qu'il n'a jamais tourné.* **Un renvoi qui pointe vers un chantier à ouvrir
+est honnête; une section écrite d'avance dans ce chantier est une promesse qui se
+lira comme un état.**
+
+> **Nommer où le travail ira n'est pas le commencer. Remplir sa place d'avance,
+> si.**
