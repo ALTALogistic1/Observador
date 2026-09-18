@@ -106,7 +106,12 @@ print(f"\n⚠️ {LIMITE}")
 TAMPON = RACINE / "NOTES-A-CONSIGNER.md"
 if TAMPON.exists():
     texte_tampon = TAMPON.read_text(encoding="utf-8")
-    titres = re.findall(r"^### (N\d+) — (.+)$", texte_tampon, re.M)
+    # ⚠️ **DEUX ou TROIS dièses, et il faut les deux.** *Le tampon a changé de
+    # niveau de titre en cours de route — N1 à N87 en `###`, N88 et suivantes en
+    # `##` — et ce rappel a compté 87 notes sur 136 pendant ce temps.* **Un
+    # rappel qui ne bloque jamais et qui compte faux ne rappelle rien** : il
+    # affiche un chiffre plausible, ce qui est pire qu'un chiffre absent.
+    titres = re.findall(r"^#{2,3} (N\d+) — (.+)$", texte_tampon, re.M)
     dates = re.findall(r"^- \*\*Notée le\*\* : (\d{4}-\d{2}-\d{2})", texte_tampon, re.M)
     if not titres:
         print("\n📝 Notes à consigner : aucune — le tampon est vide.")

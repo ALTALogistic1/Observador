@@ -50,6 +50,12 @@ faits à réunir plutôt qu'une date, parce qu'une place vide sans déclencheur 
 **Le chantier 13 les corrige toutes** : le taux de rejet est la seule boucle qui confronte le moteur au
 réel plutôt qu'à des hypothèses.
 
+⚠️ **Le tableau ci-dessus dit QUI fait quoi; il ne dit pas comment la chaîne s'enchaîne.** *Les cinq
+facettes se construisent dans cinq documents, et aucun ne les voit d'un bout à l'autre.*
+`falkye-le-cerveau.md` tient cette coordination — **il ne commande aucun travail, n'a ni mandat ni
+livrables ni critère de fermeture**, et se range après le document du chantier concerné dans
+l'arbitrage. *Il y lit la chaîne en six temps, et surtout **où elle est coupée**.*
+
 **⚠️ Une conséquence pour la lecture du corpus.** Entre la correspondance signal↔besoin et le grade
 présenté, **ce qui manque n'est pas toujours un trou de documentation — c'est souvent ce qui n'est pas
 encore conçu.** Le tier de confiance n'a pas de critères parce que **décider si un signal est réel et
@@ -84,6 +90,7 @@ décision explicite, et ne pas la croire absente du corpus.*
 | Ce territoire est-il servi? | **Le Québec seulement.** Tout ce qui est hors Québec est en veilleuse — *stratégie §3, décision du 4 septembre 2026*. Une source hors Québec n'est retenue que si elle améliore les résultats **au Québec** |
 | Quelles sources existent, lesquelles ajouter? | `falkye-sources-spheres-verifiees.md` et `falkye-recommandations-sources.md` |
 | Comment faire *ce* chantier précis? | `falkye-chantier-<n>-<nom>.md` — sept existent : 1, 2, **3+4**, 21, 22, 28, 29 |
+| Comment les chantiers du cerveau s'enchaînent-ils, et où la chaîne est-elle coupée? | `falkye-le-cerveau.md` — **il ne commande aucun travail**, il tient ensemble ce que cinq documents portent séparément |
 | Où en étaient les travaux? | Le document de reprise du moment — **il ne se met pas à jour : il s'écrit à neuf à chaque passation, puis se jette.** Le reste du corpus, lui, se maintient |
 
 **Règle d'arbitrage : charte, puis audit, puis mandat.** Une fiche de l'audit est le mandat par défaut;

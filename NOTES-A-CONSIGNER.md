@@ -3167,3 +3167,39 @@ sans faux négatif, et la payer en faux positifs sur les commentaires est le bon
 
 > **Une garde qui coûte trois lignes et attrape tout vaut mieux qu'une garde
 > exacte que personne n'écrit. L'écrire dans son message, c'est ce qui manque.**
+
+---
+
+## N137 — Un rappel qui ne bloque jamais et qui compte faux ne rappelle rien
+
+*(2026-09-18, en versant `falkye-le-cerveau.md` au corpus.)*
+
+`outils/verifier-corpus.py` affiche à chaque demande de fusion le nombre de notes
+en attente au tampon. **C'est le seul garde-fou de la méthode du corpus** — arrêté
+le 11 septembre comme **affichage, jamais blocage**, parce qu'une règle bloquante
+aurait eu besoin de reconnaître une « fin de tâche », donc d'une sortie nommée,
+donc d'un réflexe qui rassure sans couvrir.
+
+⚠️ **Il comptait 87 notes sur 136.** Le tampon a changé de niveau de titre en cours
+de route — **N1 à N87 en `###`, N88 et suivantes en `##`** — et le motif du rappel
+ne reconnaissait que trois dièses. *Quarante-neuf notes étaient invisibles au seul
+mécanisme qui existe pour les rendre visibles.*
+
+⚠️ **Et ça ne s'est pas vu parce que le chiffre restait PLAUSIBLE.** Quatre-vingt-
+sept notes en attente est un nombre crédible; rien dans la sortie ne détonnait.
+*Un compteur en panne affiche zéro et se voit. Un compteur qui rate une moitié
+affiche un chiffre qu'on lit sans y penser.*
+
+**Le correctif est d'accepter les deux niveaux, pas de réécrire quarante-neuf
+titres** : *un niveau de titre est une mise en forme, pas un sens — et une garde
+qui exige une mise en forme exacte finit par mesurer la discipline typographique
+plutôt que ce qu'elle surveille.*
+
+*Divergence voisine, nommée et non corrigée* : le rappel lit les dates sous la
+forme `- **Notée le** : AAAA-MM-JJ`, et **85 notes sur 136** portent leur date
+autrement *(« la plus ancienne » est donc calculée sur 51 notes)*. **Le chiffre
+qui compte — combien sont en attente — est juste depuis ce correctif; celui qui
+dit leur ancienneté ne l'est pas.**
+
+> **Un garde-fou qui ne bloque pas n'a qu'une chose à faire : dire vrai. Celui-là
+> disait vraisemblable.**
