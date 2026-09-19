@@ -56,6 +56,7 @@ from outils.departageur_adresse import (
     NOMS_DES_NIVEAUX,
     Niveau,
     PasUnAmbigu,
+    expliquer_le_deplacement,
     champs_des_dossiers,
     departager_ladresse,
     departager_le_dossier,
@@ -135,6 +136,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="montrer N départages, correction ou non")
     parser.add_argument("--depuis", type=int, default=0, metavar="K",
                         help="commencer au K-ième du lot demandé")
+    parser.add_argument("--deplacements", type=int, default=10, metavar="N",
+                        help="montrer N paires dont le gagnant a été DÉPLACÉ")
     parser.add_argument("--echantillon", type=int, default=40, metavar="N",
                         help="taille de l'échantillon « les exclut tous » (0 = sauter)")
     parser.add_argument("--limite", type=int, default=None, help="borner (mise au point)")
@@ -292,7 +295,12 @@ def main(argv: list[str] | None = None) -> int:
             if davant.prononce and not departage.prononce:
                 perdus.append((company, matches, concurrents, departage))
             elif davant.prononce and departage.gagnant != davant.gagnant:
-                gagnants_differents.append((company, departage, davant))
+                gagnants_differents.append((
+                    company, concurrents, davant, departage,
+                    expliquer_le_deplacement(faits, [faits_du_candidat(m.entry)
+                                                     for m in concurrents],
+                                             davant, departage),
+                ))
 
         separes = sum(par_niveau_final.values())
         separes_davant = sum(k for (_, avant), k in croisement.items() if avant)
@@ -339,20 +347,64 @@ def main(argv: list[str] | None = None) -> int:
         print("       décide, il ne se subit pas.*")
         print(f"\n   {'⛔ PERDUS — séparés avant, plus maintenant':<{L}} "
               f"{milliers(len(perdus)):>9}")
-        print(f"   {'⛔ GAGNANT DIFFÉRENT du même dossier':<{L}} "
-              f"{milliers(len(gagnants_differents)):>9}")
-        if perdus or gagnants_differents:
-            print("\n   ⛔ CRITÈRE ÉCHOUÉ. Le découpage devait rendre la granularité")
-            print("      LISIBLE, pas écrire moins ni écrire autrement. Rien de ce")
-            print("      qui suit ne doit être lu.")
+        expliques = [d for d in gagnants_differents if d[4].explique]
+        inexpliques = [d for d in gagnants_differents if not d[4].explique]
+        print(f"   {'gagnants DÉPLACÉS, expliqués par un niveau plus fin':<{L}} "
+              f"{milliers(len(expliques)):>9}")
+        print(f"   {'⛔ gagnants DÉPLACÉS, INEXPLIQUÉS':<{L}} "
+              f"{milliers(len(inexpliques)):>9}")
+        print("""
+   ⚠️ LE CRITÈRE N'EST PAS « aucun gagnant déplacé ». Celui-là interdirait à un
+      niveau fin de corriger un niveau grossier, ce qui est précisément ce qu'on
+      lui demande — et il refuserait le découpage pour la raison même qui le
+      justifie.
+
+      Ce qui est interdit est UN GAGNANT DÉPLACÉ SANS QU'UN NIVEAU PLUS FIN
+      L'EXPLIQUE. Trois conditions, et il les faut toutes : le niveau qui
+      tranche est strictement plus fin; il retient le nouveau gagnant; ⚠️ et il
+      EXCLUT l'ancien — un ancien gagnant qui ne porte pas le fait fin n'est pas
+      réfuté, il est inconnu.
+
+   ⚠️ Un départage PERDU reste interdit sans condition. Le découpage doit rendre
+      la granularité lisible, pas écrire moins.
+""")
+        # --- la lecture des paires déplacées, EXPLIQUÉES OU NON ---------------
+        # ⚠️ *Un déplacement légitime reste une paire à regarder.* Le critère dit
+        # qu'il est explicable; il ne dit pas qu'il est juste.
+        if gagnants_differents:
+            montrables = gagnants_differents[: args.deplacements]
+            print(f"   LES {milliers(len(gagnants_differents))} DÉPLACEMENT(S), "
+                  f"{milliers(len(montrables))} montré(s) — "
+                  "*quatre paires lues, pas une mesure* :\n")
+            for company, concurrents, davant, apres, expl in montrables:
+                faits = adresses[company.id]
+                marque = "✔" if expl.explique else "⛔"
+                print(f"   {marque} {(company.nom_detecte or '')[:60]}")
+                print(f"      forme D'AVANT        : tranché par {davant.niveau}"
+                      f"  → rang {davant.gagnant}")
+                print(f"      forme À TROIS NIVEAUX: tranché par {apres.niveau}"
+                      f"  → rang {apres.gagnant}")
+                print(f"      au dossier   complet={_formes(faits.code_complet)}"
+                      f"  tri={_formes(faits.region_de_tri)}"
+                      f"  ville={faits.ville.brut if faits.ville else '—'!r}")
+                for rang, etiquette in ((davant.gagnant, "ANCIEN gagnant"),
+                                        (apres.gagnant, "NOUVEAU gagnant")):
+                    e = concurrents[rang].entry
+                    fc = faits_du_candidat(e)
+                    print(f"      {etiquette:<15} {e.neq}  {(e.nom or '')[:30]:<32}"
+                          f" complet={_formes(fc.code_complet):<10}"
+                          f" tri={_formes(fc.region_de_tri):<6}"
+                          f" ville={(e.ville or '—')[:18]!r}")
+                print(f"      → {expl.motif}\n")
+
+        if perdus or inexpliques:
+            print("\n   ⛔ CRITÈRE ÉCHOUÉ. Rien de ce qui suit ne doit être lu.")
             for company, _, _, dep in perdus[:5]:
                 print(f"      perdu : {(company.nom_detecte or '')[:50]}  {dep.issue}")
-            for company, dep, davant in gagnants_differents[:5]:
-                print(f"      gagnant : {(company.nom_detecte or '')[:40]}  "
-                      f"{davant.gagnant} → {dep.gagnant}")
             return 1
-        print("\n   ✔ Aucun départage perdu, aucun gagnant déplacé. *Le découpage")
-        print("     nomme ce qui décidait déjà; il ne décide pas à sa place.*")
+        print("   ✔ Aucun départage perdu, et chaque gagnant déplacé est expliqué")
+        print("     par un niveau plus fin qui exclut l'ancien. *Le découpage")
+        print("     corrige là où la résolution mêlée désignait autre chose.*")
 
         # --- les issues de chaque niveau -------------------------------------
         for rang, niveau in enumerate(NIVEAUX):

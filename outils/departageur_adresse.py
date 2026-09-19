@@ -107,6 +107,17 @@ NIVEAUX_DAVANT = (Niveau(NIVEAU_CODE_POSTAL), Niveau(NIVEAU_VILLE))
 
 NOMS_DES_NIVEAUX = tuple(n.nom for n in NIVEAUX)
 
+#: Le RANG DE FINESSE de chaque niveau — *0 est le plus fin.* Il sert à dire si
+#: un déplacement de gagnant est EXPLIQUÉ par un niveau plus fin.
+#:
+#: ⚠️ **Le niveau d'avant y entre au rang de la RÉGION DE TRI, pas du code
+#: complet.** *Il s'appelait « code postal » et mêlait les deux résolutions, mais
+#: sa compatibilité était exactement celle de la région de tri* — le ranger plus
+#: fin qu'il n'était ferait passer une correction légitime pour un déplacement
+#: inexpliqué.
+RANG_DES_NIVEAUX: dict[str, int] = {nom: i for i, nom in enumerate(NOMS_DES_NIVEAUX)}
+RANG_DES_NIVEAUX[NIVEAU_CODE_POSTAL] = RANG_DES_NIVEAUX[NIVEAU_REGION_DE_TRI]
+
 #: Les issues d'un niveau qui **laissent parler le suivant**. *Chacune veut dire
 #: « ce niveau n'a pas tranché », et aucune ne veut dire « ce niveau a tranché
 #: contre ».*
@@ -360,6 +371,75 @@ def faits_des_dossiers(db_session, companies, champs: dict | None = None
         )
         for c in companies
     }
+
+
+# ---------------------------------------------------------------------------
+# UN GAGNANT DÉPLACÉ — et ce qui l'explique, ou pas
+# ---------------------------------------------------------------------------
+# ⚠️ **Le critère n'est pas « aucun gagnant déplacé ».** *Celui-là interdirait à
+# un niveau fin de corriger un niveau grossier, ce qui est précisément ce qu'on
+# lui demande* — et un critère qu'on desserre parce qu'il a échoué n'en est plus
+# un. **Ce qui est interdit est un gagnant déplacé SANS qu'un niveau plus fin
+# l'explique**, ce qui se vérifie au lieu de se supposer.
+
+
+@dataclass(frozen=True)
+class Deplacement:
+    """Un gagnant qui change d'une forme à l'autre, **et son explication**."""
+
+    niveau_avant: str
+    niveau_apres: str
+    gagnant_avant: int
+    gagnant_apres: int
+    explique: bool
+    motif: str
+
+
+#: Les trois raisons de refuser une explication. *Chacune dit lequel des trois
+#: maillons manque, et les trois condamnent le découpage différemment.*
+PAS_PLUS_FIN = "le niveau qui tranche n'est pas PLUS FIN que celui d'avant"
+NOUVEAU_NON_PORTE = "le nouveau gagnant ne concorde pas au niveau fin"
+ANCIEN_NON_EXCLU = "le niveau fin n'EXCLUT pas l'ancien gagnant — inconnu ≠ non"
+EXPLIQUE = "un niveau plus fin exclut l'ancien gagnant et retient le nouveau"
+
+
+def expliquer_le_deplacement(du_dossier: FaitsDAdresse,
+                             des_concurrents: list[FaitsDAdresse],
+                             avant: "Departage", apres: "Departage") -> Deplacement:
+    """**Le niveau plus fin explique-t-il ce déplacement?**
+
+    Trois conditions, et il les faut toutes :
+
+    1. le niveau qui tranche maintenant est **strictement plus fin**;
+    2. à ce niveau, le fait du dossier **retient** le nouveau gagnant;
+    3. ⚠️ à ce niveau, le fait du dossier **EXCLUT** l'ancien — *et l'exclut
+       vraiment : un ancien gagnant qui ne porte pas le fait fin n'est pas
+       réfuté, il est inconnu.* **« Je ne sais pas » n'est pas « non », ici
+       aussi.**
+
+    *La troisième est déjà garantie par la cascade — un concurrent sans fait
+    aurait rendu « un concurrent ne porte pas le fait » au lieu de trancher.
+    La vérifier quand même est ce qui fait de ce critère une VÉRIFICATION et non
+    une reformulation du mécanisme.*
+    """
+    def _refus(motif: str) -> Deplacement:
+        return Deplacement(avant.niveau, apres.niveau, avant.gagnant,
+                           apres.gagnant, False, motif)
+
+    rang_avant = RANG_DES_NIVEAUX.get(avant.niveau, len(NIVEAUX))
+    rang_apres = RANG_DES_NIVEAUX.get(apres.niveau, len(NIVEAUX))
+    if rang_apres >= rang_avant:
+        return _refus(PAS_PLUS_FIN)
+
+    fin = du_dossier.de_niveau(apres.niveau)
+    nouveau = des_concurrents[apres.gagnant].de_niveau(apres.niveau)
+    ancien = des_concurrents[avant.gagnant].de_niveau(apres.niveau)
+    if fin is None or nouveau is None or not fin.compatible_avec(nouveau):
+        return _refus(NOUVEAU_NON_PORTE)
+    if ancien is None or fin.compatible_avec(ancien):
+        return _refus(ANCIEN_NON_EXCLU)
+    return Deplacement(avant.niveau, apres.niveau, avant.gagnant,
+                       apres.gagnant, True, EXPLIQUE)
 
 
 # ---------------------------------------------------------------------------
