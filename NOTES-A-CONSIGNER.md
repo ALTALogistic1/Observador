@@ -3724,3 +3724,89 @@ compte, qui a fait écrire « 103 `NOM_ASSUJ` » là où il fallait lire 435.
 
 > **Un total juste sur une population partielle est un total juste. C'est la
 > population qu'il faut écrire à côté.**
+
+---
+
+## N157 — Deux passes qui écrivent le même geste : extraire AVANT d'écrire la seconde
+
+*(2026-09-19, avant de construire l'écriture des départages.)*
+
+Deux passes posent un NEQ : la **reprise** pose ce que le NOM a tranché,
+l'**écriture des départages** pose ce que l'ADRESSE a tranché. ⚠️ **Elles ne
+diffèrent que par la façon dont la paire `(dossier, NEQ)` est produite.** *Tout
+ce qui vient après est le même geste* — instantané, collisions, refus au-delà de
+deux prétendants, re-vérification au moment de poser, enrichissement,
+journalisation, retour arrière.
+
+⚠️ **Recopier ce geste aurait été cas 41 sur un chemin d'ÉCRITURE.** *Un scoreur
+recopié rend un chiffre faux et se rattrape. Une règle de conservation recopiée
+qui diverge perd une identité — et l'instantané de l'autre copie ne la rend
+pas.*
+
+**`outils/pose_du_neq.py` a donc été extrait AVANT d'écrire la seconde passe**,
+par déplacement verbatim des blocs — commentaires compris, parce qu'ils portent
+le fait qui a écrit chaque règle *(le NEQ 8879690699 et ses 26 CISSS)*.
+
+**Et l'extraction se prouve toute seule** : *les 27 tests de la passe de reprise
+passent sans une modification.* **Une extraction qu'on doit accompagner d'un
+ajustement de tests n'est pas une extraction, c'est une réécriture.**
+
+> **Le moment d'extraire n'est pas quand la copie existe : c'est juste avant de
+> la faire. Après, il faut prouver que les deux copies disaient la même
+> chose.**
+
+---
+
+## N158 — Une note écrite ne protège pas le doigt qui tape
+
+*(2026-09-19, une heure après avoir écrit N144.)*
+
+N144 dit : *un test qui repère sa valeur par rang de jeton mesure la mise en
+page.* **Le premier test écrit après cette note faisait exactement ça** —
+`ligne.split()[-2]` sur une ligne `« 2   66.7 % »`, qui rend `66.7`.
+
+⚠️ **La note n'a pas servi parce qu'elle n'était pas à portée du geste.** *Elle
+est au tampon, pas dans le module de test.* **Le correctif qui tient est
+l'helper `_compte()`, copié dans le fichier de test** — *non pas parce qu'un
+helper est plus intelligent qu'une note, mais parce qu'il est là où la faute se
+commet.*
+
+**Ce que ça dit de la méthode du corpus** : *une règle se consigne pour être
+relue; elle ne se consigne pas pour être appliquée.* **Ce qui applique, c'est du
+code au bon endroit.**
+
+> **On consigne pour comprendre. On garde pour empêcher. Les deux ne se
+> remplacent pas.**
+
+---
+
+## N159 — Restreindre l'écriture par NIVEAU, pas le départageur
+
+*(2026-09-19, décision d'Alexandre après relecture de 50 paires sur 292.)*
+
+Le départageur d'adresse sépare **2 032** ambigus. **On n'en écrit que 1 764** —
+ceux du **code postal complet**.
+
+```
+KONE INC.   au dossier 'L5N0A4'   comparé sur ['L5N']
+ × 1172439623  KONE INC.              ville='Montréal'      complet=H4S1Y4
+ → 1144414308  DROLET KONE ELEVATORS  ville='Mississauga'   complet=L5N7J6
+```
+
+> ⚠️ *`L5N` ne dit que « quelque part à Mississauga ».* **C'est de la ville, sous
+> un nom qui ne le dit pas.**
+
+**Ce qui est restreint est l'ÉCRITURE, pas le départageur.** *`departager_ladresse`
+continue de dire ce qu'il sait, à ses trois niveaux; c'est l'outil qui écrit qui
+filtre.* **Mêler les deux ferait disparaître 268 départages de toutes les
+mesures, pas seulement des écritures** — et une mesure qui rétrécit sans le dire
+est pire qu'une écriture qu'on suspend.
+
+⚠️ **Et « en suspens » n'est pas « refusé ».** *Un départage non écrit se
+reprend; un départage écrit à tort coûte une identité.* **La restriction se
+trompe dans le bon sens**, et l'outil les compte, les ventile et les montre un
+par un — *un outil qui écrit 1 764 sur 2 032 doit dire lesquels il n'a pas
+touchés, sinon la différence se lit comme une perte.*
+
+> **Une restriction qui s'applique à l'action et non à la connaissance se lève
+> sans rien redécouvrir.**

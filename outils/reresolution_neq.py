@@ -57,107 +57,31 @@ import argparse
 import json
 import sys
 from collections import Counter
+
+from outils import pose_du_neq
+# ⚠️ **La machinerie d'écriture est EMPRUNTÉE, jamais recopiée.** *Deux passes
+# posent des NEQ; elles ne diffèrent que par la façon dont la paire est
+# produite.* **Recopier une règle de conservation sur un chemin d'écriture
+# perdrait une identité que l'instantané de l'autre copie ne rendrait pas.**
+from outils.pose_du_neq import (  # noqa: F401 -- noms conservés pour les appelants
+    CHAMPS_ENRICHIS,
+    PRETENDANTS_MAX_POUR_TRANCHER,
+    champs_enrichis as _champs_enrichis,
+    defaire as _defaire,
+    sans_champs_de_travail as _sans_champs_de_travail,
+    statut_lisible as _statut_lisible,
+)
 from datetime import datetime, timezone
 from pathlib import Path
 
-#: Au-delà de ce nombre de dossiers visant un même NEQ libre, **personne ne
-#: l'obtient**. *Deux prétendants, c'est un doublon plausible — la situation pour
-#: laquelle la conservation a été pensée. Au-delà, c'est un nom qui désigne une
-#: FAMILLE d'entités*, et départager par l'ancienneté y perd tout sens.
-#:
-#: ⚠️ **Ce n'est pas un seuil de score.** Le NEQ 8879690699 attirait 26 CISSS,
-#: CIUSSS et centres hospitaliers distincts avec des scores de 95 à 100 — *monter
-#: le seuil n'y ferait rien.* **Le nombre de prétendants est une preuve d'une
-#: autre nature que le score.**
-PRETENDANTS_MAX_POUR_TRANCHER = 2
+#: ⛔ Le refus au-delà de deux prétendants vit désormais dans
+#: `outils/pose_du_neq.py`, avec le geste qu'il gouverne — *une règle se
+#: range près de ce qu'elle interdit.* Il est réexporté ci-dessus parce que
+#: la sortie de cette passe le cite.
 
 #: Où l'instantané d'avant est déposé. Le même répertoire que les témoins et le
 #: miroir — le seul que les unités peuvent écrire (`ReadWritePaths`).
 DOSSIER_INSTANTANE = Path("/var/lib/falkye")
-
-
-#: Le statut d'un nom au registre, tel que `Nom.csv` l'écrit. *Traduit pour la
-#: lecture, et **jamais deviné** : un statut absent se dit « inconnu », pas
-#: « en vigueur ».*
-STATUTS_LISIBLES = {"A": "en vigueur", "I": "PLUS EN VIGUEUR", "?": "non qualifié"}
-
-
-def _statut_lisible(statut: str | None) -> str:
-    """⚠️ *Un nom PLUS EN VIGUEUR apparie quand même* — le registre le porte, et
-    l'entreprise l'a porté. **Mais ça se lit avant d'écrire**, parce qu'un
-    appariement sur un nom retiré depuis dix ans ne vaut pas un appariement sur
-    le nom courant."""
-    if statut is None:
-        return "inconnu"
-    return STATUTS_LISIBLES.get(statut, statut)
-
-
-def _sans_champs_de_travail(paire: dict) -> dict:
-    """La paire sans ses champs de calcul (préfixés `_`).
-
-    *L'instantané porte l'état d'AVANT, ce qui suffit à défaire le geste* — y
-    mêler les intermédiaires de décision rendrait son format dépendant de la
-    façon dont la passe raisonne ce jour-là.
-    """
-    return {k: v for k, v in paire.items() if not k.startswith("_")}
-
-
-#: Les champs que `falkye/resolution.py::_enrich_from_req` réécrit après avoir
-#: posé un NEQ. **La liste est ici parce que l'instantané doit couvrir EXACTEMENT
-#: ce que le geste touche** — un champ ajouté là-bas et oublié ici rendrait le
-#: retour arrière partiel, en silence. *Un test compare les deux.*
-CHAMPS_ENRICHIS = (
-    "nom_officiel_req", "statut_legal", "adresse", "ville", "region",
-    "code_postal", "secteur_activite_code", "secteur_activite_libelle",
-)
-
-
-def _champs_enrichis(company) -> dict:
-    """L'état d'avant des champs que l'enrichissement va réécrire."""
-    return {
-        champ: getattr(getattr(company, champ), "value", getattr(company, champ))
-        for champ in CHAMPS_ENRICHIS
-    }
-
-
-def _defaire(db_session, chemin: Path) -> int:
-    """Rejoue l'instantané à l'envers. **Et refuse de toucher ce qui a bougé
-    depuis** : un dossier dont le NEQ n'est plus celui qu'on avait posé n'est
-    plus le nôtre, et le défaire écraserait quelqu'un d'autre."""
-    import json as _json
-
-    from falkye.models.company import Company, StatutLegal, StatutResolution
-
-    contenu = _json.loads(chemin.read_text(encoding="utf-8"))
-    a_defaire = contenu.get("a_poser", [])
-    print(f"   instantané : {chemin}")
-    print(f"   NEQ posés à défaire : {len(a_defaire)}\n")
-    defaits = ignores = introuvables = 0
-    for p in a_defaire:
-        company = db_session.get(Company, p["company_id"])
-        if company is None:
-            introuvables += 1
-            continue
-        if company.neq != p["neq"]:
-            ignores += 1
-            continue
-        company.neq = p["neq_avant"]
-        if p.get("statut_avant"):
-            company.statut_resolution = StatutResolution(p["statut_avant"])
-        for champ, valeur in (p.get("champs_avant") or {}).items():
-            if champ == "statut_legal":
-                setattr(company, champ, StatutLegal(valeur) if valeur else None)
-            else:
-                setattr(company, champ, valeur)
-        defaits += 1
-    db_session.commit()
-    print(f"   défaits      : {defaits}")
-    print(f"   ignorés      : {ignores}   (le NEQ a changé depuis — plus le nôtre)")
-    if introuvables:
-        print(f"   introuvables : {introuvables}")
-    print("\n   ⚠️ Les rapprochements JOURNALISÉS ne sont pas retirés : ce sont des")
-    print("      observations, pas des écritures sur les dossiers.")
-    return 0
 
 
 def _resoudre_une(db_session, company) -> tuple[str | None, list]:
@@ -299,76 +223,8 @@ def main(argv: list[str] | None = None) -> int:
         # irréversible ne dépende pas d'un tirage. Ici la règle est nommée, elle
         # est visible dans `--comparer`, et elle rend la même chose à chaque
         # exécution.
-        par_neq: dict[str, list[dict]] = {}
-        for paire in libres:
-            par_neq.setdefault(paire["neq"], []).append(paire)
-
-        collisions = {neq: v for neq, v in par_neq.items() if len(v) > 1}
-        refuses_en_bloc: dict[str, int] = {}
-        libres = []
-        for neq, pretendants in par_neq.items():
-            if len(pretendants) == 1:
-                libres.append(pretendants[0])
-                continue
-            # LE PLUS ANCIEN GAGNE — `first_detected_at`, départagé par `id`.
-            #
-            # **Ce n'est pas une échelle neuve : c'est celle du produit.**
-            # `falkye/dedup_entreprises.py` la pose déjà pour le cas analogue —
-            # *« le PRINCIPAL est toujours le dossier le plus ANCIEN
-            # (first_detected_at) »*. Inventer un second critère ici ferait
-            # dépendre l'identité d'une entreprise de la table par laquelle on
-            # arrive.
-            #
-            # ⚠️ **Et l'ancienneté n'est pas la vérité.** Le dossier le plus vieux
-            # peut être le plus mal saisi. Mais ce choix ne décide pas quel nom
-            # est juste : il décide seulement qui PORTE le NEQ pendant qu'un
-            # humain regarde la paire. **C'est la conservation qui rend ce choix
-            # bon marché** — le perdant n'est pas perdu, il est journalisé.
-            # ⛔ **AU-DELÀ DE DEUX PRÉTENDANTS, PERSONNE NE L'OBTIENT.**
-            #
-            # *Le fait qui a écrit ce refus* (2026-09-17, relevé par Alexandre) :
-            # **le NEQ 8879690699 attirait 26 dossiers** — CISSS de la
-            # Montérégie-Centre, CISSS Gaspésie, CIUSSS de l'Outaouais, CHUM,
-            # Centre universitaire de santé McGill, Institut de Cardiologie…
-            # **26 organisations RÉELLEMENT DISTINCTES, scores de 95 à 100.**
-            #
-            # ⚠️ **Le nombre de prétendants est lui-même une preuve CONTRE
-            # l'appariement.** Deux dossiers qui convergent, c'est un doublon
-            # plausible — la situation pour laquelle la conservation a été
-            # pensée. *Vingt-six, c'est un nom qui désigne une FAMILLE d'entités,
-            # et l'ancienneté n'y a plus aucun sens* : elle désignerait un
-            # gagnant dans un groupe dont probablement AUCUN membre n'est le bon.
-            #
-            # **Ce n'est pas un réglage de seuil.** Les noms se ressemblent
-            # réellement; le scoreur ne se trompe pas, il répond à une autre
-            # question que celle qu'on lui pose. *Monter le seuil n'y ferait
-            # rien — ces scores sont à 100.*
-            #
-            # **Le refus ne peut que RÉDUIRE les écritures**, jamais en produire
-            # une. Les 26 restent des dossiers séparés, tous journalisés.
-            if len(pretendants) > PRETENDANTS_MAX_POUR_TRANCHER:
-                for pretendant in pretendants:
-                    pretendant["detenteur_id"] = None
-                    pretendant["detenteur_nom"] = None
-                    pretendant["motif"] = (
-                        f"REFUS — {len(pretendants)} dossiers visent ce NEQ; "
-                        "le nombre de prétendants est une preuve contre "
-                        "l'appariement, et aucun ne l'obtient"
-                    )
-                    pris.append(pretendant)
-                refuses_en_bloc[neq] = len(pretendants)
-                continue
-
-            pretendants.sort(key=lambda x: (x["_anciennete"] is None,
-                                            x["_anciennete"], x["company_id"]))
-            gagnant, *perdants = pretendants
-            libres.append(gagnant)
-            for perdant in perdants:
-                perdant["detenteur_id"] = gagnant["company_id"]
-                perdant["detenteur_nom"] = gagnant["nom_detecte"]
-                perdant["motif"] = "collision dans le lot — le plus ancien garde le NEQ"
-                pris.append(perdant)
-
+        libres, collisions, refuses_en_bloc = pose_du_neq.resoudre_les_collisions(
+            libres, pris)
         print(f"   NEQ retenu, NEQ LIBRE          : {len(libres)}")
         if collisions:
             en_trop = sum(len(v) for v in collisions.values()) - len(collisions)
@@ -530,110 +386,9 @@ def main(argv: list[str] | None = None) -> int:
         from falkye.dedup_entreprises import journaliser_candidat_fusion
         from falkye.resolution import _enrich_from_req
 
-        poses = 0
-        tardifs = 0
-        for p in libres:
-            company = session.get(Company, p["company_id"])
-            # ⚠️ **LA DISPONIBILITÉ RE-VÉRIFIÉE AU MOMENT DE POSER**, et pas
-            # seulement au moment de décider. Les collisions internes au lot
-            # sont déjà résolues plus haut; celle-ci attrape l'autre cas — **un
-            # cycle de production qui aurait pris ce NEQ entre le rapport et
-            # l'écriture.** *Une vérification faite d'avance répond à l'état
-            # d'avant, jamais à celui du moment où l'on écrit.*
-            occupant = session.execute(
-                select(Company).where(Company.neq == p["neq"])
-            ).scalar_one_or_none()
-            if occupant is not None:
-                p["detenteur_id"] = occupant.id
-                p["detenteur_nom"] = occupant.nom_detecte
-                p["motif"] = "NEQ pris entre le rapport et l'écriture"
-                pris.append(p)
-                tardifs += 1
-                continue
-            company.neq = p["neq"]
-            company.statut_resolution = StatutResolution.RESOLU
-            _enrich_from_req(session, company, p["neq"])
-            session.flush()  # la contrainte parle ICI, sur UNE ligne nommée
-            poses += 1
-
-        journalises = 0
-        deja_journalises = 0
-        from falkye.models.diagnostic_journal import DiagnosticJournal, TypeDiagnostic
-
-        def _deja_au_journal(principal_id: int, candidat_id: int | None,
-                             type_diagnostic) -> bool:
-            """⚠️ **La passe était idempotente sur les DOSSIERS et ne l'était pas
-            sur le JOURNAL** *(relevé le 2026-09-17, avant d'appliquer)*.
-
-            Un dossier posé sort de la population — `Company.neq IS NULL` ne le
-            rend plus. **Mais un dossier CONSERVÉ y reste, donc il était
-            re-journalisé à chaque exécution.** *Et c'est précisément la file
-            qu'un humain doit dépiler : la polluer de doublons rend le travail
-            plus long à chaque relance.*
-            """
-            requete = select(DiagnosticJournal.id).where(
-                DiagnosticJournal.type_diagnostic == type_diagnostic,
-                DiagnosticJournal.company_id_principal == principal_id,
-                DiagnosticJournal.statut == "a_examiner",
-            )
-            requete = requete.where(
-                DiagnosticJournal.company_id_candidat.is_(None)
-                if candidat_id is None
-                else DiagnosticJournal.company_id_candidat == candidat_id
-            )
-            return session.execute(requete.limit(1)).scalar_one_or_none() is not None
-
-        for p in pris:
-            company = session.get(Company, p["company_id"])
-            if company is None:
-                continue
-            attendu = (
-                TypeDiagnostic.PROBLEME_AUTRE_CHANTIER
-                if p.get("detenteur_id") is None
-                else TypeDiagnostic.CANDIDAT_FUSION_ENTREPRISE
-            )
-            principal = (company.id if p.get("detenteur_id") is None
-                         else p["detenteur_id"])
-            candidat = None if p.get("detenteur_id") is None else company.id
-            if _deja_au_journal(principal, candidat, attendu):
-                deja_journalises += 1
-                continue
-            if p.get("detenteur_id") is None:
-                # ⚠️ **UN GROUPE REFUSÉ N'A PAS DE PRINCIPAL, ET C'EST LE FOND.**
-                # `journaliser_candidat_fusion` demande deux dossiers et affirme
-                # que l'un est le bon — *exactement ce qu'on vient de refuser
-                # d'affirmer.* Le journaliser ainsi contredirait le refus.
-                #
-                # Journalisé donc comme un PROBLÈME à examiner, rattaché au seul
-                # dossier concerné. **Sans ça, les 26 disparaissaient du
-                # journal** : le `continue` d'origine les écartait en silence, et
-                # « refusé » se serait lu comme « jamais rencontré ».
-                session.add(DiagnosticJournal(
-                    type_diagnostic=TypeDiagnostic.PROBLEME_AUTRE_CHANTIER,
-                    profile_id=None,
-                    texte_description=(
-                        f"Reprise NEQ refusée — #{company.id} « {company.nom_detecte} » "
-                        f"vise {p['neq']} ({p.get('motif', '')}). Score {p['score']}, "
-                        f"registre « {p['nom_registre']} »."
-                    ),
-                    statut="a_examiner",
-                    company_id_principal=company.id,
-                    company_id_candidat=None,
-                    score_similarite=p["score"],
-                ))
-                journalises += 1
-                continue
-            detenteur = session.get(Company, p["detenteur_id"])
-            if detenteur is None:
-                continue
-            # Le DÉTENTEUR est le principal : il porte déjà le NEQ, donc il est
-            # le dossier que le registre désigne. Le rapprochement est proposé,
-            # jamais exécuté — `statut="a_examiner"`.
-            journaliser_candidat_fusion(
-                session, detenteur, company, p["score"], statut="a_examiner"
-            )
-            journalises += 1
-
+        poses, tardifs = pose_du_neq.poser_les_neq(session, libres, pris)
+        journalises, deja_journalises = pose_du_neq.journaliser_les_conserves(
+            session, pris, "Reprise NEQ refusée")
         session.commit()
         print(f"\n   NEQ posés                  : {poses}")
         if tardifs:
