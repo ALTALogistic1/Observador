@@ -36,6 +36,14 @@ perdue, en silence.
 2. **`--comparer N` montre les paires** — nom détecté contre nom du registre,
    score, second, et par où le candidat est arrivé. *La dernière vérification
    avant un geste irréversible se fait sur des paires, pas sur un total.*
+
+   ⚠️ **Et la paire montre LA FORME QUI A DÉCIDÉ, pas seulement la dénomination
+   élue.** *Le score d'un NEQ est le meilleur de ses noms* — donc
+   `16790224 Canada Inc.` peut scorer **100** contre
+   `LES ENTREPRISES DOUGLAS POWERTECH INC.` sans un caractère commun, parce que
+   la décision s'est prise sur une TROISIÈME chaîne que le registre porte aussi.
+   **Lire « registre : X » quand la décision s'est prise sur Y, c'est le
+   cas 33** — et c'est précisément ce qu'on relit avant d'écrire.
 3. **Un instantané JSON est écrit AVANT le commit**, avec l'état d'avant de
    chaque dossier touché. ⚠️ *Sans lui, « reversible » est une intention.*
 
@@ -48,6 +56,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -65,6 +74,22 @@ PRETENDANTS_MAX_POUR_TRANCHER = 2
 #: Où l'instantané d'avant est déposé. Le même répertoire que les témoins et le
 #: miroir — le seul que les unités peuvent écrire (`ReadWritePaths`).
 DOSSIER_INSTANTANE = Path("/var/lib/falkye")
+
+
+#: Le statut d'un nom au registre, tel que `Nom.csv` l'écrit. *Traduit pour la
+#: lecture, et **jamais deviné** : un statut absent se dit « inconnu », pas
+#: « en vigueur ».*
+STATUTS_LISIBLES = {"A": "en vigueur", "I": "PLUS EN VIGUEUR", "?": "non qualifié"}
+
+
+def _statut_lisible(statut: str | None) -> str:
+    """⚠️ *Un nom PLUS EN VIGUEUR apparie quand même* — le registre le porte, et
+    l'entreprise l'a porté. **Mais ça se lit avant d'écrire**, parce qu'un
+    appariement sur un nom retiré depuis dix ans ne vaut pas un appariement sur
+    le nom courant."""
+    if statut is None:
+        return "inconnu"
+    return STATUTS_LISIBLES.get(statut, statut)
 
 
 def _sans_champs_de_travail(paire: dict) -> dict:
@@ -204,6 +229,9 @@ def main(argv: list[str] | None = None) -> int:
         libres: list[dict] = []
         pris: list[dict] = []
         non_resolues = 0
+        #: Tous les `REQMatch` retenus, pour traduire les formes gagnantes en
+        #: gisement et statut **en une passe** plutôt qu'une requête par paire.
+        tetes: list = []
 
         for company in entreprises:
             neq, matches = _resoudre_une(session, company)
@@ -211,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
                 non_resolues += 1
                 continue
             top = matches[0]
+            tetes.append(top)
             detenteur = session.execute(
                 select(Company).where(Company.neq == neq)
             ).scalar_one_or_none()
@@ -220,6 +249,10 @@ def main(argv: list[str] | None = None) -> int:
                 "ville": company.ville,
                 "neq": neq,
                 "nom_registre": top.entry.nom,
+                # ⚠️ Préfixés `_` : ce sont des éléments de LECTURE, pas l'état
+                # d'avant. *L'instantané porte ce qu'il faut pour défaire, et
+                # rien d'autre* — `_sans_champs_de_travail` les retire avant l'écriture.
+                "_forme_normalisee": top.forme_normalisee,
                 "score": round(top.score, 1),
                 "second": round(matches[1].score, 1) if len(matches) > 1 else 0.0,
                 "candidats": len(matches),
@@ -355,6 +388,39 @@ def main(argv: list[str] | None = None) -> int:
         print(f"   NEQ retenu, NEQ DÉJÀ PRIS      : {len(pris)}   (conservés, jamais fusionnés)")
         print(f"   aucun NEQ retenu               : {non_resolues}")
 
+        # ---- SUR QUOI LA DÉCISION S'EST PRISE, sur TOUTE la population ------
+        # ⚠️ *Cinquante paires lues ne disent pas combien sont dans ce cas.* Si
+        # c'est deux, c'est anecdotique; si c'est trois cents, la relecture ne
+        # disait pas ce qu'on croyait qu'elle disait.
+        from falkye.sources import req as req_source
+
+        formes = req_source.formes_retenues(session, tetes)
+
+        def _forme_de(paire: dict):
+            return formes.get((paire["neq"], paire["_forme_normalisee"]))
+
+        autrement = [
+            p for p in libres
+            if (f := _forme_de(p)) is not None and not f.est_la_denomination_elue
+        ]
+        k = len(autrement)
+        print("\n   ⚠️ SUR QUOI LA DÉCISION S'EST PRISE — et ce n'est pas toujours "
+              "ce qu'on lit\n")
+        part = f" ({100 * k / len(libres):.1f} %)" if libres else ""
+        print(f"      forme AUTRE que la dénomination sociale élue : "
+              f"{k} sur {len(libres)}{part}")
+        print("      *Là, « registre : X » NOMME l'entreprise mais ne dit pas ce qui")
+        print("       a été COMPARÉ.* Les deux lignes de chaque paire le disent.")
+        if autrement:
+            par_gisement: Counter = Counter(
+                (_forme_de(p).gisement or "(inconnu)") for p in autrement
+            )
+            print(f"\n      {'gisement de la forme qui a décidé':<40} {'paires':>8}")
+            for gisement, combien in par_gisement.most_common():
+                print(f"      {gisement:<40} {combien:>8}")
+            print("\n      ⚠️ `denomn_soc` vient de `FusionScissions.csv` : c'est une")
+            print("         dénomination sociale, pas une relation NEQ→NEQ.")
+
         if args.comparer:
             print("\n" + "=" * 78)
             lot = libres[args.depuis: args.depuis + args.comparer]
@@ -370,6 +436,28 @@ def main(argv: list[str] | None = None) -> int:
                       f"  (2e {p['second']:.1f}, écart {ecart:.1f}, {p['candidats']} candidats)")
                 print(f"      détecté  : {p['nom_detecte']}")
                 print(f"      registre : {p['nom_registre']}")
+                # ⚠️ **Les deux lignes qui disent sur quoi on a décidé.** *Sans
+                # elles, `16790224 Canada Inc.` contre
+                # `LES ENTREPRISES DOUGLAS POWERTECH INC.` à 100 se lit comme une
+                # fausse résolution — alors que c'est la bonne, prise sur une
+                # troisième chaîne.* **Cas 33 : l'instrument dit sur quoi il a
+                # décidé.**
+                forme = _forme_de(p)
+                if forme is None:
+                    print("      ⚠️ a matché : forme inconnue — le scoreur n'a "
+                          "pas dit laquelle")
+                else:
+                    marque = "  " if forme.est_la_denomination_elue else "⚠️"
+                    print(f"      {marque} a matché : "
+                          f"{forme.nom_publie or '(forme simulée)'}")
+                    # ⚠️ *La dénomination élue vit dans `req_entries`, qui ne
+                    # porte pas de statut DE NOM* — écrire « statut inconnu » y
+                    # ferait chercher une lecture manquée là où il n'y a rien à
+                    # lire. **Un statut absent sur une forme de `req_noms`, lui,
+                    # est une vraie lacune et se dit.**
+                    statut = ("" if forme.est_la_denomination_elue and forme.statut is None
+                              else f" · statut {_statut_lisible(forme.statut)}")
+                    print(f"         gisement {forme.gisement or '(inconnu)'}{statut}")
                 if p["ville"]:
                     print(f"      ville    : {p['ville']}")
                 print()

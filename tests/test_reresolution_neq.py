@@ -29,6 +29,7 @@ import pytest
 from falkye.models.company import Company, StatutResolution
 from falkye.models.diagnostic_journal import DiagnosticJournal, TypeDiagnostic
 from falkye.models.req_entry import REQEntry
+from falkye.models.req_nom import REQNom
 from falkye.sources.column_mapping import normaliser
 from outils import reresolution_neq
 
@@ -50,6 +51,20 @@ def decor(db_session, tmp_path, monkeypatch):
                      statut="IMMATRICULÉE")
         )
 
+    # ⚠️ **Le cas `#16` du 19 septembre** : la dénomination ÉLUE n'a pas un
+    # caractère commun avec le nom détecté, et le score vient d'une TROISIÈME
+    # forme que `req_noms` porte. *Sans ce dossier au décor, les deux lignes de
+    # lecture ne seraient jamais exercées.*
+    db_session.add(REQEntry(neq="3333333333",
+                            nom="LES ENTREPRISES DOUGLAS POWERTECH INC.",
+                            nom_normalise=normaliser("LES ENTREPRISES DOUGLAS POWERTECH INC."),
+                            statut="IMMATRICULÉE"))
+    db_session.add(REQNom(neq="3333333333", nom="16790224 Canada Inc.",
+                          nom_normalise=normaliser("16790224 Canada Inc."),
+                          gisement="NOM_ASSUJ", statut="A", type_nom="NOM"))
+    autre_forme = Company(neq=None, nom_detecte="16790224 Canada Inc.",
+                          nom_detecte_normalise=normaliser("16790224 Canada Inc."))
+
     libre = Company(neq=None, nom_detecte="Boulangerie Saint-Viateur Inc",
                     nom_detecte_normalise=normaliser("Boulangerie Saint-Viateur Inc"))
     a_conserver = Company(neq=None, nom_detecte="Plomberie Rousseau et Fils Ltee",
@@ -58,13 +73,14 @@ def decor(db_session, tmp_path, monkeypatch):
                         nom_detecte_normalise=normaliser("Plomberie Rousseau"))
     introuvable = Company(neq=None, nom_detecte="Zzyzx Quelque Chose Qui Nexiste Pas",
                           nom_detecte_normalise=normaliser("Zzyzx Quelque Chose Qui Nexiste Pas"))
-    db_session.add_all([libre, a_conserver, detenteur, introuvable])
+    db_session.add_all([libre, a_conserver, detenteur, introuvable, autre_forme])
     db_session.commit()
 
     monkeypatch.setattr("falkye.db.get_session", lambda: db_session)
     monkeypatch.setattr(db_session, "close", lambda: None)
     return {"libre": libre.id, "a_conserver": a_conserver.id,
             "detenteur": detenteur.id, "introuvable": introuvable.id,
+            "autre_forme": autre_forme.id,
             "session": db_session, "tmp": tmp_path}
 
 
@@ -524,3 +540,65 @@ def test_appliquer_DEUX_FOIS_ne_redouble_pas_le_JOURNAL(decor, db_session, tmp_p
     sortie = capsys.readouterr().out
     assert compter() == apres_un, "le journal a été redoublé par la seconde passe"
     assert "déjà au journal" in sortie, sortie
+
+
+# ---------------------------------------------------------------------------
+# SUR QUOI LA DÉCISION S'EST PRISE — cas 33, dans la passe
+# ---------------------------------------------------------------------------
+
+def test_la_paire_dit_LA_FORME_QUI_A_MATCHE_et_pas_seulement_la_denomination(decor, capsys):
+    """⚠️ **Le cas `#16`.**
+
+    *`16790224 Canada Inc.` contre `LES ENTREPRISES DOUGLAS POWERTECH INC.` à
+    100, sans un caractère commun.* **La décision s'est prise sur une troisième
+    chaîne, et la sortie doit la nommer** — sinon on relit une fausse résolution
+    là où il y a un appariement juste.
+    """
+    assert reresolution_neq.main(["--comparer", "20"]) == 0
+    sortie = capsys.readouterr().out
+    bloc = sortie.split("registre : LES ENTREPRISES DOUGLAS POWERTECH INC.")[-1]
+    assert "a matché : 16790224 Canada Inc." in bloc, bloc
+    assert "gisement NOM_ASSUJ" in bloc, bloc
+    assert "statut en vigueur" in bloc, bloc
+
+
+def test_la_paire_dont_la_DENOMINATION_a_decide_nest_pas_marquee(decor, capsys):
+    """*Marquer toutes les paires ferait de l'avertissement un décor.*"""
+    assert reresolution_neq.main(["--comparer", "20"]) == 0
+    # ⚠️ Le nom paraît DEUX fois dans le bloc — en « registre » et en « a matché ».
+    # *`split(...)[1]` rendrait le vide entre les deux*; on prend la queue.
+    bloc = capsys.readouterr().out.split("registre : boulangerie saint-viateur inc")[-1]
+    ligne = next(l for l in bloc.splitlines() if "a matché" in l)
+    assert "⚠️" not in ligne, ligne
+    gisement = next(l for l in bloc.splitlines() if "gisement" in l)
+    assert "(dénomination élue)" in gisement, gisement
+    # ⚠️ *`req_entries` ne porte pas de statut DE NOM* : ne rien dire plutôt que
+    # d'écrire « inconnu », qui ferait chercher une lecture manquée.
+    assert "statut" not in gisement, gisement
+
+
+def test_le_rapport_COMPTE_les_paires_decidees_autrement(decor, capsys):
+    """⚠️ *Cinquante paires lues ne disent pas combien sont dans ce cas.*"""
+    assert reresolution_neq.main([]) == 0
+    sortie = capsys.readouterr().out
+    assert "SUR QUOI LA DÉCISION S'EST PRISE" in sortie
+    ligne = next(l for l in sortie.splitlines()
+                 if "AUTRE que la dénomination sociale élue" in l)
+    assert ": 1 sur 2" in ligne, ligne
+    bloc = sortie.split("gisement de la forme qui a décidé")[1]
+    assert "NOM_ASSUJ" in bloc and bloc.split("NOM_ASSUJ")[1].split()[0] == "1", bloc
+
+
+def test_un_statut_absent_se_dit_INCONNU_et_ne_se_devine_pas():
+    """*Un statut absent n'est pas « en vigueur ».*"""
+    assert reresolution_neq._statut_lisible(None) == "inconnu"
+    assert reresolution_neq._statut_lisible("A") == "en vigueur"
+    assert reresolution_neq._statut_lisible("I") == "PLUS EN VIGUEUR"
+    assert reresolution_neq._statut_lisible("?") == "non qualifié"
+
+
+def test_linstantane_ne_porte_PAS_les_champs_de_lecture(decor):
+    """⚠️ *L'instantané porte ce qu'il faut pour DÉFAIRE, et rien d'autre.*"""
+    paire = {"neq": "1", "_forme_normalisee": "x", "champs_avant": {}}
+    assert reresolution_neq._sans_champs_de_travail(paire) == {
+        "neq": "1", "champs_avant": {}}

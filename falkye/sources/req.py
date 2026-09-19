@@ -1446,6 +1446,84 @@ def _upsert_row(db_session: Session, row: dict, columns: dict[str, str], stats: 
 class REQMatch:
     entry: REQEntry
     score: float  # 0-100, confiance de correspondance du nom
+    #: ⚠️ **La forme du registre qui a REMPORTÉ le score**, normalisée.
+    #:
+    #: *Le score d'un NEQ est le meilleur de ses noms* — donc la forme qui a
+    #: décidé n'est presque jamais `entry.nom`, qui est la dénomination sociale
+    #: ÉLUE. **Afficher `entry.nom` en disant « registre » fait lire la décision
+    #: sur une chaîne qui n'a pas décidé** : `16790224 Canada Inc.` contre
+    #: `LES ENTREPRISES DOUGLAS POWERTECH INC.` à 100, sans un caractère commun.
+    #:
+    #: *C'est le cas 33 : un instrument doit dire sur quoi il a décidé.*
+    #: `formes_retenues()` la traduit en nom publié, gisement et statut.
+    forme_normalisee: str | None = None
+
+
+#: Ce qu'on affiche quand le gisement d'une forme est la dénomination sociale
+#: élue elle-même. *Ce n'est pas un gisement de `GISEMENTS_DE_NOMS` : c'est la
+#: ligne de `req_entries`, et la nommer autrement ferait croire à un cinquième.*
+GISEMENT_DENOMINATION_ELUE = "(dénomination élue)"
+
+
+@dataclass(frozen=True)
+class FormeRetenue:
+    """La forme qui a décidé, **telle qu'elle se lit** — publiée, avec sa
+    provenance et son statut.
+
+    ⚠️ *`REQNom` sert à TROUVER, jamais à NOMMER* : `nom_publie` s'affiche À CÔTÉ
+    de la dénomination élue, jamais à sa place.
+    """
+
+    nom_normalise: str
+    nom_publie: str | None
+    gisement: str | None
+    statut: str | None
+    est_la_denomination_elue: bool
+
+    @property
+    def introuvable(self) -> bool:
+        """*Une forme que ni `req_entries` ni `req_noms` ne portent.* **Arrive
+        sur le chemin de SIMULATION**, où les formes sont transformées avant
+        d'être scorées — et nulle part ailleurs."""
+        return self.nom_publie is None and not self.est_la_denomination_elue
+
+
+def formes_retenues(db_session: Session, matches: list) -> dict[tuple[str, str], FormeRetenue]:
+    """`(neq, forme_normalisée) -> FormeRetenue`, **en une seule requête**.
+
+    *Une lecture par paire affichée ferait N requêtes pour un rapport de
+    cinquante lignes; sur les 2 523 de la passe, ça se paie.*
+    """
+    voulues = {
+        (m.entry.neq, m.forme_normalisee) for m in matches
+        if m.forme_normalisee is not None
+    }
+    if not voulues:
+        return {}
+    par_neq: dict[str, REQEntry] = {m.entry.neq: m.entry for m in matches}
+    lignes = db_session.execute(
+        select(REQNom.neq, REQNom.nom_normalise, REQNom.nom, REQNom.gisement,
+               REQNom.statut).where(REQNom.neq.in_([neq for neq, _ in voulues]))
+    ).all()
+    depuis_req_noms = {
+        (neq, forme): (nom, gisement, statut)
+        for neq, forme, nom, gisement, statut in lignes
+    }
+    rendu: dict[tuple[str, str], FormeRetenue] = {}
+    for neq, forme in voulues:
+        entry = par_neq[neq]
+        elue = entry.nom_normalise == forme
+        nom, gisement, statut = depuis_req_noms.get((neq, forme), (None, None, None))
+        rendu[(neq, forme)] = FormeRetenue(
+            nom_normalise=forme,
+            # ⚠️ Quand la forme EST la dénomination élue, le nom publié est celui
+            # de `req_entries` — et `req_noms` peut en porter une ligne aussi.
+            nom_publie=entry.nom if elue else nom,
+            gisement=GISEMENT_DENOMINATION_ELUE if elue else gisement,
+            statut=statut,
+            est_la_denomination_elue=elue,
+        )
+    return rendu
 
 
 def get_by_neq(db_session: Session, neq: str) -> REQEntry | None:
@@ -1983,17 +2061,23 @@ def _scorer(
         noms_par_neq = _formes_transformees(db_session, candidates, transformer_forme)
 
     by_neq = {c.neq: c for c in candidates}
-    scores: list[tuple[str, float]] = []
+    scores: list[tuple[str, float, str]] = []
     for neq, formes in noms_par_neq.items():
         # `process.extractOne` sur les noms DE CE NEQ : le meilleur l'emporte, et
         # les autres ne comptent pas — ils ne sont pas des concurrents, ils sont
         # la même entreprise.
         meilleur = process.extractOne(nom_norm, formes, scorer=fuzz.WRatio)
         if meilleur is not None:
-            scores.append((neq, meilleur[1]))
+            # ⚠️ **On garde AUSSI la forme gagnante.** *Sans elle, l'appelant
+            # affiche la dénomination élue et fait lire la décision sur une
+            # chaîne qui n'a pas décidé* — cas 33.
+            scores.append((neq, meilleur[1], meilleur[0]))
     scores.sort(key=lambda t: t[1], reverse=True)
 
-    matches = [REQMatch(entry=by_neq[neq], score=score) for neq, score in scores[:limit]]
+    matches = [
+        REQMatch(entry=by_neq[neq], score=score, forme_normalisee=forme)
+        for neq, score, forme in scores[:limit]
+    ]
 
     if ville:
         ville_norm = _normaliser(ville)
