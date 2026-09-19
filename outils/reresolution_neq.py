@@ -415,11 +415,27 @@ def main(argv: list[str] | None = None) -> int:
             par_gisement: Counter = Counter(
                 (_forme_de(p).gisement or "(inconnu)") for p in autrement
             )
-            print(f"\n      {'gisement de la forme qui a décidé':<40} {'paires':>8}")
+            print(f"\n      {'gisement de la forme qui a décidé':<46} {'paires':>8}")
             for gisement, combien in par_gisement.most_common():
-                print(f"      {gisement:<40} {combien:>8}")
+                print(f"      {gisement:<46} {combien:>8}")
             print("\n      ⚠️ `denomn_soc` vient de `FusionScissions.csv` : c'est une")
             print("         dénomination sociale, pas une relation NEQ→NEQ.")
+
+            # ⚠️ **La couverture de la colonne, À CÔTÉ de la ventilation.**
+            # *Une ventilation par gisement lue comme complète alors qu'un tiers
+            # des lignes n'en portent pas sous-estime le gisement majoritaire
+            # d'autant — et rien ne le dit si personne ne l'écrit ici.*
+            sans, total = req_source.lignes_sans_gisement(session)
+            part = f"{100 * sans / total:.1f} %" if total else "—"
+            print(f"\n      ⚠️ COUVERTURE DE LA COLONNE `gisement` dans `req_noms` :")
+            print(f"         {sans} lignes sur {total} n'en portent pas ({part}).")
+            print("         Ce sont celles du pont du 15 septembre, chargées avant")
+            print(f"         que la colonne existe — comptées ci-dessus sous")
+            print(f"         « {req_source.GISEMENT_ANTERIEUR_A_LA_COLONNE} ».")
+            print("      ⚠️ Et un réimport NE LES RÉÉCRIT PAS : `req_noms` s'écrit")
+            print("         en `INSERT OR IGNORE` et rien ne la vide, donc les")
+            print("         lignes existantes sont SAUTÉES. *La colonne ne se")
+            print("         remplira pas d'elle-même le 2 octobre.*")
 
         if args.comparer:
             print("\n" + "=" * 78)
