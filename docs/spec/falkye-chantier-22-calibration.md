@@ -214,3 +214,32 @@ valeurs, parce que les deux bornes viennent de la source.*
 ⚠️ **C'est la moitié « fournisseur » de D43 qui se débloque** : *le fournisseur retenu est un prospect
 conditionnel — un contrat crée des besoins **seulement quand il sort de l'ordinaire pour lui**. La
 condition exigeait la bande d'effectifs; elle existe.* **Il lui manque encore l'appariement.**
+
+
+---
+
+## Le besoin mesuré — les indépartageables du chantier 3+4 *(19 septembre 2026)*
+
+> **Ce qui se verse ici est le BESOIN, pas la table.** ⚠️ *Les 53 familles ne se nomment pas, et la correspondance UNSPSC ↔ CAE ne s'esquisse pas* — **remplir la place d'avance produit ce que le cas 39 a coûté : un chantier réputé traité parce que son document en parle.**
+
+**Le chantier 3+4 a épuisé ce que le nom et l'adresse savent faire.** Sur les **5 002 ambigus** — *des dossiers avec deux candidats que le nom ne sépare pas* — le départageur d'adresse en sépare **2 032** à ses trois niveaux *(code postal complet, région de tri, ville)*.
+
+**Il reste 2 970 dossiers que l'adresse ne sépare pas.**
+
+⚠️ **L'activité économique est le seul départageur restant.** *La ville et le code postal sont épuisés; le nom l'était avant eux.*
+
+**Et sa mesure actuelle est un PLANCHER, pas un rendement** *(17 septembre, `outils/mesure_des_departageurs.py`)* :
+
+| | |
+|---|---|
+| dossiers que l'activité sépare | **166** |
+| dont **elle seule** sépare | **97** |
+
+⚠️ **Ce plancher a deux causes, et une seule se corrige ici.**
+
+1. **La comparaison se fait par LIBELLÉ, faute de table.** *Le SEAO classe en UNSPSC, le REQ en CAE, et aucune table ne les relie.* **Comparer « Travaux de pavage et revêtement » à « Entrepreneurs en plomberie » mot à mot rend ce que deux vocabulaires ont en commun, pas ce que deux activités ont en commun.** *C'est le besoin que ce chantier porte.*
+2. **La mesure PRÉCÈDE le découpage du départageur d'adresse** *(18 septembre)*. **Elle est donc à refaire** : les 97 « en propre » se comptaient contre un code postal qui décidait à la résolution de la région de tri, et ce n'est plus vrai.
+
+⚠️ **Ce que ce constat ne dit pas.** *Il ne dit pas que la table ferait passer 2 970 à zéro.* **Un départage écarte un candidat; il n'en confirme aucun** — et deux entreprises distinctes peuvent partager un secteur d'activité aussi bien qu'une ville.
+
+> **Le chantier 3+4 récupère des identités; il bute sur un fait qu'il ne possède pas. Ce fait est ici, et il n'est pas encore lisible.**
