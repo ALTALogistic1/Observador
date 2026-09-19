@@ -3559,3 +3559,80 @@ manque vraiment : *une forme de `req_noms` sans statut est une lacune réelle.*
 > **Deux silences qui n'ont pas la même cause ne s'écrivent pas du même mot. Un
 > champ qui n'existe pas et un champ qu'on n'a pas lu appellent deux gestes
 > différents.**
+
+---
+
+## N151 — Une théorie se verse au corpus avec ce qui l'appuie ET avec ce qui n'est pas compté
+
+*(2026-09-19, trois constats versés aux chantiers 3+4 et 22.)*
+
+Trois théories d'Alexandre sur ce qui restera **après** les écritures. **Aucune
+n'est un mandat** : elles disent pourquoi une structure est nécessaire.
+
+⚠️ **Et chacune porte, à côté de ce qui l'appuie, l'aveu de ce qui n'est pas
+mesuré :**
+
+| constat | ce qui l'appuie | ⚠️ ce qui manque |
+|---|---|---|
+| **les consortiums** | deux noms lus, forme reconnaissable | **jamais compté** — personne ne sait combien de dossiers |
+| **les doublons du produit** | 111 NEQ déjà pris, deux familles lues | **32 sur 805, 4 %** — borne basse, et seulement sur ce que le nom résout |
+| **les indépartageables** | 2 970 que l'adresse ne sépare pas | la mesure de l'activité **précède** le découpage : **à refaire** |
+
+**Sans la seconde colonne, un constat devient un chiffre.** *« Les consortiums
+existent » et « les consortiums sont 400 » se lisent pareil dans six mois, et un
+seul des deux a été établi.*
+
+> **Une théorie versée sans son trou de mesure se relit comme un fait. Le trou
+> fait partie du constat.**
+
+---
+
+## N152 — Remplir la place d'avance : la règle tient quand c'est nous qui écrivons le document
+
+*(2026-09-19.)*
+
+N140 posait que *nommer où le travail ira n'est pas le commencer; remplir sa
+place d'avance, si*. **Le versement au chantier 22 était l'occasion de l'enfreindre
+de bonne foi** — la table `(code, rôle) → sphère` est nommée, les 53 familles
+sont connues, et en écrire trois aurait « aidé ».
+
+**Ce qui est versé est le BESOIN et sa mesure** : 2 970 indépartageables,
+l'activité comme seul départageur restant, et **pourquoi son chiffre est un
+plancher** — comparaison par libellé faute de table, et mesure antérieure au
+découpage du départageur d'adresse.
+
+⚠️ **Le plancher a deux causes, et les séparer est ce qui rend le constat
+utilisable** : *l'une est le besoin que le chantier 22 porte; l'autre est une
+mesure à refaire, qui ne lui appartient pas.* **Les confondre ferait attendre du
+chantier 22 qu'il corrige un chiffre que le chantier 3+4 a déjà périmé.**
+
+> **La règle qui coûte est celle qu'on s'applique quand on a la matière sous la
+> main.**
+
+---
+
+## N153 — Un `(inconnu)` qui « s'explique de lui-même » referme une question ouverte
+
+*(2026-09-19, sur la ventilation par gisement de la passe.)*
+
+**332 des 577 paires décidées sur une autre forme affichent un gisement
+`(inconnu)`.** *La lecture proposée* : « c'est la dénomination élue de
+`req_entries`, absente de `req_noms`, donc sans gisement ».
+
+⚠️ **Cette lecture ne peut pas être la bonne, et le code le dit.** *Le compte des
+577 exclut les dénominations élues par construction* — `est_la_denomination_elue`
+**est** le filtre, et une forme élue s'affiche `(dénomination élue)`, pas
+`(inconnu)`. **Un test le verrouille.**
+
+**Ce qu'il reste comme lecture** : ce sont des lignes de `req_noms` dont la
+colonne `gisement` est vide. *Or le chargeur en pose toujours une* — donc **des
+lignes antérieures à la colonne**, ajoutée le 17 septembre.
+
+⚠️ **La différence n'est pas cosmétique.** *La première lecture referme la
+question; la seconde ouvre un rechargement, et fait douter de toute ventilation
+par gisement tant qu'elle tient.* **Vérification à une requête :**
+`SELECT count(*) FROM req_noms WHERE gisement IS NULL`.
+
+> **« Ça s'explique de soi-même » est la phrase qui clôt le plus d'enquêtes
+> avant qu'elles commencent. Quand l'explication est vérifiable à une ligne,
+> elle se vérifie.**

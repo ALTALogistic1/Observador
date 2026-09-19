@@ -602,3 +602,54 @@ def test_linstantane_ne_porte_PAS_les_champs_de_lecture(decor):
     paire = {"neq": "1", "_forme_normalisee": "x", "champs_avant": {}}
     assert reresolution_neq._sans_champs_de_travail(paire) == {
         "neq": "1", "champs_avant": {}}
+
+
+def test_une_forme_comptee_comme_AUTRE_nest_JAMAIS_la_denomination_elue(decor, capsys):
+    """⚠️ **Ce qui décide comment se lit un gisement `(inconnu)`.**
+
+    Le compte « forme AUTRE que la dénomination sociale élue » exclut par
+    construction les formes élues — `est_la_denomination_elue` est exactement le
+    filtre. **Donc un `(inconnu)` dans cette ventilation ne peut PAS s'expliquer
+    par « c'est la dénomination élue, absente de `req_noms` »** : c'est une
+    ligne de `req_noms` dont la colonne `gisement` est vide.
+
+    *Et le chargeur en pose toujours une* (`_charger_tous_les_noms`) — **donc un
+    `(inconnu)` désigne des lignes ANTÉRIEURES à la colonne, pas une propriété
+    du mécanisme.** La distinction n'est pas cosmétique : la première lecture
+    referme la question, la seconde ouvre un rechargement.
+    """
+    from falkye.sources import req as req_source
+
+    assert reresolution_neq.main([]) == 0
+    sortie = capsys.readouterr().out
+    bloc = sortie.split("gisement de la forme qui a décidé")[1].split("⚠️")[0]
+    assert req_source.GISEMENT_DENOMINATION_ELUE not in bloc, bloc
+
+
+def test_la_denomination_elue_porte_TOUJOURS_son_gisement_propre(decor):
+    """*Elle vient de `req_entries`, pas d'un des quatre gisements de noms.*"""
+    from falkye.models.company import Company
+    from falkye.sources import req as req_source
+
+    session = decor["session"]
+    company = session.get(Company, decor["libre"])
+    matches = req_source.resolve_neq_by_name(session, company.nom_detecte)
+    formes = req_source.formes_retenues(session, matches[:1])
+    (forme,) = formes.values()
+    assert forme.est_la_denomination_elue
+    assert forme.gisement == req_source.GISEMENT_DENOMINATION_ELUE
+    assert forme.statut is None
+
+
+def test_une_forme_de_req_noms_porte_le_gisement_du_chargeur(decor):
+    from falkye.models.company import Company
+    from falkye.sources import req as req_source
+
+    session = decor["session"]
+    company = session.get(Company, decor["autre_forme"])
+    matches = req_source.resolve_neq_by_name(session, company.nom_detecte)
+    formes = req_source.formes_retenues(session, matches[:1])
+    (forme,) = formes.values()
+    assert not forme.est_la_denomination_elue
+    assert (forme.gisement, forme.statut) == ("NOM_ASSUJ", "A")
+    assert forme.nom_publie == "16790224 Canada Inc."

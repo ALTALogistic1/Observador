@@ -395,6 +395,42 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 
 ---
 
+---
+
+## 13bis. Deux cas d'usage de la table d'identifiants externes
+
+> **Des théories d'Alexandre sur ce qui restera APRÈS les écritures, chacune avec ce qui l'appuie.** *Aucune n'est un mandat — elles disent pourquoi la structure du point 2 est nécessaire, et à quoi elle servira le jour où elle existera.*
+
+### Les consortiums — un champ qui nomme plusieurs entreprises n'est pas une entreprise
+
+```
+« 9281-7600 Québec inc. & Action SST inc. »
+« 9528-9393 Québec inc., Fabrication A.S. inc. & Maurice Milette »
+```
+
+**Le nom détecté désigne un groupement, pas une entité.** *Aucun score de ressemblance ne peut faire mieux que de l'apparier à l'un de ses membres, et il le fera au hasard de la graphie.*
+
+**Les scinder et résoudre chaque membre demanderait qu'un dossier porte PLUSIEURS NEQ.** ⚠️ **Le modèle n'en permet qu'un** — `Company.neq` est unique, et la contrainte est portée par la base de production *(section 10)*. *C'est exactement la forme que la table d'identifiants externes rend possible : zéro, un ou plusieurs identifiants par identité.*
+
+⚠️ **Jamais compté.** *Personne ne sait combien de dossiers sont dans ce cas* — ni quelle part des 6 297 sans NEQ retenu. **La mesure n'est pas faite, et ce constat ne la remplace pas.**
+
+### Les doublons du produit — deux sources nomment la même entreprise différemment
+
+**Le second dossier ne trouve rien**, parce que le premier porte déjà le NEQ. *C'est le défaut de fond vu d'un autre côté : la résolution ne répare pas, et elle ne rapproche pas non plus deux dossiers qui visent la même entité.*
+
+**Les 111 NEQ déjà pris de la passe le montrent en clair** *(mesuré le 19 septembre)*. Deux familles, et elles n'appellent pas le même geste :
+
+| | exemples | ce que c'est |
+|---|---|---|
+| **variantes de graphie** | `AYE3D inc.` / `AYE3D Inc.` · `Acti-Sol inc.` / `Acti-Sol inc.` | **deux dossiers pour une entreprise** — la casse seule les sépare |
+| **noms d'enseigne** *(une douzaine)* | `PHILIPS CANADA` → `PHILIPS ÉLECTRONIQUE LTÉE` · `Casa Grecque Drummondville` → `3038947 Canada Inc.` · `Kanatrac - Joliette` → `Kanatrac inc.` | **la raison sociale et l'enseigne**, ce que la table d'apprentissage du point 7 existe pour retenir |
+
+⚠️ **Les joindre ne veut PAS dire les fusionner.** *Décision du 16 septembre, section 4 : conservation toujours, aucune fusion.* **La table d'identifiants externes permet de dire « ces deux identités portent le même NEQ » sans en supprimer une.**
+
+**Seul indice chiffré, et il est indirect** : sur les 805 retenus de la phase 0, **773 NEQ distincts visés, 32 dossiers en trop — 4 %** *(section 5)*. ⚠️ *C'est une borne basse sur les seuls dossiers que le nom résout; elle ne dit rien des doublons que le nom ne résout pas.*
+
+---
+
 ## 14. Tests exigés
 
 1. **Territoire fictif.** Ajouter un identifiant d'un territoire qui n'existe pas ne touche **aucune ligne** du moteur de croisement.
