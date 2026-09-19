@@ -3385,3 +3385,96 @@ citer les titres en entier plutôt que par fragment.*
 
 > **Un test qui repère sa valeur par position mesure la mise en page. Il tombe
 > quand on ajoute une explication, et il ment quand on en ajoute deux.**
+
+---
+
+## N145 — Un critère qui refuse le gain pour lequel il a été écrit change de FORME, il ne se desserre pas
+
+*(2026-09-19, après l'échec du critère sur les 2 032.)*
+
+Le critère du découpage disait : **« aucun départage perdu, aucun gagnant
+déplacé »**. Il a refusé sur **4 gagnants déplacés**, et il a eu raison de
+refuser — *sans lui on lisait 2 032 et on concluait à un gain de 111.*
+
+⚠️ **Mais sa seconde moitié interdisait exactement ce qu'on avait construit** :
+un niveau fin qui corrige un niveau grossier. *Le découpage existe pour que le
+code complet tranche là où la région de tri tranchait mal; le critère comptait
+cette correction comme une régression.*
+
+**Les deux réponses possibles, et une seule est tenable :**
+
+| | |
+|---|---|
+| *desserrer* — accepter N déplacements | ⛔ **un critère qu'on desserre parce qu'il a échoué n'en est plus un** |
+| **changer de forme** | ✔ interdire *un gagnant déplacé **sans qu'un niveau plus fin l'explique*** |
+
+**Et la nouvelle forme VÉRIFIE au lieu de supposer** — trois conditions : le
+niveau qui tranche est strictement plus fin; il retient le nouveau gagnant;
+⚠️ **il EXCLUT l'ancien**. *Un ancien gagnant qui ne porte pas le fait fin n'est
+pas réfuté, il est inconnu — « je ne sais pas » n'est pas « non », ici aussi.*
+
+⚠️ **La moitié qui tenait n'a pas bougé** : *un départage PERDU reste interdit
+sans condition.* **Changer de forme n'est pas tout rouvrir.**
+
+> **Un critère se juge sur ce qu'il interdit, pas sur le nombre de fois qu'il
+> passe. Celui qui interdisait le gain était mal écrit; celui qui n'interdit
+> plus rien serait pire.**
+
+---
+
+## N146 — Un balayage exhaustif dit ce qui est POSSIBLE; dix cas tirés disent ce qui est arrivé
+
+*(2026-09-19.)*
+
+Quatre gagnants déplacés, deux lectures : **un défaut de construction**, ou **le
+gain lui-même**. *Alexandre a refusé de choisir la plus plausible, et demandé la
+lecture des quatre paires.*
+
+**Les quatre paires étaient la bonne demande. Elles n'étaient pas la meilleure
+réponse disponible.** ⚠️ *Le domaine est assez petit pour être balayé en entier* —
+cinq codes postaux × trois villes, pour le dossier et deux concurrents. Le
+balayage rend :
+
+```
+DÉPLACÉ  avant=ville  →  après=code postal complet     (seule route)
+PERDU    (aucune route)
+```
+
+**Une seule route existe, et aucune ne perd de départage.** *Donc un déplacement
+ne peut pas être un artefact d'ordre d'évaluation : il ne peut venir que du code
+complet tranchant là où la forme mêlée tombait sur la ville.* **C'est la lecture
+(b), et elle est démontrée plutôt que plaidée.**
+
+⚠️ **Et c'est le même mécanisme que les 111 ajoutés** — *si le code complet
+tranche là où la région ne pouvait pas, il tranche aussi autrement là où la
+région tranchait mal.* Les deux effets ont une seule cause; le critère d'avant en
+acceptait un et refusait l'autre.
+
+**La démonstration ne remplace pas les quatre paires, elle les rend
+falsifiables** : *elle prédit que chacune montrera `ville → code postal complet`,
+et une seule qui montrerait autre chose la renverserait.*
+
+> **« Je n'en ai pas vu d'autre » et « il n'y en a pas d'autre » ne sont pas la
+> même phrase. Quand le domaine est petit, la seconde se paie.**
+
+---
+
+## N147 — Une paire refusée se lit AVANT le refus, sinon il ne reste rien à examiner
+
+*(2026-09-19.)*
+
+Le critère échouait en imprimant `gagnant : Beauce Carnaval inc  1 → 2` — **deux
+rangs, sans le niveau qui a tranché ni les codes postaux des deux gagnants.**
+*Alexandre a dû redemander ce qu'il fallait pour trancher : quatre paires lues.*
+
+**Un refus doit porter de quoi l'instruire.** La lecture d'une paire déplacée
+donne maintenant, *que le déplacement soit accepté ou refusé* : le niveau qui a
+tranché **dans chaque forme**, les codes postaux du dossier **aux deux
+résolutions**, et ceux de **l'ancien et du nouveau gagnant**.
+
+⚠️ **Y compris quand le déplacement est EXPLIQUÉ** : *le critère dit qu'il est
+explicable, il ne dit pas qu'il est juste.* **Un départage écarte un candidat; il
+n'en confirme aucun** — un déplacement légitime reste une paire à regarder.
+
+> **Un refus qui ne montre pas sur quoi il porte oblige à redemander ce qu'on
+> avait déjà calculé.**

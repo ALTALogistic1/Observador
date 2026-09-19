@@ -314,3 +314,127 @@ def test_le_fait_du_candidat_joint_adresse_ET_code_postal():
                                          adresse="3 rue Z"))
     assert faits.code_postal.formes == frozenset({"H7A1B2", "H7A"})
     assert faits.ville is not None
+
+
+# ---------------------------------------------------------------------------
+# UN GAGNANT DÉPLACÉ — et la seule route qui y mène
+# ---------------------------------------------------------------------------
+
+def _routes_entre_les_deux_formes():
+    """Balaie EXHAUSTIVEMENT de petits décors et rend les routes observées.
+
+    ⚠️ *Un balayage exhaustif sur un petit domaine dit ce qui est POSSIBLE; dix
+    cas tirés ne disent que ce qui est arrivé.* **C'est la différence entre
+    « je n'en ai pas vu d'autre » et « il n'y en a pas d'autre ».**
+    """
+    import itertools
+
+    codes = [None, "G5R 3A7", "G5R 3Y8", "G5R", "H2N 1A1"]
+    villes = [None, "Levis", "Laval"]
+    perdus: set = set()
+    deplaces: set = set()
+    for dcp, dv in itertools.product(codes, villes):
+        for c1 in itertools.product(codes, villes):
+            for c2 in itertools.product(codes, villes):
+                dossier = _faits(dcp, dv)
+                conc = [_faits(*c1), _faits(*c2)]
+                avant = da.departager_ladresse(dossier, conc, niveaux=da.NIVEAUX_DAVANT)
+                apres = da.departager_ladresse(dossier, conc)
+                if avant.prononce and not apres.prononce:
+                    perdus.add((avant.niveau, apres.issue))
+                elif (avant.prononce and apres.prononce
+                        and avant.gagnant != apres.gagnant):
+                    deplaces.add((avant.niveau, apres.niveau))
+    return perdus, deplaces
+
+
+def test_AUCUNE_route_ne_perd_un_departage_de_la_forme_davant():
+    """⚠️ **Le découpage ne peut pas écrire moins, et ce n'est pas une
+    observation : c'est une propriété du treillis.**
+
+    *La compatibilité de la forme d'avant EST celle de la région de tri, et
+    celle du code complet en est un sous-ensemble.* **Donc un départage d'hier
+    se retrouve soit au code complet, soit à la région de tri.**
+    """
+    perdus, _ = _routes_entre_les_deux_formes()
+    assert perdus == set(), perdus
+
+
+def test_la_SEULE_route_dun_gagnant_deplace_est_VILLE_vers_CODE_COMPLET():
+    """⚠️ **Ce qui tranche entre « un défaut » et « le gain ».**
+
+    Un gagnant ne peut changer que d'une façon : *la forme d'avant tombait sur
+    la VILLE faute de trancher au code postal, et le CODE COMPLET tranche
+    maintenant, vers un autre candidat.* **Aucune autre route n'existe** — donc
+    un déplacement n'est jamais un artefact d'ordre d'évaluation.
+
+    *Et c'est le même mécanisme que les départages ajoutés : si le code complet
+    tranche là où la région ne pouvait pas, il tranche aussi autrement là où la
+    région tranchait mal.*
+    """
+    _, deplaces = _routes_entre_les_deux_formes()
+    assert deplaces == {(da.NIVEAU_VILLE, da.NIVEAU_CODE_COMPLET)}, deplaces
+
+
+def _deplacement(dossier, concurrents):
+    avant = da.departager_ladresse(dossier, concurrents, niveaux=da.NIVEAUX_DAVANT)
+    apres = da.departager_ladresse(dossier, concurrents)
+    return da.expliquer_le_deplacement(dossier, concurrents, avant, apres), avant, apres
+
+
+def test_un_deplacement_est_EXPLIQUE_quand_le_niveau_fin_exclut_lancien():
+    """*La ville désignait `Laval`; le code complet désigne l'autre — et il
+    EXCLUT celui que la ville avait retenu.*"""
+    dossier = _faits("H2N 1A1", "Laval")
+    concurrents = [_faits("H2N 5X9", "Laval"), _faits("H2N 1A1", "Quebec")]
+    expl, avant, apres = _deplacement(dossier, concurrents)
+    assert (avant.niveau, apres.niveau) == (da.NIVEAU_VILLE, da.NIVEAU_CODE_COMPLET)
+    assert expl.explique and expl.motif == da.EXPLIQUE
+
+
+@pytest.mark.parametrize("rang_avant, rang_apres, motif", [
+    (da.NIVEAU_CODE_COMPLET, da.NIVEAU_VILLE, da.PAS_PLUS_FIN),
+    (da.NIVEAU_REGION_DE_TRI, da.NIVEAU_REGION_DE_TRI, da.PAS_PLUS_FIN),
+])
+def test_un_niveau_qui_nest_PAS_plus_fin_nexplique_rien(rang_avant, rang_apres, motif):
+    """⚠️ *Sans cette condition, le critère accepterait qu'un fait plus grossier
+    renverse un fait plus fin* — exactement ce que le repli interdit."""
+    from outils.departageur_adresse import Departage
+
+    dossier = _faits("H2N 1A1", "Laval")
+    concurrents = [_faits("H2N 5X9", "Laval"), _faits("H2N 1A1", "Quebec")]
+    avant = Departage(DEPARTAGE, rang_avant, 0, ())
+    apres = Departage(DEPARTAGE, rang_apres, 1, ())
+    expl = da.expliquer_le_deplacement(dossier, concurrents, avant, apres)
+    assert not expl.explique and expl.motif == motif
+
+
+def test_un_ancien_gagnant_SANS_le_fait_fin_nest_pas_EXCLU_mais_INCONNU():
+    """⚠️ **« Je ne sais pas » n'est pas « non », ici aussi.**
+
+    *Un ancien gagnant qui ne porte pas de code complet n'est pas réfuté par le
+    code complet — il lui est invisible.* **Le déplacement resterait donc
+    inexpliqué**, et la cascade ne peut pas le produire : elle aurait rendu
+    « un concurrent ne porte pas le fait ».
+    """
+    from outils.departageur_adresse import Departage
+
+    dossier = _faits("H2N 1A1", "Laval")
+    concurrents = [_faits("H2N", "Laval"), _faits("H2N 1A1", "Quebec")]
+    expl = da.expliquer_le_deplacement(
+        dossier, concurrents,
+        Departage(DEPARTAGE, da.NIVEAU_VILLE, 0, ()),
+        Departage(DEPARTAGE, da.NIVEAU_CODE_COMPLET, 1, ()),
+    )
+    assert not expl.explique and expl.motif == da.ANCIEN_NON_EXCLU
+
+
+def test_le_niveau_DAVANT_est_range_au_rang_de_la_REGION_DE_TRI():
+    """⚠️ *Il s'appelait « code postal » et mêlait les deux résolutions, mais sa
+    compatibilité était celle de la RÉGION DE TRI.* **Le ranger plus fin qu'il
+    n'était ferait passer une correction légitime pour un déplacement
+    inexpliqué.**"""
+    assert (da.RANG_DES_NIVEAUX[da.NIVEAU_CODE_POSTAL]
+            == da.RANG_DES_NIVEAUX[da.NIVEAU_REGION_DE_TRI])
+    assert (da.RANG_DES_NIVEAUX[da.NIVEAU_CODE_COMPLET]
+            < da.RANG_DES_NIVEAUX[da.NIVEAU_CODE_POSTAL])
