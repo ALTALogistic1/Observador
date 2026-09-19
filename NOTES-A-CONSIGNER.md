@@ -3478,3 +3478,84 @@ n'en confirme aucun** — un déplacement légitime reste une paire à regarder.
 
 > **Un refus qui ne montre pas sur quoi il porte oblige à redemander ce qu'on
 > avait déjà calculé.**
+
+---
+
+## N148 — Le scoreur savait sur quoi il avait décidé, et il le jetait
+
+*(2026-09-19, relecture des 50 paires de la passe par Alexandre.)*
+
+```
+#16   détecté  : 16790224 Canada Inc.
+      registre : LES ENTREPRISES DOUGLAS POWERTECH INC.      score 100.0
+```
+
+**Deux chaînes sans un caractère commun, à score 100.** *Ça se lit comme une
+fausse résolution, et c'en est une bonne* : le NEQ porte plusieurs formes, dont
+`16790224 Canada Inc.`, et **la décision s'est prise sur celle-là**.
+
+⚠️ **Le défaut n'est pas dans le score : il est dans ce que l'instrument
+montre.** `_scorer` appelle `process.extractOne`, qui rend **le score ET la
+forme gagnante** — *le code gardait le premier et jetait la seconde*, puis
+l'appelant affichait `entry.nom`, la dénomination sociale ÉLUE.
+
+> **L'information existait, à une ligne de là. Elle était perdue à la sortie de
+> la fonction qui l'avait produite.**
+
+**C'est le cas 33 pris au pire endroit** : *avant une écriture irréversible, sur
+la seule vérification qui reste — la relecture des paires.* Et c'est aussi le
+même motif que `SDI CANADA → BIOMEDSHIELD` : **une raison sociale contre un nom
+qui la désigne autrement.**
+
+`REQMatch` porte maintenant `forme_normalisee`, et `formes_retenues()` la traduit
+en nom publié, gisement et statut — **en une seule requête**, parce qu'une
+lecture par paire ferait N requêtes pour un rapport de cinquante lignes.
+
+> **Quand un calcul produit deux choses et qu'on n'en garde qu'une, c'est
+> toujours l'autre qu'on redemandera.**
+
+---
+
+## N149 — « Cinquante paires lues » ne dit pas combien sont dans ce cas
+
+*(2026-09-19.)*
+
+Deux paires sur cinquante décidées sur une autre forme que celle affichée. ⚠️
+**Alexandre n'a pas demandé le correctif seul : il a demandé LE COMPTE sur les
+2 523.** *« Si c'est deux, c'est anecdotique; si c'est trois cents, la relecture
+de 50 paires ne disait pas ce qu'on croyait qu'elle disait. »*
+
+**Et le compte est gratuit** : `forme_normalisee != entry.nom_normalise` est une
+comparaison, pas une requête. *Ce qui coûtait, c'était de traduire la forme en
+gisement — et ça ne se fait que sur les lignes affichées.*
+
+> **Un échantillon relu dit ce qu'il contient. La part de la population qu'il
+> représente est une autre question, et elle se pose AVANT d'agir sur
+> l'échantillon.**
+
+⚠️ **Le rapport ventile aussi par gisement** — `nom_assuj`, `nom_etranger`,
+`nom_etab`, `denomn_soc`. *Savoir que 300 paires ont décidé sur une autre forme
+ne dit pas la même chose selon qu'elles viennent d'un nom en vigueur ou d'un nom
+retiré.*
+
+---
+
+## N150 — Un statut absent là où il n'y a rien à lire n'est pas « inconnu »
+
+*(2026-09-19.)*
+
+La forme gagnante affiche son gisement et son statut. **Quand c'est la
+dénomination sociale élue, elle vient de `req_entries`, qui ne porte aucun statut
+DE NOM** — `REQEntry.statut` est le statut de l'ENTREPRISE (immatriculée,
+radiée), pas celui du nom.
+
+Écrire « statut inconnu » sur ces lignes-là — *la majorité* — **ferait chercher
+une lecture manquée là où il n'y a rien à lire**, et noierait le cas où le statut
+manque vraiment : *une forme de `req_noms` sans statut est une lacune réelle.*
+
+**Donc : rien pour la dénomination élue, « inconnu » pour une forme de
+`req_noms` qui n'en porte pas.**
+
+> **Deux silences qui n'ont pas la même cause ne s'écrivent pas du même mot. Un
+> champ qui n'existe pas et un champ qu'on n'a pas lu appellent deux gestes
+> différents.**
