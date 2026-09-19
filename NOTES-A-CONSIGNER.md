@@ -3810,3 +3810,73 @@ touchés, sinon la différence se lit comme une perte.*
 
 > **Une restriction qui s'applique à l'action et non à la connaissance se lève
 > sans rien redécouvrir.**
+
+---
+
+## N160 — Deux corrections qui portent le même nom ne se mesurent pas sous le même nom
+
+*(2026-09-19, chiffrage du retrait de parenthèse côté détecté.)*
+
+**« Retirer les parenthèses » désigne DEUX corrections différentes**, et la
+première a déjà été chiffrée :
+
+| | côté | rendu |
+|---|---|---|
+| 17 septembre | **les deux côtés** | **+17 net** — 30 gagnés, **13 PERDUS** |
+| 19 septembre | ⚠️ **le nom DÉTECTÉ seul** | *jamais mesuré* |
+
+⚠️ **Les 13 perdus venaient du REGISTRE** : *`FERME BELLEVUE (1997) INC.` privée
+de sa parenthèse passe de 86 à 95, et l'écart au second s'effondre.* **Retirer
+la parenthèse du seul nom détecté ne peut pas produire cette perte** — le
+registre garde tous ses discriminants.
+
+**Ce qui protège de la confusion n'est pas une note, c'est la sortie** : *le nom
+du fichier porte le côté, l'entête rappelle l'autre chiffrage avec ses chiffres,
+et la dernière ligne redit que le registre n'a pas été touché.*
+
+> **Une mesure qui ne nomme pas sa variante se relira comme la variante déjà
+> connue. Le lecteur de janvier n'aura pas la conversation de septembre.**
+
+---
+
+## N161 — Transformer le nom détecté ne change pas que le score : ça change le LOT
+
+*(2026-09-19.)*
+
+`transformer_forme` s'applique au **registre**; le nom détecté, lui, est
+l'argument `nom` de `resolve_neq_by_name`. ⚠️ **Et le moteur le dit dans sa
+propre docstring** : *« Il ne touche PAS la récupération : `candidats_par_nom`
+cherche sur le nom DÉTECTÉ. Transformer le nom détecté change donc les lignes
+rendues. »*
+
+**Le premier temps ne bouge pas** — *le préfixe est le PREMIER mot, et une
+parenthèse n'est jamais première.* **Mais le second temps choisit le mot le plus
+RARE du nom** : retirer des mots peut changer ce choix, donc le lot élargi.
+
+**Donc un gain mesuré ici vient de DEUX causes mêlées** : un score qui remonte,
+et parfois un lot différent. *La mesure compte les dossiers où le lot a changé,
+au lieu de supposer l'effet nul.*
+
+> **Quand une transformation touche deux étages, le compte des dossiers où le
+> second a bougé est ce qui empêche d'attribuer tout le gain au premier.**
+
+---
+
+## N162 — Un libellé qui annonce le PARAMÈTRE au lieu du RÉSULTAT
+
+*(2026-09-19.)*
+
+`--tete 5` compare la tête de table à la population *(cas 19)*. ⚠️ **Sur un lot
+de deux dossiers, la sortie écrivait « la TÊTE — les 5 premiers par id » au-dessus
+d'un compte de 2.**
+
+*C'est le défaut du compte figé (N143), en plus discret* : **le libellé donne
+l'autorité d'une mesure à ce qu'on a DEMANDÉ, pas à ce qu'on a OBTENU.** Et il ne
+se voit que là où les deux diffèrent — donc jamais sur l'hôte, où le lot est
+grand.
+
+**Corrigé en lisant `len(tete)`.** *Troisième forme du même défaut en trois
+jours : un nom de fichier, un en-tête de colonne, un libellé paramétré.*
+
+> **Un paramètre dit ce qu'on a voulu. Seul le résultat dit ce qu'on a eu. Un
+> libellé qui cite le premier ment dès que le second diffère.**
