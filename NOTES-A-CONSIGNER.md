@@ -3636,3 +3636,91 @@ par gisement tant qu'elle tient.* **Vérification à une requête :**
 > **« Ça s'explique de soi-même » est la phrase qui clôt le plus d'enquêtes
 > avant qu'elles commencent. Quand l'explication est vérifiable à une ligne,
 > elle se vérifie.**
+
+---
+
+## N154 — `INSERT OR IGNORE` rend une table APPEND-ONLY, et personne ne l'avait écrit
+
+*(2026-09-19, en répondant à « le prochain import remplira-t-il la colonne? ».)*
+
+**Non. Et le mécanisme va bien au-delà de la colonne `gisement`.**
+
+`_charger_tous_les_noms` écrit en **`INSERT OR IGNORE`** sur la clé
+`(neq, nom_normalise)`, et **rien ne vide `req_noms`** — *seules `req_mots` et
+`req_mots_frequence` sont reconstruites.* **Une ligne déjà présente est donc
+SAUTÉE, jamais mise à jour.**
+
+Le choix était délibéré et son motif est écrit dans le code : *avec `add` ligne à
+ligne, la seconde insertion levait `IntegrityError` et faisait tomber l'import
+entier.* ⚠️ **Ce qui n'était écrit nulle part, c'est le prix** : **les colonnes
+non-clés d'une ligne sont figées à leur valeur du PREMIER import où le nom est
+apparu.**
+
+| colonne | ce que le miroir porte |
+|---|---|
+| `gisement` | vide sur les 1 505 879 lignes du pont du 15 septembre, **indéfiniment** |
+| `statut` | ⚠️ **celui du premier import** — *un nom retiré du registre depuis garde « en vigueur »* |
+| `type_nom` | idem |
+
+⚠️ **Et toute colonne ajoutée à `req_noms` à l'avenir naîtra vide sur les lignes
+existantes, sans que rien le signale.**
+
+**Le test qui existait ne pouvait pas l'attraper** : `test_un_REIMPORT_ne_leve_pas`
+vérifie que le réimport **ne casse pas**. *Il ne dit rien de ce qu'il FAIT.*
+
+> **Un test qui vérifie qu'un geste ne lève pas ne vérifie pas qu'il agit. Les
+> deux se ressemblent au vert.**
+
+---
+
+## N155 — Le rechargement d'une colonne n'est pas « relancer le chargeur »
+
+*(2026-09-19, chiffrage demandé avant de faire.)*
+
+⚠️ **Relancer `_charger_tous_les_noms` ne remplirait RIEN** *(N154)*. Le
+rechargement demande donc un geste d'une autre nature, et il y en a trois :
+
+| | coût | ce que ça corrige |
+|---|---|---|
+| **(a) `UPDATE … WHERE gisement IS NULL`** | **secondes**, aucune archive | ⚠️ **AFFIRME** l'inférence `NOM_ASSUJ` au lieu de la lire. `gisement` seul, cette fois seulement |
+| **(b) supprimer les lignes vides, relire `Nom.csv`** | une lecture en flux de 4,65 M enregistrements + ~1,5 M écritures, **archive requise** | `gisement` **et** `statut`, cette fois seulement |
+| **(c) passer en UPSERT, réimporter** | **l'import complet — 40 min mesurées** | ⚠️ **la CAUSE**, pour toute colonne présente et future |
+
+⚠️ **Seule (c) empêche que ça recommence.** *(a) et (b) réparent l'instance;
+la prochaine colonne ajoutée retombera dans le même trou.*
+
+**Et (c) porte une décision de conception, pas seulement un coût** : *que devient
+`first_seen_at` quand une ligne est réécrite?* **Une ligne rafraîchie n'a pas été
+vue pour la première fois aujourd'hui** — et confondre les deux ferait mentir la
+seule colonne qui date le miroir.
+
+⚠️ **Aucun chiffre inventé pour (b).** *Le seul repère mesuré est l'import
+complet à 40 minutes; la part de `Nom.csv` dedans n'a pas été chronométrée
+séparément.* **L'outil qui fera le rechargement devra se chronométrer
+lui-même** — *un coût annoncé sans mesure est une estimation qu'on relira comme
+un fait.*
+
+---
+
+## N156 — Une ventilation porte sa COUVERTURE, ou elle se lit comme complète
+
+*(2026-09-19.)*
+
+`gisement` est vide sur **1 505 879 lignes sur 5 071 984 — 29,7 %**. *Toute
+ventilation par gisement sous-estimait `NOM_ASSUJ` d'autant.* **Le chiffre n'était
+pas faux : il était incomplet, et rien dans la sortie ne le disait.**
+
+**Deux correctifs, et il faut les deux :**
+
+1. **L'étiquette dit ce qu'elle sait ET d'où elle le tient** —
+   `NOM_ASSUJ (antérieur à la colonne)` plutôt que `(inconnu)`. *La ventilation
+   redevient juste, et personne ne lit une valeur inférée comme une valeur lue.*
+2. **La couverture s'imprime À CÔTÉ de la ventilation** — combien de lignes de la
+   table n'en portent pas, et **que le prochain import ne les remplira pas**.
+
+⚠️ *Le premier seul suffirait à rendre les comptes justes. Il ne suffirait pas à
+empêcher qu'on lise la ventilation comme complète* — et c'est la lecture, pas le
+compte, qui a fait écrire « 103 `NOM_ASSUJ` » là où il fallait lire 435.
+
+> **Un total juste sur une population partielle est un total juste. C'est la
+> population qu'il faut écrire à côté.**

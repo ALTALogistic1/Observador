@@ -246,3 +246,88 @@ def test_le_meilleur_nom_lemporte_meme_sil_nest_pas_lelu(db_session):
     assert matches[0].score == 100.0
     # Et le portrait affiche la DÉNOMINATION LÉGALE, jamais le nom apparié.
     assert matches[0].entry.nom == "9169-9587 QUÉBEC INC."
+
+
+# ---------------------------------------------------------------------------
+# CE QU'UN RÉIMPORT FAIT AUX LIGNES EXISTANTES — et ce qu'il ne fait pas
+# ---------------------------------------------------------------------------
+
+def test_un_REIMPORT_NE_REECRIT_PAS_une_ligne_existante(db_session, tmp_path):
+    """⚠️ **La réponse à « le prochain import remplira-t-il la colonne? » — NON.**
+
+    `req_noms` s'écrit en `INSERT OR IGNORE` sur la clé `(neq, nom_normalise)`,
+    et **rien ne vide la table** *(seules `req_mots` et `req_mots_frequence` le
+    sont)*. **Une ligne déjà présente est donc SAUTÉE, pas mise à jour.**
+
+    *`test_un_REIMPORT_ne_leve_pas` vérifiait que le réimport ne CASSE pas; il ne
+    disait rien de ce qu'il FAIT.* **C'est l'angle mort qui a laissé 1 505 879
+    lignes sans gisement pendant deux jours sans que rien le signale.**
+
+    ⚠️ **Et ça ne vaut pas que pour `gisement`** : `statut` et `type_nom` sont
+    figés à leur valeur du PREMIER import où le nom est apparu. *Un nom retiré du
+    registre depuis garde « en vigueur » dans le miroir.*
+    """
+    zf = _zip_nom([["1111111111", "Gagnon inc.", "V", "M", "2020-01-01", ""]], tmp_path)
+    assert _charger_tous_les_noms(zf, db_session) == 1
+
+    # On simule l'état de l'hôte : une ligne du pont d'origine, sans gisement.
+    ligne = db_session.query(REQNom).one()
+    ligne.gisement = None
+    ligne.statut = "V"
+    db_session.commit()
+
+    # Le même nom, réimporté avec un statut DIFFÉRENT à la source.
+    zf2 = _zip_nom([["1111111111", "Gagnon inc.", "I", "M", "2020-01-01", "2026-01-01"]],
+                   tmp_path)
+    _charger_tous_les_noms(zf2, db_session)
+    db_session.expire_all()
+
+    apres = db_session.query(REQNom).one()
+    assert apres.gisement is None, "le réimport aurait rempli la colonne — il ne le fait pas"
+    assert apres.statut == "V", "le statut du miroir a suivi la source — il ne le fait pas"
+
+
+def test_la_COUVERTURE_de_la_colonne_gisement_se_compte(db_session, tmp_path):
+    """*Une ventilation par gisement lue comme complète alors qu'un tiers des
+    lignes n'en portent pas sous-estime le gisement majoritaire d'autant.*"""
+    from falkye.sources.req import lignes_sans_gisement
+
+    zf = _zip_nom([
+        ["1111111111", "Gagnon inc.", "V", "M", "2020-01-01", ""],
+        ["2222222222", "Tremblay inc.", "V", "M", "2020-01-01", ""],
+    ], tmp_path)
+    _charger_tous_les_noms(zf, db_session)
+    assert lignes_sans_gisement(db_session) == (0, 2)
+
+    db_session.query(REQNom).filter(REQNom.neq == "1111111111").one().gisement = None
+    db_session.commit()
+    assert lignes_sans_gisement(db_session) == (1, 2)
+
+
+def test_un_gisement_VIDE_se_dit_ANTERIEUR_A_LA_COLONNE_et_non_inconnu(db_session, tmp_path):
+    """⚠️ **Deux silences qui n'ont pas la même cause ne s'écrivent pas du même
+    mot.**
+
+    *Une ligne qui EXISTE avec une colonne vide est le pont du 15 septembre —
+    `NOM_ASSUJ` par construction, parce que c'était le seul gisement d'alors.*
+    **L'étiquette le dit, au lieu de laisser croire que la valeur a été lue.**
+    """
+    from falkye.models.req_entry import REQEntry
+    from falkye.sources import req as req_source
+    from falkye.sources.column_mapping import normaliser
+
+    db_session.add(REQEntry(neq="1111111111", nom="9224-5842 QUEBEC INC.",
+                            nom_normalise=normaliser("9224-5842 QUEBEC INC."),
+                            statut="IMMATRICULÉE"))
+    zf = _zip_nom([["1111111111", "Ferme Bellavance", "V", "M", "2020-01-01", ""]],
+                  tmp_path)
+    _charger_tous_les_noms(zf, db_session)
+    db_session.query(REQNom).one().gisement = None
+    db_session.commit()
+
+    matches = req_source.resolve_neq_by_name(db_session, "Ferme Bellavance")
+    formes = req_source.formes_retenues(db_session, matches[:1])
+    (forme,) = formes.values()
+    assert not forme.est_la_denomination_elue
+    assert forme.gisement == req_source.GISEMENT_ANTERIEUR_A_LA_COLONNE
+    assert "NOM_ASSUJ" in forme.gisement, "la ventilation doit rester juste"

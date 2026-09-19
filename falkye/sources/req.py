@@ -56,7 +56,7 @@ from datetime import datetime, timezone
 
 from dateutil import parser as dateutil_parser
 from rapidfuzz import fuzz, process
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from falkye.diff_engine import (
@@ -1464,6 +1464,37 @@ class REQMatch:
 #: ligne de `req_entries`, et la nommer autrement ferait croire à un cinquième.*
 GISEMENT_DENOMINATION_ELUE = "(dénomination élue)"
 
+#: ⚠️ **Les lignes de `req_noms` chargées AVANT que la colonne `gisement`
+#: existe** *(pont du 15 septembre, colonne ajoutée le 17)*. **1 505 879 lignes
+#: sur 5 071 984 — 29,7 % de la table** *(mesuré sur l'hôte le 19 septembre)*.
+#:
+#: *Le pont d'origine ne lisait que `NOM_ASSUJ` : c'était le seul gisement qui
+#: existait alors.* **Donc `NOM_ASSUJ` par construction** — mais l'étiquette le
+#: DIT, au lieu de laisser croire que la valeur a été lue.
+#:
+#: ⚠️ **Et ça ne se remplira pas tout seul.** *`_charger_tous_les_noms` écrit en
+#: `INSERT OR IGNORE` sur une clé `(neq, nom_normalise)`, et rien ne vide
+#: `req_noms`* — **un réimport SAUTE ces lignes au lieu de les réécrire.**
+GISEMENT_ANTERIEUR_A_LA_COLONNE = "NOM_ASSUJ (antérieur à la colonne)"
+
+
+def lignes_sans_gisement(db_session: Session) -> tuple[int, int]:
+    """`(sans gisement, total)` de `req_noms` — **pour qu'une ventilation par
+    gisement ne se lise jamais comme complète.**
+
+    ⚠️ *Le chiffre n'est pas faux, il est incomplet* — et rien dans une
+    ventilation ne le dit si personne ne l'écrit à côté.
+    """
+    from falkye.models.req_nom import REQNom
+
+    total = db_session.execute(
+        select(func.count()).select_from(REQNom)
+    ).scalar_one()
+    sans = db_session.execute(
+        select(func.count()).select_from(REQNom).where(REQNom.gisement.is_(None))
+    ).scalar_one()
+    return sans, total
+
 
 @dataclass(frozen=True)
 class FormeRetenue:
@@ -1514,12 +1545,21 @@ def formes_retenues(db_session: Session, matches: list) -> dict[tuple[str, str],
         entry = par_neq[neq]
         elue = entry.nom_normalise == forme
         nom, gisement, statut = depuis_req_noms.get((neq, forme), (None, None, None))
+        if elue:
+            etiquette = GISEMENT_DENOMINATION_ELUE
+        elif gisement is None and (neq, forme) in depuis_req_noms:
+            # ⚠️ **La ligne EXISTE et sa colonne est vide** : c'est le pont du
+            # 15 septembre, pas un gisement inconnu. *Le dire plutôt que d'écrire
+            # « inconnu », qui envoie chercher une lecture manquée.*
+            etiquette = GISEMENT_ANTERIEUR_A_LA_COLONNE
+        else:
+            etiquette = gisement
         rendu[(neq, forme)] = FormeRetenue(
             nom_normalise=forme,
             # ⚠️ Quand la forme EST la dénomination élue, le nom publié est celui
             # de `req_entries` — et `req_noms` peut en porter une ligne aussi.
             nom_publie=entry.nom if elue else nom,
-            gisement=GISEMENT_DENOMINATION_ELUE if elue else gisement,
+            gisement=etiquette,
             statut=statut,
             est_la_denomination_elue=elue,
         )
