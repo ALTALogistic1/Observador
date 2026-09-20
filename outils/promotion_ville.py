@@ -55,12 +55,17 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
+from outils import pose_du_neq
+
 from outils.nombres import milliers
 from outils.villes_des_signaux import villes_des_signaux
 
 #: Où l'instantané d'avant est déposé — le seul répertoire que les unités
 #: peuvent écrire (`ReadWritePaths=/var/lib/falkye`).
-DOSSIER_INSTANTANE = Path("/var/lib/falkye")
+#: ⚠️ **Empruntée à `outils/pose_du_neq.py`, plus recopiée** — elle y vit
+#: près du geste qu'elle gouverne. *Le nom est conservé ici pour les
+#: appelants.*
+DOSSIER_INSTANTANE = pose_du_neq.DOSSIER_INSTANTANE
 
 
 def _part(k: int, n: int) -> str:

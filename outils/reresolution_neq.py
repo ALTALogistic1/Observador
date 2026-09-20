@@ -81,7 +81,10 @@ from pathlib import Path
 
 #: Où l'instantané d'avant est déposé. Le même répertoire que les témoins et le
 #: miroir — le seul que les unités peuvent écrire (`ReadWritePaths`).
-DOSSIER_INSTANTANE = Path("/var/lib/falkye")
+#: ⚠️ **Empruntée à `outils/pose_du_neq.py`, plus recopiée** — elle y vit
+#: près du geste qu'elle gouverne. *Le nom est conservé ici pour les
+#: appelants.*
+DOSSIER_INSTANTANE = pose_du_neq.DOSSIER_INSTANTANE
 
 
 def _resoudre_une(db_session, company) -> tuple[str | None, list]:

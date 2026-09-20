@@ -5209,3 +5209,96 @@ restant, pour qu'on sache si la contradiction est de deux points ou de dix.
 > **Deux instruments qui se contredisent ne se départagent pas par le nombre de
 > fois où ils le font. Le compte dit l'ampleur du désaccord, jamais qui a
 > raison.**
+
+---
+
+## N208 — Une portée peut contenir ce qu'elle était censée exclure
+
+*(2026-09-20. Réserve posée AVANT de construire, à la demande d'Alexandre.)*
+
+**La décision** : écrire le départage par le statut, **restreint aux égalités
+strictes** — *« la population où le nom a fini son travail, et où le statut ne
+contredit aucun gagnant : il choisit parmi des premiers ex æquo »*.
+
+⚠️ **Les deux moitiés de cette phrase ne désignent pas la même population.**
+*Contre-exemple produit et EXÉCUTÉ avant d'écrire une ligne :*
+
+    candidats : radiée 100,0 · radiée 100,0 · immatriculée 95,0
+    → égalité stricte au sommet : OUI
+    → restant après « n'écarter que les radiées » : 95,0 — SOUS le sommet
+
+**Un dossier peut donc être une égalité stricte ET voir le statut retenir un
+candidat sous les premiers ex æquo** — exactement le cas mis en suspens.
+*Restreindre aux seules égalités strictes ne l'aurait pas exclu, et une partie
+des 78 aurait été écrite malgré la décision.*
+
+**L'écriture applique donc DEUX conditions** : *(1)* au moins deux candidats au
+score du sommet, *(2)* **le restant est PARMI eux**. ⚠️ *La seconde est ce qui
+réalise l'intention; la première n'en est que le symptôme le plus fréquent.*
+
+**Ce qui a permis de le voir** : la portée a été **exécutée** sur un cas
+construit, pas relue. *Trois lignes de Python contre une phrase qui semblait
+claire.*
+
+> **Quand une décision énonce une portée ET sa raison, vérifier que la portée
+> réalise la raison. Elles coïncident presque toujours — et « presque » est
+> exactement ce qui s'écrit en production.**
+
+---
+
+## N209 — Une constante recopiée dans trois outils n'a pas de domicile
+
+*(2026-09-20.)*
+
+`DOSSIER_INSTANTANE = Path("/var/lib/falkye")` vivait **à l'identique dans trois
+outils** — `reresolution_neq`, `ecriture_des_departages`, `promotion_ville` — et
+le quatrième allait la recopier.
+
+⚠️ **Ce qu'elle désigne n'est pas un goût** : *c'est le seul répertoire que les
+unités systemd peuvent écrire* (`ReadWritePaths`). **Une copie qui diverge donne
+un outil qui refuse d'écrire son instantané**, donc *un geste irréversible sans
+trace de l'état d'avant.*
+
+**Elle est descendue dans `outils/pose_du_neq.py`**, près de la machinerie
+qu'elle gouverne — *même geste que `PRETENDANTS_MAX_POUR_TRANCHER`, qui y était
+descendu le 19 septembre pour la même raison.* **Les trois outils l'empruntent et
+gardent leur nom de module**, donc aucun appelant ne bouge.
+
+⚠️ **Et un test vérifie l'IDENTITÉ, pas l'égalité** : `module.DOSSIER_INSTANTANE
+is pose_du_neq.DOSSIER_INSTANTANE`. *Deux `Path` égaux passeraient un test
+d'égalité tout en étant deux copies.*
+
+> **Une constante qui apparaît trois fois n'a pas de domicile, elle a des
+> occupants. La ranger près du geste qu'elle gouverne est la seule façon de
+> savoir où la chercher — et le test doit vérifier que c'est la MÊME, pas une
+> qui lui ressemble.**
+
+---
+
+## N210 — Un outil qui écrit une partie doit nommer ce qu'il n'a pas touché
+
+*(2026-09-20. Forme reprise du 19 septembre.)*
+
+L'écriture du statut pose **une** catégorie et en laisse **quatre** en suspens.
+⚠️ *Sans les nommer, la différence entre « 3 267 ambigus » et « N posés » se lit
+comme une perte* — et personne ne saurait plus si les autres ont été refusés,
+oubliés, ou mis de côté.
+
+**Chaque raison est une ligne de la sortie, et chacune appelle une suite
+différente :**
+
+| raison | ce qu'elle dit |
+|---|---|
+| pas une égalité stricte | le score désignait un gagnant |
+| **le restant est SOUS le sommet** | **deux instruments se contredisent** |
+| l'exclusion laisse plusieurs | le statut ne départage pas |
+| l'exclusion vide le lot | tous les candidats sont fermés |
+
+**Et « en suspens » n'est pas « refusé ».** *Un départage non écrit se reprend;
+un départage écrit à tort coûte une identité.* **C'est la même forme que la
+décision du 19 septembre sur le code postal complet**, et la sortie le dit avec
+les mêmes mots.
+
+> **La soustraction entre un total et ce qu'on a posé n'est pas une explication.
+> Ce qui n'a pas été touché se compte ligne par ligne, avec sa raison, ou il se
+> relit comme une fuite.**

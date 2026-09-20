@@ -57,6 +57,15 @@ PRETENDANTS_MAX_POUR_TRANCHER = 2
 STATUTS_LISIBLES = {"A": "en vigueur", "I": "PLUS EN VIGUEUR", "?": "non qualifié"}
 
 
+#: Où l'instantané d'avant est déposé. ⚠️ **Recopié dans TROIS outils jusqu'au
+#: 2026-09-20** — `reresolution_neq`, `ecriture_des_departages`,
+#: `promotion_ville`. *Une constante recopiée diverge sans que rien ne le dise,
+#: et celle-ci désigne le seul répertoire que les unités peuvent écrire
+#: (`ReadWritePaths`).* **Elle vit ici, près du geste qu'elle gouverne** — même
+#: raison que `PRETENDANTS_MAX_POUR_TRANCHER`.
+DOSSIER_INSTANTANE = Path("/var/lib/falkye")
+
+
 def statut_lisible(statut: str | None) -> str:
     """⚠️ *Un nom PLUS EN VIGUEUR apparie quand même* — le registre le porte, et
     l'entreprise l'a porté. **Mais ça se lit avant d'écrire**, parce qu'un
