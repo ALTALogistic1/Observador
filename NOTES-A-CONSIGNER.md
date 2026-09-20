@@ -4302,3 +4302,152 @@ l'outil existe pour éviter.
 
 > **Un seuil choisi après coup n'est pas un seuil, c'est une justification.
 > L'imprimer avant la première donnée est ce qui l'empêche de bouger.**
+
+---
+
+## N178 — Quand plusieurs hypothèses bien mesurées tombent, la question est mal posée
+
+*(2026-09-20.)*
+
+Cinq théories sur les 4 673 restants, toutes mesurées proprement, **toutes
+tombées** :
+
+| théorie | ce qu'elle rend |
+|---|---|
+| origine pancanadienne | 8 % |
+| consortiums | 1,1 % |
+| doublons exacts | 0,4 % |
+| absence d'adresse | **+0** des deux côtés |
+| personnes physiques | **non connaissable** — 57,1 % de faux positifs |
+
+⚠️ **La tentation, à ce point, est la sixième théorie.** *Elle se présente
+toujours bien : celle-là tient compte de ce qu'on vient d'apprendre.* **Mais cinq
+mesures qui tombent ne disent pas « cherche mieux », elles disent que la
+question est mal posée.**
+
+**Ce que ça change dans la méthode, et c'est mécanique plutôt que sage :** on
+décrit la population sur des axes que **le produit porte déjà**, au lieu de tester
+une idée de plus. ⚠️ *Le moment où l'on invente un axe est le moment où l'on a
+refait une théorie* — `famille_de`, `resolve_neq_by_name`, `Signal.detected_at`,
+`faits_des_dossiers`, `est_numero` existaient tous. **Rien n'a été écrit pour
+cette mesure sauf de la mise en forme.**
+
+**Et la garde qui tient la discipline est un test**, pas une intention : aucun mot
+de jugement — *« probablement récupérable »*, *« probablement pas »* — ne peut
+apparaître dans un tableau.
+
+> **Cinq hypothèses qui tombent ne demandent pas une sixième. Elles demandent de
+> regarder la population au lieu de l'interroger.**
+
+---
+
+## N179 — Deux axes que personne n'avait regardés, et ils étaient là depuis le début
+
+*(2026-09-20.)*
+
+**Le nombre de signaux d'un dossier** et **l'âge de son signal le plus récent**
+n'avaient jamais été ventilés. *Ni l'un ni l'autre ne demandait une collecte :
+`Signal.company_id` et `Signal.detected_at` sont là depuis l'origine.*
+
+⚠️ **Un axe ne manque pas parce que la donnée manque. Il manque parce que
+personne ne l'a demandé.** *Et pendant cinq mesures, on a cherché ce qui
+distinguait les restants dans ce qu'on avait déjà décidé de regarder —
+l'origine, le nom, l'adresse.*
+
+⚠️ **Et `detected_at` n'est pas `ingested_at`.** *La première est la date de
+l'évènement source, la seconde celle de notre collecte.* **Lire la seconde aurait
+mesuré nos cycles d'exécution et rendu un portrait de notre calendrier.** Les deux
+colonnes existent côte à côte depuis toujours, et rien ne dit laquelle on lit —
+sauf le commentaire du modèle, qui le disait.
+
+> **Avant de conclure qu'une donnée manque, lister ce que le modèle porte déjà.
+> Un champ jamais ventilé est indiscernable d'un champ absent, et il ne coûte
+> pas la même chose.**
+
+---
+
+## N180 — Une garde qui lit des lignes ne distingue pas un libellé de la phrase qui l'interdit
+
+*(2026-09-20. Deuxième occurrence — voir N136.)*
+
+Le test le plus important du portrait vérifie qu'**aucun mot de jugement**
+n'apparaît en sortie. Il est tombé du premier coup, sur ceci :
+
+    pas de « probablement récupérable » ni de « probablement pas » :
+    ce serait remplacer la mesure par une sixième théorie.
+
+**La phrase qui INTERDIT les mots contenait les mots.** *Exactement N136, où un
+commentaire citant l'idiome proscrit faisait tomber la garde de mise en forme.*
+
+⚠️ **Mais le correctif n'est pas le même, et c'est ça qui vaut d'être noté.**
+N136 avait réécrit le commentaire — *on avait plié le code devant la garde.* Ici
+la garde a été **bornée aux sections**, l'en-tête exclu.
+
+**Et la garde bornée est MEILLEURE, pas seulement plus commode :** un jugement se
+glisse dans une **étiquette de tableau**, jamais dans un avertissement. *La version
+qui lisait toute la sortie surveillait surtout de la prose.*
+
+| occurrence | ce qu'on a plié | ce qu'on aurait dû se demander |
+|---|---|---|
+| N136 | le commentaire | — |
+| **N180** | **la portée de la garde** | **qu'est-ce que je surveille vraiment?** |
+
+> **Quand une garde tombe sur la phrase qui la justifie, la question n'est pas
+> comment la contourner : c'est ce qu'elle devait surveiller. La bonne portée est
+> presque toujours plus étroite que « tout ».**
+
+---
+
+## N181 — Une étiquette plus longue que sa colonne pousse le nombre
+
+*(2026-09-20. Troisième occurrence, et la première qui soit gardée.)*
+
+`« 92 et plus  ← AU-DESSUS du seuil »` fait 32 caractères dans une colonne de 30.
+**Le nombre part deux caractères plus loin, la ligne cesse d'être alignée, et
+aucun chiffre n'a bougé.** *Trouvé à l'œil, pour la troisième fois en trois
+outils.*
+
+⚠️ **Et dans les croisements, deux colonnes se TOUCHAIENT** —
+`« ambigutrop faibleaucun cand. »`. *Deux nombres collés se lisent comme un
+seul.*
+
+**Trois tests remplacent le relecteur :**
+
+| ce qui est vérifié | contre quoi |
+|---|---|
+| chaque étiquette d'axe | `LARGEUR_DES_AXES` |
+| chaque étiquette de croisement | sa largeur propre |
+| chaque abréviation de famille | **une de moins que la colonne** |
+
+⚠️ **Et celui des sources lit `falkye/registry/sources.yaml`**, pas une liste
+recopiée : *l'identifiant le plus long y fait 34 caractères, et le jour où l'on
+en ajoute un plus long, c'est le test qui tombe — pas la mise en page, en
+silence.*
+
+> **Un tableau désaligné se relit de travers sans qu'on sache pourquoi. La
+> largeur d'une colonne est une contrainte du code, donc elle se teste — et le
+> test lit la source des valeurs, jamais leur copie.**
+
+---
+
+## N182 — Une échelle exclusive se mesure, elle ne s'affirme pas
+
+*(2026-09-20.)*
+
+L'échelle d'adresse du portrait — *code complet, région de tri seule, ville
+seule, rien* — **est exclusive par construction**. ⚠️ *Mais « par construction »
+est exactement ce qu'on croyait du code postal complet le 18 septembre, et il
+s'est avéré que 100 % des 1 805 reposaient sur la région de tri.*
+
+**Le test ne relit donc pas la cascade : il additionne les quatre niveaux et
+exige le total de la population.** *Si un dossier tombait dans deux niveaux, le
+total déborderait — et c'est le seul symptôme qu'une exclusivité cassée produit.*
+
+⚠️ **La même prudence vaut pour ce qui n'est PAS exclusif, et il faut le dire à
+l'endroit où on pourrait l'additionner :** les formes du nom se cumulent — *un nom
+porte une parenthèse ET une conjonction* — et leur total dépasse la population
+exprès.
+
+> **Une partition annoncée est une partition à vérifier. Le total est le seul
+> endroit où une exclusivité cassée se voit, et il ne se voit que si on
+> l'additionne.**
