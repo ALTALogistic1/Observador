@@ -4906,3 +4906,121 @@ au-dessus du tableau, et la borne est un **paramètre de ligne de commande**
 
 > **Une valeur qui change la lecture d'une sortie appartient à la ligne de
 > commande, pas au code. Sinon elle se lit comme une propriété des données.**
+
+---
+
+## N198 — Un fait porté d'un seul côté n'est pas un départageur, c'est une exclusion
+
+*(2026-09-20.)*
+
+`outils/departageurs.py::departager` compare **un fait que le DOSSIER porte** aux
+faits des candidats — une ville, un code postal, une activité. *Les deux côtés
+portent la même sorte de chose, et la comparaison peut échouer par le dossier
+autant que par les concurrents.*
+
+⚠️ **Le statut de l'entreprise n'est porté que d'un côté : le registre.** *Un
+dossier n'a pas de statut à opposer.* **Ce n'est donc pas un départageur de cette
+famille — c'est une EXCLUSION**, et elle a un mode de panne que la comparaison
+n'a pas :
+
+| | comparaison | exclusion |
+|---|---|---|
+| échoue faute de fait au dossier | ✅ possible | *sans objet* |
+| échoue faute de fait chez un concurrent | ✅ possible | *sans objet* |
+| **vide le lot entier** | ⛔ impossible | ⚠️ **possible** |
+
+**Le vocabulaire existait déjà** : c'est le `AUCUN_COMPATIBLE` du départageur,
+*« le fait les exclut tous »*. **Mais là-bas c'est une issue parmi d'autres; ici
+c'est le risque principal**, parce que rien n'oblige un lot à contenir une
+entreprise immatriculée.
+
+**Donc la sortie compte « il n'en reste AUCUN » comme un RÉSULTAT**, à côté de
+« un seul » et « plusieurs » — jamais comme une case vide.
+
+> **Avant d'appeler quelque chose un départageur, regarder qui porte le fait. Un
+> fait à sens unique filtre; il ne compare pas. Et un filtre peut tout retirer,
+> ce qu'une comparaison ne peut pas faire.**
+
+---
+
+## N199 — Deux exclusions qui diffèrent d'un seul code se rendent côte à côte
+
+*(2026-09-20.)*
+
+`REQEntry.statut` porte quatre choses, pas deux — **lu dans
+`falkye/sources/req.py`, lignes 114-119**, *« codes confirmés par inspection
+réelle de `DomaineValeur.csv` le 2026-08-31 »* :
+
+| code | libellé | stocké |
+|---|---|---|
+| `IM` | Immatriculée | `immatriculee` |
+| `RD` · `RO` · `RX` | Radiée | `radiee` |
+| **`NI`** | **Non immatriculée** | `ni` |
+| **`AI`** | **Avis d'intention de constitution** | `ai` |
+
+⚠️ **Il y a donc DEUX exclusions possibles, et elles ne se valent pas :**
+
+1. **ne garder que les immatriculées** — `ni` et `ai` tombent;
+2. **n'écarter que les radiées** — `ni` et `ai` restent en lice.
+
+**Rendre une seule colonne aurait fait passer un choix pour un fait.** *La mesure
+les rend côte à côte sur le même groupe, et n'en recommande aucune* — **l'écart
+entre les deux colonnes EST le poids de `ni` et `ai`**, lisible sans qu'on ait à
+le calculer.
+
+⚠️ **Et le danger était réel** : `falkye/resolution.py` transforme **tout ce qui
+n'est pas `radiee`** en `IMMATRICULEE` sur le dossier. *Une mesure qui aurait
+repris cette logique aurait compté `ni` avec les immatriculées et fait
+disparaître la question.*
+
+> **Quand une frontière peut se tracer à deux endroits, tracer les deux. Une
+> mesure qui en choisit une a déjà décidé, et personne ne verra qu'elle l'a
+> fait.**
+
+---
+
+## N200 — Une égalité stricte n'est pas une échelle mal calibrée
+
+*(2026-09-20. Le constat est d'Alexandre, sur la sortie des paliers.)*
+
+Sur 3 267 ambigus, **1 629 ont leur meilleur et leur second à ÉGALITÉ STRICTE** —
+écart **0,0**.
+
+⚠️ **Pour ceux-là, aucune valeur d'écart ne change rien.** *Zéro reste sous
+n'importe quel seuil.* **Ce n'est donc pas un réglage à revoir : c'est que le nom
+a fini son travail.**
+
+**Ce que ça change dans la façon de poser la suite, et c'est la raison de la
+note :** tant qu'on lisait « 3 267 ambigus », la question ressemblait à un
+problème de calibrage — *l'écart de 8 est-il trop large?* **La moitié de la
+population rend cette question sans objet**, et appelle un fait de plus, pas une
+échelle de moins.
+
+> **Avant de discuter d'un seuil, regarder combien de cas le seuil ne peut pas
+> atteindre. Une population à écart nul ne se règle pas : elle se départage
+> autrement, ou pas du tout.**
+
+---
+
+## N201 — Le pluriel d'un helper se range à côté du singulier
+
+*(2026-09-20. Suite de N144, N158, N172, N186.)*
+
+`tests/conftest.py` porte `compte_de_la_ligne`, qui rend **le premier** compte
+d'une ligne de tableau. ⚠️ **Une ligne à DEUX colonnes de comptes ne se lit pas
+avec elle**, et j'ai écrit `ligne.split()[3]` — *qui s'est décalé dès que
+l'étiquette a changé de nombre de mots.*
+
+    il n'en reste qu'UN          2   66.7 %      1   33.3 %
+    ↑ cinq mots d'étiquette : [3] rend « qu'UN », pas « 2 »
+
+**C'est N144 déplacé d'une colonne** : un indice de mot dans une ligne dont
+l'étiquette est variable se décale **en silence**, et le test tombe sur une
+chaîne au lieu d'un nombre.
+
+**`comptes_de_la_ligne` est rangée dans `conftest.py`, JUSTE À CÔTÉ de sa
+sœur** — *l'endroit où le prochain fichier la trouvera sans y penser*, et
+l'endroit où l'on verra qu'elle existe en cherchant le singulier.
+
+> **Un helper qui rend « le premier » appelle un jour son pluriel. Le ranger
+> ailleurs qu'à côté de lui garantit qu'on le réécrira.**
