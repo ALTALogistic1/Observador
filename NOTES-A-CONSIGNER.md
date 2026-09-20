@@ -5102,3 +5102,110 @@ lit pas un lot vidé comme on lit un départage.*
 
 > **Une règle qui ne rend rien sur un dossier dit parfois plus qu'une règle qui
 > tranche. Encore faut-il ne pas la ranger avec les échecs.**
+
+---
+
+## N205 — Le produit n'a rien pour reconnaître une entité publique, et le corpus le disait déjà
+
+*(2026-09-20.)*
+
+Cinq des huit divergences lues sont des entités publiques — *CIUSSS, commissions
+et centres de services scolaires, une ville.* **Elles portent `ni`, donc « ne
+garder que les immatriculées » les VIDE**, et `Ville de Bedford` garde
+*l'Association des pompiers volontaires* en écartant la ville.
+
+**La question naturelle — combien de ces dossiers sont des entités publiques? —
+n'a pas de réponse mesurable.** ⚠️ *Le produit n'a aucun moyen de les
+reconnaître*, et ce n'est **pas une lacune découverte ici** :
+
+| | |
+|---|---|
+| **D27** | Trouver un registre officiel des entités publiques québécoises |
+| **D28** | Règle de classement d'une entité en publique ou privée |
+
+⚠️ **Et le précédent est dans le dépôt.** `outils/donneurs_douvrage.py` **compte
+et ne classe pas**, avec ce motif :
+
+> *« Un outil qui appliquerait ici une heuristique de noms (« Ville de »,
+> « CISSS », « Ministère ») produirait une classification qui aurait l'air d'une
+> mesure, et personne ne saurait plus qu'elle a été devinée. »*
+
+**Les noms lus dans les paires sont exactement ceux-là.** *La tentation n'est pas
+hypothétique : elle est écrite en toutes lettres dans la sortie qu'on vient de
+lire.* **Elle est donc NOMMÉE dans le nouvel outil — comme une chose à refuser,
+pas à contourner** — et le module n'importe même pas `re`, donc il n'a aucun
+moyen de reconnaître un nom.
+
+**Ce que la mesure rend à la place** : des **faits** que ces candidats portent —
+préfixe de NEQ, secteur — et le croisement préfixe × statut sur tout le miroir.
+⚠️ *Matière pour D27, jamais son remplaçant.*
+
+> **Quand une question demande un critère que personne n'a tranché, la réponse
+> est le manque, pas une approximation. Et si le corpus porte déjà la décision
+> ouverte, la citer vaut mieux que la redécouvrir.**
+
+---
+
+## N206 — La quatrième tentative contre `split()[-2]` échoue aussi, et on sait pourquoi
+
+*(2026-09-20. Clôt le « on verra » de N186.)*
+
+N186 listait une quatrième remède **non construit** : *une garde qui lit les
+fichiers de test*. **Sixième occurrence du défaut, je l'ai construite.**
+
+⚠️ **Elle a signalé SIX fichiers existants — et leurs usages sont CORRECTS.**
+
+    test_nature_des_restants.py    ligne.split()[-1]   ← la ligne finit par le COMPTE
+    test_departage_par_ladresse.py ligne.split()[-2]   ← la ligne ne finit PAS par un %
+
+**Le fait qui décide n'est pas dans le fichier de test : c'est la FORME de la
+ligne de sortie**, qui vit dans `outils/`. *Un indice négatif est juste ou faux
+selon ce que la ligne porte à droite, et le test ne le dit pas.*
+
+**La garde a été RETIRÉE.** ⚠️ *Une garde qui force du code juste à changer est
+pire que le défaut qu'elle prévient* — elle apprend à passer outre, et le jour
+où elle a raison personne ne la croit.
+
+| tentative | résultat |
+|---|---|
+| note au tampon *(N144)* | ⛔ |
+| helper dans LE fichier *(N158)* | ⛔ |
+| helper dans `conftest.py` *(N172)* | ⛔ |
+| **garde lisant les tests** | ⛔ **elle n'a pas accès au fait qui décide** |
+
+**Ce qui reste vrai, et c'est tout ce qui reste** : le helper existe, il est au
+bon endroit, et l'employer est une question d'attention. *Quatre remèdes, aucun
+mécanique — parce que le défaut n'est pas mécaniquement détectable.*
+
+> **Avant d'écrire une garde, se demander si le fait qui décide est visible là
+> où elle lit. S'il vit dans un autre fichier, la garde devinera — et une garde
+> qui devine crie sur du code juste.**
+
+---
+
+## N207 — Quand le statut écarte le candidat de tête, deux instruments se contredisent
+
+*(2026-09-20.)*
+
+*Les Ruchers du Roi Bourdon* : l'exclusion par le statut garde un candidat à
+**88,2** et écarte celui à **95**. **Le restant semble le bon** — même nom, même
+code postal — *mais le mécanisme a retenu un candidat MOINS BIEN SCORÉ.*
+
+⚠️ **Ce n'est pas « le statut a mieux travaillé que le score ».** *C'est que deux
+instruments désignent deux candidats différents sur le même dossier*, et **un
+compte ne dit pas lequel a raison.**
+
+**Deux cas à ne pas confondre, et la mesure les sépare :**
+
+- une **égalité au sommet** — plusieurs candidats partagent la première place, le
+  restant en est un : *le statut n'a contredit personne*;
+- un restant **strictement en dessous** du meilleur : *le statut contredit le
+  score*, et c'est le cas qui se compte.
+
+⚠️ **Et le compte ne suffira pas.** *Lequel des deux a raison se lit une paire à
+la fois* — c'est pour ça que la mesure rend aussi l'écart entre le meilleur et le
+restant, pour qu'on sache si la contradiction est de deux points ou de dix.
+
+> **Deux instruments qui se contredisent ne se départagent pas par le nombre de
+> fois où ils le font. Le compte dit l'ampleur du désaccord, jamais qui a
+> raison.**
