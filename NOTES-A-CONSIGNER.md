@@ -4600,3 +4600,113 @@ plutôt que de le découvrir dans les issues après.**
 
 > **Un plafond qui compte la présence du fait compte trop haut. Ce qui borne est
 > sa VARIANCE entre les candidats, et elle se mesure sans rien traduire.**
+
+---
+
+## N188 — Une lecture se fait là où sont les données, et il faut le vérifier AVANT
+
+*(2026-09-20.)*
+
+Demande : **lire des dossiers entiers et en tirer des motifs.** *Pas une mesure —
+une lecture.* **La première chose à faire n'était pas d'écrire l'outil : c'était
+de regarder si les dossiers étaient lisibles d'ici.**
+
+    /tmp/claude-0/lecture_seule/data/miroirs.sqlite3     0 octet
+    pilote libsql                                         absent
+
+⚠️ **Et le détail qui tranche n'est pas que la base soit vide : c'est d'où
+viennent les CANDIDATS.** *Un dossier vient de la base du produit; ses candidats
+viennent du MIROIR.* **La moitié de ce qui était demandé — les candidats avec
+leurs noms et leurs scores — n'existe pas dans cet environnement**, quelle que
+soit la base qu'on atteindrait par ailleurs.
+
+**Deux mauvaises réponses se présentaient, et la seconde était la plus
+tentante :**
+
+| ce qu'on aurait pu faire | pourquoi non |
+|---|---|
+| inventer une lecture plausible | **fabriquer des motifs qu'on n'a pas vus** — le contraire de tout le projet |
+| lire la base distante par HTTP | rendrait les dossiers **sans les candidats**, en brûlant du quota pour une demi-réponse |
+
+**La bonne réponse : le dire en deux phrases, et livrer l'instrument** — celui
+qui rend la lecture possible là où les données sont.
+
+> **Avant de promettre une lecture, regarder ce qui est atteignable. Une
+> demi-lecture coûte le prix d'une lecture entière et ne répond à rien.**
+
+---
+
+## N189 — Le sac de champs se rend ENTIER, parce que le filtrer c'est déjà décider
+
+*(2026-09-20.)*
+
+L'outil de lecture rend `Signal.champs` **en totalité**, trié par clé, sans
+sélection. *La tentation était de n'afficher que les champs « pertinents »* —
+l'adresse, l'activité, la valeur — **parce qu'un sac entier est verbeux.**
+
+⚠️ **Mais la piste qui a tenu — l'activité économique — est sortie d'un champ que
+personne n'avait demandé.** *Quatorze hypothèses sont tombées, et celle qui a
+survécu venait de regarder ce qui était là, pas ce qu'on cherchait.*
+
+**Filtrer le sac aurait retiré d'avance ce qu'on ne savait pas encore vouloir.**
+*Et le filtre ne se serait pas vu : une clé absente d'un affichage ressemble à
+une clé absente du dossier.*
+
+**La même règle a une seconde face, appliquée ici :** les valeurs sont rendues
+**sans être interprétées** — une liste de classifications s'affiche comme une
+liste, pas comme un libellé élu. *Élire une valeur dans une liste est une
+décision, et elle n'appartient pas à un outil de lecture.*
+
+> **Un instrument de lecture ne choisit pas ce qu'on regarde. Le jour où il
+> filtre, il a déjà répondu à la question qu'on venait poser.**
+
+---
+
+## N190 — Une lentille employée d'abord confirme ce qu'on est allé chercher
+
+*(2026-09-20. Le cas 19 sous une autre forme.)*
+
+L'outil porte des **lentilles** — *un seul mot, sans code postal, tête numérique,
+signal récent, signal vieux.* **Elles sont utiles et elles sont dangereuses, pour
+la même raison.**
+
+⚠️ **Employée AVANT d'avoir vu un motif, une lentille rend une lecture qui
+confirme ce qu'on est allé chercher.** *On filtre sur « un seul mot », on lit
+douze dossiers d'un seul mot, et on conclut que les noms d'un seul mot ont
+quelque chose de particulier.* **Le cas 19 disait « un tri promu en échantillon »;
+celui-ci est un filtre promu en découverte.**
+
+**Donc : le balayage par défaut est à pas constant et sans lentille**, et quand
+une lentille est active **la sortie le dit à l'endroit où on la lira**, avec le
+compte avant et après.
+
+⚠️ *La garde n'est pas technique — rien n'empêche de lancer l'outil avec une
+lentille en premier.* **Elle est dans la sortie, parce que c'est là que le
+lecteur de la semaine prochaine regardera.**
+
+> **Un filtre sert à vérifier un motif, jamais à en trouver un. Et un instrument
+> qui offre les deux doit dire, dans sa sortie, lequel des deux il est en train
+> de faire.**
+
+---
+
+## N191 — La leçon de N180 a tenu au premier contact
+
+*(2026-09-20.)*
+
+N180 : *une garde qui lit des lignes ne distingue pas un libellé de la phrase qui
+l'interdit*, et la bonne portée est presque toujours plus étroite que « tout ».
+
+**L'outil de lecture a la même forme de garde** — *aucun pourcentage dans la
+sortie* — **et son en-tête cite les pourcentages du 19 septembre** pour qu'on ne
+les refasse pas. *Écrite sur toute la sortie, elle serait tombée.*
+
+**Elle a été bornée aux sections de dossiers dès la première écriture**, par un
+helper `_dossiers()` qui coupe l'en-tête, *avec la raison dans sa docstring.*
+
+⚠️ **Ce n'est pas une réussite d'attention** : c'est que la note existait et
+disait **où** regarder. *N180 ne dit pas « faire attention aux gardes » — elle
+dit « la bonne portée est plus étroite que tout », ce qui est une instruction.*
+
+> **Une note qui prescrit un geste se transfère; une note qui prescrit de la
+> vigilance ne se transfère pas. La différence se voit au premier cas suivant.**
