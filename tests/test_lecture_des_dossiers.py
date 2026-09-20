@@ -218,3 +218,30 @@ def test_aucune_ecriture(decor, capsys):
             f"écart {SEUIL_AMBIGUITE_ECART_MIN:.0f}.") in sortie
     assert "RIEN N'A ÉTÉ ÉCRIT" in sortie
     assert {c.id: c.neq for c in decor.query(Company).all()} == avant
+
+
+# ---------------------------------------------------------------------------
+# LES DEUX STATUTS — le défaut que la lecture d'Alexandre a trouvé
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("code, attendu", [
+    ("V", "V (en vigueur)"), ("a", "a (antérieur)"),
+    # ⚠️ *Inventer un libellé pour un code qu'on n'a pas lu est pire que de
+    # l'afficher nu.*
+    ("X", "X (libellé non lu)"), (None, "(inconnu)"), ("", "(inconnu)"),
+])
+def test_le_statut_du_NOM_est_decode_depuis_le_code_jamais_devine(code, attendu):
+    assert outil.statut_du_nom(code) == attendu
+
+
+def test_le_statut_de_l_ENTREPRISE_est_rendu_a_COTE_de_celui_du_nom(decor, capsys):
+    """⚠️ **Le défaut que la première lecture a trouvé.** *L'instrument montrait
+    le statut du NOM et pas celui de l'ENTREPRISE* — et un lecteur lit celui
+    qu'on lui montre comme s'il était l'autre. **`A` ne veut pas dire radiée.**
+    """
+    assert outil.main(["--pas", "0", "--par-famille", "3"]) == 0
+    bloc = _dossiers(_sortie(capsys))
+    assert "[entreprise : immatriculee]" in bloc
+    assert "statut DU NOM" in bloc
+    assert "DEUX STATUTS DISTINCTS" in bloc
+    assert "COD_STAT_IMMAT" in bloc and "STAT_NOM" in bloc
