@@ -4710,3 +4710,79 @@ dit « la bonne portée est plus étroite que tout », ce qui est une instructio
 
 > **Une note qui prescrit un geste se transfère; une note qui prescrit de la
 > vigilance ne se transfère pas. La différence se voit au premier cas suivant.**
+
+---
+
+## N192 — L'instrument montrait le statut du NOM, et on l'a lu comme celui de l'ENTREPRISE
+
+*(2026-09-20. Trouvé par la lecture d'Alexandre, pas par une relecture du code.)*
+
+La première lecture de dossiers a produit un motif — *« le doublon est au
+registre »* — appuyé sur une colonne `statut` qui montrait `A` pour un candidat
+et `V` pour l'autre. ⚠️ **Alexandre a refusé de conclure sans lire ce que les deux
+lettres veulent dire, et c'est ce refus qui a trouvé le défaut.**
+
+**Ce qu'elles veulent dire**, lu dans `falkye/sources/req.py::_charger_index_noms`
+*(« confirmé par inspection réelle du 2026-08-31 »)* : `V` **en vigueur**, `A`
+**antérieur** — **et c'est le statut du NOM.**
+
+⚠️ **L'entreprise en a un AUTRE**, `REQEntry.statut` — *immatriculée / radiée*,
+depuis `COD_STAT_IMMAT` — **et l'instrument ne l'affichait pas.**
+
+| ce qui était montré | ce qui décide |
+|---|---|
+| `STAT_NOM` du nom qui a matché | — |
+| *(absent)* | **`COD_STAT_IMMAT` de l'entreprise** |
+
+**Un nom `antérieur` sur une entreprise `immatriculée` est ordinaire : c'est un
+changement de nom.** *Donc `A` ne veut pas dire radiée* — et la colonne affichée
+ne pouvait pas porter le motif qu'on lui faisait porter.
+
+⚠️ **C'est le cas 33 sous une forme neuve.** *Là-bas, l'instrument ne disait pas
+sur quoi il avait décidé. Ici, il montre une colonne vraie à côté de la colonne
+qui manque* — **et un lecteur lit celle qu'on lui montre comme si elle était
+l'autre.** *Une absence ne se voit pas; une présence voisine se lit à sa place.*
+
+**Corrigé** : le statut de l'entreprise est rendu sur la ligne du candidat, celui
+du nom est décodé et **étiqueté « DU NOM »**, et les deux sont annoncés
+au-dessus de la liste.
+
+> **Quand deux faits portent le même mot, un instrument qui n'en montre qu'un
+> n'est pas incomplet : il est trompeur. Le lecteur ne cherche pas la colonne
+> absente — il lit celle qui est là.**
+
+---
+
+## N193 — Un nom d'un seul mot ne peut pas être resserré par le second temps
+
+*(2026-09-20. Lu dans le code, à la suite d'une lecture de dossiers.)*
+
+Deux observations d'Alexandre semblaient séparées : *« le lot du second temps se
+remplit de bruit »* — `ENTRETIEN`, `EXCAVATION`, `ACTIF` — et *« un nom d'un seul
+mot ne peut pas ouvrir d'écart »* *(239 dossiers, ×3,4)*. **C'est un seul
+mécanisme, et il se lit dans `candidats_par_mot_rare`.**
+
+Le second temps élargit par le mot le plus RARE. ⚠️ **Et quand même le plus rare
+est trop courant, il INTERSECTE avec le deuxième** :
+
+```python
+if combien > MOT_TROP_COURANT and len(connus) > 1:
+```
+
+**`len(connus) > 1`.** *Un nom d'un seul mot n'a pas de deuxième mot.*
+**L'intersection ne se déclenche jamais pour lui**, quelle que soit la fréquence
+de son unique mot — et le lot est alors borné par `LIMITE_CANDIDATS_PAR_NOM`
+seule, rempli de tout ce qui partage un mot très commun.
+
+**Les deux observations sont donc les deux bouts de la même chose** : le lot se
+remplit de bruit *parce que* le nom n'a qu'un mot, et l'écart au second ne peut
+pas s'ouvrir *parce que* le lot est du bruit équidistant.
+
+⚠️ **Ce que ça ne dit pas** : qu'il faille y remédier, ni comment. *Le garde-fou
+de l'intersection a été conçu pour « les entreprises du québec » — un nom LONG
+fait de mots courants. Le cas symétrique, un nom COURT, n'a pas de deuxième mot
+à offrir, et aucune valeur de `MOT_TROP_COURANT` n'y change rien.*
+
+> **Un garde-fou conçu contre un cas protège rarement son symétrique. Celui-ci
+> traite les noms trop longs en mots courants, et laisse entiers les noms trop
+> courts.**

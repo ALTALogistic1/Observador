@@ -107,6 +107,27 @@ def a_pas_constant(lot: list, combien: int, depuis: int = 0) -> list:
     return [lot[min(len(lot) - 1, int(i * pas) + depuis)] for i in range(combien)]
 
 
+#: `STAT_NOM`, décodé. ⚠️ **Lu dans le code, pas supposé** :
+#: `falkye/sources/req.py::_charger_index_noms` documente les deux valeurs,
+#: *« confirmé par inspection réelle du 2026-08-31 »* et *« confirmé sur un vrai
+#: NEQ radié »*. **Toute autre valeur est rendue NUE** — inventer un libellé pour
+#: un code qu'on n'a pas lu est pire que de l'afficher tel quel.
+LIBELLE_DU_STATUT_DE_NOM = {"V": "en vigueur", "A": "antérieur"}
+
+
+def statut_du_nom(code: str | None) -> str:
+    """⚠️ **C'est le statut du NOM, jamais celui de l'ENTREPRISE.**
+
+    *Un nom passe à `A` quand l'entreprise en change — et AUSSI quand elle est
+    radiée, son dernier nom repassant à `A`.* **Donc `A` ne veut pas dire
+    radiée**, et lire l'un pour l'autre fait conclure sur la mauvaise colonne.
+    """
+    if not code:
+        return "(inconnu)"
+    libelle = LIBELLE_DU_STATUT_DE_NOM.get(code.strip().upper())
+    return f"{code} ({libelle})" if libelle else f"{code} (libellé non lu)"
+
+
 def _valeur_lisible(valeur, largeur: int = 96) -> str:
     """Une valeur de `Signal.champs`, rendue **sans être interprétée.**
 
@@ -151,19 +172,29 @@ def rendre_le_dossier(company, sources, champs, faits, age, matches,
         print(f"      {cle:<32} {_valeur_lisible(champs[cle])}")
 
     print(f"\n   LES CANDIDATS — {milliers(len(matches))} rendu(s) par la récupération")
+    # ⚠️ **Deux statuts distincts, et les confondre fait conclure de travers.**
+    # *Le premier est une propriété de l'entreprise, le second du nom qui a
+    # matché* — un nom `antérieur` sur une entreprise `immatriculée` est
+    # ordinaire, c'est un changement de nom.
+    print("      ⚠️ DEUX STATUTS DISTINCTS : celui de l'ENTREPRISE "
+          "(immatriculée / radiée,")
+    print("         COD_STAT_IMMAT) et celui du NOM qui a matché "
+          "(V / A, STAT_NOM).")
     if not matches:
         print("      (aucun)")
     for m in matches:
         entry = m.entry
         retenue = formes.get((entry.neq, m.forme_normalisee))
-        print(f"      {m.score:>6.1f}  {entry.neq}  {(entry.nom or '')[:46]}")
+        print(f"      {m.score:>6.1f}  {entry.neq}  {(entry.nom or '')[:40]}"
+              f"   [entreprise : {entry.statut}]")
         # ⚠️ **Cas 33** : la dénomination élue n'est presque jamais celle qui a
         # remporté le score. La taire ferait lire la décision sur une chaîne qui
         # n'a pas décidé.
         if retenue is not None:
             marque = "" if retenue.est_la_denomination_elue else "   ⚠️ AUTRE que l'élue"
             print(f"              forme qui a MATCHÉ : {(retenue.nom_publie or m.forme_normalisee or '')[:44]}{marque}")
-            print(f"              gisement {retenue.gisement or '(inconnu)'} · statut {retenue.statut or '(inconnu)'}")
+            print(f"              gisement {retenue.gisement or '(inconnu)'}"
+                  f" · statut DU NOM {statut_du_nom(retenue.statut)}")
         elif m.forme_normalisee:
             print(f"              forme qui a MATCHÉ : {m.forme_normalisee[:44]}   (non retrouvée au registre)")
         lieu = " · ".join(filter(None, [entry.ville, entry.code_postal]))
