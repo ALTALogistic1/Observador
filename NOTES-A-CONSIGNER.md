@@ -4145,3 +4145,160 @@ PROCHAIN fichier de test trouvera sans y penser.* Les cinq fichiers l'importent.
 
 > **Une règle ne s'applique qu'à la portée de l'endroit où on l'a mise. Trois
 > copies d'un garde-fou protègent trois fichiers et annoncent le quatrième.**
+
+---
+
+## N173 — Un croisement sans clé n'est pas un croisement difficile
+
+*(2026-09-20.)*
+
+La demande était un croisement : **combien des 4 673 restants sont des entreprises
+que le registre ne nommera jamais.** *On cherche une méthode, on en essaie trois,
+on retient la moins mauvaise.*
+
+⚠️ **Mais les deux côtés du croisement manquent le MÊME champ.** Un restant n'a
+pas de NEQ — il ne porte qu'un nom. Les 224 968 NEQ qu'on cherche n'ont **aucun
+nom publié** : c'est *par définition* ce qui en fait des absents de `Nom.csv`.
+
+| ce qu'on voudrait joindre | par le NEQ | par le nom |
+|---|---|---|
+| un restant | ⛔ il n'en a pas | ✅ |
+| un absent de `Nom.csv` | ✅ | ⛔ il n'en a pas |
+
+**La diagonale est vide.** *Il n'existe aucune colonne que les deux populations
+portent en même temps.*
+
+**Ce que ça change dans l'ordre du travail :** on ne cherche pas « la méthode la
+moins mauvaise » avant d'avoir établi qu'il n'y en a aucune de directe. **Le dire
+est le premier résultat de la mesure, et il vient avant tout chiffre** — sinon
+l'indirect se relit comme un pis-aller, alors qu'il est le seul régime possible.
+
+> **Avant de chercher une méthode, regarder si la clé existe. Une jointure dont
+> la clé est exactement ce qu'on cherche n'est pas difficile : elle est
+> impossible, et ça se dit.**
+
+---
+
+## N174 — Deux cibles qui se ressemblent, et la population témoin n'en contient qu'une
+
+*(2026-09-20.)*
+
+**T1** — *« c'est une personne physique »*. Une forme juridique, **mesurable** sur
+les dossiers résolus, puisqu'ils portent un NEQ.
+
+**T2** — *« le registre ne la nommera jamais »*. **Ce qu'on cherche.**
+
+⚠️ **Elles ne sont pas la même chose, et la population qui sert à calibrer ne
+contient que la première.** *Un dossier résolu est résolu PARCE QUE le registre
+l'a nommé* — donc **aucun résolu n'est hors de portée, par construction.** Une
+précision calculée là-dessus mesure T1 et se relirait comme T2.
+
+**Deux conséquences, et la seconde est la plus dure :**
+
+1. **Le pont T1 → T2 se mesure à part** — la part des personnes physiques du
+   registre **sans aucun nom publié**. *Celle-là est une vraie mesure, sans
+   heuristique.*
+2. ⚠️ **Le taux de faux NÉGATIFS n'est mesurable nulle part.** La population
+   témoin est faite de dossiers nommés : *elle ne contient presque aucune
+   personne physique sans nom, c'est-à-dire exactement celles qu'on cherche.*
+   **On mesure ce qui déborde, jamais ce qui manque.**
+
+**Et c'est ce qui DÉCIDE l'heuristique, au lieu d'être une réserve ajoutée après :**
+puisque seule l'erreur par excès est mesurable, la règle doit préférer l'erreur
+par défaut — **manquer plutôt que déborder**. *C'est la seule préférence sous
+laquelle le chiffre se lit comme un plancher.*
+
+> **Quand une seule des deux erreurs est mesurable, l'instrument doit préférer
+> l'autre. Sinon il rend un chiffre dont personne ne peut dire le sens.**
+
+---
+
+## N175 — Une garde qui ne peut JAMAIS se déclencher
+
+*(2026-09-20.)*
+
+L'heuristique portait trois exclusions, chacune avec sa raison affichable : forme
+juridique, mot d'activité, **et chiffre**. *Un nom de personne ne porte pas de
+chiffre, et les sociétés à numéro sont légion.*
+
+⚠️ **`porte_un_chiffre` ne pouvait jamais se déclencher.** Le jeton de patronyme
+— `^[lettre][lettre'.-]*$` — **exclut déjà les chiffres**, et il est vérifié
+avant. *Trouvé par un test qui attendait `REJET_CHIFFRE` sur
+`« Pièces 2000, Laval »` et recevait `REJET_PAS_LA_FORME`.*
+
+**Retirée, et remplacée par une ligne de commentaire sur le jeton.** ⚠️ *La
+tentation était de garder la vérification « au cas où » : elle ne coûte rien et
+elle rassure.* **C'est précisément le problème — elle rassure sans protéger, et
+sa ligne de ventilation aurait affiché `0` à jamais**, ce qui se relit comme
+« aucune société à numéro » plutôt que comme « cette garde est morte ».
+
+**Le test qui la remplace ne vérifie pas un nom : il vérifie que CHAQUE raison
+affichable est atteignable par au moins un témoin.** *Il tombera le jour où une
+exclusion future sera masquée par une antérieure.*
+
+> **Un zéro rendu par une garde morte et un zéro mesuré s'écrivent pareil. Toute
+> raison de rejet affichable doit être atteignable, et c'est un test, pas une
+> relecture.**
+
+---
+
+## N176 — Un plancher qui est un produit hérite de son facteur le plus faible
+
+*(2026-09-20.)*
+
+Le chiffre final est un **produit** : *(combien de restants ont un nom en forme de
+patronyme)* × *(quelle part des personnes physiques du registre n'a aucun nom
+publié)*.
+
+⚠️ **Le premier facteur est une HEURISTIQUE, le second une MESURE.** *Et un
+produit ne se lit pas comme sa moyenne :* il hérite de la faiblesse du premier,
+**jamais de la solidité du second**.
+
+**Ce que l'outil fait, et ce n'est pas une note en bas de page :** chaque facteur
+porte son étiquette **sur sa propre ligne**, `⚠️ HEURISTIQUE` et `✅ MESURE`, dans
+le tableau du produit lui-même.
+
+    restants retenus par la règle stricte               N     ⚠️ HEURISTIQUE
+    × part des personnes physiques SANS nom publié   xx,x %   ✅ MESURE
+    = plancher des restants hors de portée par nature   M
+
+⚠️ **Et le second facteur porte SA propre extrapolation** : il est mesuré sur
+*toutes* les personnes physiques du registre, alors que les restants sont celles
+**qu'une source a détectées** — donc qui portent une activité réelle. *Rien ne dit
+que les deux populations déclarent un nom au même rythme.*
+
+> **Un chiffre composé de deux natures doit les montrer côte à côte, à la ligne
+> où il se calcule. Une réserve écrite en fin de rapport ne voyage pas avec le
+> nombre; une étiquette sur la ligne, oui.**
+
+---
+
+## N177 — Le seuil du verdict se pose avant de voir le chiffre
+
+*(2026-09-20.)*
+
+*« Un critère qu'on desserre parce qu'il a échoué n'en est plus un »* — la phrase
+est d'Alexandre, le 17 septembre, et elle portait sur un critère de
+non-régression. **Elle vaut aussi pour un seuil de mesure**, et cette fois elle
+est **mécanique** plutôt que tenue à la main.
+
+**Le seuil est une constante nommée, et il est IMPRIMÉ dans l'en-tête**, avant la
+première donnée lue :
+
+> *La règle stricte ne tient comme plancher que si son taux de faux positifs
+> mesuré reste sous 20 %. Au-dessus, la sortie dit que la méthode NE TIENT PAS —
+> et « aucune méthode ne tient » est un résultat, pas un échec.*
+
+⚠️ **Et le verdict négatif ne pose AUCUN chiffre.** *La tentation, quand une
+mesure a coûté une journée, est de rendre quand même le nombre « à titre
+indicatif ».* **Un nombre rendu à titre indicatif est un nombre rendu.**
+
+**Trois cas rendent `LE VERDICT N'EST PAS RENDU`**, et aucun n'invente de repli :
+l'archive absente, aucun résolu lisible *(zéro mesure, pas un taux de 0 %)*, le
+pont manquant. ⚠️ **Y compris quand une AUTRE grandeur est disponible** : la
+spécificité mesurée sur les 2,7 M de noms du miroir ne remplace pas la précision,
+et la substituer pour obtenir un verdict serait exactement la confusion que
+l'outil existe pour éviter.
+
+> **Un seuil choisi après coup n'est pas un seuil, c'est une justification.
+> L'imprimer avant la première donnée est ce qui l'empêche de bouger.**
