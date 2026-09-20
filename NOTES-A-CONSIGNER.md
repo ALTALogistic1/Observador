@@ -5024,3 +5024,81 @@ l'endroit où l'on verra qu'elle existe en cherchant le singulier.
 
 > **Un helper qui rend « le premier » appelle un jour son pluriel. Le ranger
 > ailleurs qu'à côté de lui garantit qu'on le réécrira.**
+
+---
+
+## N202 — Ne pas fournir un substitut à ce qui manque
+
+*(2026-09-20. N192 appliquée en CONCEPTION, plus en correction.)*
+
+La lecture des paires du statut doit aider à juger si une radiée écartée pouvait
+être la bonne. **Pour ça il faudrait une date de radiation. Le miroir n'en a
+pas.**
+
+⚠️ **Mais `REQEntry` porte `date_maj_req`**, et elle est voisine : *une date, sur
+la même ligne, sur la même entité.* **La tentation était de l'afficher « faute de
+mieux ».**
+
+**Elle n'est pas rendue, et c'est délibéré.** *`date_maj_req` est
+`DAT_MAJ_INDEX_NOM` — la mise à jour de l'index des NOMS.* **Affichée à côté
+d'une radiée, elle serait lue comme la date de sa radiation** : exactement N192,
+*« un lecteur ne cherche pas la colonne absente, il lit celle qui est là »*.
+
+**Ce qui est fait à la place : elle est NOMMÉE dans la sortie, avec ce qu'elle
+est et ce qu'elle n'est pas** — pour qu'on ne parte pas la chercher en croyant
+qu'elle manque par oubli. ⚠️ *Et un test vérifie que sa VALEUR ne fuit nulle
+part : le décor lui donne une date distinctive et la garde échoue si elle
+apparaît.*
+
+| | |
+|---|---|
+| N192 | le défaut s'est produit, on l'a corrigé |
+| **N202** | **le défaut a été reconnu AVANT, et la colonne n'a pas été affichée** |
+
+> **Une donnée voisine de celle qui manque est pire qu'un vide : le vide se
+> remarque, le voisin se lit à sa place. Nommer l'absente vaut mieux que la
+> remplacer.**
+
+---
+
+## N203 — Là où deux règles divergent est un lot de décision, et il passe devant
+
+*(2026-09-20.)*
+
+Le statut peut s'employer de deux façons — *ne garder que les immatriculées, ou
+n'écarter que les radiées* — et elles ne se distinguent que sur peu de dossiers.
+
+⚠️ **Ces dossiers-là sont les seuls où le choix a une conséquence.** *Partout
+ailleurs, les deux règles rendent la même chose et la décision est gratuite.*
+
+**Donc la lecture les range dans un lot à part, et ce lot L'EMPORTE sur les
+autres** : un dossier qui serait à la fois « égalité stricte » et « divergence »
+se lit comme une divergence. *Le classer par sa famille de score le noierait
+parmi des cas où il n'y a rien à trancher.*
+
+> **Quand deux règles candidates ne diffèrent que sur une poignée de cas, cette
+> poignée EST la décision. Le reste du lot ne fait que rassurer.**
+
+---
+
+## N204 — Un lot vidé n'est pas un départage manqué
+
+*(2026-09-20. Le constat est d'Alexandre.)*
+
+Sur les ambigus, l'exclusion par le statut **vide** le lot de certains dossiers :
+*tous leurs candidats sont des entreprises fermées.*
+
+⚠️ **Ranger ces cas avec « l'exclusion n'a pas départagé » serait une erreur de
+lecture.** *Un lot vidé ne dit pas que la règle a échoué : il dit quelque chose
+sur le dossier.* **Deux lectures, et elles appellent deux suites différentes :**
+
+- l'entreprise **a changé de NEQ** — elle est au registre, sous une autre
+  immatriculation, et ce n'est pas dans ce lot qu'on la trouvera;
+- l'entreprise **n'est pas dans ce lot du tout** — la récupération a rendu cinq
+  homonymes fermés et la bonne est ailleurs, ou absente.
+
+**La sortie les sépare donc du reste, avec leurs candidats au complet** — *on ne
+lit pas un lot vidé comme on lit un départage.*
+
+> **Une règle qui ne rend rien sur un dossier dit parfois plus qu'une règle qui
+> tranche. Encore faut-il ne pas la ranger avec les échecs.**
