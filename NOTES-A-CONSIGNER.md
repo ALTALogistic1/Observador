@@ -3880,3 +3880,111 @@ jours : un nom de fichier, un en-tête de colonne, un libellé paramétré.*
 
 > **Un paramètre dit ce qu'on a voulu. Seul le résultat dit ce qu'on a eu. Un
 > libellé qui cite le premier ment dès que le second diffère.**
+
+---
+
+## N163 — Une ventilation d'une seule population ne peut pas dire « surreprésentée »
+
+*(2026-09-19, ventilation des restants par source.)*
+
+La théorie : *`rob_top_growing` et `deloitte_fast50` sont des classements
+canadiens; s'ils sont **surreprésentés** parmi les restants, une part n'a pas de
+NEQ à trouver.*
+
+⚠️ **« 12 % des restants viennent de X » ne se compare à rien.** *Il faut la
+même ventilation sur les dossiers RÉSOLUS, et le rapport des deux.* **La sortie
+rend donc les deux colonnes et leur rapport, jamais l'une sans l'autre.**
+
+**Et le cas le plus fort n'est pas un grand rapport : c'est une source dont
+AUCUN dossier n'est résolu.** *Écrire `—` là où le dénominateur est nul masquerait
+exactement ce que la mesure cherche* — la sortie écrit **`AUCUN`** et **`← JAMAIS
+résolue`**.
+
+⚠️ **Ce que le rapport ne dit pas** : *pourquoi.* **Une source pancanadienne et
+une source dont les noms sont sales donnent le même rapport.**
+
+> **Un taux sur une population isolée décrit cette population. Il ne devient une
+> comparaison que quand l'autre est là — et le cas indéfini est souvent le plus
+> parlant.**
+
+---
+
+## N164 — La prémisse tenait, et le code la disait plus fort
+
+*(2026-09-19, vérification avant mesure.)*
+
+Théorie d'Alexandre : *le registre des sources porte les classements canadiens à
+`territoire: null` — rien ne les filtre par province.* **Vérifié : exact.**
+
+⚠️ **Et plus fort que l'énoncé.** *`province_code` est **null sur toutes les
+sources**, `territoire` n'est rempli que pour l'EIMT, et `region` est du texte
+libre (`'Québec/Canada'`) que rien ne lit.* **Or `province_code` est le seul champ
+que `falkye/expansion_interprovinciale.py` interroge** :
+
+```python
+if source_def is not None and source_def.province_code:   # jamais vrai
+```
+
+**Le mécanisme prévu pour raisonner par province existe et n'a aucune donnée.**
+
+**La leçon de méthode** : *vérifier une prémisse avant de la reprendre coûte deux
+minutes, et rend parfois un fait plus grand que celui qu'on cherchait.* ⚠️ **La
+reprendre telle quelle l'aurait figée dans la sortie d'une mesure**, où elle
+aurait ensuite été citée comme mesurée.
+
+> **Une prémisse qu'on transporte sans la relire devient un résultat au bout de
+> deux documents.**
+
+---
+
+## N165 — Deux règles qui portent le même nom rendent deux chiffres, et l'un des deux est faux
+
+*(2026-09-19.)*
+
+Le chiffrage de la parenthèse comptait les « champs multi-entités » avec une
+règle LÂCHE — *toute conjonction* — et rendait **17 sur 148, 11,5 %**. La mesure
+demandée ensuite spécifie la bonne règle : **une conjonction entre DEUX FORMES
+JURIDIQUES.**
+
+| nom | ancienne règle | règle stricte |
+|---|---|---|
+| `X inc. & Y inc.` | consortium | **consortium** |
+| ⚠️ `Gagnon et Fils inc.` | **consortium** | *pas un consortium* |
+
+⚠️ **Les deux chiffres ne sont pas comparables, et le second remplace le
+premier.** *Le dire dans la sortie est ce qui empêche de lire « 11,5 % → 6 % »
+comme une évolution du parc alors que c'est un changement d'instrument.*
+
+**Et la règle lâche était la MIENNE**, écrite pour signaler un confond dans une
+autre mesure — *ce qui était honnête là où elle servait, et faux dès qu'on la
+promeut en compte.*
+
+> **Un signal approximatif posé pour écarter un confond devient un chiffre faux
+> le jour où quelqu'un le lit comme une mesure. La règle d'un compte se pose
+> quand on compte, pas quand on signale.**
+
+---
+
+## N166 — Un compte exact sur une clé exacte est un plancher, et il doit le dire
+
+*(2026-09-19, doublons du produit.)*
+
+**Ce qui se compte** : deux dossiers de même `nom_detecte_normalise` — donc les
+variantes de casse et de ponctuation, `AYE3D inc.` contre `AYE3D Inc.`
+
+⚠️ **Ce qui ne s'y compte pas** : `PHILIPS CANADA` contre `PHILIPS ÉLECTRONIQUE
+LTÉE`, `Casa Grecque Drummondville` contre `3038947 Canada Inc.` **Aucune clé
+exacte ne les réunit** — *il faudrait une passe floue, qui est une autre
+mesure.*
+
+**Donc le compte est un PLANCHER, et la sortie l'écrit avec ses exemples.**
+*Sans cette ligne, un compte exact se lit comme un compte complet* — c'est la
+même famille que la ventilation par gisement lue comme complète *(N156)*.
+
+⚠️ **Et ce compte ne cherche pas un correctif.** *Il dit si le chantier 3 — une
+identité, plusieurs identifiants, plusieurs noms — vaut ce qu'il coûte.* **Un
+consortium demande DEUX NEQ sur un dossier; un doublon demande UN dossier qui
+porte DEUX noms. Le modèle actuel ne permet ni l'un ni l'autre.**
+
+> **Une clé exacte rend un chiffre exact sur ce qu'elle atteint. Ce qu'elle
+> n'atteint pas ne se déduit pas de ce qu'elle rend.**
