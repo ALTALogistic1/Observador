@@ -3988,3 +3988,83 @@ porte DEUX noms. Le modèle actuel ne permet ni l'un ni l'autre.**
 
 > **Une clé exacte rend un chiffre exact sur ce qu'elle atteint. Ce qu'elle
 > n'atteint pas ne se déduit pas de ce qu'elle rend.**
+
+---
+
+## N167 — `RawSignal` n'a AUCUN emplacement pour un code postal
+
+*(2026-09-20, en traçant l'adresse de la source au dossier.)*
+
+⚠️ **Vérifié dans `falkye/sources/base.py`** : `RawSignal` porte `adresse`,
+`ville`, `region` — **et rien d'autre pour l'adresse.**
+
+> **Donc aucun connecteur ne PEUT promouvoir un code postal, quelle que soit la
+> source qui en publie un.**
+
+**Et c'est le niveau le plus FORT du départageur d'adresse** *(1 764 écritures
+sur 2 032 reposent dessus)*. **Il ne fonctionne aujourd'hui que parce que
+`faits_du_dossier` va le chercher LUI-MÊME dans `Signal.champs`**, en fouillant
+le sac par `CLES_ADRESSE`.
+
+⚠️ **Ça change la lecture de « cette source porte-t-elle un code postal? ».** *La
+réponse ne débloque rien par une promotion* — il n'y a pas de champ où
+promouvoir. **Soit on élargit `CLES_ADRESSE`, soit `RawSignal` gagne un
+emplacement.** *Les deux se décident avec Alexandre; aucun ne se déduit de la
+mesure.*
+
+> **Un champ qu'on cherche à promouvoir sans emplacement où le mettre n'est pas
+> un défaut de connecteur : c'est un défaut de modèle.**
+
+---
+
+## N168 — Un écart se juge emplacement par emplacement, pas « promeut quelque chose »
+
+*(2026-09-20, défaut révélé par le décor de test.)*
+
+L'outil marquait « rangé et jamais promu » **quand le connecteur ne promouvait
+RIEN**. ⚠️ **Or `eimt` promeut `region`** — donc la condition était fausse, et
+elle masquait exactement le cas pour lequel l'outil existe :
+
+```
+   arrivé dans Signal.champs  adresse
+   PROMU en RawSignal         region        ← quelque chose est promu
+```
+
+*`adresse` reste dans le sac, et c'est le motif EIMT dans sa forme pure.*
+
+**Le défaut n'est pas sorti d'une relecture : il est sorti du DÉCOR.** *Un décor
+où le connecteur ne promeut rien du tout aurait laissé la condition passer pour
+juste.* **C'est ce que vaut un décor construit sur un cas réel plutôt que sur le
+cas commode.**
+
+> **Une condition agrégée — « promeut quelque chose » — répond à une question
+> qu'on ne pose jamais. Ce qu'on veut savoir est toujours : CE champ-là, où
+> va-t-il?**
+
+---
+
+## N169 — Le dépôt dit ce que le connecteur LIT, jamais ce que la source PUBLIE
+
+*(2026-09-20.)*
+
+**Trois issues possibles pour une adresse manquante, et elles n'appellent pas le
+même geste** :
+
+| | établi par | correctif |
+|---|---|---|
+| captée et jetée | ⚠️ **le dépôt** | une ligne — le motif EIMT |
+| publiée et jamais captée | ⚠️ **le dépôt** | travail de connecteur |
+| **n'existe pas dans la source** | ⛔ **pas le dépôt** | *la piste se ferme* |
+
+⚠️ **La troisième ne peut PAS s'établir ici.** *Un champ absent des quatre
+colonnes veut dire « personne ici ne le connaît » — jamais « la source ne l'a
+pas ».* **Conclure l'absence depuis un connecteur muet, c'est classer un fichier
+sur son nom** — ce qui a laissé `DENOMN_SOC` ignoré un jour de plus.
+
+**Et la colonne « déclaré » n'est pas une observation** : *`description_tender`
+était déclaré par le connecteur SEAO depuis toujours et vide dans 100 % des
+cas.* **C'est une prétention qu'on confronte, pas une source de vérité** — d'où
+les deux colonnes séparées, « présent » (la clé) et « rempli » (la valeur).
+
+> **Le silence d'un instrument est un fait sur l'instrument. Il ne devient un
+> fait sur le monde que quand on est allé voir.**
