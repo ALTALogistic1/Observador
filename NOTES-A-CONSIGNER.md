@@ -4451,3 +4451,152 @@ exprès.
 > **Une partition annoncée est une partition à vérifier. Le total est le seul
 > endroit où une exclusivité cassée se voit, et il ne se voit que si on
 > l'additionne.**
+
+---
+
+## N183 — Une affirmation qui vient de nous vaut une hypothèse, pas une mesure
+
+*(2026-09-20.)*
+
+*« L'EIMT n'a aucune classification »* était dit ici depuis plusieurs jours, et
+servait de prémisse. **Alexandre a demandé de le lire dans le code avant d'en
+tirer un plafond.** *Lecture faite* :
+
+| l'affirmation | ce que dit `falkye/sources/eimt.py` |
+|---|---|
+| aucune classification | ✅ **vrai** — aucun `secteur_activite=` sur son `RawSignal` |
+| donc rien à croiser | ⛔ **faux** — elle dépose `champs["profession"]`, la colonne `Occupation` |
+
+⚠️ **Et la moitié fausse ne s'annule pas avec la moitié vraie : elle demande une
+troisième colonne.** *Une profession décrit un **poste**, pas l'activité d'une
+**entreprise**.* `« Cuisinier »` suggère un restaurant sans le dire, et la
+traduire demanderait **une autre table encore**, distincte de celle qu'on
+attendait déjà. **Fondue dans le compte, elle aurait gonflé le plafond; écartée
+sans être nommée, elle aurait disparu.** *Elle est comptée à part.*
+
+**Ce qui rend le défaut coûteux, et ce n'est pas l'erreur elle-même :** une
+affirmation née dans une conversation n'a pas de preuve attachée, **et elle se
+recite avec l'assurance d'une mesure**. *C'est le guide d'ingénierie, § « la
+preuve voyage avec le fait », appliqué à ce qu'on a dit soi-même.*
+
+> **Un fait qui vient de nous se relit à sa source avant de porter un chiffre.
+> Et une affirmation à moitié vraie est plus dangereuse qu'une fausse : la
+> moitié qui tient fait passer l'autre.**
+
+---
+
+## N184 — Une garde branchée sur la mauvaise source n'est jamais juste
+
+*(2026-09-20.)*
+
+La table des clés d'activité se recoupe contre le code, pour qu'une clé déclarée
+qui n'existe plus se voie. ⚠️ **Le recoupement lisait `cles_lues_par_le_module`
+— ce que le connecteur LIT de son fichier source.** *Or les clés déclarées sont
+celles de `Signal.champs` : ce que le connecteur **dépose**.*
+
+    row.get("Occupation")          ← ce qu'il LIT
+    champs={"profession": …}       ← ce qu'il DÉPOSE
+
+**`secteur_nature_contrat` n'est lue nulle part. Elle est écrite.** *Le test est
+tombé rouge, et il aurait aussi bien pu tomber vert* — sur une clé qui se trouve
+être lue ET déposée, la garde aurait validé sans rien vérifier.
+
+**Corrigé par un SECOND lecteur d'arbre syntaxique**, `cles_du_sac_par_le_module`,
+rangé **à côté du premier** plutôt qu'écrit dans l'outil qui en avait besoin.
+⚠️ *Ce n'est pas une copie : les deux répondent à deux questions différentes, et
+c'est précisément ce que la confusion avait effacé.*
+
+> **Avant de croire une garde verte, se demander sur quoi elle lit. Une garde
+> branchée sur la mauvaise source rend un verdict des deux couleurs, et aucun
+> des deux ne veut dire ce qu'on croit.**
+
+---
+
+## N185 — Le remplissage d'une colonne d'archive n'est pas celui du miroir
+
+*(2026-09-20.)*
+
+*« `COD_ACT_ECON_CAE` est rempli à 99,6 % au registre »* — vrai, et **sans
+rapport avec ce que `REQEntry.secteur_code` porte.** Lu dans
+`falkye/sources/req.py::_resoudre_entreprise` :
+
+| cas | d'où vient le code stocké |
+|---|---|
+| un établissement principal existe | `Etablissements.csv::COD_ACT_ECON` — ⚠️ **`COD_ACT_ECON_CAE` n'est JAMAIS lu** |
+| sinon | `COD_ACT_ECON_CAE` |
+
+⚠️ **Et l'origine n'est pas conservée.** *Rien dans le miroir ne dit laquelle a
+servi pour une entrée donnée.* **Toute comparaison de deux codes entre eux
+hérite de cette incertitude** : deux codes qui diffèrent pourraient différer
+parce qu'ils ne viennent pas de la même colonne.
+
+**C'est une réserve qui se nomme et ne se mesure pas** — *l'information n'est
+plus là.* ⚠️ *La tentation était de la taire parce qu'elle n'a pas de chiffre :
+une réserve sans chiffre reste une réserve.*
+
+> **Le remplissage d'une source n'est pas celui de ce qu'on en a gardé. Entre
+> les deux il y a un chargeur, et il choisit.**
+
+---
+
+## N186 — Le cinquième `split()[-2]`, et ce que le helper n'a pas empêché
+
+*(2026-09-20. Cinquième occurrence — voir N144, N158, N172.)*
+
+N172 a rangé `compte_de_la_ligne` dans `tests/conftest.py`, *« le seul endroit
+que le PROCHAIN fichier de test trouvera sans y penser »*, et concluait
+*« on verra »*. **On a vu : quatre occurrences dans un fichier neuf, le même
+jour.**
+
+⚠️ **Le helper était à portée, importable en une ligne, et je ne l'ai pas
+cherché.** *Ce n'est pas un défaut de rangement : c'est qu'aucun rangement ne se
+rappelle à qui ne le cherche pas.*
+
+**Ce qui a attrapé le défaut est le test lui-même**, qui a rendu
+`'50.0' == '1'` — *quatre fois d'affilée.*
+
+| tentative | ce qu'elle protège | a tenu? |
+|---|---|---|
+| une note au tampon | le corpus | ⛔ |
+| un helper dans le fichier | un fichier | ⛔ |
+| un helper dans `conftest.py` | tous les fichiers **de qui le cherche** | ⛔ |
+| *(non construit)* une garde qui lit les fichiers de test | tous | *inconnu* |
+
+⚠️ **La quatrième ligne n'est PAS une proposition à exécuter** : elle est notée
+parce que les trois premières ont la même forme — *elles dépendent toutes de la
+mémoire de celui qui tape* — et que la quatrième est la première qui n'en
+dépende pas. **Rien n'est construit.**
+
+> **Un outil bien rangé protège ceux qui le cherchent. Pour les autres il faut
+> une garde, et une garde n'est pas un rangement.**
+
+---
+
+## N187 — Porter le fait des deux côtés ne départage rien s'il est le même
+
+*(2026-09-20.)*
+
+Le plafond d'un départageur se calcule d'habitude comme une **intersection** :
+les dossiers où le fait existe au dossier **et** chez tous les candidats.
+⚠️ **Ce chiffre-là est trop haut, et d'une façon qui ne se voit pas.**
+
+*Deux candidats qui portent tous les deux le code `5511` portent bien le fait —
+et le fait ne les sépare pas.* **L'intersection compte un départage possible là
+où il n'y en a aucun.**
+
+**Le compte qui borne vraiment** : parmi ces dossiers, combien ont **au moins
+deux candidats dont les codes DIFFÈRENT entre eux**.
+
+⚠️ **Et il ne coûte rien**, ce qui est la raison de le rendre : *c'est une
+comparaison des codes du registre entre eux, pas une traduction.* **Aucune
+correspondance entre nomenclatures n'y entre**, donc il se calcule avant que la
+table qui n'existe pas existe.
+
+**La même question vaut pour tout départageur déjà construit** : la ville, le
+code postal, la région de tri. *Un fait partagé par tous les concurrents est un
+fait présent et inutile* — et `outils/departageurs.py` le sait déjà, il rend
+`PLUSIEURS_COMPATIBLES`. **Ce qui manquait est de le compter AVANT de construire,
+plutôt que de le découvrir dans les issues après.**
+
+> **Un plafond qui compte la présence du fait compte trop haut. Ce qui borne est
+> sa VARIANCE entre les candidats, et elle se mesure sans rien traduire.**

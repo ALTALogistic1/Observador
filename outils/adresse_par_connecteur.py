@@ -125,12 +125,17 @@ def cles_lues_par_le_module(chemin: Path) -> set[str]:
     return cles
 
 
-def champs_promus_par_le_module(chemin: Path) -> set[str]:
-    """Les champs d'adresse que le module passe à `RawSignal(...)`.
+def champs_promus_par_le_module(chemin: Path, champs=CHAMPS_PROMUS) -> set[str]:
+    """Les champs que le module passe à `RawSignal(...)`.
 
     ⚠️ *Un `adresse=` dans un appel à autre chose que `RawSignal` ne compte
     pas* — sinon un `_CorporationResolue(adresse=…)` interne ferait croire à une
     promotion qui n'a pas lieu.
+
+    ⚠️ **`champs` existe pour qu'un autre chiffrage demande d'autres
+    emplacements PAR UN APPEL, jamais par une copie de ce lecteur.** *Le défaut
+    est connu : un second lecteur d'arbre syntaxique diverge du premier sans que
+    rien ne le dise.* **Le défaut de ce paramètre est celui de la production.**
     """
     try:
         arbre = ast.parse(chemin.read_text(encoding="utf-8"))
@@ -144,12 +149,46 @@ def champs_promus_par_le_module(chemin: Path) -> set[str]:
         if nom != "RawSignal":
             continue
         for mot in noeud.keywords:
-            if mot.arg in CHAMPS_PROMUS:
+            if mot.arg in champs:
                 # ⚠️ `adresse=None` n'est pas une promotion.
                 if isinstance(mot.value, ast.Constant) and mot.value.value is None:
                     continue
                 promus.add(mot.arg)
     return promus
+
+
+def cles_du_sac_par_le_module(chemin: Path) -> set[str]:
+    """Les clés que le module ÉCRIT dans `champs={…}` d'un `RawSignal`, **par AST.**
+
+    ⚠️ **Ce n'est pas `cles_lues_par_le_module`, et les confondre fait vérifier
+    la mauvaise chose.** *Celle-là relève ce que le connecteur LIT de son fichier
+    source — `row.get("Occupation")`. Celle-ci relève ce qu'il DÉPOSE dans le sac
+    — `champs={"profession": …}`.* **Une table qui déclare des clés de
+    `Signal.champs` doit se recouper contre la seconde**; contre la première,
+    elle passerait pour vérifiée sans l'être.
+
+    *Seules les clés constantes d'un littéral de dictionnaire sont vues* — une
+    clé calculée ne peut pas être relevée sans exécuter le code, et une garde
+    qui prétendrait la voir mentirait.
+    """
+    try:
+        arbre = ast.parse(chemin.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError):
+        return set()
+    cles: set[str] = set()
+    for noeud in ast.walk(arbre):
+        if not isinstance(noeud, ast.Call):
+            continue
+        nom = getattr(noeud.func, "id", None) or getattr(noeud.func, "attr", None)
+        if nom != "RawSignal":
+            continue
+        for mot in noeud.keywords:
+            if mot.arg == "champs" and isinstance(mot.value, ast.Dict):
+                cles.update(
+                    cle.value for cle in mot.value.keys
+                    if isinstance(cle, ast.Constant) and isinstance(cle.value, str)
+                )
+    return cles
 
 
 def _part(k: int, n: int) -> str:
