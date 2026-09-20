@@ -4786,3 +4786,123 @@ fait de mots courants. Le cas symétrique, un nom COURT, n'a pas de deuxième mo
 > **Un garde-fou conçu contre un cas protège rarement son symétrique. Celui-ci
 > traite les noms trop longs en mots courants, et laisse entiers les noms trop
 > courts.**
+
+---
+
+## N194 — Une mesure qui ne cherche que ce qu'elle attend confirme sa propre liste
+
+*(2026-09-20.)*
+
+Une lecture de 32 dossiers avait relevé **quatre paliers de score** — `100,0`,
+`95,0`, `90,0`, `85,5` — sur 102 lignes de candidats. **La mesure qui les
+confronte à 3 267 dossiers aurait pu se contenter de les compter.**
+
+⚠️ **Elle aurait alors confirmé sa propre liste.** *Quatre valeurs cherchées dans
+une population qui en porte cent : elles s'y trouvent forcément, et le rapport
+dirait « confirmé ».*
+
+**Ce que la mesure fait à la place** : elle **trouve** les paliers dans la
+population — *toute valeur portée par au moins N dossiers* — puis rend **trois**
+lignes, pas une :
+
+| | |
+|---|---|
+| confirmés | ceux des quatre que la population porte |
+| **NON confirmés** | ceux qu'elle ne porte pas |
+| ⚠️ **AJOUTÉS** | **ceux que la lecture n'avait pas vus** |
+
+**La troisième est la plus utile, et c'est elle qui juge la lecture.** *Si la
+population ajoute dix paliers que 32 dossiers n'avaient pas montrés, la lecture
+avait vu une forme partielle — et le dire vaut mieux que quatre confirmations.*
+
+> **Une hypothèse se met dans le code pour être CONFRONTÉE, jamais pour être
+> cherchée. La question n'est pas « retrouve-t-on ce qu'on attendait » : c'est
+> « qu'est-ce qu'on n'avait pas vu ».**
+
+---
+
+## N195 — Un palier de score est une constante de bibliothèque, et l'écart lui est comparé
+
+*(2026-09-20.)*
+
+**Mesuré sur `rapidfuzz`, pas déduit** : un nom du registre **entièrement
+contenu** dans le nom détecté rend **exactement 90,0**. Toujours.
+`fuzz.WRatio` y applique son composant partiel à taux plein, pondéré.
+
+```
+90.0  'entretien'   dans 'entretien menager unick'
+90.0  'excavation'  dans 'excavationjpoulin'
+90.0  'h l'         dans 'h l boisvert inc'
+90.0  'bari'        dans 'baril jean'
+```
+
+⚠️ **Donc les scores ne forment pas un continuum : ils forment des paliers** — et
+**l'écart minimal de 8 est comparé à des distances entre constantes**, pas à une
+mesure de ressemblance.
+
+    100,0 → 95,0  =  5,0   ⛔ sous l'écart
+    100,0 → 90,0  = 10,0   ✅ le franchit
+
+**Ce qui décide qu'un dossier est ambigu n'est donc pas sa ressemblance à ses
+concurrents : c'est le palier où son meilleur candidat atterrit.**
+
+⚠️ **Et une correction de ma propre lecture, faite avant de compter.** *J'avais
+écrit que `90 → 85,5` fait un ambigu.* **C'est faux** : un ambigu exige
+`meilleur ≥ 92`, donc un dossier dont le meilleur vaut 90 est **« trop
+faible »**. *Le couple vit chez les trop faibles, et la mesure le dit plutôt que
+de le taire.* **Une lecture citée de travers dans l'outil qui la vérifie se
+serait recopiée indéfiniment.**
+
+> **Quand un seuil se compare à un score, vérifier d'abord sur quelles valeurs
+> ce score tombe. Une échelle continue et une échelle à paliers ne se règlent
+> pas de la même façon, et rien dans le code ne dit laquelle on a.**
+
+---
+
+## N196 — Le bonus de ville déplace la distribution qu'on vient mesurer
+
+*(2026-09-20.)*
+
+`_scorer` ajoute **+5** au candidat dont la ville concorde, **après** la coupe à
+cinq. ⚠️ **Un score observé à 95 peut donc être un 90 déplacé**, et **le score
+d'avant n'est pas conservé.**
+
+**Mesurer les paliers sans le dire aurait mêlé deux choses** : la valeur que la
+bibliothèque rend, et un bonus que le moteur ajoute.
+
+**Ce que la mesure fait, et ce qu'elle refuse de faire :**
+
+| | |
+|---|---|
+| ✅ compter les scores qui portent le bonus | un indicateur |
+| ✅ rendre la distribution **sur les couples sans bonus d'aucun côté** | la vue propre, mesurée |
+| ⛔ soustraire 5 pour « reconstituer » | *inventer une valeur qu'on n'a pas* |
+
+⚠️ **Et la condition du bonus est RECOPIÉE du moteur** — `_scorer` ne l'expose
+pas. *C'est le seul endroit de l'outil où une règle est recopiée, et il le dit :
+si le moteur changeait sa condition, celle-ci divergerait en silence.*
+
+> **Avant de mesurer une distribution, chercher ce qui la déplace en aval. Un
+> correctif appliqué après coup et non conservé rend toute mesure de l'amont
+> impossible — on ne peut que le compter, jamais le retirer.**
+
+---
+
+## N197 — Une borne d'affichage qu'on ne peut pas bouger ne se conteste pas
+
+*(2026-09-20.)*
+
+*« Un palier est une valeur portée par au moins 50 dossiers. »* **Cinquante est
+arbitraire**, et il change ce que la sortie appelle un palier.
+
+⚠️ **Enfoui dans une constante, il se subit.** *Le lecteur voit « 4 paliers » et
+n'a aucun moyen de savoir ce que donnerait 20, ou 200* — la borne devient un fait
+alors qu'elle est un réglage.
+
+**Deux gestes, et ils vont ensemble :** la distribution **entière** est rendue
+au-dessus du tableau, et la borne est un **paramètre de ligne de commande**
+(`--plancher`). *Le premier permet de recalculer à la main; le second évite d'avoir
+à le faire.*
+
+> **Une valeur qui change la lecture d'une sortie appartient à la ligne de
+> commande, pas au code. Sinon elle se lit comme une propriété des données.**
