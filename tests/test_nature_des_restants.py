@@ -15,13 +15,9 @@ from falkye.models.company import Company
 from falkye.models.signal import Signal
 from falkye.sources.column_mapping import normaliser
 from outils import nature_des_restants as outil
+from tests.conftest import compte_de_la_ligne as _compte
 
 
-def _compte(ligne: str) -> str:
-    """Le nombre d'une ligne, **lu par motif** *(N144, N158)*."""
-    trouve = re.search(r"\s(\d[\d ]*)\s+\d+\.\d %", ligne)
-    assert trouve, ligne
-    return trouve.group(1).strip()
 
 
 # ---------------------------------------------------------------------------

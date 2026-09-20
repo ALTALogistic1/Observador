@@ -15,6 +15,7 @@ from falkye.models.company import Company
 from falkye.models.req_entry import REQEntry
 from falkye.sources.column_mapping import normaliser
 from outils import chiffrage_parenthese_detectee as outil
+from tests.conftest import compte_de_la_ligne as _compte
 
 
 def _entree(db_session, neq, nom, **kw):
@@ -22,11 +23,6 @@ def _entree(db_session, neq, nom, **kw):
                             statut="IMMATRICULÉE", **kw))
 
 
-def _compte(ligne: str) -> str:
-    """Le nombre d'une ligne, **lu par motif** *(N144, N158)*."""
-    trouve = re.search(r":?\s(\d[\d ]*)\s+\d+\.\d %", ligne)
-    assert trouve, ligne
-    return trouve.group(1).strip()
 
 
 # ---------------------------------------------------------------------------

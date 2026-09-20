@@ -19,6 +19,7 @@ from falkye.models.req_entry import REQEntry
 from falkye.models.signal import Signal
 from falkye.sources.column_mapping import normaliser
 from outils import departage_par_ladresse as outil
+from tests.conftest import compte_de_la_ligne as _compte
 
 
 def _entree(db_session, neq, nom, **kw):
@@ -105,13 +106,6 @@ def _sortie(capsys):
     return capsys.readouterr().out
 
 
-def _compte(ligne: str) -> str:
-    """Le nombre d'une ligne de tableau — *lu par motif, jamais par rang de
-    jeton* : ⚠️ une marque en fin de ligne (`→ repli`, `⛔ fin`) déplace tous
-    les index, et un test qui compte les jetons se met à lire le décor."""
-    trouve = re.search(r"\s(\d[\d ]*)\s+\d+\.\d %", ligne)
-    assert trouve, ligne
-    return trouve.group(1).strip()
 
 
 def test_le_decor_donne_UN_retenu_et_CINQ_ambigus(decor, capsys):
