@@ -9,6 +9,13 @@ population imaginaire.* **Même règle que `requete_nom_exact`, `neq_retenu` et
 
 ⚠️ **Rien ici n'écrit.** La fonction rend ce qu'elle a trouvé et **ce qu'elle
 refuse** — à l'appelant de décider quoi en faire.
+
+⚠️ **`cles_ville` et `cles_adresse` sont des PARAMÈTRES depuis le 20 septembre**,
+et leurs valeurs par défaut sont celles de la production. *Ils existent pour
+qu'un chiffrage puisse demander « et si on lisait une clé de plus? » par un
+APPEL de cette fonction, jamais par une copie* — le même motif que `niveaux=`
+sur `departager_ladresse`. **Les passer depuis le pipeline serait un changement
+de règle sans Alexandre.**
 """
 from __future__ import annotations
 
@@ -54,7 +61,8 @@ def ville_depuis_adresse(adresse: str | None) -> str | None:
     return tete or None
 
 
-def villes_des_signaux(db_session, ids: set[int]) -> dict[int, VilleVue]:
+def villes_des_signaux(db_session, ids: set[int], cles_ville=CLES_VILLE,
+                       cles_adresse=(CLE_ADRESSE,)) -> dict[int, VilleVue]:
     """Pour chaque dossier de `ids`, la ville que ses signaux portent.
 
     ⚠️ **Pas « la première rencontrée ».** *Un dossier peut porter plusieurs
@@ -76,7 +84,7 @@ def villes_des_signaux(db_session, ids: set[int]) -> dict[int, VilleVue]:
         if company_id not in ids:
             continue
         champs = champs or {}
-        for cle in CLES_VILLE:
+        for cle in cles_ville:
             valeur = champs.get(cle)
             if valeur:
                 vues[company_id].append(
@@ -84,11 +92,13 @@ def villes_des_signaux(db_session, ids: set[int]) -> dict[int, VilleVue]:
                 )
                 break
         else:
-            depuis = ville_depuis_adresse(champs.get(CLE_ADRESSE))
-            if depuis:
-                vues[company_id].append(
-                    (1, depuis, "champs['adresse'] (tête)", source_id or "?")
-                )
+            for cle in cles_adresse:
+                depuis = ville_depuis_adresse(champs.get(cle))
+                if depuis:
+                    vues[company_id].append(
+                        (1, depuis, f"champs[{cle!r}] (tête)", source_id or "?")
+                    )
+                    break
 
     trouvees: dict[int, VilleVue] = {}
     for company_id, lot in vues.items():

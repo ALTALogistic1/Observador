@@ -19,6 +19,7 @@ sous trois formes, et il vaut la peine d'être surveillé :
 La question qui les attrape tous : **quel test tomberait si je défaisais ce que
 je viens de faire?** Si la réponse est « aucun », le test ne verrouille rien.
 """
+import re
 import os
 
 import pytest
@@ -102,3 +103,22 @@ def registry():
     from falkye.registry.loader import load_registry
 
     return load_registry()
+
+
+def compte_de_la_ligne(ligne: str) -> str:
+    """Le nombre d'une ligne de tableau — **lu par MOTIF, jamais par rang de jeton.**
+
+    ⚠️ **Le défaut que ce helper existe pour empêcher, et qui a été commis
+    QUATRE fois** *(N144, N158, puis deux récidives)* : `ligne.split()[-2]` sur
+    une ligne qui finit par `« 2   66.7 % »` rend **`66.7`**, parce que la part
+    se découpe en deux jetons. *Et toute marque ajoutée en fin de ligne —
+    `→ repli`, `← surreprésentée`, `⛔ fin` — déplace encore les index.*
+
+    **Il vit dans `conftest.py` parce que c'est le seul endroit que le PROCHAIN
+    fichier de test trouvera sans y penser.** *Une note au tampon se relit; elle
+    n'empêche rien. Un helper recopié dans trois fichiers ne protège pas le
+    quatrième.*
+    """
+    trouve = re.search(r"[\s:](\d[\d ]*)\s+\d+\.\d %", ligne)
+    assert trouve, f"aucun compte lisible dans : {ligne!r}"
+    return trouve.group(1).strip()

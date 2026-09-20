@@ -16,6 +16,7 @@ from falkye.models.diagnostic_journal import DiagnosticJournal
 from falkye.models.req_entry import REQEntry
 from falkye.sources.column_mapping import normaliser
 from outils import ecriture_des_departages as outil
+from tests.conftest import compte_de_la_ligne as _compte
 
 
 def _entree(db_session, neq, nom, **kw):
@@ -70,16 +71,6 @@ def _sortie(capsys):
     return capsys.readouterr().out
 
 
-def _compte(ligne: str) -> str:
-    """Le nombre d'une ligne de tableau, **lu par motif**.
-
-    ⚠️ *N144 dit exactement ça, et ce test l'a refait dans l'heure* :
-    `« 2   66.7 % »` se découpe en TROIS jetons, donc `[-2]` rend le
-    pourcentage. **Une note écrite ne protège pas le doigt qui tape.**
-    """
-    trouve = re.search(r"\s(\d[\d ]*)\s+\d+\.\d %", ligne)
-    assert trouve, ligne
-    return trouve.group(1).strip()
 
 
 # ---------------------------------------------------------------------------

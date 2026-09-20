@@ -4068,3 +4068,80 @@ les deux colonnes séparées, « présent » (la clé) et « rempli » (la valeu
 
 > **Le silence d'un instrument est un fait sur l'instrument. Il ne devient un
 > fait sur le monde que quand on est allé voir.**
+
+---
+
+## N170 — L'asymétrie du SEAO n'était pas dans la source : elle était dans le lecteur
+
+*(2026-09-20.)*
+
+**SEAO : 88,7 % de code postal, 9,6 % de ville.** *On pouvait lire ça comme
+« la source porte un code et pas de ville ».* ⚠️ **C'est faux, et le code le
+dit :**
+
+| niveau | qui lit | clés connues |
+|---|---|---|
+| code postal | `faits_du_dossier` | `CLES_ADRESSE` — dont **`adresse_entreprise_adjudicataire`** |
+| ville | `villes_des_signaux` | `CLES_VILLE`, puis repli sur **la seule clé littérale `'adresse'`** |
+
+**Le champ agrégé du SEAO porte les deux. Seul le lecteur de code postal le
+connaît.** *La ville du SEAO n'est pas absente : elle est invisible au lecteur
+qui la cherche.*
+
+⚠️ **Deux lecteurs d'un même fait, avec deux listes de clés qui divergent, et
+personne ne les avait comparées.** *Chacun est correct isolément; c'est l'écart
+entre eux qui produit un chiffre qu'on lit comme une propriété de la source.*
+
+> **Quand deux mesures du même objet divergent, regarder l'objet est le second
+> réflexe. Le premier est de vérifier qu'elles le lisent au même endroit.**
+
+---
+
+## N171 — Une promotion ne vaut que ce que le lecteur en aval ne lit pas déjà
+
+*(2026-09-20.)*
+
+**La promotion sert `RawSignal`. Le départageur, lui, lit `Signal.champs`
+DIRECTEMENT.** ⚠️ *Donc la question n'est pas « ce champ est-il promu? » mais
+**« ce que la promotion apporterait est-il déjà lu ailleurs? »***
+
+- **`eimt`** — `champs['adresse']` est lu **par les deux** lecteurs. *Le
+  promouvoir ne change RIEN au départage* : **travail de propreté**, qui servirait
+  le PORTRAIT — lequel exige une adresse en sortie.
+- **`seao`** — le connecteur **lit `locality`** et ne le range pas. *Or `locality`
+  est DÉJÀ dans `CLES_VILLE`* : **le ranger suffirait**, sans toucher au repli ni
+  à `RawSignal`.
+
+⚠️ **Et l'autre voie est dangereuse** : apprendre la clé agrégée au repli
+d'adresse fait prendre la tête de chaîne pour une municipalité. *Sur
+`« 123 rue Principale, Montréal, QC »`, c'est une RUE.* **Une rue prise pour une
+ville ne manque pas un départage : elle en PRONONCE un faux** — et le chiffrage
+compte les têtes qui commencent par un numéro avant qu'on construise.
+
+> **Un correctif se chiffre contre ce que le système fait déjà, pas contre ce
+> qu'il déclare faire. Deux chemins vers le même fait rendent le second
+> gratuit — ou nuisible.**
+
+---
+
+## N172 — Le quatrième `split()[-2]`, et le helper qui aurait dû exister au premier
+
+*(2026-09-20.)*
+
+N144 a nommé le défaut. N158 a constaté qu'une note ne protège pas le doigt qui
+tape et a posé un helper **dans un fichier de test**. ⚠️ **Il a été recopié dans
+trois fichiers, et le quatrième l'a refait à la main.**
+
+**Le helper vit maintenant dans `tests/conftest.py`** — *le seul endroit que le
+PROCHAIN fichier de test trouvera sans y penser.* Les cinq fichiers l'importent.
+
+**Ce que les quatre occurrences enseignent, et ce n'est pas « faire attention » :**
+
+| tentative | portée | a tenu? |
+|---|---|---|
+| une note au tampon | le corpus | ⛔ non |
+| un helper dans LE fichier | un fichier | ⛔ non — recopié, puis oublié |
+| **un helper dans `conftest.py`** | **tous les fichiers à venir** | *on verra* |
+
+> **Une règle ne s'applique qu'à la portée de l'endroit où on l'a mise. Trois
+> copies d'un garde-fou protègent trois fichiers et annoncent le quatrième.**
