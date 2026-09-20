@@ -122,3 +122,16 @@ def compte_de_la_ligne(ligne: str) -> str:
     trouve = re.search(r"[\s:](\d[\d ]*)\s+\d+\.\d %", ligne)
     assert trouve, f"aucun compte lisible dans : {ligne!r}"
     return trouve.group(1).strip()
+
+
+
+def comptes_de_la_ligne(ligne: str) -> list[str]:
+    """Tous les comptes d'une ligne de tableau, **de gauche à droite.**
+
+    ⚠️ **Le pluriel de `compte_de_la_ligne`, et il est rangé à côté d'elle** —
+    *une ligne à DEUX colonnes de comptes ne se lit pas avec un helper qui rend
+    le premier.* **Et `ligne.split()[3]` ne la lit pas non plus** : l'étiquette
+    n'a pas toujours le même nombre de mots, et l'indice se décale en silence
+    quand le libellé change. *C'est le défaut de N144, déplacé d'une colonne.*
+    """
+    return [t.strip() for t in re.findall(r"[\s:](\d[\d\u202f ]*?)\s+\d+\.\d %", ligne)]
