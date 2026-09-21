@@ -5302,3 +5302,146 @@ les mêmes mots.
 > **La soustraction entre un total et ce qu'on a posé n'est pas une explication.
 > Ce qui n'a pas été touché se compte ligne par ligne, avec sa raison, ou il se
 > relit comme une fuite.**
+
+---
+
+## N211 — Un blocage qui devient une portée se dit, sinon l'écart se lit comme un oubli
+
+*2026-09-21, l'élargissement de l'écriture du statut.*
+
+Le 20 septembre, `PAS_UNE_EGALITE` était une **raison de laisser en suspens**. Le
+21, la même situation devient une **portée qui s'écrit** — `CONFIRMATION`. **Rien
+dans le code n'aurait signalé la bascule** : une constante disparaît d'un tuple,
+et le rapport d'aujourd'hui compte une ligne de moins que celui d'hier.
+
+**Ce qui a été fait :** la constante est supprimée, un test vérifie qu'elle
+n'existe plus *(`not hasattr`)*, et le commentaire du tuple `RAISONS` dit à quelle
+date elle en est sortie et vers quoi elle est partie.
+
+> **Une ligne qui disparaît d'un rapport doit dire où elle est allée. Deux
+> rapports du même outil à deux jours d'écart se comparent, et personne ne relit
+> le code pour comprendre pourquoi un total a bougé.**
+
+---
+
+## N212 — Deux instruments qui ne regardent que le LOT ne sont pas deux avis sur le DOSSIER
+
+*2026-09-21, la réserve sur l'élargissement — dite avant de construire.*
+
+Le score et le statut paraissent indépendants : ils viennent de deux colonnes,
+de deux mécanismes, de deux fichiers. **Ils ne le sont que par leur SOURCE.**
+*Tous deux répondent à « lequel de ces candidats sort du lot? », et aucun des
+deux ne répond à « ce candidat est-il l'entreprise du signal? ».*
+
+Élargie, la règle se lit exactement ainsi : **« poser le mieux scoré quand tous
+ses concurrents sont radiés ».** *Formulée comme ça, l'accord de deux instruments
+s'évanouit* — il ne reste qu'un candidat que personne n'a comparé au dossier.
+
+⚠️ **L'ADRESSE, elle, compare au dossier** — et dans les paires déjà lues elle a
+**contredit** cet accord deux fois : `#18572` *(dossier `G9A2G9`, survivant
+`G8Z0A3`)* et `#1101 Amar Transport` *(dossier Vaughan ON, survivant Laval)*,
+tous deux « aucun concurrent compatible — le fait les exclut tous ».
+
+> **Deux avis ne se confirment que s'ils répondent à la même question. Deux
+> classements du même lot, aussi différents soient leurs mécanismes, ne disent
+> rien de plus l'un que l'autre sur ce que le lot ne contient peut-être pas.**
+
+---
+
+## N213 — Une réserve qu'on garde se rend en COLONNE, jamais en condition
+
+*2026-09-21, suite de N212.*
+
+La réserve était juste, et la décision restait à Alexandre. **Deux issues
+fausses se présentaient :** en faire une condition *(ce serait décider à sa
+place)*, ou la laisser dans un commentaire *(elle serait vraie et illisible)*.
+
+**Ce qui a été fait :** `ce_que_ladresse_dit` rend un verdict par dossier, affiché
+en colonne dans `--comparer` et **compté dans le rapport**, avec une phrase qui
+dit qu'il n'écarte rien. *Le chiffre se lit avant `--appliquer`; il ne bloque
+rien.* ⚠️ **Et l'appel passe par `departager_ladresse`, le mécanisme du produit**
+— un départageur recopié à la main est déjà arrivé une fois.
+
+> **Une réserve qu'on ne peut pas trancher se CHIFFRE. Celui qui décide veut un
+> nombre, pas une inquiétude.**
+
+---
+
+## N214 — Un témoin nommé s'AFFICHE; il ne s'affirme pas
+
+*2026-09-21, `Les Ruchers du Roi Bourdon`.*
+
+Alexandre a nommé un dossier comme contradiction et demandé que la condition
+l'exclue **et que la sortie le montre.** *La tentation était d'écrire dans
+l'entête « la condition exclut Les Ruchers » — une affirmation qu'aucune
+exécution ne vérifie.*
+
+**Ce qui a été fait :** `TEMOIN_DE_LA_CONTRADICTION`, cherché dans la population
+à chaque passe, et la sortie dit **ce que l'outil en fait** : laissé en suspens
+avec sa raison, ou — et c'est le cas qui compte — ✅ **« il SERAIT écrit, la
+condition ne l'exclut PAS »**. *Et s'il a disparu de la population, la sortie
+écrit `INTROUVABLE` et ajoute que la preuve manque,* au lieu de laisser un test
+vert tenir lieu de démonstration.
+
+> **Un témoin qu'on affiche se réfute. Un témoin qu'on affirme ne se réfute
+> jamais — et c'est exactement ce qu'on lui demandait de pouvoir faire.**
+
+---
+
+## N215 — Une séparation PAR CONSTRUCTION se vérifie, sinon elle reste une intention
+
+*2026-09-21, les 1 065 NEQ posés la veille.*
+
+« L'outil ne doit pas retoucher les égalités déjà posées » est vrai **par
+structure** : la passe ne lit que `Company.neq IS NULL`. *Le dire suffisait à
+convaincre, et ne suffisait pas à savoir.*
+
+**Ce qui a été fait :** `--instantane-precedent FICHIER` relit l'instantané de la
+passe d'hier et compte **combien de ses dossiers sont revenus SANS NEQ**. Attendu
+zéro; si ce n'est pas zéro, la sortie nomme les identifiants et dit de ne pas
+appliquer avant d'avoir lu pourquoi.
+
+> **Une garantie structurelle est la meilleure espèce de garantie, et c'est
+> précisément pour ça qu'on ne la vérifie jamais. Le contrôle coûte une requête;
+> l'absence de contrôle coûte la première fois où la structure change.**
+
+---
+
+## N216 — Un décor de test dont les noms se ressemblent mesure autre chose qu'il ne croit
+
+*2026-09-21, six dossiers nommés `Pecheries Alpha/Beta/Gamma/Delta/Zeta`.*
+
+Le décor visait un cas par ligne du rapport. **Il en rendait un autre :** les
+familles partageaient le jeton `Pecheries`, donc les lots se contaminaient. *Le
+dossier prévu pour « le restant est SOUS le sommet » sortait en « l'exclusion
+laisse PLUSIEURS candidats » — un candidat d'une AUTRE famille survivait dans son
+lot à 94,4.*
+
+**Le test n'échouait pas pour la bonne raison** : il échouait sur un compte, et
+le compte était faux à cause du décor, pas à cause du code. **Corrigé en donnant
+à chaque famille une tête lexicale distincte** *(`Boulangerie`, `Quincaillerie`,
+`Imprimerie`, `Serrurerie`, `Fromagerie`)*.
+
+> **Un décor construit avec des noms voisins teste le moteur de rapprochement
+> autant que la règle qu'on voulait vérifier. Quand un test porte sur autre chose
+> que les noms, les noms doivent être INCOMPARABLES.**
+
+---
+
+## N217 — La largeur d'une colonne se calcule sur TOUTES ses étiquettes, pas sur une partie
+
+*2026-09-21, sixième occurrence du même défaut évitée.*
+
+`LARGEUR_DUNE_RAISON` était calculée sur `RAISONS` seules, alors que la colonne
+reçoit aussi les étiquettes `✅ À POSER…`, `⛔ NEQ déjà porté…`, les deux
+ventilations par portée et les quatre verdicts d'adresse. **Une étiquette plus
+longue que sa colonne pousse le nombre, et le nombre poussé se relit mal.**
+
+**Ce qui a été fait :** `ETIQUETTES_DU_RAPPORT` et `VERDICTS_DADRESSE` sont des
+tuples nommés, la largeur se calcule sur leur **union**, et le rapport les
+imprime **depuis ces tuples** plutôt qu'en littéraux. *Un test parcourt l'union
+et vérifie que chaque texte tient.* ⚠️ **L'étiquette et la largeur ne peuvent
+plus diverger, parce qu'elles n'ont plus qu'une source.**
+
+> **Corriger la cinquième occurrence d'un défaut sans supprimer la sixième n'est
+> pas une correction, c'est un report.**
