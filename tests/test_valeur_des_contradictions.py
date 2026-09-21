@@ -272,15 +272,104 @@ def test_le_FAIT_qui_a_decide_est_affiche_avec_sa_PROVENANCE(decor, capsys):
     assert "PRONONCÉ PAR :" in sortie
 
 
-def test_la_forme_d_entree_du_retenu_est_VENTILEE(decor, capsys):
-    """La piste du 21 septembre : **ce signal existe pour chaque dossier.**"""
+def test_la_piste_du_gisement_est_dite_RETIREE_avec_son_motif(decor, capsys):
+    """⚠️ **Retirée par Alexandre le 21 septembre, après lecture des paires.**
+
+    *Une piste fermée garde son chiffre* — sinon elle se repropose comme neuve
+    dans trois semaines. **Et le seul cas qui reste à regarder est nommé.**
+    """
     assert outil.main(["--pas", "0"]) == 0
     sortie = capsys.readouterr().out
-    assert "PAR QUELLE FORME LE RETENU EST ENTRÉ" in sortie
-    assert "CE SIGNAL EXISTE POUR CHAQUE DOSSIER" in sortie
-    assert "CE N'EST PAS ENCORE UNE RÈGLE" in sortie
+    assert "PAR QUELLE FORME LE RETENU EST ENTRÉ — ⛔ PISTE RETIRÉE" in sortie
+    assert "LE GISEMENT NE SÉPARE PAS LES BONS DES FAUX" in sortie
+    assert "NOM_ETAB" in sortie
+    assert "UN CAS N'EST PAS UNE MESURE" in sortie
+    assert "UN RÉSULTAT NÉGATIF EST UN RÉSULTAT" in sortie
     from falkye.sources.req import GISEMENT_DENOMINATION_ELUE
 
     ligne = next(l for l in sortie.splitlines()
                  if l.strip().startswith(GISEMENT_DENOMINATION_ELUE))
     assert ligne.split()[-4] == "3", ligne
+
+
+# ---------------------------------------------------------------------------
+# ⚠️ LE COMPTE QUI MANQUAIT, ET LE PALIER DU SCORE
+# ---------------------------------------------------------------------------
+
+def test_les_EXCLUT_TOUS_sont_ventiles_par_NIVEAU_dans_la_synthese(decor, capsys):
+    """⚠️ **Le compte annoncé le 21 et écrit ailleurs.**
+
+    *Il avait été ajouté à `ecriture_du_statut` seulement, donc il manquait de la
+    sortie qu'Alexandre lisait.* **C'est le chiffre qui dit combien des
+    contradictions tombent sur une GRAPHIE de municipalité.**
+    """
+    assert outil.main(["--pas", "0"]) == 0
+    sortie = capsys.readouterr().out
+    from tests.conftest import compte_de_la_ligne
+
+    for niveau in outil.NIVEAUX_DEXCLUSION:
+        ligne = next((l for l in sortie.splitlines()
+                      if f"prononcé par « {niveau} »" in l), None)
+        assert ligne is not None, niveau
+    par_tri = next(l for l in sortie.splitlines()
+                   if "prononcé par « région de tri »" in l)
+    assert compte_de_la_ligne(par_tri) == "2", par_tri
+
+
+def test_les_niveaux_sont_EMPRUNTES_au_departageur():
+    """*Une liste de niveaux recopiée diverge du mécanisme sans que rien ne le
+    dise.*"""
+    from outils.departageur_adresse import NOMS_DES_NIVEAUX
+
+    assert outil.NIVEAUX_DEXCLUSION == NOMS_DES_NIVEAUX
+
+
+def test_le_score_au_sommet_est_VENTILE_sur_la_population(decor, capsys):
+    assert outil.main(["--pas", "0"]) == 0
+    sortie = capsys.readouterr().out
+    from tests.conftest import compte_de_la_ligne
+
+    assert "LE SCORE AU SOMMET — sur les 494, pas sur les paires lues" in sortie
+    assert "CE TABLEAU NE DIT PAS LESQUELS SONT JUSTES" in sortie
+    ligne = next(l for l in sortie.splitlines()
+                 if l.strip().startswith(outil.PALIER_CENT))
+    assert ligne.split()[-4] == "3", ligne
+
+
+def test_un_100_ATTEINT_PAR_LE_BONUS_DE_VILLE_est_compte_a_part(db_session,
+                                                                monkeypatch, capsys):
+    """⚠️ **Un 100 n'est pas toujours un nom exact.** *`_scorer` ajoute +5 quand
+    la ville concorde, plafonné à 100* — un 95 y arrive. **Le pré-bonus n'est
+    pas conservé : il se retrouve en rejouant l'appel de production SANS
+    ville.**"""
+    monkeypatch.setenv("FALKYE_DB_URL", "sqlite:////tmp/essai-produit.sqlite3")
+    monkeypatch.setenv("FALKYE_MIROIR_DB_URL", "sqlite:////tmp/essai-miroirs.sqlite3")
+    company = Company(neq=None, nom_detecte="Chocolaterie Omega inc",
+                      nom_detecte_normalise=normaliser("Chocolaterie Omega inc"),
+                      ville="Granby", code_postal=DOSSIER,
+                      statut_resolution=StatutResolution.AMBIGU,
+                      first_detected_at=_dt.datetime(2026, 1, 1))
+    db_session.add(company)
+    db_session.flush()
+    db_session.add(Signal(company_id=company.id, source_id="seao",
+                          signal_type_id="recrutement_massif",
+                          detected_at=_dt.datetime(2026, 1, 1), champs={}))
+    # ⚠️ Le nom du registre DIFFÈRE — donc moins de 100 — et la ville concorde.
+    db_session.add(REQEntry(neq="1300000001", nom="Chocolaterie Omega",
+                            nom_normalise=normaliser("Chocolaterie Omega"),
+                            statut="immatriculee", ville="Granby",
+                            code_postal=AILLEURS))
+    db_session.add(REQEntry(neq="1300000002", nom="Chocolaterie Omega",
+                            nom_normalise=normaliser("Chocolaterie Omega"),
+                            statut="radiee", ville="Granby", code_postal=AILLEURS))
+    db_session.commit()
+    monkeypatch.setattr("falkye.db.get_session", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+
+    assert outil.main(["--pas", "0"]) == 0
+    sortie = capsys.readouterr().out
+    from tests.conftest import compte_de_la_ligne
+
+    ligne = next(l for l in sortie.splitlines()
+                 if l.strip().startswith(outil.CENT_PAR_LE_BONUS))
+    assert compte_de_la_ligne(ligne) == "1", ligne

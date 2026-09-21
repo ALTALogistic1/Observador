@@ -123,6 +123,17 @@ CAUSES = (ETABLISSEMENT_DU_RETENU, COMPATIBLE_DANS_LE_LOT, COMPATIBLE_SOUS_LE_LO
 
 #: Les étiquettes qui partagent la colonne des causes. *La largeur se calcule sur
 #: leur union — cinquième et sixième occurrences du défaut déjà payées.*
+#: Les niveaux qui peuvent prononcer « les exclut tous », **dans l'ordre où ils
+#: se demandent**. ⚠️ *Empruntés au départageur, jamais recopiés* — et le dernier
+#: est une comparaison de GRAPHIES de municipalité.
+def _niveaux_dexclusion() -> tuple[str, ...]:
+    from outils.departageur_adresse import NOMS_DES_NIVEAUX
+
+    return NOMS_DES_NIVEAUX
+
+
+NIVEAUX_DEXCLUSION = _niveaux_dexclusion()
+
 ETIQUETTES = (
     "dossiers où l'adresse CONTREDIT",
     "   dont « désigne un AUTRE candidat »",
@@ -134,7 +145,20 @@ ETIQUETTES = (
     "un concurrent ne porte pas le fait — inconnu ≠ non",
     "plusieurs concurrents compatibles",
 )
-LARGEUR = max(len(t) for t in CAUSES + ETIQUETTES) + 1
+#: Les deux paliers du score au sommet. ⚠️ **Un palier n'est pas une règle** —
+#: il dit où les dossiers se rangent, jamais lesquels sont justes.
+PALIER_CENT = "score au sommet = 100"
+PALIER_SOUS_CENT = "score au sommet < 100"
+PALIERS = (PALIER_CENT, PALIER_SOUS_CENT)
+
+#: ⚠️ **Un 100 n'est pas toujours un nom exact.** *`_scorer` ajoute +5 à un
+#: candidat dont la ville concorde, plafonné à 100* — donc un 95 avec bonus
+#: atteint 100. **Le pré-bonus n'est pas conservé**; l'outil le retrouve en
+#: rejouant le MÊME appel de production sans ville, et compte les cas à part.
+CENT_PAR_LE_BONUS = "⚠️ dont 100 atteint par le BONUS DE VILLE (95 + 5)"
+
+LARGEUR = max(len(t) for t in CAUSES + ETIQUETTES
+              + PALIERS + (CENT_PAR_LE_BONUS,)) + 1
 
 
 #: ⚠️ **D'où vient le fait d'adresse que le VERDICT a utilisé.** *La première
@@ -371,7 +395,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--paires", type=int, default=0, metavar="N",
                         help="montrer N dossiers PAR CAUSE, en entier")
     parser.add_argument("--par-gisement", type=int, default=0, metavar="N",
-                        help="montrer N dossiers PAR FORME D'ENTRÉE du retenu")
+                        help="montrer N dossiers PAR FORME D'ENTRÉE (piste retirée)")
+    parser.add_argument("--par-score", type=int, default=0, metavar="N",
+                        help="montrer N dossiers de CHAQUE PALIER de score")
     parser.add_argument("--depuis", type=int, default=0, metavar="K")
     parser.add_argument("--profondeur", type=int, default=25, metavar="N",
                         help="plafond du lot rejoué (production : lu dans le code)")
@@ -464,6 +490,13 @@ def main(argv: list[str] | None = None) -> int:
         print(_ligne(ETIQUETTES[0], len(contredits), n))
         print(_ligne(ETIQUETTES[1], passe.par_adresse.get(ADRESSE_CONTRE, 0), n))
         print(_ligne(ETIQUETTES[2], passe.par_adresse.get(ADRESSE_EXCLUT_TOUS, 0), n))
+        # ⚠️ **LE COMPTE QUI MANQUAIT.** *Annoncé le 21 septembre et écrit dans
+        # `ecriture_du_statut` seulement — donc absent de la sortie qu'Alexandre
+        # lisait.* **C'est le chiffre qui dit combien des contradictions tombent
+        # sur une GRAPHIE de municipalité** plutôt que sur un code postal.
+        for niveau in NIVEAUX_DEXCLUSION:
+            print(_ligne("      prononcé par « " + niveau + " »",
+                         passe.par_niveau_dexclusion.get(niveau, 0), n))
         print(_ligne(ETIQUETTES[4], passe.par_adresse.get(ADRESSE_MUETTE, 0), n))
 
         # ⚠️ **Pourquoi elle est muette** — trois causes, trois suites. *« Elle ne
@@ -503,16 +536,25 @@ def main(argv: list[str] | None = None) -> int:
             par_gisement.setdefault(etiquette, []).append(paire)
 
         print("\n" + "-" * 78)
-        print("2. PAR QUELLE FORME LE RETENU EST ENTRÉ")
+        print("2. PAR QUELLE FORME LE RETENU EST ENTRÉ — ⛔ PISTE RETIRÉE")
         print("-" * 78)
         print("""
-   ⚠️ CE SIGNAL EXISTE POUR CHAQUE DOSSIER. L'adresse se tait trois fois
-      sur quatre; une forme gagnante, jamais — tout candidat scoré a
-      scoré sur quelque chose. C'est ce qui en fait un garde-fou
-      candidat, là où l'adresse n'en est pas un.
+   ⛔ RETIRÉE PAR ALEXANDRE LE 21 SEPTEMBRE, APRÈS LECTURE DES PAIRES.
 
-   ⚠️ CE N'EST PAS ENCORE UNE RÈGLE. Le tableau dit d'où les dossiers
-      entrent; il ne dit pas lesquels sont justes. Les paires se lisent.
+      Motif, dans ses mots : les retenus entrés par NOM_ASSUJ (antérieur),
+      NOM_ETRNG ou NOM_ASSUJ sont presque tous bons à la lecture, souvent
+      avec le même code postal que le dossier — #4987 Royal Epoxy,
+      #5212 Another Species, #3505 Ferme Floco, #2541 Groupe Galland,
+      #3497 Ferme Féodal. LE GISEMENT NE SÉPARE PAS LES BONS DES FAUX.
+
+   ⚠️ LA SEULE LIGNE QUI RESTE À REGARDER : NOM_ETAB. Un seul cas dans la
+      population (#3705 Ferme Martin Bouchard → Éditions Melançon), et
+      c'est un faux. UN CAS N'EST PAS UNE MESURE — la ligne est gardée
+      pour qu'on sache où la reprendre, pas pour qu'on en conclue.
+
+   ⚠️ LE TABLEAU RESTE, PARCE QU'UN RÉSULTAT NÉGATIF EST UN RÉSULTAT.
+      Une piste fermée garde son chiffre, sinon elle se repropose comme
+      neuve dans trois semaines.
 """)
         print(f"   {'':<{LARGEUR}} {'total':>9} {'score 100':>10} "
               f"{'adr. ✅':>8} {'adr. ⚠️':>8}")
@@ -535,6 +577,72 @@ def main(argv: list[str] | None = None) -> int:
                 _montrer_les_paires(
                     session, passe, lot, args.depuis, args.par_gisement,
                     f"ENTRÉS PAR « {etiquette} »", champs_tous, villes_tous)
+
+        # ---- LE SCORE AU SOMMET — la piste qu'Alexandre ouvre le 21 ------
+        # ⚠️ **Son observation, et sa réserve dans ses mots** : *« les retenus
+        # que je lis comme faux sont à 95, jamais à 100 … c'est une observation
+        # sur un échantillon qui surreprésente les contradictions, pas une
+        # mesure. »* **Ce tableau porte les 494, pas les 34 paires lues.**
+        par_palier: dict[str, list] = {p: [] for p in PALIERS}
+        for paire in a_poser:
+            par_palier[PALIER_CENT if paire["score_du_sommet"] >= 100.0
+                       else PALIER_SOUS_CENT].append(paire)
+
+        # ⚠️ **Un 100 n'est pas toujours un nom exact.** *Le bonus de ville vaut
+        # +5, plafonné à 100* — donc un 95 avec bonus y arrive. Le pré-bonus
+        # n'est pas conservé : on le retrouve en rejouant LE MÊME APPEL DE
+        # PRODUCTION sans ville, jamais en recalculant un score à côté.
+        cent_par_le_bonus = 0
+        for paire in par_palier[PALIER_CENT]:
+            company = passe.retenus[paire["company_id"]]
+            if not company.ville:
+                continue
+            sans_ville = req_source.resolve_neq_by_name(
+                session, company.nom_detecte, ville=None)
+            brut = next((m.score for m in sans_ville
+                         if m.entry.neq == paire["neq"]), None)
+            paire["score_sans_ville"] = round(brut, 1) if brut is not None else None
+            if brut is not None and brut < 100.0:
+                cent_par_le_bonus += 1
+                paire["cent_par_le_bonus"] = True
+
+        print("\n" + "-" * 78)
+        print("3. LE SCORE AU SOMMET — sur les 494, pas sur les paires lues")
+        print("-" * 78)
+        print("""
+   ⚠️ CE TABLEAU NE DIT PAS LESQUELS SONT JUSTES. Il dit comment les
+      dossiers se rangent par score, et ce que l'adresse en pense. Si une
+      condition d'écriture en sort, c'est une décision d'Alexandre.
+
+   ⚠️ ET UN 100 N'EST PAS TOUJOURS UN NOM EXACT : le bonus de ville vaut
+      +5, plafonné à 100. Les cas retrouvés en rejouant la résolution
+      SANS VILLE sont comptés à part.
+""")
+        print(f"   {'':<{LARGEUR}} {'total':>9} {'adr. ✅':>8} {'adr. ⚠️':>8} "
+              f"{'muette':>8}")
+        for palier in PALIERS:
+            lot = par_palier[palier]
+            oui = sum(1 for x in lot if x["adresse"] == ADRESSE_ACCORD)
+            non = sum(1 for x in lot if x["adresse"] in
+                      (ADRESSE_CONTRE, ADRESSE_EXCLUT_TOUS))
+            muet = sum(1 for x in lot if x["adresse"] == ADRESSE_MUETTE)
+            print(f"   {palier:<{LARGEUR}} {milliers(len(lot)):>9} "
+                  f"{milliers(oui):>8} {milliers(non):>8} {milliers(muet):>8}")
+            if palier == PALIER_CENT:
+                print(f"   {CENT_PAR_LE_BONUS:<{LARGEUR}} "
+                      f"{milliers(cent_par_le_bonus):>9} "
+                      f"{_part(cent_par_le_bonus, len(lot)):>8}")
+        print()
+
+        if args.par_score:
+            champs_p = champs_des_dossiers(
+                session, {x["company_id"] for x in a_poser})
+            villes_p = villes_des_signaux(
+                session, {x["company_id"] for x in a_poser})
+            for palier in PALIERS:
+                _montrer_les_paires(
+                    session, passe, par_palier[palier], args.depuis,
+                    args.par_score, palier, champs_p, villes_p)
 
         if not contredits:
             print("   Aucune contradiction à expliquer.")
@@ -562,7 +670,7 @@ def main(argv: list[str] | None = None) -> int:
             par_cause[cause] += 1
 
         print("\n" + "-" * 78)
-        print("3. CE QUI EXPLIQUE LA CONTRADICTION")
+        print("4. CE QUI EXPLIQUE LA CONTRADICTION")
         print("-" * 78 + "\n")
         print(f"   provenance des établissements : {provenance}")
         print(_ligne(ETIQUETTES[5], pourvus, len(neqs)))
