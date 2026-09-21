@@ -341,3 +341,43 @@ def test_l_instantane_precedent_VERIFIE_que_rien_n_est_revenu(decor, capsys, tmp
     assert "dossiers posés à cette passe" in bloc
     assert "n'ont PLUS de NEQ" in bloc
     assert str(revenu.id) in bloc
+
+
+# ---------------------------------------------------------------------------
+# ⚠️ D'OÙ L'EXCLUSION LIT LE STATUT — la question d'Alexandre du 21 septembre
+# ---------------------------------------------------------------------------
+
+def test_le_statut_qui_EXCLUT_vient_de_la_table_UPSERTEE(db_session):
+    """⚠️ **`req_noms` sert à TROUVER, jamais à JUGER.**
+
+    *La porte est GELÉE* — `req_noms` est écrite en `INSERT OR IGNORE` et rien
+    ne la vide, donc un nom entré une fois y reste pour toujours. **Le jugement,
+    lui, est FRAIS** : `_upsert_entreprise_reelle` réécrit `REQEntry.statut` à
+    chaque import.
+
+    Ce test met les deux en désaccord et vérifie laquelle décide : le nom gelé
+    ouvre le lot, le statut frais le ferme. ⚠️ *Si un jour le scoreur rendait
+    autre chose qu'une ligne de `req_entries`, la règle lirait un statut figé au
+    premier import sans que rien ne le dise.*
+    """
+    from falkye.models.req_nom import REQNom
+    from falkye.sources.req import resolve_neq_by_name
+    from outils.paires_du_statut import restants_apres
+
+    db_session.add(REQEntry(neq="1300000001", nom="Alpha Holdings",
+                            nom_normalise=normaliser("Alpha Holdings"),
+                            statut="radiee"))
+    db_session.add(REQNom(neq="1300000001", nom="Zibeline Boulangerie",
+                          nom_normalise=normaliser("Zibeline Boulangerie"),
+                          statut="V", type_nom="NOM", gisement="NOM_ASSUJ"))
+    db_session.commit()
+
+    matches = resolve_neq_by_name(db_session, "Zibeline Boulangerie")
+    assert [m.entry.neq for m in matches] == ["1300000001"], \
+        "le nom de `req_noms` a bien ouvert la porte"
+    assert isinstance(matches[0].entry, REQEntry), \
+        "⚠️ l'entité rendue est la ligne UPSERTÉE, jamais la ligne gelée"
+    assert matches[0].entry.statut == "radiee", \
+        "le statut lu est celui de l'entreprise, pas le « V » du NOM"
+    assert restants_apres(matches, outil.FORME_QUI_SECRIT) == [], \
+        "le statut frais ferme le lot que le nom gelé avait ouvert"
