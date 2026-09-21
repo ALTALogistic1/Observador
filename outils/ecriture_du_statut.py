@@ -88,6 +88,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from dataclasses import dataclass
 
 from outils import pose_du_neq
 from outils.departageurs import AUCUN_COMPATIBLE, DEPARTAGE
@@ -199,23 +200,158 @@ def ce_qui_bloque(matches, concurrents, portees=PORTEES):
     return None, seul, portee
 
 
-def ce_que_ladresse_dit(concurrents, du_dossier, neq_retenu) -> str:
-    """Le verdict de l'adresse sur le candidat retenu — ⚠️ **rendu, jamais
-    appliqué.**
+def departage_de_ladresse(concurrents, du_dossier):
+    """Le `Departage` de l'adresse sur le lot — **par le mécanisme du produit.**
 
-    *L'appel passe par `departager_ladresse`, le mécanisme du produit* — un
-    départageur recopié à la main est déjà arrivé une fois.
+    *Séparé du verdict parce que l'ISSUE porte une information que le verdict
+    jette* : « l'adresse ne dit rien » a trois causes, et elles n'appellent pas
+    la même suite. ⚠️ *Un départageur recopié à la main est déjà arrivé une
+    fois.*
     """
     from outils.departageur_adresse import departager_ladresse, faits_du_candidat
 
-    departage = departager_ladresse(
+    return departager_ladresse(
         du_dossier, [faits_du_candidat(m.entry) for m in concurrents])
+
+
+def verdict_de_ladresse(departage, concurrents, neq_retenu) -> str:
+    """Le verdict, depuis un départage déjà calculé — ⚠️ **rendu, jamais
+    appliqué.**"""
     if departage.issue == AUCUN_COMPATIBLE:
         return ADRESSE_EXCLUT_TOUS
     if departage.issue != DEPARTAGE or departage.gagnant is None:
         return ADRESSE_MUETTE
     gagnant = concurrents[departage.gagnant]
     return ADRESSE_ACCORD if gagnant.entry.neq == neq_retenu else ADRESSE_CONTRE
+
+
+def ce_que_ladresse_dit(concurrents, du_dossier, neq_retenu) -> str:
+    """Les deux temps composés — *la forme qu'emprunte le rapport.*"""
+    return verdict_de_ladresse(
+        departage_de_ladresse(concurrents, du_dossier), concurrents, neq_retenu)
+
+
+@dataclass
+class Parcours:
+    """Ce qu'UNE passe rend — ⚠️ **nommé pour être emprunté, jamais recopié.**
+
+    *Deux outils qui referaient la passe chacun de leur côté mesureraient deux
+    populations, et rien ne dirait laquelle est celle qu'on écrit.*
+    """
+
+    n_amb: int
+    a_poser: list
+    pris: list
+    suspendus: list
+    collisions: dict
+    refuses_en_bloc: dict
+    par_raison: Counter
+    sous_le_sommet_par_portee: Counter
+    par_adresse: Counter
+    #: `company_id -> Company`, pour les seuls dossiers retenus. *L'outil qui
+    #: emprunte la passe a besoin du dossier, pas seulement de sa ligne.*
+    retenus: dict
+
+
+def parcourir(session, restants, portees=PORTEES, pas: int = 500) -> Parcours:
+    """La passe entière : résolution, conditions, collisions, colonne d'adresse.
+
+    ⚠️ **C'est ICI que la population « à poser » se définit**, et nulle part
+    ailleurs. *Un outil qui veut lire les contradictions de l'adresse doit lire
+    CELLE-CI* — une seconde passe écrite à côté rendrait un autre lot, et les
+    deux sorties se liraient comme un désaccord entre la mesure et l'écriture.
+    """
+    from sqlalchemy import select
+
+    from falkye.models.company import Company
+    from falkye.resolution import famille_de
+    from outils.departageur_adresse import concurrents_de, faits_des_dossiers
+    from outils.reresolution_neq import _resoudre_une
+
+    print(f"… rejeu de la résolution sur {milliers(len(restants))} restants, "
+          f"par le chemin de production", flush=True)
+    a_poser: list[dict] = []
+    pris: list[dict] = []
+    suspendus: list[dict] = []
+    par_raison: Counter = Counter()
+    sous_le_sommet_par_portee: Counter = Counter()
+    par_adresse: Counter = Counter()
+    retenus: dict = {}
+    n_amb = 0
+    for i, company in enumerate(restants, 1):
+        if pas and i % pas == 0:
+            print(f"   … {milliers(i)} / {milliers(len(restants))}", flush=True)
+        _neq, matches = _resoudre_une(session, company)
+        if famille_de(matches) != "ambigu":
+            continue
+        n_amb += 1
+        concurrents = concurrents_de(matches)
+        raison, seul, portee = ce_qui_bloque(matches, concurrents, portees)
+        ligne = {
+            "company_id": company.id,
+            "nom_detecte": company.nom_detecte,
+            "_concurrents": concurrents,
+            "_matches": matches,
+            "_raison": raison,
+            "portee": portee,
+            "score_du_sommet": round(matches[0].score, 1),
+        }
+        if raison is not None:
+            par_raison[raison] += 1
+            if raison == SOUS_LE_SOMMET:
+                sous_le_sommet_par_portee[portee] += 1
+            ligne["score_restant"] = round(seul.score, 1) if seul else None
+            suspendus.append(ligne)
+            continue
+        retenus[company.id] = company
+        detenteur = session.execute(
+            select(Company).where(Company.neq == seul.entry.neq)
+        ).scalar_one_or_none()
+        ligne.update({
+            "neq": seul.entry.neq,
+            "nom_registre": seul.entry.nom,
+            "statut_registre": seul.entry.statut,
+            "score": round(seul.score, 1),
+            "forme": FORME_QUI_SECRIT,
+            "neq_avant": None,
+            "statut_avant": getattr(company.statut_resolution, "value", None),
+            "champs_avant": pose_du_neq.champs_enrichis(company),
+            "_anciennete": (company.first_detected_at.isoformat()
+                            if company.first_detected_at else None),
+        })
+        if detenteur is not None:
+            ligne["detenteur_id"] = detenteur.id
+            ligne["detenteur_nom"] = detenteur.nom_detecte
+            ligne["motif"] = "NEQ déjà porté par un autre dossier"
+            pris.append(ligne)
+        else:
+            a_poser.append(ligne)
+
+    a_poser, collisions, refuses_en_bloc = pose_du_neq.resoudre_les_collisions(
+        a_poser, pris)
+
+    # ---- L'ADRESSE, EN COLONNE — une seule lecture des signaux -------------
+    # ⚠️ **Jamais une condition.** *Elle est rendue pour être lue avant
+    # d'appliquer, parce qu'elle est le seul instrument qui compare le survivant
+    # au DOSSIER.*
+    if a_poser:
+        faits = faits_des_dossiers(
+            session, [retenus[x["company_id"]] for x in a_poser])
+        for paire in a_poser:
+            paire["_faits_du_dossier"] = faits[paire["company_id"]]
+            paire["_departage"] = departage_de_ladresse(
+                paire["_concurrents"], faits[paire["company_id"]])
+            paire["adresse"] = verdict_de_ladresse(
+                paire["_departage"], paire["_concurrents"], paire["neq"])
+            par_adresse[paire["adresse"]] += 1
+
+    return Parcours(
+        n_amb=n_amb, a_poser=a_poser, pris=pris, suspendus=suspendus,
+        collisions=collisions, refuses_en_bloc=refuses_en_bloc,
+        par_raison=par_raison,
+        sous_le_sommet_par_portee=sous_le_sommet_par_portee,
+        par_adresse=par_adresse, retenus=retenus,
+    )
 
 
 def _part(k: int, n: int) -> str:
@@ -227,7 +363,36 @@ def _ligne_comptee(etiquette: str, k: int, n: int = 0) -> str:
     return f"   {etiquette:<{LARGEUR_DUNE_RAISON}} {milliers(k):>9}{part}"
 
 
-def _montrer(lot: list[dict], depuis: int, combien: int, titre: str) -> None:
+#: ⚠️ **Le nom élu n'est pas toujours celui qui a scoré.** *`_scorer` prend le
+#: MEILLEUR des noms d'un NEQ, `req_noms` compris; afficher la dénomination élue
+#: fait lire la décision sur une chaîne qui n'a pas décidé* — cas 33.
+#:
+#: *Relevé le 2026-09-21 sur `Les Ruchers du Roi Bourdon` : le nom affiché rend
+#: **61,5** contre le nom détecté, et la ligne annonçait **95,0**.* **La forme
+#: gagnante se lit par `formes_retenues`, qui existe déjà pour ça.**
+def formes_du_lot(session, lignes) -> dict:
+    """`(neq, forme) -> FormeRetenue` pour tout ce qui sera affiché, **en une
+    requête.** *Une lecture par paire ferait N requêtes pour cinquante lignes.*"""
+    from falkye.sources.req import formes_retenues
+
+    return formes_retenues(
+        session, [m for ligne in lignes for m in ligne.get("_concurrents", [])])
+
+
+def _rendre_candidat(m, marque: str, formes: dict, retrait: str = "      ") -> None:
+    """Une ligne de candidat, **et la forme qui a décidé quand ce n'est pas le
+    nom élu.**"""
+    print(f"{retrait}{marque} {m.entry.neq}  {m.score:>6.1f}  "
+          f"{(m.entry.nom or '—')[:34]:<36} [{m.entry.statut}]  "
+          f"{(m.entry.ville or '—')[:16]}")
+    forme = formes.get((m.entry.neq, m.forme_normalisee))
+    if forme is not None and not forme.est_la_denomination_elue:
+        print(f"{retrait}   ↳ a scoré sur « {(forme.nom_publie or forme.nom_normalise)[:44]} »"
+              f"   ({forme.gisement})   [nom : {forme.statut or '—'}]")
+
+
+def _montrer(lot: list[dict], depuis: int, combien: int, titre: str,
+             formes: dict) -> None:
     """Des paires ENTIÈRES — **de ce qui serait ÉCRIT**, jamais de ce qui est
     départageable. ⚠️ *Ce n'est pas la même population, et c'est la lecture qui
     décide.*"""
@@ -242,10 +407,7 @@ def _montrer(lot: list[dict], depuis: int, combien: int, titre: str) -> None:
         print(f"      → {paire['neq']}  {paire['score']:>6.1f}  "
               f"{(paire['nom_registre'] or '')[:40]}   [{paire['statut_registre']}]")
         for m in paire["_concurrents"]:
-            marque = "→" if m.entry.neq == paire["neq"] else "×"
-            print(f"      {marque} {m.entry.neq}  {m.score:>6.1f}  "
-                  f"{(m.entry.nom or '')[:34]:<36} [{m.entry.statut}]  "
-                  f"{(m.entry.ville or '—')[:16]}")
+            _rendre_candidat(m, "→" if m.entry.neq == paire["neq"] else "×", formes)
         if paire.get("adresse"):
             print(f"      ✳️ {paire['adresse']}")
         if paire.get("motif"):
@@ -253,7 +415,8 @@ def _montrer(lot: list[dict], depuis: int, combien: int, titre: str) -> None:
                   f"  (dossier #{paire.get('detenteur_id')})")
 
 
-def _montrer_le_temoin(suspendus: list[dict], a_poser: list[dict], nom: str) -> None:
+def _montrer_le_temoin(suspendus: list[dict], a_poser: list[dict], nom: str,
+                       formes: dict) -> None:
     """⚠️ **Le cas nommé par Alexandre, CHERCHÉ et affiché tel qu'il ressort.**
 
     *Ni affirmé exclu, ni supposé présent* : la sortie dit ce que l'outil en
@@ -278,8 +441,7 @@ def _montrer_le_temoin(suspendus: list[dict], a_poser: list[dict], nom: str) -> 
     for ligne, raison in trouves:
         print(f"\n   #{ligne['company_id']}   {(ligne['nom_detecte'] or '')[:54]}")
         for m in ligne["_concurrents"]:
-            print(f"        {m.score:>6.1f}  {m.entry.neq}  "
-                  f"{(m.entry.nom or '')[:34]:<36} [{m.entry.statut}]")
+            _rendre_candidat(m, " ", formes)
         if raison is None:
             print("      ✅ IL SERAIT ÉCRIT — la condition ne l'exclut PAS.")
             print("         ⚠️ À lire avant d'appliquer : Alexandre l'a nommé"
@@ -429,104 +591,33 @@ LA DÉCISION D'ALEXANDRE, DU 21 SEPTEMBRE
             print("   RIEN N'A ÉTÉ ÉCRIT.")
             return 0
 
-        print(f"… rejeu de la résolution sur {milliers(len(restants))} restants, "
-              f"par le chemin de production", flush=True)
-        a_poser: list[dict] = []
-        pris: list[dict] = []
-        suspendus: list[dict] = []
-        par_raison: Counter = Counter()
-        sous_le_sommet_par_portee: Counter = Counter()
-        n_amb = 0
-        retenus: dict[int, Company] = {}
-        for i, company in enumerate(restants, 1):
-            if args.pas and i % args.pas == 0:
-                print(f"   … {milliers(i)} / {milliers(len(restants))}", flush=True)
-            _neq, matches = _resoudre_une(session, company)
-            if famille_de(matches) != "ambigu":
-                continue
-            n_amb += 1
-            concurrents = concurrents_de(matches)
-            raison, seul, portee = ce_qui_bloque(matches, concurrents, portees)
-            ligne = {
-                "company_id": company.id,
-                "nom_detecte": company.nom_detecte,
-                "_concurrents": concurrents,
-                "_raison": raison,
-                "portee": portee,
-                "score_du_sommet": round(matches[0].score, 1),
-            }
-            if raison is not None:
-                par_raison[raison] += 1
-                if raison == SOUS_LE_SOMMET:
-                    sous_le_sommet_par_portee[portee] += 1
-                ligne["score_restant"] = round(seul.score, 1) if seul else None
-                suspendus.append(ligne)
-                continue
-            retenus[company.id] = company
-            detenteur = session.execute(
-                select(Company).where(Company.neq == seul.entry.neq)
-            ).scalar_one_or_none()
-            ligne.update({
-                "neq": seul.entry.neq,
-                "nom_registre": seul.entry.nom,
-                "statut_registre": seul.entry.statut,
-                "score": round(seul.score, 1),
-                "forme": FORME_QUI_SECRIT,
-                "neq_avant": None,
-                "statut_avant": getattr(company.statut_resolution, "value", None),
-                "champs_avant": pose_du_neq.champs_enrichis(company),
-                "_anciennete": (company.first_detected_at.isoformat()
-                                if company.first_detected_at else None),
-            })
-            if detenteur is not None:
-                ligne["detenteur_id"] = detenteur.id
-                ligne["detenteur_nom"] = detenteur.nom_detecte
-                ligne["motif"] = "NEQ déjà porté par un autre dossier"
-                pris.append(ligne)
-            else:
-                a_poser.append(ligne)
-
-        a_poser, collisions, refuses_en_bloc = pose_du_neq.resoudre_les_collisions(
-            a_poser, pris)
-
-        # ---- L'ADRESSE, EN COLONNE — une seule lecture des signaux ---------
-        # ⚠️ **Jamais une condition.** *Elle est rendue pour être lue avant
-        # d'appliquer, parce qu'elle est le seul instrument qui compare le
-        # survivant au DOSSIER.*
-        par_adresse: Counter = Counter()
-        if a_poser:
-            faits = faits_des_dossiers(
-                session, [retenus[x["company_id"]] for x in a_poser])
-            for paire in a_poser:
-                verdict = ce_que_ladresse_dit(
-                    paire["_concurrents"], faits[paire["company_id"]], paire["neq"])
-                paire["adresse"] = verdict
-                par_adresse[verdict] += 1
-
+        passe = parcourir(session, restants, portees, pas=args.pas)
+        a_poser, pris, suspendus = passe.a_poser, passe.pris, passe.suspendus
         # ---- CE QUI SE POSE, ET CE QU'ON NE TOUCHE PAS --------------------
         print("\n" + "-" * 78)
         print("1. CE QUI SE POSE, ET CE QU'ON NE TOUCHE PAS")
         print("-" * 78)
-        print(f"\n   ambigus rejoués : {milliers(n_amb)}\n")
-        print(_ligne_comptee(ETIQUETTES_DU_RAPPORT[0], len(a_poser), n_amb))
+        print(f"\n   ambigus rejoués : {milliers(passe.n_amb)}\n")
+        print(_ligne_comptee(ETIQUETTES_DU_RAPPORT[0], len(a_poser), passe.n_amb))
         for portee in PORTEES:
             k = sum(1 for x in a_poser if x["portee"] == portee)
             etiquette = (ETIQUETTES_DU_RAPPORT[3] if portee == EGALITE
                          else ETIQUETTES_DU_RAPPORT[4])
-            print(_ligne_comptee("   " + etiquette, k, n_amb))
-        print(_ligne_comptee(ETIQUETTES_DU_RAPPORT[1], len(pris), n_amb))
-        if refuses_en_bloc:
-            print(_ligne_comptee(ETIQUETTES_DU_RAPPORT[2], len(refuses_en_bloc)))
+            print(_ligne_comptee("   " + etiquette, k, passe.n_amb))
+        print(_ligne_comptee(ETIQUETTES_DU_RAPPORT[1], len(pris), passe.n_amb))
+        if passe.refuses_en_bloc:
+            print(_ligne_comptee(
+                ETIQUETTES_DU_RAPPORT[2], len(passe.refuses_en_bloc)))
         print()
         for raison in RAISONS:
-            print(_ligne_comptee(raison, par_raison.get(raison, 0), n_amb))
+            print(_ligne_comptee(raison, passe.par_raison.get(raison, 0), passe.n_amb))
             if raison == SOUS_LE_SOMMET:
                 for portee in PORTEES:
                     etiquette = (ETIQUETTES_DU_RAPPORT[5] if portee == EGALITE
                                  else ETIQUETTES_DU_RAPPORT[6])
                     print(_ligne_comptee(
                         "   " + etiquette,
-                        sous_le_sommet_par_portee.get(portee, 0), n_amb))
+                        passe.sous_le_sommet_par_portee.get(portee, 0), passe.n_amb))
         print(f"""
    ⛔ LAISSÉS EN SUSPENS, ET NON REFUSÉS : {milliers(len(suspendus))}   (aucun n'a été touché)
 
@@ -538,8 +629,8 @@ LA DÉCISION D'ALEXANDRE, DU 21 SEPTEMBRE
    ⚠️ UN OUTIL QUI ÉCRIT UNE PARTIE DOIT DIRE LESQUELS IL N'A PAS TOUCHÉS,
       sinon la différence se lit comme une perte.
 """)
-        if collisions:
-            print(f"   ⚠️ {milliers(len(collisions))} collision(s) de NEQ entre dossiers"
+        if passe.collisions:
+            print(f"   ⚠️ {milliers(len(passe.collisions))} collision(s) de NEQ entre dossiers"
                   " — le plus ancien garde, les autres sont conservés.\n")
 
         # ---- CE QUE L'ADRESSE EN DIT --------------------------------------
@@ -551,29 +642,32 @@ LA DÉCISION D'ALEXANDRE, DU 21 SEPTEMBRE
    Elle n'écarte rien ici : elle est comptée pour être lue avant d'appliquer.
 """)
         for verdict in VERDICTS_DADRESSE:
-            print(_ligne_comptee(verdict, par_adresse.get(verdict, 0), len(a_poser)))
+            print(_ligne_comptee(
+                verdict, passe.par_adresse.get(verdict, 0), len(a_poser)))
         print()
 
-        _montrer_le_temoin(suspendus, a_poser, args.temoin)
+        _montrer_le_temoin(suspendus, a_poser, args.temoin,
+                           formes_du_lot(session, suspendus + a_poser))
 
         if args.comparer:
+            formes = formes_du_lot(session, a_poser)
             for portee in PORTEES:
                 _montrer([x for x in a_poser if x["portee"] == portee],
                          args.depuis, args.comparer,
-                         f"CE QUI SERAIT ÉCRIT — {portee}")
+                         f"CE QUI SERAIT ÉCRIT — {portee}", formes)
         if args.suspendus:
             tranche = suspendus[args.depuis: args.depuis + args.suspendus]
             print("\n" + "=" * 78)
             print(f"LES DOSSIERS EN SUSPENS — {args.depuis + 1} à "
                   f"{args.depuis + len(tranche)} sur {milliers(len(suspendus))}")
             print("=" * 78)
+            formes = formes_du_lot(session, tranche)
             for ligne in tranche:
                 print(f"\n   #{ligne['company_id']}   "
                       f"{(ligne['nom_detecte'] or '')[:54]}")
                 print(f"      ⛔ {ligne['_raison']}")
                 for m in ligne["_concurrents"]:
-                    print(f"        {m.score:>6.1f}  {m.entry.neq}  "
-                          f"{(m.entry.nom or '')[:34]:<36} [{m.entry.statut}]")
+                    _rendre_candidat(m, " ", formes)
 
         if not args.appliquer:
             print("=" * 78)

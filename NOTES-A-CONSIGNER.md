@@ -5445,3 +5445,185 @@ plus diverger, parce qu'elles n'ont plus qu'une source.**
 
 > **Corriger la cinquième occurrence d'un défaut sans supprimer la sixième n'est
 > pas une correction, c'est un report.**
+
+---
+
+## N218 — Le nom AFFICHÉ n'est pas celui qui a SCORÉ
+
+*2026-09-21, `Les Ruchers du Roi Bourdon` (#4092) — relevé en vérifiant une
+lecture d'Alexandre.*
+
+La sortie montrait : `95,0  Elevage des reines Le Roi Bourdon [radiee]`. **Mesuré
+au scoreur du produit, ce nom rend 61,5 contre le nom détecté.** *Le 95,0 a donc
+été remporté par un AUTRE nom du même NEQ, venu de `req_noms`* — `_scorer` prend
+le meilleur des noms d'un NEQ, et l'outil affichait la dénomination élue.
+
+**La conséquence n'est pas cosmétique.** Alexandre en a tiré *« une radiée au nom
+différent a 95 »* et un diagnostic de scoreur. **Si le nom gagnant est le même que
+celui du bon candidat, le dossier n'est pas un défaut de palier : c'est une
+succession** — et les deux appellent des suites opposées.
+
+**Ce qui a été fait :** `formes_retenues` — qui existe depuis le 17 septembre
+exactement pour ça, et que deux outils emploient déjà — est branchée dans
+`ecriture_du_statut`. Chaque candidat dont la forme gagnante n'est pas la
+dénomination élue porte maintenant `↳ a scoré sur « … » (gisement)`.
+
+> **Cas 33, commis par l'outil qui le cite dans son entête. Un mécanisme partagé
+> n'est une protection que là où il est APPELÉ; ailleurs, sa seule existence
+> endort.**
+
+---
+
+## N219 — La PORTE est gelée, le JUGEMENT est frais
+
+*2026-09-21, réponse à « d'où l'exclusion lit-elle le statut? ».*
+
+Les deux tables du miroir n'ont pas le même régime, et la règle du statut en
+dépend des deux :
+
+| table | écriture à l'import | ce qu'elle apporte à la règle |
+|---|---|---|
+| `req_noms` | **`INSERT OR IGNORE`**, rien ne la vide | **le NOM qui récupère le candidat** — gelé au premier import |
+| `req_entries` | **upsert vrai** (`_upsert_entreprise_reelle`) | **le STATUT qui l'écarte** — réécrit à chaque import |
+
+**Donc : un nom entré une fois ouvre le lot pour toujours, et le statut qui le
+ferme est celui du dernier import.** *C'est précisément ce qui fait marcher la
+règle aujourd'hui* — une radiée garde ses vieux noms, ils la font entrer dans le
+lot, et son statut frais l'en chasse.
+
+⚠️ **Et c'est ce qui la rendra mouvante le jour où elle tournera seule.** Un NEQ
+immatriculé qui devient radié entre deux archives **transforme un `PLUSIEURS
+candidats` en écriture**, sans que personne n'ait rien décidé. *La règle convertit
+alors « radiation observée » en « NEQ posé », en silence.*
+
+**Un test met les deux en désaccord** et vérifie laquelle décide.
+
+> **Deux tables alimentées par le même import et régies par deux règles
+> d'écriture différentes ne vieillissent pas ensemble. Toute règle qui lit les
+> deux hérite du plus vieux des deux âges sans qu'aucune ligne ne le dise.**
+
+---
+
+## N220 — Un lot qui ne peut que GRANDIR
+
+*2026-09-21, suite de N219.*
+
+`req_noms` n'est jamais vidée et ses lignes ne sont jamais réécrites. **À chaque
+archive, elle ne peut qu'accumuler.** Or `_scorer` donne à un NEQ **le meilleur de
+ses noms** : plus un NEQ a de noms, plus son score peut monter, **jamais
+descendre**.
+
+**Conséquence, prévisible avant de la mesurer :** d'un import à l'autre, le nombre
+de candidats qui atteignent le sommet **croît**. Pour la règle du statut, cela
+veut dire **plus de `l'exclusion laisse PLUSIEURS candidats`** — donc **moins
+d'écritures**, import après import.
+
+*La dérive va dans le sens sûr* : elle tarit le rendement, elle ne fabrique pas de
+faux. **Mais elle se mesure au prochain zip, et elle doit être attendue** — sinon
+une baisse de rendement se lira comme une panne.
+
+> **Une table qui n'oublie rien n'est pas neutre. Elle déplace lentement le point
+> de fonctionnement de tout ce qui la lit, et la seule façon de s'en apercevoir
+> est de l'avoir prédit.**
+
+---
+
+## N221 — « L'adresse contredit 81 fois » est DEUX faits, pas un
+
+*2026-09-21, lecture des chiffres de la passe élargie.*
+
+Les 81 se découpent en **8** *« l'adresse désigne un AUTRE candidat »* et **73**
+*« l'adresse les exclut TOUS »*. **Ce ne sont pas deux intensités du même fait :**
+
+- *« désigne un autre »* juge **le retenu**, nommément;
+- *« les exclut tous »* ne dit **rien** du retenu en particulier — il dément **le
+  lot entier**, et c'est la trace la plus directe de « le bon candidat est peut-être
+  absent ».
+
+⚠️ **Et pour ces 73, la VILLE n'a jamais été consultée** : *« le fait les exclut
+tous » ferme le repli par conception.* Seuls les codes postaux ont parlé.
+
+> **Additionner deux verdicts parce qu'ils portent le même pictogramme surdit ce
+> qu'on sait. Un compte qui mélange « il a tort » et « je ne le trouve nulle part »
+> ne peut plus servir à décider.**
+
+---
+
+## N222 — Un fait peut vivre AILLEURS que dans la table qui porte son nom
+
+*2026-09-21, les adresses d'établissement.*
+
+La question « l'adresse du dossier est-elle celle d'un établissement du retenu? »
+paraissait sans réponse : `req_etablissements` est **GELÉE depuis le 2026-09-04**,
+« plus aucune ligne n'est ajoutée ni mise à jour ».
+
+**Elle a pourtant une réponse.** Le rebranchement sur le moteur de diff a déplacé
+le fait, pas supprimé : `etat_ligne_source`, partition `req_etablissements`, porte
+`adresse`, `ville` et `code_postal` **à jour** dans `donnees_normalisees`.
+
+**Ce qui a été fait :** l'outil lit l'état du moteur d'abord, le miroir gelé
+seulement s'il est vide, **et RENVOIE la provenance** — affichée en toutes lettres,
+avec la date du gel quand c'est le miroir qui a répondu.
+
+> **« La donnée n'existe pas » est presque toujours « je n'ai pas cherché là où
+> elle a déménagé ». Et quand deux millésimes peuvent répondre, celui qui a
+> répondu se NOMME dans la sortie.**
+
+---
+
+## N223 — Une case que le produit ne sait pas remplir se nomme comme telle
+
+*2026-09-21, les quatre cases demandées pour les 81 contradictions.*
+
+Trois des quatre se décident mécaniquement : *établissement du retenu*, *candidat
+compatible dans le lot*, *candidat compatible sous la coupe*. **La quatrième — « le
+candidat retenu est vraiment le mauvais » — n'en est pas une :** *un code postal
+partagé n'est pas une identité*, et deux entreprises distinctes habitent la même
+région de tri.
+
+**Ce qui a été fait :** l'outil rend une **CAUSE**, pas un verdict, et l'écrit dans
+sa sortie — *« les causes ② ③ ④ désignent un SUSPECT, jamais une vérité »*. La
+paire est rendue entière pour qu'elle se lise.
+
+> **Rendre quatre cases dont une est indécidable fabrique un chiffre faux et le
+> rend crédible par la symétrie du tableau. Nommer l'indécidable coûte une ligne et
+> sauve la mesure.**
+
+---
+
+## N224 — Un garde-fou muet trois fois sur quatre n'est pas un garde-fou
+
+*2026-09-21, l'adresse comme condition permanente.*
+
+Sur les 494 dossiers que la règle poserait, **l'adresse ne juge que 125 fois
+(25,3 %)**. En faire une condition bloquerait 81 écritures **et en laisserait
+passer 369 sans rien en dire.**
+
+⚠️ **Et la raison dominante de son silence n'est pas « le dossier n'a pas
+d'adresse » :** c'est *« un concurrent ne porte pas le fait — inconnu ≠ non »*, la
+garde qui refuse d'écarter un candidat pour cause de registre incomplet. **Le
+silence de l'adresse mesure donc le remplissage du REGISTRE, pas la qualité des
+dossiers** — et il ne s'améliorera pas tout seul.
+
+> **Un filtre partiel présenté comme une garantie est pire que pas de filtre : il
+> déplace la confiance vers les cas qu'il n'a jamais regardés.**
+
+---
+
+## N225 — Une passe qui DÉFINIT une population se nomme et s'emprunte
+
+*2026-09-21, `parcourir` extrait de `ecriture_du_statut`.*
+
+La mesure des contradictions devait porter **exactement** sur les 494 dossiers que
+l'écriture poserait. *Refaire la passe à côté aurait rendu un autre lot* — et les
+deux sorties se seraient lues comme un désaccord entre la mesure et l'écriture,
+alors qu'elles auraient simplement compté deux choses.
+
+**Ce qui a été fait :** la passe entière — résolution, conditions, collisions,
+colonne d'adresse — est extraite en `parcourir(...) -> Parcours`, et les deux
+outils l'appellent. *Même règle que `neq_retenu`, `famille_de`, `villes_des_signaux`
+et `departager_ladresse`* : **ce qui décide se nomme une fois.**
+
+> **La règle ne s'applique pas qu'aux fonctions de décision. Une PASSE définit une
+> population, et une population recopiée diverge aussi sûrement qu'un seuil
+> recopié.**
