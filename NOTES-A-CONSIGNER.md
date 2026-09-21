@@ -5748,3 +5748,150 @@ règle sur les numéros.
 > **Une mesure de similarité de chaînes n'a aucun moyen de savoir qu'un segment
 > est un IDENTIFIANT. Là où un caractère porte l'identité entière, la distance
 > d'édition ne mesure plus rien.**
+
+---
+
+## N231 — Un compte annoncé dans une sortie et écrit dans une AUTRE n'existe pas
+
+- **Notée le** : 2026-09-21
+
+*Relevé par Alexandre sur la sortie de `valeur_des_contradictions`.*
+
+J'avais annoncé : *« la sortie ventile désormais les "exclut tous" entre code
+postal et ville »*. **C'était vrai — de `ecriture_du_statut`.** *L'outil
+qu'Alexandre venait de lancer, lui, ne portait rien.* **Il a lu 34 paires en
+cherchant un chiffre que j'avais mis ailleurs.**
+
+⚠️ **Le mécanisme de l'erreur n'est pas l'oubli, c'est le PLURIEL.** *Deux outils
+partagent la même passe (`parcourir`) depuis la veille* — j'ai dit « la sortie »
+en pensant « la passe ». **Une passe partagée ne partage pas ses rapports**, et
+rien dans le code ne le rappelle.
+
+> **Quand deux outils empruntent le même calcul, dire « la sortie » cesse d'avoir
+> un référent. Ce qui est ajouté se nomme avec l'OUTIL qui l'imprime, jamais avec
+> le calcul qui le produit.**
+
+---
+
+## N232 — Une garde retirée d'un endroit et jamais posée dans l'autre ne laisse AUCUNE trace
+
+- **Notée le** : 2026-09-21
+
+*Trouvé en réconciliant le chiffre de 3 129 272 noms périmés avec le code
+d'aujourd'hui.*
+
+**Avant le 17 septembre**, `_charger_tous_les_noms` refusait les noms qui ne sont
+plus en vigueur, et documentait ce refus comme **une décision** : *« une
+résolution vers une entreprise qui a changé de nom il y a dix ans est une fausse
+résolution, pas un rappel de plus. »*
+
+**Le commit `a362d35` l'a retirée, et l'a dit** : *« la règle qui dit quoi faire
+d'un nom retiré se pose dans le moteur, pas dans le chargeur… `statuts_retenus`
+reste disponible et vaut `None` par défaut. »*
+
+⚠️ **La règle n'est jamais arrivée dans le moteur.** *`candidats_par_nom`,
+`_scorer` et `resolve_neq_by_name` ne lisent nulle part `REQNom.statut`.* **Entre
+les deux, 5 323 NEQ ont été posés** avec les noms périmés comme portes à pleine
+force — et la conception du 17 avait nommé le faux d'avance : *« un nom plus en
+vigueur peut appartenir à une AUTRE entreprise aujourd'hui. »*
+
+**Ce qui rend ce défaut invisible :** chaque moitié est irréprochable. *Le
+chargeur a bien annoncé le déplacement; le moteur n'a jamais promis de
+l'accueillir.* **Aucun test ne tombe, aucune ligne ne ment, et la garde a
+disparu.**
+
+> **Déplacer une garde est deux gestes, et le second n'a pas de date. Tant qu'il
+> n'est pas fait, le premier est une suppression — et il se lit comme un
+> déplacement dans le message de commit qui l'accompagne.**
+
+---
+
+## N233 — Une piste fermée garde son chiffre, sinon elle se repropose comme neuve
+
+- **Notée le** : 2026-09-21
+
+*Alexandre retire la piste du gisement de la forme gagnante, après lecture des
+paires : les retenus entrés par `NOM_ASSUJ (antérieur)`, `NOM_ETRNG` ou
+`NOM_ASSUJ` sont presque tous bons.* **Le gisement ne sépare pas les bons des
+faux.**
+
+**Ce qui a été fait :** le tableau RESTE dans la sortie, sous un titre qui dit
+`⛔ PISTE RETIRÉE`, avec le motif dans les mots d'Alexandre et les cinq dossiers
+qu'il a lus. ⚠️ **Et la seule ligne qui survit est nommée** : `NOM_ETAB`, un seul
+cas, qui est un faux — *« un cas n'est pas une mesure »*, écrit dans la sortie
+même.
+
+> **Un résultat négatif est un résultat. Effacer la piste avec son chiffre la
+> rend reproposable dans trois semaines, par quelqu'un qui aura le même bon
+> réflexe et refera le même travail.**
+
+---
+
+## N234 — Un 100 n'est pas toujours un nom exact
+
+- **Notée le** : 2026-09-21
+
+*En instrumentant la piste du score au sommet, ouverte par Alexandre.*
+
+`_scorer` ajoute **+5** à un candidat dont la ville concorde, **plafonné à
+100** — donc **un 95 avec bonus atteint 100**, et le pré-bonus n'est conservé
+nulle part. **Une règle d'écriture posée sur « score = 100 » ne trancherait donc
+pas ce qu'elle croit trancher.**
+
+**Ce qui a été fait :** l'outil retrouve le pré-bonus en **rejouant le MÊME
+APPEL DE PRODUCTION sans ville** — jamais en recalculant un score à côté — et
+compte ces cas sur une ligne propre.
+
+> **Un plafond transforme deux valeurs distinctes en une seule, et la valeur
+> plafonnée porte le nom de celle qu'elle n'est pas. Toute règle posée sur la
+> borne d'une échelle doit d'abord demander qui d'autre habite cette borne.**
+
+---
+
+## N235 — La VARIATION réfute; la CONSTANCE ne confirme pas
+
+- **Notée le** : 2026-09-21
+
+*En construisant la mesure demandée par Alexandre — quelle adresse chaque source
+dépose.*
+
+L'instrument qui tranche ne demande ni NEQ, ni registre, ni appariement :
+**pour un même dossier vu plusieurs fois par la même source, l'adresse
+varie-t-elle?** *Une adresse d'entreprise ne varie pas; un lieu d'événement
+varie.*
+
+⚠️ **Mais le constat est ASYMÉTRIQUE, et l'outil le dit avant ses chiffres.** *Une
+entreprise à un seul établissement rend la même adresse dans les deux régimes* —
+donc la constance est compatible avec les deux lectures et n'en confirme aucune.
+
+⚠️ **Et « aucune adresse » ne se range pas avec « constante ».** *Un troisième
+compte, `une seule observation — ne dit rien`, existe uniquement pour que le
+muet ne vienne pas gonfler exactement la conclusion qu'on éprouve.*
+
+> **Une mesure qui ne peut réfuter que dans un sens doit dire lequel, en tête.
+> Sinon son côté silencieux se lit comme une confirmation, et c'est le seul
+> endroit où elle n'a rien prouvé.**
+
+---
+
+## N236 — Un désaccord entre l'adresse et le NEQ a deux lectures, et le produit ne les sépare pas
+
+- **Notée le** : 2026-09-21
+
+*Sur les dossiers qui PORTENT déjà un NEQ, comparer l'adresse déposée par une
+source à l'entrée du registre de ce NEQ ne laisse aucune ambiguïté de candidat.*
+**Le désaccord, lui, en garde une :**
+
+| lecture | ce qu'elle appelle |
+|---|---|
+| l'adresse déposée n'est pas celle de l'entreprise | le mandat du chantier 4 — *« l'adresse comme axe principal »* |
+| **le NEQ a été posé sur la mauvaise entreprise** | **le point 25, la mesure de justesse — qui n'existe pas** |
+
+**Même compte, deux suites opposées.** *Et une troisième cause les brouille : le
+registre porte le DOMICILE de l'entreprise, pas ses établissements — qui vivent
+dans `etat_ligne_source`, partition `req_etablissements`, et ne sont pas lus
+ici.*
+
+> **Un chiffre qui a deux lectures n'est pas un demi-résultat : c'est un
+> résultat entier sur une question qu'on n'avait pas posée. Le rendre sans
+> nommer ses deux lectures, c'est laisser le lecteur choisir celle qui l'arrange.**
