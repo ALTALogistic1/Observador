@@ -381,3 +381,49 @@ def test_le_statut_qui_EXCLUT_vient_de_la_table_UPSERTEE(db_session):
         "le statut lu est celui de l'entreprise, pas le « V » du NOM"
     assert restants_apres(matches, outil.FORME_QUI_SECRIT) == [], \
         "le statut frais ferme le lot que le nom gelé avait ouvert"
+
+
+# ---------------------------------------------------------------------------
+# ⚠️ « LES EXCLUT TOUS » N'EST PAS TOUJOURS UN VERDICT DU CODE POSTAL
+# ---------------------------------------------------------------------------
+
+def test_une_GRAPHIE_de_ville_peut_renverser_un_code_postal_D_ACCORD():
+    """⚠️ **Le mécanisme qu'Alexandre a mis au jour le 21 septembre**, trouvé en
+    énumérant les configurations.
+
+    *Le code postal du dossier est celui des DEUX candidats : il ne tranche pas,
+    donc le repli descend jusqu'à la ville — et là, une graphie de municipalité
+    exclut tout le monde.* **La sortie disait « l'adresse les exclut tous » alors
+    que le code postal était d'accord avec le retenu.**
+    """
+    from outils.departageur_adresse import (
+        NIVEAU_VILLE,
+        FaitsDAdresse,
+        departager_ladresse,
+    )
+    from outils.departageurs import AUCUN_COMPATIBLE, codes_postaux, fait_de_la_ville
+
+    def faits(cp, ville):
+        return FaitsDAdresse(codes_postaux(cp), fait_de_la_ville(ville))
+
+    du_dossier = faits("G1A1A1", "Saint-Zephirin")
+    lot = [faits("G1A1A1", "St-Zephirin"), faits("G1A1A1", "St-Zephirin")]
+    departage = departager_ladresse(du_dossier, lot)
+
+    assert departage.issue == AUCUN_COMPATIBLE, "la sortie disait « les exclut tous »"
+    assert outil.niveau_qui_exclut(departage) == NIVEAU_VILLE, \
+        "⚠️ et c'est la VILLE qui l'a prononcé, pas le code postal"
+    assert departage.issue_du_niveau("code postal complet") != AUCUN_COMPATIBLE, \
+        "le code postal, lui, n'excluait personne"
+
+
+def test_niveau_qui_exclut_rend_None_quand_rien_n_exclut():
+    """*Chaque valeur est un résultat* — `None` dit « aucune exclusion », et ne
+    se confond pas avec « je ne sais pas par quel niveau »."""
+    from outils.departageur_adresse import FaitsDAdresse, departager_ladresse
+    from outils.departageurs import codes_postaux, fait_de_la_ville
+
+    departage = departager_ladresse(
+        FaitsDAdresse(codes_postaux("G1A1A1"), fait_de_la_ville(None)),
+        [FaitsDAdresse(codes_postaux("G1A1A1"), None)])
+    assert outil.niveau_qui_exclut(departage) is None
