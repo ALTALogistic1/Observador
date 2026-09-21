@@ -40,6 +40,11 @@ concurrents sont radiés ».** Les deux instruments ne sont indépendants que pa
 leur source; **aucun des deux ne répond à « ce candidat est-il l'entreprise du
 signal? »**
 
+⚠️ **CORRIGÉ LE 21 SEPTEMBRE** : *« l'adresse contredit » ne veut pas dire « les
+codes postaux contredisent »* — voir `niveau_qui_exclut`. **Une exclusion
+prononcée par la VILLE est une comparaison de graphies**, et elle peut renverser
+un code postal qui, lui, était d'accord.
+
 **2. L'ADRESSE, elle, compare au dossier — et elle a contredit cet accord.**
 *Deux fois dans les paires du statut déjà lues* : `#18572 9133-4961 QUEBEC INC.`
 (dossier `G9A2G9`, survivant `G8Z0A3`) et `#1101 Amar Transport` (dossier
@@ -164,6 +169,8 @@ ETIQUETTES_DU_RAPPORT = (
     "dont CONFIRMATIONS (le score désignait le même)",
     "dont égalités strictes (les 78 du 20 septembre)",
     "dont sommet unique (apparus avec l'élargissement)",
+    "dont prononcé par le CODE POSTAL",
+    "⚠️ dont prononcé par la VILLE — une graphie renverse un code postal",
 )
 LARGEUR_DUNE_RAISON = max(
     len(t) for t in RAISONS + ETIQUETTES_DU_RAPPORT + VERDICTS_DADRESSE) + 1
@@ -214,6 +221,28 @@ def departage_de_ladresse(concurrents, du_dossier):
         du_dossier, [faits_du_candidat(m.entry) for m in concurrents])
 
 
+#: ⚠️ **« Les exclut tous » ne dit PAS « les codes postaux les excluent ».**
+#: *Quand le code postal ne tranche pas — plusieurs compatibles, ou un candidat
+#: qui ne porte pas le fait — le repli descend jusqu'à la VILLE, et c'est elle
+#: qui peut exclure tout le monde.* **Or `fait_de_la_ville` compare des
+#: GRAPHIES** : `Saint-Zéphirin` et `St-Zéphirin` ne sont pas la même forme.
+#:
+#: *Trouvé le 2026-09-21 en énumérant les configurations, après qu'Alexandre a
+#: relevé sept paires où le retenu et son « suspect » portaient le MÊME code
+#: postal.* **Le code postal était d'accord; une graphie de municipalité l'a
+#: renversé.**
+def niveau_qui_exclut(departage) -> str | None:
+    """Le niveau qui a prononcé « aucun compatible », ou `None`.
+
+    ⚠️ *Sans lui, une exclusion par la ville se lit comme une exclusion par le
+    code postal* — et les deux n'ont pas du tout la même force.
+    """
+    for nom, issue in reversed(departage.par_niveau):
+        if issue == AUCUN_COMPATIBLE:
+            return nom
+    return None
+
+
 def verdict_de_ladresse(departage, concurrents, neq_retenu) -> str:
     """Le verdict, depuis un départage déjà calculé — ⚠️ **rendu, jamais
     appliqué.**"""
@@ -248,6 +277,10 @@ class Parcours:
     par_raison: Counter
     sous_le_sommet_par_portee: Counter
     par_adresse: Counter
+    #: ⚠️ **Par quel NIVEAU « les exclut tous » a été prononcé.** *La ville et le
+    #: code postal n'ont pas la même force, et les confondre a rendu sept paires
+    #: illisibles le 21 septembre.*
+    par_niveau_dexclusion: Counter
     #: `company_id -> Company`, pour les seuls dossiers retenus. *L'outil qui
     #: emprunte la passe a besoin du dossier, pas seulement de sa ligne.*
     retenus: dict
@@ -276,6 +309,7 @@ def parcourir(session, restants, portees=PORTEES, pas: int = 500) -> Parcours:
     par_raison: Counter = Counter()
     sous_le_sommet_par_portee: Counter = Counter()
     par_adresse: Counter = Counter()
+    par_niveau_dexclusion: Counter = Counter()
     retenus: dict = {}
     n_amb = 0
     for i, company in enumerate(restants, 1):
@@ -308,6 +342,11 @@ def parcourir(session, restants, portees=PORTEES, pas: int = 500) -> Parcours:
             select(Company).where(Company.neq == seul.entry.neq)
         ).scalar_one_or_none()
         ligne.update({
+            #: ⚠️ **Le match retenu, gardé.** *Sa FORME gagnante et son GISEMENT
+            #: sont la piste qu'Alexandre a ouverte le 21 septembre* — un
+            #: candidat entré par une forme secondaire n'a pas la même valeur
+            #: qu'un candidat entré par sa dénomination.
+            "_retenu": seul,
             "neq": seul.entry.neq,
             "nom_registre": seul.entry.nom,
             "statut_registre": seul.entry.statut,
@@ -343,14 +382,18 @@ def parcourir(session, restants, portees=PORTEES, pas: int = 500) -> Parcours:
                 paire["_concurrents"], faits[paire["company_id"]])
             paire["adresse"] = verdict_de_ladresse(
                 paire["_departage"], paire["_concurrents"], paire["neq"])
+            paire["niveau_qui_exclut"] = niveau_qui_exclut(paire["_departage"])
             par_adresse[paire["adresse"]] += 1
+            if paire["adresse"] == ADRESSE_EXCLUT_TOUS:
+                par_niveau_dexclusion[paire["niveau_qui_exclut"]] += 1
 
     return Parcours(
         n_amb=n_amb, a_poser=a_poser, pris=pris, suspendus=suspendus,
         collisions=collisions, refuses_en_bloc=refuses_en_bloc,
         par_raison=par_raison,
         sous_le_sommet_par_portee=sous_le_sommet_par_portee,
-        par_adresse=par_adresse, retenus=retenus,
+        par_adresse=par_adresse, par_niveau_dexclusion=par_niveau_dexclusion,
+        retenus=retenus,
     )
 
 
@@ -644,7 +687,24 @@ LA DÉCISION D'ALEXANDRE, DU 21 SEPTEMBRE
         for verdict in VERDICTS_DADRESSE:
             print(_ligne_comptee(
                 verdict, passe.par_adresse.get(verdict, 0), len(a_poser)))
-        print()
+            if verdict != ADRESSE_EXCLUT_TOUS:
+                continue
+            from outils.departageur_adresse import NIVEAU_VILLE
+
+            par_niveau = passe.par_niveau_dexclusion
+            par_ville = par_niveau.get(NIVEAU_VILLE, 0)
+            print(_ligne_comptee("   " + ETIQUETTES_DU_RAPPORT[7],
+                                 sum(par_niveau.values()) - par_ville, len(a_poser)))
+            print(_ligne_comptee("   " + ETIQUETTES_DU_RAPPORT[8],
+                                 par_ville, len(a_poser)))
+        print("""
+   ⚠️ « LES EXCLUT TOUS » N'EST PAS TOUJOURS UN VERDICT DU CODE POSTAL.
+
+      Quand le code postal ne tranche pas, le repli descend jusqu'à la
+      VILLE — et `fait_de_la_ville` compare des GRAPHIES : « Saint-Zéphirin »
+      et « St-Zéphirin » ne sont pas la même forme. Une exclusion prononcée
+      par la ville peut donc renverser un code postal qui était d'accord.
+""")
 
         _montrer_le_temoin(suspendus, a_poser, args.temoin,
                            formes_du_lot(session, suspendus + a_poser))

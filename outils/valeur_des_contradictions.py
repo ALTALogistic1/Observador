@@ -21,9 +21,26 @@ registre porte souvent le siège social, et le dossier peut porter l'adresse d'u
 **Le second ne juge pas le retenu : il juge le LOT.** *C'est la trace la plus
 directe de la réserve n° 3* — le bon candidat peut être absent.
 
-⚠️ **Et pour ces 73, la VILLE n'a jamais été consultée.** *« Le fait les exclut
-tous » ferme le repli par conception* (`outils/departageur_adresse.py`, entête) :
-seuls les codes postaux ont parlé, aux deux résolutions.
+## ⚠️ CORRECTION DU 21 SEPTEMBRE — « LES EXCLUT TOUS » N'EST PAS TOUJOURS LE CODE POSTAL
+
+**La première version de cet outil affirmait que seuls les codes postaux avaient
+parlé. C'est FAUX**, et Alexandre l'a mis au jour en relevant sept paires où le
+retenu et son « suspect » portaient **le même code postal**.
+
+*Trouvé en énumérant les configurations :* quand le code postal **ne tranche
+pas** — plusieurs candidats compatibles, ou un candidat qui ne porte pas le
+fait — **le repli descend jusqu'à la VILLE**, et c'est elle qui peut exclure tout
+le monde. ⚠️ **Or `fait_de_la_ville` compare des GRAPHIES** : `Saint-Zéphirin` et
+`St-Zéphirin` ne sont pas la même forme *(vérifié)*. **Une graphie de
+municipalité renverse alors un code postal qui était d'accord.**
+
+⚠️ **Et plus profond : le départageur est bâti pour REFUSER sûrement, pas pour
+ACCUSER.** *En production, `AUCUN_COMPATIBLE` n'écrit rien — un refus ne coûte
+qu'un dossier non posé.* **Lire ses refus comme une charge contre le retenu lui
+fait dire ce pour quoi il n'a jamais été calibré.**
+
+**La sortie rend donc le NIVEAU qui a prononcé l'exclusion, et le détail de
+chaque niveau**, pour que la paire se vérifie au lieu de se croire.
 
 ## Les causes, dans l'ordre où elles se cherchent
 
@@ -120,6 +137,39 @@ ETIQUETTES = (
 LARGEUR = max(len(t) for t in CAUSES + ETIQUETTES) + 1
 
 
+#: ⚠️ **D'où vient le fait d'adresse que le VERDICT a utilisé.** *La première
+#: version affichait `Company.adresse · Company.ville · Company.code_postal`,
+#: alors que `faits_du_dossier` lit AUSSI `Signal.champs` et la ville vue dans un
+#: signal* — **presque toutes les paires montraient donc `— · — · —` sous un
+#: verdict qui, lui, avait lu quelque chose.** *Cas 33, relevé par Alexandre le
+#: 2026-09-21 : troisième fois en trois jours, dans la même famille d'outils.*
+PROV_ADRESSE = "Company.adresse"
+PROV_CODE_POSTAL = "Company.code_postal"
+PROV_SIGNAL = "Signal.champs"
+PROV_VILLE = "Company.ville"
+PROV_VILLE_VUE = "ville vue dans un signal"
+PROV_AUCUNE = "—"
+
+
+def provenance_du_fait(company, champs, ville_vue) -> tuple[str, str]:
+    """`(provenance du code postal, provenance de la ville)`.
+
+    ⚠️ **Reconstruite en appelant les MÊMES lecteurs, source par source** — et
+    non en devinant laquelle a parlé. *`faits_du_dossier` concatène trois textes
+    pour le code postal et prend `company.ville or ville_vue` pour la ville.*
+    """
+    from outils.departageur_adresse import CLES_ADRESSE, texte_des_champs
+    from outils.departageurs import codes_postaux
+
+    sources = ((PROV_ADRESSE, company.adresse),
+               (PROV_CODE_POSTAL, company.code_postal),
+               (PROV_SIGNAL, texte_des_champs(champs, CLES_ADRESSE)))
+    portantes = [nom for nom, texte in sources if codes_postaux(texte) is not None]
+    ville = (PROV_VILLE if company.ville
+             else PROV_VILLE_VUE if ville_vue else PROV_AUCUNE)
+    return (" + ".join(portantes) if portantes else PROV_AUCUNE), ville
+
+
 def coupe_de_production() -> int:
     """Le plafond du lot, **LU dans la signature du produit, jamais recopié.**
 
@@ -183,16 +233,25 @@ def faits_des_etablissements(session, neqs) -> tuple[dict, str, int]:
     return {}, AUCUNE_SOURCE, 0
 
 
-def porte_ladresse(du_dossier, fait) -> bool:
-    """`True` si le fait du dossier DÉSIGNE ce candidat — **par le mécanisme du
-    produit**, sur un lot d'un seul.
+def porte_ladresse(du_dossier, fait) -> str | None:
+    """**Le NIVEAU auquel** le fait du dossier désigne ce candidat, ou `None`.
 
     *Un `DÉPARTAGÉ` sur un lot d'un candidat veut dire « le fait du dossier est
     compatible avec lui ».* ⚠️ **Un code postal partagé n'est pas une identité.**
+
+    ⚠️ **Le niveau est rendu, et pas seulement un oui/non** : un suspect qui
+    porte le CODE POSTAL n'a pas le même poids qu'un suspect qui porte la seule
+    VILLE — laquelle est une comparaison de graphies. *C'est exactement la
+    confusion qui a rendu sept paires illisibles le 21 septembre.*
+
+    ⚠️ **Et cette question n'est PAS celle du lot.** *Le départage du lot entier
+    peut s'arrêter à un niveau que celui-ci franchit* — un lot est démenti par la
+    ville pendant qu'un de ses membres, seul, concorde au code postal.
     """
     from outils.departageur_adresse import departager_ladresse
 
-    return departager_ladresse(du_dossier, [fait]).issue == DEPARTAGE
+    departage = departager_ladresse(du_dossier, [fait])
+    return departage.niveau if departage.issue == DEPARTAGE else None
 
 
 def cause_de_la_contradiction(paire, etablissements, profonds, coupe):
@@ -204,23 +263,97 @@ def cause_de_la_contradiction(paire, etablissements, profonds, coupe):
 
     du_dossier = paire["_faits_du_dossier"]
     for fait in etablissements.get(paire["neq"], []):
-        if porte_ladresse(du_dossier, fait):
+        niveau = porte_ladresse(du_dossier, fait)
+        if niveau:
+            paire["niveau_de_la_piece"] = niveau
             return ETABLISSEMENT_DU_RETENU, None
 
     dans_le_lot = {m.entry.neq for m in paire["_concurrents"]}
     for m in paire["_concurrents"]:
-        if m.entry.neq != paire["neq"] and porte_ladresse(
-                du_dossier, faits_du_candidat(m.entry)):
+        niveau = (porte_ladresse(du_dossier, faits_du_candidat(m.entry))
+                  if m.entry.neq != paire["neq"] else None)
+        if niveau:
+            paire["niveau_de_la_piece"] = niveau
             return COMPATIBLE_DANS_LE_LOT, m
 
     for rang, m in enumerate(profonds):
         if m.entry.neq in dans_le_lot:
             continue
-        if not porte_ladresse(du_dossier, faits_du_candidat(m.entry)):
+        niveau = porte_ladresse(du_dossier, faits_du_candidat(m.entry))
+        if not niveau:
             continue
+        paire["niveau_de_la_piece"] = niveau
         return (COMPATIBLE_SOUS_LE_LOT if rang < coupe
                 else COMPATIBLE_SOUS_LA_COUPE), m
     return SANS_EXPLICATION, None
+
+
+#: *Une forme que ni `req_entries` ni `req_noms` ne portent* — n'arrive que sur
+#: le chemin de simulation, mais se nomme plutôt que de compter pour « inconnu ».
+FORME_INTROUVABLE = "(forme introuvable)"
+
+#: ⚠️ **29,7 % de `req_noms` a été chargée avant que la colonne `gisement`
+#: existe** *(pont du 15 septembre)*. `formes_retenues` rend alors une étiquette;
+#: cette constante ne sert qu'au cas où la colonne est vide sans même ça.
+GISEMENT_SANS_COLONNE = "(gisement non renseigné)"
+
+
+def _montrer_les_paires(session, passe, lot, depuis, combien, titre,
+                        champs, villes) -> None:
+    """Des paires ENTIÈRES — ⚠️ **avec le FAIT qui a décidé et sa provenance.**
+
+    *La première version affichait `Company.adresse · ville · code_postal`, donc
+    `— · — · —` sous un verdict qui avait lu `Signal.champs`.* **Un verdict dont
+    on ne voit pas l'entrée ne se vérifie pas.**
+    """
+    from falkye.sources.req import formes_retenues
+
+    tranche = lot[depuis: depuis + combien]
+    print("\n" + "=" * 78)
+    print(f"{titre} — {len(tranche)} sur {milliers(len(lot))}")
+    print("=" * 78)
+    if not tranche:
+        print("\n   (aucun dossier)")
+        return
+    formes = formes_retenues(
+        session, [m for x in tranche for m in x["_concurrents"]])
+    for paire in tranche:
+        company = passe.retenus[paire["company_id"]]
+        ville_vue = villes.get(paire["company_id"])
+        prov_cp, prov_ville = provenance_du_fait(
+            company, champs.get(paire["company_id"]),
+            ville_vue.ville if ville_vue is not None else None)
+        faits = paire["_faits_du_dossier"]
+        cp = faits.code_complet or faits.region_de_tri
+        print(f"\n   #{paire['company_id']}   {(paire['nom_detecte'] or '')[:54]}")
+        print(f"      fait du dossier : code postal « {cp.brut if cp else '—'} »"
+              f" ({prov_cp})   ·   ville « {faits.ville.brut if faits.ville else '—'} »"
+              f" ({prov_ville})")
+        niveau = paire.get("niveau_qui_exclut")
+        print(f"      ✳️ {paire['adresse']}"
+              + (f"   →  PRONONCÉ PAR : {niveau}" if niveau else ""))
+        for nom, issue in paire["_departage"].par_niveau:
+            print(f"           {nom:<22} : {issue}")
+        if paire.get("gisement"):
+            print(f"      ⌂ le retenu est entré par « {paire['gisement']} »")
+        for m in paire["_concurrents"]:
+            marque = "→" if m.entry.neq == paire["neq"] else "×"
+            print(f"      {marque} {m.entry.neq}  {m.score:>6.1f}  "
+                  f"{(m.entry.nom or '—')[:30]:<32} "
+                  f"[{m.entry.statut}]  {(m.entry.ville or '—')[:14]} "
+                  f"{m.entry.code_postal or '—'}")
+            forme = formes.get((m.entry.neq, m.forme_normalisee))
+            if forme is not None and not forme.est_la_denomination_elue:
+                print("         ↳ a scoré sur "
+                      f"« {(forme.nom_publie or forme.nom_normalise)[:40] } »"
+                      f"   ({forme.gisement})")
+        piece = paire.get("_piece")
+        if piece is not None:
+            print(f"      ⚠️ porte l'adresse AU NIVEAU "
+                  f"« {paire.get('niveau_de_la_piece') or '—'} » : "
+                  f"{piece.entry.neq}  {piece.score:>6.1f}  "
+                  f"{(piece.entry.nom or '—')[:30]} [{piece.entry.statut}]  "
+                  f"{piece.entry.code_postal or '—'}")
 
 
 def _part(k: int, n: int) -> str:
@@ -237,6 +370,8 @@ def main(argv: list[str] | None = None) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--paires", type=int, default=0, metavar="N",
                         help="montrer N dossiers PAR CAUSE, en entier")
+    parser.add_argument("--par-gisement", type=int, default=0, metavar="N",
+                        help="montrer N dossiers PAR FORME D'ENTRÉE du retenu")
     parser.add_argument("--depuis", type=int, default=0, metavar="K")
     parser.add_argument("--profondeur", type=int, default=25, metavar="N",
                         help="plafond du lot rejoué (production : lu dans le code)")
@@ -260,11 +395,10 @@ def main(argv: list[str] | None = None) -> int:
         SANS_FAIT_AU_DOSSIER,
         SANS_FAIT_CHEZ_UN_CONCURRENT,
     )
-    from outils.ecriture_du_statut import (
-        ADRESSE_ACCORD,
-        ADRESSE_MUETTE,
-        formes_du_lot,
-    )
+    from falkye.sources.req import formes_retenues
+    from outils.departageur_adresse import champs_des_dossiers
+    from outils.ecriture_du_statut import ADRESSE_ACCORD, ADRESSE_MUETTE
+    from outils.villes_des_signaux import villes_des_signaux
 
     coupe = coupe_de_production()
     session = get_session()
@@ -280,9 +414,17 @@ def main(argv: list[str] | None = None) -> int:
    C'est la trace la plus directe de la réserve n° 3 — le bon candidat
    peut être absent du lot.
 
-   ⚠️ Et pour ceux-là, la VILLE n'a jamais été consultée : « le fait les
-      exclut tous » ferme le repli par conception. Seuls les codes postaux
-      ont parlé, aux deux résolutions.
+   ⚠️ ET « LES EXCLUT TOUS » N'EST PAS TOUJOURS UN VERDICT DU CODE POSTAL.
+      Quand le code postal ne tranche pas, le repli descend jusqu'à la
+      VILLE, qui compare des GRAPHIES : « Saint-Zéphirin » et
+      « St-Zéphirin » ne sont pas la même forme. Une graphie peut donc
+      renverser un code postal qui était d'accord. Le niveau qui a
+      prononcé l'exclusion est rendu dans chaque paire.
+
+   ⚠️ Le départageur est bâti pour REFUSER sûrement, pas pour ACCUSER. En
+      production, « aucun compatible » n'écrit rien. Lire ses refus comme
+      une charge contre le retenu lui fait dire ce pour quoi il n'a jamais
+      été calibré.
 
 ⚠️ CE QUE CETTE MESURE NE PEUT PAS DIRE
 
@@ -345,6 +487,55 @@ def main(argv: list[str] | None = None) -> int:
       quatre n'est pas un garde-fou : c'est un filtre partiel qu'on lira
       comme une garantie.
 """)
+        # ---- PAR QUELLE FORME LE RETENU EST ENTRÉ -------------------------
+        # ⚠️ **La piste ouverte par Alexandre le 21 septembre.** *Sur 34 paires
+        # lues, les trois faux probables étaient entrés par une forme SECONDAIRE
+        # — `NOM_ETRNG « CROSSROADS »`, `NOM_ETAB « BOUCHARD, MARTIN »` — ou par
+        # un candidat sous la coupe.* **Contrairement à l'adresse, ce signal
+        # existe pour CHAQUE dossier : aucune forme gagnante n'est absente.**
+        formes = formes_retenues(session, [x["_retenu"] for x in a_poser])
+        par_gisement: dict[str, list] = {}
+        for paire in a_poser:
+            forme = formes.get((paire["neq"], paire["_retenu"].forme_normalisee))
+            etiquette = FORME_INTROUVABLE if forme is None else (
+                forme.gisement or GISEMENT_SANS_COLONNE)
+            paire["gisement"] = etiquette
+            par_gisement.setdefault(etiquette, []).append(paire)
+
+        print("\n" + "-" * 78)
+        print("2. PAR QUELLE FORME LE RETENU EST ENTRÉ")
+        print("-" * 78)
+        print("""
+   ⚠️ CE SIGNAL EXISTE POUR CHAQUE DOSSIER. L'adresse se tait trois fois
+      sur quatre; une forme gagnante, jamais — tout candidat scoré a
+      scoré sur quelque chose. C'est ce qui en fait un garde-fou
+      candidat, là où l'adresse n'en est pas un.
+
+   ⚠️ CE N'EST PAS ENCORE UNE RÈGLE. Le tableau dit d'où les dossiers
+      entrent; il ne dit pas lesquels sont justes. Les paires se lisent.
+""")
+        print(f"   {'':<{LARGEUR}} {'total':>9} {'score 100':>10} "
+              f"{'adr. ✅':>8} {'adr. ⚠️':>8}")
+        for etiquette, lot in sorted(par_gisement.items(),
+                                     key=lambda kv: -len(kv[1])):
+            cent = sum(1 for x in lot if x["score_du_sommet"] >= 100.0)
+            oui = sum(1 for x in lot if x["adresse"] == ADRESSE_ACCORD)
+            non = sum(1 for x in lot if x["adresse"] in
+                      (ADRESSE_CONTRE, ADRESSE_EXCLUT_TOUS))
+            print(f"   {etiquette:<{LARGEUR}} {milliers(len(lot)):>9} "
+                  f"{milliers(cent):>10} {milliers(oui):>8} {milliers(non):>8}")
+
+        if args.par_gisement:
+            champs_tous = champs_des_dossiers(
+                session, {x["company_id"] for x in a_poser})
+            villes_tous = villes_des_signaux(
+                session, {x["company_id"] for x in a_poser})
+            for etiquette, lot in sorted(par_gisement.items(),
+                                         key=lambda kv: -len(kv[1])):
+                _montrer_les_paires(
+                    session, passe, lot, args.depuis, args.par_gisement,
+                    f"ENTRÉS PAR « {etiquette} »", champs_tous, villes_tous)
+
         if not contredits:
             print("   Aucune contradiction à expliquer.")
             return 0
@@ -371,7 +562,7 @@ def main(argv: list[str] | None = None) -> int:
             par_cause[cause] += 1
 
         print("\n" + "-" * 78)
-        print("2. CE QUI EXPLIQUE LA CONTRADICTION")
+        print("3. CE QUI EXPLIQUE LA CONTRADICTION")
         print("-" * 78 + "\n")
         print(f"   provenance des établissements : {provenance}")
         print(_ligne(ETIQUETTES[5], pourvus, len(neqs)))
@@ -393,40 +584,13 @@ def main(argv: list[str] | None = None) -> int:
 """)
 
         if args.paires:
+            champs = champs_des_dossiers(session, {x["company_id"] for x in contredits})
+            villes = villes_des_signaux(session, {x["company_id"] for x in contredits})
             for cause in CAUSES:
-                lot = [x for x in contredits if x.get("cause") == cause]
-                tranche = lot[args.depuis: args.depuis + args.paires]
-                print("\n" + "=" * 78)
-                print(f"{cause} — {len(tranche)} sur {milliers(len(lot))}")
-                print("=" * 78)
-                if not tranche:
-                    print("\n   (aucun dossier)")
-                    continue
-                formes = formes_du_lot(session, tranche)
-                for paire in tranche:
-                    company = passe.retenus[paire["company_id"]]
-                    print(f"\n   #{paire['company_id']}   "
-                          f"{(paire['nom_detecte'] or '')[:54]}")
-                    print(f"      dossier : {company.adresse or '—'}"
-                          f" · {company.ville or '—'} · {company.code_postal or '—'}")
-                    print(f"      ✳️ {paire['adresse']}")
-                    for m in paire["_concurrents"]:
-                        marque = "→" if m.entry.neq == paire["neq"] else "×"
-                        print(f"      {marque} {m.entry.neq}  {m.score:>6.1f}  "
-                              f"{(m.entry.nom or '—')[:30]:<32} "
-                              f"[{m.entry.statut}]  {(m.entry.ville or '—')[:14]} "
-                              f"{m.entry.code_postal or '—'}")
-                        forme = formes.get((m.entry.neq, m.forme_normalisee))
-                        if forme is not None and not forme.est_la_denomination_elue:
-                            print("         ↳ a scoré sur "
-                                  f"« {(forme.nom_publie or forme.nom_normalise)[:40]} »"
-                                  f"   ({forme.gisement})")
-                    piece = paire.get("_piece")
-                    if piece is not None:
-                        print(f"      ⚠️ porte l'adresse : {piece.entry.neq}  "
-                              f"{piece.score:>6.1f}  {(piece.entry.nom or '—')[:30]} "
-                              f"[{piece.entry.statut}]  "
-                              f"{piece.entry.code_postal or '—'}")
+                _montrer_les_paires(
+                    session, passe,
+                    [x for x in contredits if x.get("cause") == cause],
+                    args.depuis, args.paires, cause, champs, villes)
 
         print("\n" + "=" * 78)
         print("   RIEN N'A ÉTÉ ÉCRIT. Les échelles n'ont pas bougé.")

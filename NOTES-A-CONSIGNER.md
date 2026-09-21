@@ -5627,3 +5627,124 @@ et `departager_ladresse`* : **ce qui décide se nomme une fois.**
 > **La règle ne s'applique pas qu'aux fonctions de décision. Une PASSE définit une
 > population, et une population recopiée diverge aussi sûrement qu'un seuil
 > recopié.**
+
+---
+
+## N226 — Une mesure doit montrer SON ENTRÉE, pas une entrée voisine
+
+*2026-09-21, relevé par Alexandre sur la sortie des contradictions.*
+
+Les paires affichaient `dossier : — · — · —` sous un verdict qui disait *« l'adresse
+les exclut TOUS »*. **L'affichage lisait `Company.adresse`, `Company.ville`,
+`Company.code_postal`; le verdict, lui, lit AUSSI `Signal.champs` et la ville vue
+dans un signal** *(`faits_du_dossier`)*. **Presque tous les dossiers portaient leur
+code postal dans le signal, pas dans la colonne.**
+
+*Alexandre : « Sans cette adresse, aucune contradiction ne peut se vérifier. »*
+**34 paires lues sur une colonne vide.**
+
+**Ce qui a été fait :** la paire rend le `Fait` que le verdict a employé, **et sa
+provenance reconstruite en appelant les mêmes lecteurs source par source**
+*(`provenance_du_fait`)* — jamais en devinant.
+
+> ⚠️ **Cas 33, troisième fois en trois jours, dans la même famille d'outils.**
+> *Chaque fois la forme est la même : une colonne VRAIE à côté de celle qui a
+> décidé.* **Un instrument doit rendre son ENTRÉE avant sa sortie — sinon il
+> demande qu'on le croie.**
+
+---
+
+## N227 — « Les exclut tous » n'est pas un verdict du CODE POSTAL
+
+*2026-09-21. Alexandre relève sept paires où le retenu et son « suspect »
+portent le MÊME code postal. Trouvé en ÉNUMÉRANT les configurations, pas en
+raisonnant.*
+
+`departager_ladresse` descend trois niveaux : code complet, région de tri,
+**ville**. Quand le code postal **ne tranche pas** — *plusieurs candidats
+compatibles*, ou *un candidat qui ne porte pas le fait* — **le repli descend
+jusqu'à la ville**, et c'est elle qui peut exclure tout le monde.
+
+⚠️ **Or `fait_de_la_ville` compare des GRAPHIES** : `Saint-Zéphirin` et
+`St-Zéphirin` ne sont pas la même forme *(vérifié — la normalisation des
+municipalités est un chantier à part, et le module le dit)*. **Une graphie de
+municipalité renverse donc un code postal qui était d'accord.**
+
+**Ce qui a été fait :** `niveau_qui_exclut(departage)`, la ventilation des
+« exclut tous » par niveau, le détail niveau par niveau dans chaque paire, et le
+**niveau auquel** un suspect porte l'adresse.
+
+> **Une issue qui remonte de trois mécanismes différents doit dire duquel elle
+> vient. Sinon le plus grossier des trois se fait passer pour le plus fin,
+> exactement là où on lui accorde le plus de poids.**
+
+---
+
+## N228 — Un instrument bâti pour REFUSER ne peut pas servir à ACCUSER
+
+*2026-09-21, la leçon de fond derrière N227.*
+
+`departager_ladresse` a été calibré pour **une seule question** : *« puis-je
+écrire ce départage sans risque? »* **Dans ce rôle, `aucun compatible` ne coûte
+rien** — un refus laisse un dossier non posé, et un dossier non posé se reprend.
+*C'est pourquoi le module s'autorise un niveau aussi grossier que la ville : il
+ne peut que refuser plus souvent.*
+
+**Réemployé comme garde-fou, il change de rôle sans changer de calibrage** : ses
+refus deviennent des charges, et **le niveau le plus faible devient un
+accusateur**. *Les 81 « contradictions » comptaient donc, sans le dire, des
+exclusions prononcées sur une graphie.*
+
+> **Un instrument porte le calibrage de la question qu'on lui a posée, pas de
+> celle qu'on lui pose ensuite. Le réemployer dans l'autre sens — du refus vers
+> l'accusation — demande de le recalibrer, pas seulement de l'appeler.**
+
+---
+
+## N229 — Le GISEMENT de la forme gagnante : un signal qui, lui, ne se tait jamais
+
+*2026-09-21, piste ouverte par Alexandre après lecture de 34 paires.*
+
+Ses trois faux probables — `#1136 Crossroads Law` → `CARREFOUR`, `#3705 Ferme
+Martin Bouchard` → `Éditions Melançon`, `#19766 Valet Express` → `Valet Auto
+Service` — **ont un point commun** : le retenu est entré par une **forme
+secondaire** *(`NOM_ETRNG « CROSSROADS »`, `NOM_ETAB « BOUCHARD, MARTIN »`)*, ou
+le bon candidat est passé **sous la coupe à cinq**. *Jamais par sa dénomination.*
+
+⚠️ **Ce que ça vaut contre l'adresse : la disponibilité.** *L'adresse se tait sur
+74,7 % des dossiers* — et sa cause dominante est `un concurrent ne porte pas le
+fait`, c'est-à-dire **le remplissage du registre**. **Une forme gagnante, elle,
+existe pour CHAQUE candidat scoré** : aucun dossier n'y échappe.
+
+**Ce qui a été fait :** la ventilation des 494 par gisement de la forme gagnante
+du retenu, croisée avec le score au sommet et avec le verdict d'adresse, plus
+`--par-gisement N` pour lire les paires de chaque gisement. ⚠️ **Le tableau dit
+d'où les dossiers entrent; il ne dit pas lesquels sont justes** — et la sortie
+l'écrit.
+
+> **Un garde-fou se juge d'abord sur ce qu'il couvre, ensuite sur ce qu'il sépare.
+> Un signal excellent présent une fois sur quatre protège moins qu'un signal
+> médiocre présent toujours.**
+
+---
+
+## N230 — Un chiffre différent dans un numéro d'entreprise, c'est une autre entreprise
+
+*2026-09-21, relevé par Alexandre — à verser à l'hypothèse des paliers.*
+
+`9087-7184 QUÉBEC INC.` contre `9087-1484`, `9087-1849`, `9087-1864`,
+`9087-2714` : **toutes à 95,0.** *Même chose dans `#1721`, `#4318`, `#11045`,
+`#1765`.* **`WRatio` lit une permutation de chiffres comme une quasi-identité, là
+où c'est une identité DIFFÉRENTE, sans nuance possible.**
+
+⚠️ **Et l'observation a un revers utile :** dans ces dossiers, le retenu est à
+**100,0 sur sa dénomination exacte** et tous ses concurrents sont des
+permutations. **Ce sont parmi les écritures les plus sûres de la population** —
+le score du sommet et la forme d'entrée le disent déjà, sans qu'il faille une
+règle sur les numéros.
+
+*Noté, non construit* — Alexandre n'a pas demandé de règle ici.
+
+> **Une mesure de similarité de chaînes n'a aucun moyen de savoir qu'un segment
+> est un IDENTIFIANT. Là où un caractère porte l'identité entière, la distance
+> d'édition ne mesure plus rien.**

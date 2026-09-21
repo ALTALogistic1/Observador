@@ -248,10 +248,39 @@ def test_le_cout_d_un_garde_fou_permanent_est_DIT(decor, capsys):
     assert "n'est pas un garde-fou" in sortie
 
 
-def test_la_ville_JAMAIS_consultee_est_dite_avant_les_chiffres(decor, capsys):
-    """⚠️ *« Le fait les exclut tous » ferme le repli par conception* — un
-    lecteur qui l'ignore croit que la ville a été prise en compte."""
+def test_la_correction_du_21_septembre_est_dite_AVANT_les_chiffres(decor, capsys):
+    """⚠️ **La première version affirmait que seuls les codes postaux avaient
+    parlé. C'était faux.** *Un outil qui s'est trompé doit le dire là où il
+    s'était trompé* — sinon la correction ne rattrape pas ses lecteurs."""
     assert outil.main(["--pas", "0"]) == 0
     sortie = capsys.readouterr().out
-    assert sortie.index("la VILLE n'a jamais été consultée") < sortie.index(
-        "dossiers que la règle poserait")
+    avant = sortie.index("dossiers que la règle poserait")
+    assert sortie.index("N'EST PAS TOUJOURS UN VERDICT DU CODE POSTAL") < avant
+    assert sortie.index("bâti pour REFUSER sûrement, pas pour ACCUSER") < avant
+
+
+def test_le_FAIT_qui_a_decide_est_affiche_avec_sa_PROVENANCE(decor, capsys):
+    """⚠️ **Cas 33, relevé par Alexandre.** *Les paires montraient
+    `— · — · —` sous un verdict qui, lui, avait lu quelque chose.*"""
+    assert outil.main(["--pas", "0", "--paires", "3"]) == 0
+    sortie = capsys.readouterr().out
+    ligne = next(l for l in sortie.splitlines() if "fait du dossier" in l)
+    assert DOSSIER in ligne, ligne
+    assert outil.PROV_CODE_POSTAL in ligne, ligne
+    # ⚠️ Et le détail par niveau, pour que l'exclusion se vérifie.
+    assert "code postal complet" in sortie and "aucun concurrent compatible" in sortie
+    assert "PRONONCÉ PAR :" in sortie
+
+
+def test_la_forme_d_entree_du_retenu_est_VENTILEE(decor, capsys):
+    """La piste du 21 septembre : **ce signal existe pour chaque dossier.**"""
+    assert outil.main(["--pas", "0"]) == 0
+    sortie = capsys.readouterr().out
+    assert "PAR QUELLE FORME LE RETENU EST ENTRÉ" in sortie
+    assert "CE SIGNAL EXISTE POUR CHAQUE DOSSIER" in sortie
+    assert "CE N'EST PAS ENCORE UNE RÈGLE" in sortie
+    from falkye.sources.req import GISEMENT_DENOMINATION_ELUE
+
+    ligne = next(l for l in sortie.splitlines()
+                 if l.strip().startswith(GISEMENT_DENOMINATION_ELUE))
+    assert ligne.split()[-4] == "3", ligne
