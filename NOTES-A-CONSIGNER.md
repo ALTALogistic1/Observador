@@ -5895,3 +5895,114 @@ ici.*
 > **Un chiffre qui a deux lectures n'est pas un demi-résultat : c'est un
 > résultat entier sur une question qu'on n'avait pas posée. Le rendre sans
 > nommer ses deux lectures, c'est laisser le lecteur choisir celle qui l'arrange.**
+
+---
+
+## N237 — La décision a été prise; c'est sa SECONDE MOITIÉ qui n'a pas de date
+
+- **Notée le** : 2026-09-22
+
+*Correction de ma propre lecture du 21 septembre, après les questions de Claude.*
+
+J'ai présenté le retrait du filtre `STAT_NOM='V'` comme une garde disparue.
+**Le dépôt dit mieux que ça** : `tests/test_impact_tous_les_noms.py:92` écrit
+*« Le même jour, **Alexandre a décidé** que tout entre »*, et N128 le redit. **Le
+retrait est une décision prise, pas une régression.**
+
+⚠️ **Mais il y avait DEUX décisions, et une seule a été prise :**
+
+| | décision | état |
+|---|---|---|
+| 1 | *tout entre dans `req_noms`* | ✅ prise le 17 septembre |
+| 2 | *ce que le MOTEUR fait d'un nom retiré* — second temps, ou score plafonné | ⬜ **jamais prise** |
+
+**Et la seconde était nommée d'avance** : `docs/CONCEPTION-TRAITEMENT-ARCHIVE-REQ.md:96`
+écrit *« c'est une règle, donc une décision d'Alexandre »*. ⚠️ **Cette phrase vit
+hors du corpus** — donc la charte, section 15, ne s'y est jamais appliquée : pas
+d'échéance, pas d'entrée au registre, aucun retour. *C'est la faille I du propre
+audit du produit, sur le produit lui-même.*
+
+> **Une décision qui se divise en deux gestes doit entrer au registre en DEUX
+> lignes. Celle qui se prend efface la trace de celle qui reste — et la seconde
+> n'a plus personne pour la rappeler.**
+
+---
+
+## N238 — L'arithmétique du dépôt tranchait une question qu'on croyait devoir mesurer
+
+- **Notée le** : 2026-09-22
+
+*Deux lectures s'opposaient sur la hausse de `req_noms` — 1 505 879 → 5 071 984,
+soit **+3 566 105**. Aucune n'était mesurée, et on allait interroger la base.*
+
+**N124 portait déjà le compte de chaque gisement :**
+
+| gisement | formes | lu avant le 17 |
+|---|---|---|
+| `NOM_ASSUJ` | **4 651 087** | oui, **filtré `STAT_NOM='V'`** *(1 521 816)* |
+| `NOM_ASSUJ_LANG_ETRNG` | 412 459 | non |
+| `NOM_ETAB` | 257 531 | non |
+| `DENOMN_SOC` | 132 448 | non |
+
+**Les trois gisements ajoutés totalisent 802 438 formes — AVANT déduplication.**
+*C'est donc un plafond : ils ne peuvent expliquer au mieux que **22,5 %** de la
+hausse.* ⚠️ **Les 77,5 % restants n'ont qu'une autre cause possible : la levée du
+filtre sur `NOM_ASSUJ`**, dont la part retirée est exactement
+`4 651 087 − 1 521 816 = 3 129 271`.
+
+> **Une question qui paraît demander la base demande parfois seulement d'additionner
+> ce qui est déjà écrit. Et un plafond suffit à trancher entre deux lectures quand
+> l'une d'elles a besoin de plus que le plafond.**
+
+---
+
+## N239 — Un test peut verrouiller le comportement qu'on cherchait à corriger
+
+- **Notée le** : 2026-09-22
+
+*En cherchant s'il existe un test sur ce que le moteur fait d'un nom retiré.*
+
+**Il en existe un, et il verrouille le contraire.**
+`tests/test_reresolution_neq.py:62-64` plante un `REQNom` en `statut="A"`, et
+`:560` exige que la sortie affiche *« a matché : 16790224 Canada Inc. »*. **Le
+test garantit donc qu'un nom retiré apparie à PLEINE FORCE**, et il a été écrit
+après le 17 septembre — il consigne l'état d'alors, pas une intention.
+
+⚠️ **Ce n'est pas un défaut du test** : il éprouve l'affichage de la forme
+gagnante, pas la règle des statuts. *Mais le jour où la règle du moteur se
+posera, ce test tombera* — **et c'est exactement ce qu'on veut de lui**, à
+condition de savoir qu'il est là.
+
+> **Chercher « existe-t-il un test qui vérifie X » et trouver « un test qui
+> verrouille non-X » n'est pas une absence de couverture : c'est une couverture
+> qui pointe dans l'autre sens. Elle se relève AVANT de changer la règle, jamais
+> après, quand elle ressemble à une régression.**
+
+---
+
+## N240 — `DENOMN_SOC` attache un nom au NEQ de la LIGNE, et personne n'a lu ce que la ligne est
+
+- **Notée le** : 2026-09-22
+
+*Question de Claude : une `DENOMN_SOC` de `FusionScissions.csv` peut-elle être le
+nom d'une entreprise absorbée, rattaché à un autre NEQ que le sien?*
+
+**Le chargeur lie chaque nom au `NEQ` de la rangée** *(`req.py`,
+`_charger_tous_les_noms` : `neq = (rangee.get("NEQ") or "").strip()`)* — le même
+pour les quatre gisements. **Donc 132 448 dénominations sont attachées au NEQ que
+`FusionScissions.csv` désigne comme sujet de l'enregistrement.**
+
+⚠️ **Ce que le dépôt ne dit PAS : qui est ce sujet.** *Dans une fusion, le
+sujet peut être l'absorbante ou l'absorbée, et le fichier porte les deux —
+`NEQ` et `NEQ_ASSUJ_REL`.* **`DomaineValeur.csv`, qui donnerait le libellé du
+type d'événement, n'est pas lu** *(⛔ à l'inventaire)*.
+
+⚠️ **Et ce gisement n'a AUCUNE colonne de statut.** *Un nom d'absorbée attaché à
+l'absorbante ne serait donc ni marqué « retiré », ni distinguable d'une
+dénomination courante* — **une forme de faux que même la règle des noms retirés
+ne couvrirait pas.**
+
+> **Savoir à quel NEQ un nom est attaché ne dit pas si ce nom lui a appartenu.
+> La colonne de rattachement se lit dans le chargeur; la SÉMANTIQUE de la ligne
+> se lit dans le fichier, et ce fichier a été classé sur son nom une première
+> fois.**
