@@ -501,6 +501,87 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 
 ---
 
+## 17bis. Le bloc de l'import — les quatorze étapes, dans l'ordre
+
+> ⚠️ **DÉCISION D'ALEXANDRE, 20 septembre 2026 : aucun import tant que ce bloc n'est pas complet.**
+>
+> *Le 2 octobre cesse d'être une échéance à respecter et devient une édition qu'on choisit de sauter.* **Le travail garde sa valeur, il perd son urgence de calendrier.**
+>
+> **Décision du 21 septembre, qui ajoute les étapes 10 à 14** : *le bassin actuel est un **bassin de pratique**. Chaque façon d'ajouter des NEQ qu'on valide ici devra tourner seule, à chaque import, sans que personne relise les paires.* **Un outil ponctuel se relit; une règle permanente, non.**
+
+**Le prix d'attendre, et il est faible sans clients** : le miroir vieillit, les entreprises immatriculées depuis le 2 septembre restent introuvables, le diff suivant sera d'autant plus gros.
+
+⚠️ **Une question, pas une construction : le prochain import serait-il le PREMIER VRAI DIFF du REQ?** *`docs/MIROIRS.md` pose que les signaux n'apparaissent qu'à partir de la deuxième édition importée, et les imports du 16 et du 17 ont tous deux porté sur l'archive du 2 septembre.* **À vérifier sur l'hôte, jamais à supposer** — c'est l'étape 1.
+
+⚠️ **Et ce bloc ROUVRE D14.** *Le registre écrit sa condition de réouverture en toutes lettres : « un cycle qui résout réellement des entreprises — **un premier import REQ d'un trimestre neuf**, une source réactivée, une population qui grandit ».* **Le repli par sous-chaîne a été fermé le 11 septembre parce qu'il n'était emprunté aucune fois; un import qui résout le rend à nouveau mesurable.**
+
+### Ce que le dépôt en porte déjà — et où
+
+**Presque tout est conçu, et hors corpus** : `docs/CONCEPTION-TRAITEMENT-ARCHIVE-REQ.md`. ⚠️ *Ce document date d'avant le 17 septembre* — il parle encore de 1,5 million de noms et range `FusionScissions.csv` parmi les fichiers jamais regardés. **Des parties en sont périmées, et il ne fait pas foi.**
+
+### Avant tout import — les neuf étapes qui PROTÈGENT
+
+*Aucune de ces neuf ne récupère une entreprise : elles protègent ce qui a été gagné.*
+
+| # | étape | où vit le mécanisme |
+|---|---|---|
+| **1** | **Vérifier ce que l'état de diff porte sur l'hôte** — savoir si le prochain import serait le premier vrai diff. *Une question, pas une construction.* | `falkye-chantier-1-quarantaine.md`, *Conservation de l'état d'une source* |
+| **2** | ⚠️ **Poser les seuils de quarantaine du REQ, avec Alexandre.** Deux seuils franchis ensemble, distincts par type d'écart, propres à la source. | **D17** *(à enrichir, pas à doubler)*; `falkye-chantier-1-quarantaine.md`, *Règle de quarantaine*; **le chiffrage vit dans D36** et ne se recopie pas ici |
+| **3** | ⚠️ **Poser le plancher de remplissage PAR FICHIER, avec Alexandre.** *Une part retenue qui s'effondre doit refuser bruyamment.* **C'est une seconde échelle, pas celle de l'étape 2.** ⚠️ **Et la valeur de référence a DÉJÀ bougé** : le `~32,7 %` cité par la conception était la part des lignes de `Nom.csv` en vigueur — *une propriété du FICHIER* — **mais le chargeur les garde toutes depuis le 17 septembre, donc la part RETENUE est aujourd'hui ~100 %.** *Poser un plancher sur l'ancienne valeur refuserait chaque import.* | `falkye-chantier-1-quarantaine.md`, *Détection de changement de schéma* — et le registre des sources |
+| **4** | **La revue d'archive** — le plancher ci-dessus, et l'inventaire déclaré du zip. *Le garde des colonnes existe et il est bon (`colonnes_brutes_lues`, par arbre syntaxique); `FICHIERS_REQ_REELS` vérifie une PRÉSENCE, jamais une absence d'inattendu.* ⚠️ **Si `STAT_NOM` est renommée, `req_noms` se vide en se déclarant réussi.** | même chantier, même section |
+| **5** | **L'édition du miroir** — la table `req_editions`, empreinte calculée sur le CONTENU du zip *(`file_size` et CRC des membres, jamais le nom du fichier)*. ⚠️ **À nommer distinctement du SHA256 qui existe déjà** pour détecter un transfert tronqué : deux empreintes qui se confondraient. | à construire; le SHA256 existant vit dans `docs/MIROIRS.md` |
+| **9** | ⚠️ **D36 — l'import interrompu.** *Ne bloque la construction de rien.* | **D36**, qui porte les trois options — voir ci-dessous |
+
+⚠️ **Les étapes 6 et 7 s'écrivent ICI EN ENTIER, et c'est une décision du 21 septembre.** *Le renvoi vers `docs/MIROIRS.md` avait été supposé, pas lu : ce document ne porte ni `INSERT OR IGNORE`, ni `first_seen_at`, ni `req_editions` — il ne nomme `req_noms` que pour l'espace disque.* **Renvoyer vers un document qui ne porte pas le fait envoie le lecteur nulle part.**
+
+**6. Trancher `first_seen_at`, et le régime des deux tables.** *Les autres tables du miroir portent une date de première apparition ET une de dernière observation; `REQNom` n'a pas la seconde.* **Sans elle, on ne peut pas dire depuis quand une forme n'a plus été vue dans l'archive** — donc pas distinguer un nom que le registre a retiré d'un nom que notre import n'a pas relu.
+
+**7. Le rechargement en UPSERT — après la 6.** `req_noms` s'écrit en `INSERT OR IGNORE` et **rien ne la vide** : une ligne existante est **sautée, jamais mise à jour**. Trois conséquences mesurées :
+
+- **`gisement` est vide sur 1 505 879 lignes sur 5 071 984 — 29,7 %** *(les lignes du pont d'avant le 17 septembre)*;
+- **`statut` est figé à la PREMIÈRE insertion de chaque paire `(neq, nom_normalisé)`** — un nom passé de `V` à `A` dans une archive suivante reste `V` en base. **La table porte deux millésimes, et rien ne les distingue sauf `gisement IS NULL`**;
+- ⚠️ **le lot des candidats ne peut que GRANDIR** : `_scorer` prend le MEILLEUR des noms d'un NEQ, donc un score de NEQ ne peut que monter d'un import à l'autre. *Conséquence pour toute règle qui écrit sur une égalité ou une exclusion : **plus de dossiers à « plusieurs candidats », donc moins d'écritures, import après import.*** **Dérive dans le sens sûr — mais elle doit être ATTENDUE, sinon une baisse de rendement se lira comme une panne.**
+
+⚠️ **Ça vaut pour TROIS tables — `req_noms`, `req_mots`, `req_mots_frequence` — et PAS pour `req_entries`, qui est en upsert vrai** *(`_upsert_entreprise_reelle`)*. **Un correctif qui les traiterait ensemble se tromperait sur l'une.** *C'est ce qui fait tenir la règle du statut aujourd'hui : **la porte est gelée, le jugement est frais** — une radiée garde ses vieux noms, ils la font entrer dans le lot, et son statut à jour l'en chasse.*
+
+**Forme retenue par Alexandre le 19 septembre : passage en UPSERT + réimport** — la seule qui corrige la cause.
+
+⚠️ **Et l'étape 7 ne suffit pas sans D51.** *Passer en UPSERT rafraîchira le `statut` des formes; **rien ne lira ce statut pour autant**.* **Ce que le moteur fait d'un nom retiré est ouvert au registre et se tranche avant toute nouvelle écriture de NEQ.**
+
+**8. La reprise déclenchée par l'import.** *La passe existe et sait écrire (`outils/reresolution_neq.py`, 2 523 NEQ posés le 19 septembre); **seul manque le déclencheur**.* ⚠️ **Un dossier resté sans NEQ ne se réexamine jamais** — c'est le défaut de fond de la section 6, vu du côté du calendrier.
+
+**Sur l'étape 9 — D36 porte TROIS options, et la troisième est celle qu'elle retient** : *(a)* valider l'état de diff après le dernier signal de la source — *échange une classe de perte contre une autre*; *(b)* journaliser le point d'avancement; *(c)* **appliquer l'état ET émettre les signaux PAR LOTS ALIGNÉS**, de sorte que l'état n'avance jamais au-delà de ce qui est durable — *aucun journal, aucune liste, moins d'écritures*. **Le prix de (c) est nommé : `apres_diff_accepte` est invoqué exactement UNE fois, et c'est une garantie du chantier 1 — la découper est un changement de contrat.**
+
+### Faire œuvre des règles validées — les cinq étapes qui REGAGNENT
+
+*Ajoutées le 21 septembre. **Ce que le bassin de pratique a gagné doit se regagner à chaque import.***
+
+**10. Intégrer à la résolution chaque règle validée et déjà appliquée.** *Aujourd'hui : l'exclusion des radiées sur les égalités strictes — **1 065 NEQ posés le 20 septembre**, par un outil de `outils/`, qui ne s'appliquerait pas au prochain zip.*
+
+✅ **Vérifié le 21 septembre** : le statut qui écarte vient de `req_entries`, en upsert vrai — donc à jour à chaque import. ⚠️ **Mais deux dérives quand la règle tournera seule, à trancher AVANT l'intégration :**
+
+- ⚠️ **une radiation entre deux zip fait écrire un NEQ sans décision.** *Un dossier passe de « plusieurs candidats » à « écriture » parce qu'un concurrent a été radié* — et `REQEntry` ne porte **aucune date de radiation**. **La règle convertirait « radiation observée » en « NEQ posé », en silence.**
+- **Le lot ne peut que grandir** *(étape 7)* — la règle écrira moins, import après import.
+
+**11. Intégrer les règles EN DÉCISION, si Alexandre les valide** — l'élargissement aux confirmations, avec sa condition; et le verdict de l'adresse comme module de la résolution, **s'il devient une condition**. ⚠️ *Il ne l'est pas : l'adresse ne juge que 25,3 % des dossiers, et un garde-fou muet trois fois sur quatre n'en est pas un.*
+
+**12. Ce qu'il faut pour qu'une règle tourne SANS RELECTURE.** *Chacun de ces quatre points existe déjà dans les outils ponctuels, et aucun n'existe dans la résolution :*
+
+1. **un rapport d'import** qui compte ce qui a été posé **et ce qui est resté en suspens** — *un outil qui écrit une partie doit dire lesquels il n'a pas touchés, sinon la différence se lit comme une perte*;
+2. **un instantané et une annulation à chaque passe** — l'équivalent de `--defaire`;
+3. **la protection des NEQ déjà portés** — jamais écrasés, journalisés, les deux dossiers conservés;
+4. **des témoins vérifiés à chaque import**, pour détecter une régression. ⚠️ *Et un témoin s'AFFICHE, il ne s'affirme pas* — `Les Ruchers du Roi Bourdon` a été lu pendant deux jours sur une ligne qui montrait un nom n'ayant pas scoré.
+
+**13. Corriger les défauts trouvés dans le code**, une fois chaque correction validée : *les paliers du scoreur; la **coupe à cinq** et le bonus de ville appliqué APRÈS elle; le garde-fou des noms d'un mot (`candidats_par_mot_rare` exige un deuxième mot — c'est la cause du ×3,4 des noms d'un mot); `ni` transformé en `IMMATRICULEE`; la radiation qui fait disparaître un dossier sans le dire.* **`req_noms` en `INSERT OR IGNORE` est déjà l'étape 7, et le traitement des noms retirés est D51.**
+
+**14. La réouverture des dossiers posés** — *ajoutée par Alexandre le 21 septembre.* **Un NEQ posé est aujourd'hui définitif, alors que le fait qui l'a justifié est volatil.** À chaque import, revoir un dossier dont le NEQ a changé de statut *(radié depuis)* ou pour lequel un meilleur candidat est apparu. ⚠️ **Revoir n'est pas écraser : la règle de conservation s'applique.**
+
+⚠️ **Jamais discuté, et c'est ce qui manque pour franchir l'étape 10 : le critère qui fait passer une règle d'outil ponctuel à règle permanente.** *Une échelle — par exemple la part de contradictions sous laquelle une règle est acceptée.* **Elle se pose avec Alexandre, probablement en même temps que le taux d'erreur acceptable de la mesure de justesse.**
+
+**Puis l'import, quand les étapes 1 à 8 et 10 à 14 sont faites.** *C'est le test ultime : un autre fichier zip du REQ, pour voir comment les règles se comportent sur des données que personne n'a lues.*
+
+---
+
 ## 18. Le mur d'après
 
 Le chantier 3+4 récupère des identités. **Il ne dit pas ce qu'elles valent.**

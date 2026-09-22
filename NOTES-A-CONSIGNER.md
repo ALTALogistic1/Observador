@@ -6008,3 +6008,49 @@ ne couvrirait pas.**
 > La colonne de rattachement se lit dans le chargeur; la SÉMANTIQUE de la ligne
 > se lit dans le fichier, et ce fichier a été classé sur son nom une première
 > fois.**
+
+---
+
+## N241 — Un plancher posé sur une valeur que le traitement a déjà déplacée refuse chaque import
+
+- **Notée le** : 2026-09-22
+
+*En écrivant l'étape 3 du bloc de l'import.*
+
+La conception proposait un **plancher de remplissage par fichier** : *« `Nom.csv`
+rend aujourd'hui ~32,7 % de lignes en vigueur; une part qui s'effondre doit
+refuser bruyamment »* — et, dans la même page, *« le traitement porterait cette
+part à ~100 % »*.
+
+⚠️ **Le traitement a eu lieu le 17 septembre.** *Le `32,7 %` reste vrai du
+FICHIER — 1 521 816 sur 4 651 088 — et faux de ce que le chargeur RETIENT, qui
+garde tout.* **Un plancher posé sur l'ancienne valeur ne protégerait de rien : il
+refuserait chaque import.**
+
+> **Une échelle proposée AVEC le traitement qui la déplace se périme au moment où
+> le traitement passe. Le chiffre survit dans le document, l'objet qu'il mesurait
+> a changé, et rien ne les sépare — sauf relire la phrase d'à côté.**
+
+---
+
+## N242 — Un document qui ne fait plus foi doit le dire EN TÊTE
+
+- **Notée le** : 2026-09-22
+
+*`docs/CONCEPTION-TRAITEMENT-ARCHIVE-REQ.md` porte la conception du bloc de
+l'import. Il date d'avant le 17 septembre, et **cinq de ses affirmations sont
+maintenant fausses** — le compte de `req_noms`, le filtre par statut, le gisement
+« jamais regardé », la part retenue, et la règle qu'il réclamait.*
+
+**Le plan de travail le signalait** — *« des parties en sont périmées »* — **mais
+le plan vit hors du dépôt.** *Un lecteur qui ouvre le document n'a aucune raison
+de le soupçonner :* **il est cohérent, daté de nulle part, et il décrit un état
+du monde qui a duré trois jours.**
+
+**Ce qui a été fait :** un avertissement en tête, qui liste les cinq écarts, et
+qui **nomme le document qui fait foi à sa place**. *Pas une suppression : le
+raisonnement reste juste, ce sont ses prémisses qui ont bougé.*
+
+> **Un document périmé ne se reconnaît pas de l'intérieur. La seule place d'un
+> avertissement est la première ligne — là où un lecteur est encore avant sa
+> lecture, et pas déjà dedans.**
