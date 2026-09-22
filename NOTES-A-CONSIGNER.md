@@ -1076,7 +1076,7 @@ le 14 septembre. C'est le cas normal entre deux tâches.*
   zéro est normal et n'est pas une fuite.*
 
 ### N52 — Une garde écrite pour l'environnement a habillé un défaut du dépôt
-
+- **Notée le** : 2026-09-16
 **Le fait** *(2026-09-16)*. `outils/profil_memoire_import.py --etat-precedent req` a rendu, sur
 l'hôte :
 
@@ -1114,7 +1114,7 @@ chaque outil **à toute profondeur** — dans les fonctions, sous les `try` — 
 module et mauvais symbole → rouge aussi.
 
 ### N53 — La date d'un fichier déployé est celle de son commit, pas celle de la copie
-
+- **Notée le** : 2026-09-16
 **Le fait** *(2026-09-16, apporté par Alexandre)*. Devant l'échec ci-dessus, la première hypothèse
 a été une panne de déploiement — **parce que les fichiers de l'hôte portaient une vieille date.**
 Ils ne la portaient pas par accident : `rsync` **préserve `mtime`**. *La date d'un fichier déployé
@@ -1133,7 +1133,7 @@ qu'un déploiement a eu lieu, **on interroge le CONTENU** — un `grep` sur ce q
 est seule à porter — jamais l'horodatage.
 
 ### N54 — Le pic recalculé : l'addition tient, et le poste manquant se mesure à 59 Mo
-
+- **Notée le** : 2026-09-16
 **La mesure d'Alexandre sur l'hôte** *(2026-09-16)* : état précédent à **4 502 Mo** en ancienne
 forme contre **527 Mo** en neuve.
 
@@ -1162,7 +1162,7 @@ pente, c'est une falaise* — et c'est un réimport qui change beaucoup de ligne
 **Le même raisonnement la neutralise ici**, pour la même raison.
 
 ### N55 — Le repli silencieux, une porte plus loin : l'archive du diff
-
+- **Notée le** : 2026-09-16
 **Le fait** *(2026-09-16)*. Le correctif mémoire tient — **3,9 Go de pic contre 7,37**, proche des
 3 640 calculés. **Mais l'import est mort ailleurs :**
 
@@ -1204,7 +1204,7 @@ pour mot.
 Ils étaient faux, et corrigés.*
 
 ### N56 — Les deux « hausses » étaient une population, pas une dégradation
-
+- **Notée le** : 2026-09-16
 **Le fait** *(2026-09-16)*. Après réimport, deux catégories du diagnostic montent : candidats faibles
 `4 873 → 5 211` (+338), aucun candidat `148 → 346` (+198). *Lu comme une régression.*
 
@@ -1228,7 +1228,7 @@ mouvement. **Un tableau avant/après doit porter la somme de ses lignes**, sinon
 qu'il communique est fausse.
 
 ### N57 — Le pont existait, était interrogé, et n'ajoutait jamais personne
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **Le fait.** Le miroir porte 1 505 879 noms de plus. Le diagnostic est **identique à l'unité** sur
 trois catégories : 3 061 ambigus, 313 résolubles. *Pas « peu de gain » — zéro effet.*
 
@@ -1255,7 +1255,7 @@ tranche arbitraire : **le `LIMIT` n'a pas d'`ORDER BY`**, donc sur 50 000 « ges
 rend 2 000 au hasard de l'index. *Cette absence d'ordre reste un défaut ouvert.*
 
 ### N58 — Une ligne de contrôle qui ne s'imprime pas ne contrôle rien
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **Le fait.** `req.py` journalisait « %s noms en vigueur indexés dans req_noms » par `logger.info`.
 **Aucun programme de l'import ne configure de journal** — l'outil rapporte par `print()`. Sans
 gestionnaire, le logger racine est à WARNING : *la ligne partait dans le vide.* La table portait
@@ -1269,7 +1269,7 @@ contraintes et les transactions non validées. Une table vide alors que les entr
 crie désormais.
 
 ### N59 — La garde de ce matin ne couvrait pas les imports `outils.*`
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **Le fait**, quelques heures après avoir écrit `tests/test_imports_des_outils.py` : un outil neuf
 importait `outils.archives_req.resoudre_archive`. **Ce nom n'existe pas** — le vrai est `resoudre`.
 *Le même défaut que le matin, déduit au lieu d'être lu.* **La garde ne l'a pas vu : elle ne
@@ -1281,7 +1281,7 @@ pour la bonne. *La question à poser en écrivant une garde n'est pas « est-ce 
 défaut-ci », c'est « où est la frontière que je viens de tracer sans la nommer ».*
 
 ### N60 — Un `LIMIT` sans `ORDER BY` rend le rejeu non reproductible
-
+- **Notée le** : 2026-09-16
 **Le fait** *(2026-09-16, relevé par Alexandre)*. `candidats_par_nom` bornait quatre requêtes par
 `LIMIT` **sans aucun ordre**. Un `LIMIT` sans ordre ne rend pas « les 2 000 meilleurs » : il rend
 **2 000 lignes au hasard de l'index** — et « au hasard » veut dire *susceptible de changer entre
@@ -1304,7 +1304,7 @@ alphabétique arbitraire. **Rendre la récupération pertinente est un autre cha
 ouvert.**
 
 ### N61 — La passe de reprise : conservation, et trois gardes avant le premier octet
-
+- **Notée le** : 2026-09-16
 **La décision d'Alexandre** *(2026-09-16)* : **conservation plutôt que fusion, parce qu'elle est
 réversible.** *Deux dossiers séparés se fusionnent plus tard; deux dossiers fusionnés ne se séparent
 pas.* `Company.neq` étant `unique=True`, un NEQ déjà porté ne peut pas être posé sur un second
@@ -1328,7 +1328,7 @@ porte cette décision et rougit si quelqu'un fusionne plus tard.*
 mesurerait sa propre copie.*
 
 ### N62 — La garde des imports a payé son écriture le jour même
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 En écrivant la passe, j'ai importé `falkye.sources.req._enrich_from_req`. **Il vit dans
 `falkye/resolution.py`.** *Troisième déduction de nom en deux jours* — et cette fois
 `tests/test_imports_des_outils.py` l'a nommée, fichier et ligne, **avant l'hôte**. C'est la
@@ -1336,7 +1336,7 @@ première fois qu'une garde de cette session attrape un défaut que j'étais en 
 plutôt qu'un défaut déjà payé.
 
 ### N63 — La vérification faite d'avance répond à l'état d'avant
-
+- **Notée le** : 2026-09-16
 **Le fait** *(2026-09-16, 19 h 03)*. La passe de reprise est morte sur
 `UNIQUE constraint failed: companies.neq`, transaction annulée en entier — **rien posé sur les 736**.
 
@@ -1372,7 +1372,7 @@ regarde la paire**. *C'est la conservation qui rend ce choix bon marché* : le p
 perdu, il est journalisé. **Le modèle choisi hier a payé aujourd'hui.**
 
 ### N64 — Les doublons de dossier, et la famille que la contrainte rend invisible
-
+- **Notée le** : 2026-09-16
 **Demandé par Alexandre** *(2026-09-16)* : *« Ne le corrige pas. Mesure-le. »* `outils/
 doublons_entreprises.py` ne fait que mesurer — aucune écriture, aucune proposition.
 
@@ -1395,7 +1395,7 @@ candidat, donc un groupe de trois est vu comme des paires. *Le chiffre est un pl
 celui que le produit voit lui-même, ce qui est la mesure honnête de ce qu'il rate.
 
 ### N65 — L'hypothèse la plus coûteuse était un appel de fonction, pas une règle
-
+- **Notée le** : 2026-09-16
 **La direction tranchée par Alexandre** *(2026-09-16)* : **un dossier peut porter plusieurs noms,
 aucun nom ne se perd, et la fusion reste écartée.** Le miroir permet plusieurs noms par NEQ
 (1 505 879 paires, 41,7 % du registre); le dossier n'en permet qu'un. *Le produit suppose qu'une
@@ -1430,7 +1430,7 @@ renforcé, la règle de `req_noms` (« la table sert à TROUVER, jamais à NOMME
 mot, la conservation et l'ancienneté sont intactes. *Ce qui change vit en dessous du corpus.*
 
 ### N66 — Une transformation destinée à une valeur s'appliquait à toute la ligne
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **Le fait.** L'idiome répandu dans `outils/` était `f"… {n:,}".replace(",", " ")`. ⚠️ **`.replace`
 porte sur la LIGNE, pas sur le nombre** : « PERDUS, NEQ déjà porté » sortait « PERDUS  NEQ déjà
 porté ».
@@ -1449,7 +1449,7 @@ et `tests/test_format_des_nombres.py` refuse le retour de l'idiome.
 se couper en fin de ligne, et un nombre coupé se relit comme deux.*
 
 ### N67 — Trois contraintes reçues après l'ouverture : deux tiennent, une tombe
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **Les renvois vérifiés au corpus, et ils disent bien ce que le message rapportait.** *Le vérifier était
 la première chose à faire : un message cite de seconde main, le corpus fait foi.*
 
@@ -1477,7 +1477,7 @@ phrase qui condamne le report condamne aussi de la construire seule maintenant :
 migrer deux fois la même clé » — la construire à part en ferait trois.*
 
 ### N68 — J'avais étendu une décision par symétrie, et le cas 34 l'interdit
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 ⚠️ **L'étape 2 de ma proposition — « élargir les 6 points de recherche » — était présentée comme une
 conséquence de la décision du 16. Elle n'en est pas une.** La décision porte sur la **conservation des
 noms** : qu'aucun ne se perde, qu'aucun dossier ne soit supprimé.
@@ -1495,7 +1495,7 @@ contourné)* **ET un test d'AST qui refuse toute affectation hors de lui**. *Le 
 une vigilance outillée; la fonction sans le test est une convention.*
 
 ### N69 — Les décisions que ma proposition supposait, nommées plutôt que devinées
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **D28** : mon élargissement envoyait **tout** nom au REQ — *c'est présumer que toute entité est privée*,
 exactement l'ambiguïté d'entité que D28 doit trancher avec une réponse par défaut. **D29** : ma règle
 d'ancienneté décide quel dossier porte **le NEQ**; dès qu'une entité peut porter deux identifiants,
@@ -1506,7 +1506,7 @@ publique » n'a pas de sens défini.
 dire.** *La nommer coûte une ligne; la deviner coûte une migration.*
 
 ### N70 — « Vivant » n'était pas fondé : j'avais le mécanisme, pas l'occurrence
-
+- **Notée le** : 2026-09-16
 **La question d'Alexandre** *(2026-09-16)* : j'ai qualifié `scalar_one_or_none()` de « défaut VIVANT
 sur le chemin de production » **sans en donner la preuve**, et le corpus veut que la preuve voyage
 avec le fait.
@@ -1535,7 +1535,7 @@ différentes, et un test ne prouve que la première.** *L'occurrence se lit dans
 la population, jamais dans le code.* **Dire laquelle des deux on tient coûte trois mots.**
 
 ### N71 — L'adresse est capturée et jamais promue : le préalable avant toute mesure
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **Vérifié au code, et l'audit avait raison.** `falkye/sources/eimt.py` construit son `RawSignal`
 avec `champs={"adresse": …}` et **aucun argument `adresse=`** — alors que `RawSignal.adresse`
 existe *(`falkye/sources/base.py`)*. **Le champ existe, la donnée existe, et le pont entre les deux
@@ -1557,7 +1557,7 @@ en corroborateur.** *Elle passe seconde dans l'ordre des mesures pour son préal
 rang.*
 
 ### N72 — Le chiffre du nom de fichier n'était produit par aucune requête du fichier
-
+- **Notée le** : 2026-09-16
 **La question d'Alexandre** *(2026-09-16)* : `profil_des_6176` porte-t-il un sous-ensemble des 8 931,
 ou une population recomptée? **Il demandait les deux requêtes, pas une explication.** *Il avait
 raison de les demander : elles répondent une troisième chose.*
@@ -1599,7 +1599,7 @@ se périme jamais; un fichier compté dit COMBIEN, ce qui se périme.* Vérifié
 nom.
 
 ### N73 — La normalisation est la même, la SOURCE DE LA VALEUR ne l'est pas
-
+- **Notée le** : 2026-09-16
 **La question d'Alexandre** *(2026-09-16)* : `dossiers sans NEQ : 8931` et `formes distinctes : 8931`
 étant égaux, aucun dossier ne partage sa forme — donc `scalar_one_or_none()` ne peut pas lever. *La
 normalisation de l'outil est-elle celle du chemin de résolution?*
@@ -1634,7 +1634,7 @@ stockée et l'autre recalculée.** *Une colonne dérivée est une photo, pas un 
 « est-ce le même code » ne répond jamais à « est-ce la même valeur ».
 
 ### N74 — Deux bornes, deux tables, et les confondre fait chercher le mur du mauvais côté
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **Relevé en préparant la trace des 6 414.** La demande visait `LIMITE_CANDIDATS = 500` — **mais ce
 n'est pas la borne qui décide du sort de ces dossiers.**
 
@@ -1651,7 +1651,7 @@ REQ a buté sur la première; la seconde ne l'a jamais vu.**
 *sinon la trace mentirait sur la borne qu'elle diagnostique.*
 
 ### N75 — NOM_ETAB rend zéro, et c'est le périmètre imprimé qui l'a rendu lisible
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **5 sur 2 517, toutes en forme `IND`** — des personnes physiques, la population que le Registraire ne
 publie pas. *L'hypothèse tombe.*
 
@@ -1671,7 +1671,7 @@ quinze est juste : ce sont les quinze premiers par ordre alphabétique, donc le 
 en échantillon — le cas 19.**
 
 ### N76 — La distinction stockée/recalculée, appliquée au critère plutôt qu'au compte
-
+- **Notée le** : 2026-09-16
 **La question d'Alexandre** *(2026-09-16)* : le sélecteur de `--depuis-la-base` choisit-il sur la
 valeur recalculée ou sur la colonne stockée? *Il m'appliquait ma propre distinction au CRITÈRE DE
 SÉLECTION plutôt qu'au compte.*
@@ -1702,7 +1702,7 @@ elle se posait aussi aux deux côtés de la comparaison.* **La trace imprime dé
 côte à côte, nommées**, et dit explicitement qu'un écart n'explique pas un échec contre le REQ.
 
 ### N77 — Le zéro qui ferme 4a doit dire ce qu'il ne ferme pas
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 `outils/doublons_forme_stockee.py` interroge **la colonne que la production compare**, jamais un
 recalcul. *Un test met les deux valeurs en désaccord : deux dossiers de forme stockée identique dont
 les noms bruts se normalisent différemment aujourd'hui — **un outil qui recalculerait ne les verrait
@@ -1721,7 +1721,7 @@ sur la même commande. `refuser_si_cible_non_choisie()` l'interdit.
 partagée par deux dossiers est un doublon comme un autre, et `scalar_one_or_none()` lève pareil.*
 
 ### N78 — 4a fermée par la mesure, et la garde a payé avant elle
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **`doublons_forme_stockee` a tourné sur l'hôte, cible distante annoncée, aucun repli : 0 forme
 partagée et 0 forme vide sur 8 931.** `scalar_one_or_none()` n'a jamais pu lever.
 
@@ -1737,7 +1737,7 @@ survenu, pas qu'il est impossible* — la borne sans ordre du dédoublonnage peu
 demain.
 
 ### N79 — Neuf hypothèses tombées demandaient toutes POURQUOI la comparaison échoue
-
+- **Notée le** : 2026-09-16
 **L'hypothèse d'Alexandre** *(2026-09-16, déclarée comme telle et non établie)* : **une part des
 8 931 n'a pas de NEQ à trouver.** Le REQ ne contient que les entités immatriculées au Québec; un
 employeur vu par l'EIMT peut être fédéral ou extraprovincial.
@@ -1774,7 +1774,7 @@ colonnes — **un total de colonnes n'est pas un total de dossiers** — et un d
 aucune source, donc échappe entièrement au croisement.*
 
 ### N80 — La contradiction venait d'une étape manquante, et la trouvaille la dépasse
-
+- **Notée le** : 2026-09-17
 **Le relevé d'Alexandre** *(2026-09-17)* : trois dossiers tracés scorent **100 contre un seuil de
 92**, huit points de marge, et sont pourtant sans NEQ. *« Les deux ne peuvent pas être vrais en même
 temps. »*
@@ -1802,7 +1802,7 @@ n'a redemandé depuis. ⚠️ **Ce n'est pas un mur d'appariement — c'est le c
 moitié que N36 ne nommait pas : même si on redemandait, la réponse s'écrirait ailleurs.**
 
 ### N81 — Un critère de sélection qui présélectionne le résultat illustre une conclusion
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **Le défaut, relevé par Alexandre.** Mon sélecteur retenait les dossiers **dont le nom normalisé
 existait par correspondance EXACTE dans le miroir** — *c'est-à-dire ceux dont il avait déjà démontré
 qu'ils devaient réussir.* **Trois cas tracés, trois scores de 100, et aucun dossier qui échoue
@@ -1819,7 +1819,7 @@ par famille dit plus que trois cas de la même.* Une famille vide dit « zéro d
 parcouru », jamais « zéro dans la population ».
 
 ### N82 — Un compte périmé dans le texte qui existe pour borner la mesure
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **Troisième population non expliquée en deux jours**, après les 6 176 et le territoire du registre :
 le bloc de portée de la trace citait **4 873** trois fois. *Un compte du 15 septembre, devenu 5 211
 puis 4 733, et qui n'est plus dans aucune ventilation.*
@@ -1835,7 +1835,7 @@ chiffres avec séparateur de milliers. *Une année ne s'écrit jamais avec un s�
 plus, et les seuils vivent dans des constantes nommées.*
 
 ### N83 — Le rejeu en lecture seule : étendu plutôt que dupliqué
-
+- **Notée le** : 2026-09-17
 **La mesure demandée** *(Alexandre, 2026-09-17)* : rejouer la résolution **en lecture seule** sur les
 8 931 et compter ce qui se résoudrait aujourd'hui.
 
@@ -1864,7 +1864,7 @@ comparent ligne à ligne : deux ventilations calculées autrement ne se comparen
 lirait comme un mouvement (N56).*
 
 ### N84 — Le nombre de prétendants est une preuve d'une autre nature que le score
-
+- **Notée le** : 2026-09-17
 **Le fait** *(2026-09-17, relevé par Alexandre)*. Le NEQ `8879690699` attirait **26 dossiers** —
 CISSS de la Montérégie-Centre, CISSS Gaspésie, CIUSSS de l'Outaouais, CHUM, Centre universitaire de
 santé McGill, Institut de Cardiologie, Centre régional de la Baie-James… **26 organisations
@@ -1900,7 +1900,7 @@ sur les entités publiques produit du faux avec une confiance élevée.** *Et ce
 entités que le périmètre déclare ne pas couvrir — D27 et D28 ouvertes.*
 
 ### N85 — Deux chiffres qui ne tiennent pas ensemble désignent l'étape d'avant
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **Le recoupement d'Alexandre** : 6 414 dossiers portent un nom présent au registre, 4 733 sont
 classés « candidats trop faibles ». *Les deux ensembles se recouvrent forcément.* **Un dossier dont
 le nom est littéralement dans le registre ne devrait pas avoir de candidats faibles.**
@@ -1930,7 +1930,7 @@ scoré?** *Les deux verdicts s'appellent « trop faible » et n'ont pas la même
 vient de `neq_retenu` — et le jumeau n'est cherché qu'ensuite.*
 
 ### N86 — Trois silences différents sous le même message
-
+- **Notée le** : 2026-09-17
 **L'écart relevé par Alexandre** *(2026-09-17)* : la trace disait *« aucun --attendu ni --neq donné :
 étape sautée »* alors que j'avais annoncé que le jumeau exact était désormais cherché.
 
@@ -1952,7 +1952,7 @@ différents, et le second est un résultat.** *Les confondre dans un seul messag
 mesure en absence de mesure* — et c'est la forme du cas 33 appliquée à une seule ligne de sortie.
 
 ### N87 — Deux corrections qui ne sont pas de même nature, et le chiffrage doit le rendre visible
-
+- **Notée le** : 2026-09-16 — ⚠️ *borne basse : la note ne porte aucune date; elle est encadrée par N56 (16 sept.) et N88 (17 sept.)*
 **Le cas qui ouvre la question** : un dossier échouant de **deux points** à cause de `(Workstaff)`,
 avec une récupération parfaite — préfixe numérique, une ligne rendue, borne non atteinte, bon
 candidat présenté. **Le mur était dans le score, pas dans la récupération.**
@@ -1985,7 +1985,7 @@ la simuler sans rejouer la récupération mesurerait autre chose.*
 ---
 
 ## N88 — Un instrument qui recopie la règle du moteur mesure sa propre copie, et l'attribue à la correction
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, relevé par Alexandre sur la sortie du chiffrage.)*
 
 Le chiffrage annonçait **-338 RETENUS** après retrait des parenthèses, et **l'annotation juste en
@@ -2035,7 +2035,7 @@ correction ne peut rien y changer, donc toute perte est imputable à l'instrumen
 ---
 
 ## N89 — L'annotation qui promet qu'une correction « ne peut que rapprocher » est fausse dès qu'elle touche la RÉCUPÉRATION
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, exigé par Alexandre.)*
 
 *« Si les 338 perdus ne portaient pas de parenthèse, la perte vient du côté registre et c'est un
@@ -2060,7 +2060,7 @@ parenthèse / sans) permet de trancher mécanisme contre défaut.
 ---
 
 ## N90 — Compter ce qui FRANCHIT un seuil n'est pas compter ce qu'on RÉCUPÈRE : deux échelles, deux refus
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, relevé par Alexandre — l'écart de 1 544.)*
 
 ```
@@ -2090,7 +2090,7 @@ un seul endroit. *Trois outils la recalculaient chacun à sa façon.*
 ---
 
 ## N91 — L'écart minimal est plus dangereux que le seuil, et personne n'en avait parlé de la journée
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, décision de méthode d'Alexandre.)*
 
 *« L'écart de 8 est une seconde échelle, et elle n'a jamais été rouverte. »*
@@ -2118,7 +2118,7 @@ dans une demande de mesure.*
 ---
 
 ## N92 — Ce que les chiffres établissent, et qui ne bouge plus
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, Alexandre.)*
 
 **Les parenthèses sont un petit motif** : **259 dossiers sur 8 931**, dont **205 chez les trop
@@ -2135,7 +2135,7 @@ n'est pas le mur.**
 ---
 
 ## N93 — Un préalable a évité une mesure qui aurait rendu zéro, et ce zéro aurait accusé la chose au lieu du champ
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 ```
@@ -2157,7 +2157,7 @@ fois avant d'être tombée** : le second terme de la comparaison n'existait pas.
 ---
 
 ## N94 — Deux niveaux de précision ne sont pas deux graphies : aucune normalisation ne les rejoint
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, Alexandre.)*
 
 ```
@@ -2179,7 +2179,7 @@ se pose donc sur l'intersection, pas sur le champ.*
 ---
 
 ## N95 — Une colonne qui rend le même chiffre que sa voisine n'ajoute rien : elle la répète
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, relevé par Alexandre.)*
 
 Le chiffrage de l'écart rendait le gain **et** une colonne « 2e NEQ à moins de ».
@@ -2198,7 +2198,7 @@ récupère, il le récupère en tranchant entre deux entités* — **mais il ét
 ---
 
 ## N96 — Trois lectures d'une perte, pas deux : ma propre règle de lecture accusait l'instrument pour un mécanisme
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, relevé par Alexandre.)*
 
 *« 9 perdus sur 13 ne portent aucune parenthèse, alors que ta propre règle de
@@ -2225,7 +2225,7 @@ candidats rendus, parce que le score d'un NEQ vient du meilleur de ses noms.*
 ---
 
 ## N97 — Un signal trop faible pour IDENTIFIER peut être assez fort pour EXCLURE
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, raisonnement d'Alexandre.)*
 
 **« Lévis » ne désigne aucune entreprise.** *Apparier depuis rien avec une ville
@@ -2254,7 +2254,7 @@ paraître la ville inutile là où **elle est la seule à avoir une opinion**.
 ---
 
 ## N98 — Mesurer l'apport d'un signal que le moteur consomme déjà le compterait deux fois
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 `resolve_neq_by_name` **ajoute déjà +5 quand `Company.ville` concorde**. *Là où la
@@ -2273,7 +2273,7 @@ correctif attend ce chiffre, il ne le précède pas.**
 ---
 
 ## N99 — Un correctif qui ferme un défaut peut laisser l'inquiétude entière : dire LAQUELLE des deux moitiés il a fermée
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 Alexandre : *« `candidats_par_nom` fait `LIMIT 2000` sans `ORDER BY`. »*
@@ -2297,7 +2297,7 @@ vérifié qu'il contient le bon candidat.*
 ---
 
 ## N100 — Une borne qui COUPE n'est pas une PERTE, et le compte des coupes borne le risque sans l'établir
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 *Un préfixe qui rend 51 000 lignes dont la bonne est la douzième alphabétique
@@ -2319,7 +2319,7 @@ se mesure à côté de la coupe, sinon le mot « saturé » couvre les deux.
 ---
 
 ## N101 — Une règle de tirage doit être ÉNONCÉE pour pouvoir être contestée
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, exigé par Alexandre.)*
 
 *« Si les dix sont pris par `id` croissant, c'est le cas 19 — le tri du fichier
@@ -2342,7 +2342,7 @@ chose.* **Ce qui nuit n'est pas le mauvais échantillon, c'est le mauvais
 ---
 
 ## N102 — Une distribution dit COMBIEN; elle ne dit jamais QUOI
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, Alexandre.)*
 
 **2 713 dossiers sur 4 733 ont leur meilleur score dans une fenêtre de TROIS
@@ -2363,7 +2363,7 @@ le chiffrage a dit qu'il pesait 205 dossiers sur 8 931 — réel, et pas le mur.
 ---
 
 ## N103 — Une borne recopiée en dur ment le jour où la borne change
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 `candidats_par_nom` portait `limite: int = 2000`. **Un outil qui mesure la
@@ -2383,7 +2383,7 @@ aurait mesuré sa copie** — c'est déjà arrivé une fois cette semaine, et ç
 ---
 
 ## N104 — Ce que les deux mesures du 17 ont rendu, et qui ne bouge plus
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, Alexandre.)*
 
 **Les parenthèses — piste CLOSE.** La correction rend **+17** et en casse **13**.
@@ -2411,7 +2411,7 @@ s'ils sont entamables.
 ---
 
 ## N105 — Un `ORDER BY` alphabétique rend le tirage reproductible ET systématiquement mauvais
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, établi par Alexandre sur les dix paires.)*
 
 **Sept des dix candidats retenus sont en TÊTE ALPHABÉTIQUE de leur préfixe** :
@@ -2443,7 +2443,7 @@ coupé, contre 26,0 % des RETENU. *Préfixe parlant : 57,1 %. Préfixe numériqu
 ---
 
 ## N106 — Une distribution concentrée sur UNE valeur n'est pas une population, c'est un calcul
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, Alexandre.)*
 
 **Le score 85,50 revient huit fois sur dix.** *C'est ce que `WRatio` rend quand
@@ -2468,7 +2468,7 @@ calcul; si les valeurs sont étalées, c'est une population.*
 ---
 
 ## N107 — Une constante écrite en valeur par défaut est décorative : Python l'évalue une fois, à l'import
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, découvert par un test qui passait sur un lot qu'il croyait coupé.)*
 
 ```python
@@ -2495,7 +2495,7 @@ MÊME objet, pas la même valeur.
 ---
 
 ## N108 — Un garde qui écarte les pires cas doit COMPTER ce qu'il écarte, sinon le biais devient le résultat
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 La mesure C lève la borne, donc charge **tout le gisement du préfixe** : `l` rend
@@ -2518,7 +2518,7 @@ mesure.*
 ---
 
 ## N109 — Les deux côtés d'une simulation prennent les MÊMES entrées, y compris celles qu'on croit accessoires
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, attrapé à l'écriture.)*
 
 La mesure C rejouait la récupération **sans la ville**, alors que le score de
@@ -2534,7 +2534,7 @@ avait le bonus et l'autre non; cette fois-ci le côté privé était le nouveau.
 ---
 
 ## N110 — Un tableau dont les lignes ont plus de colonnes que l'en-tête : la colonne muette était celle qui portait le sens
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, trouvé en versant le chantier 3+4 au corpus.)*
 
 Le tableau de l'écart arrivait ainsi :
@@ -2560,7 +2560,7 @@ comparer à l'en-tête. *Il tourne en une seconde sur tout le corpus.*
 ---
 
 ## N111 — Un compte dans un document d'aiguillage vieillit en silence, parce que personne ne relit l'aiguilleur
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 `FALKYE-000-PAR-OU-COMMENCER.md` annonçait **« six existent »** pour les documents de chantier et
@@ -2577,7 +2577,7 @@ périme aussi, mais elle se périme VISIBLEMENT : un document manquant se voit, 
 ---
 
 ## N112 — Dix cas disent qu'une chose EXISTE; ils ne disent jamais COMBIEN DE FOIS
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, établi par le recomptage, mesure A.)*
 
 Sur dix paires du pic, **sept candidats étaient en tête alphabétique de leur préfixe** — `LES " 100 " AILE`, `FERME 100 MILES`, `J 2 B`, `La 115e`. **On en a tiré une explication** : *la tranche commence par les chiffres et la ponctuation et n'atteint jamais les lettres.*
@@ -2601,7 +2601,7 @@ dans la tranche entière : non alphabétique 776 568 / 6 342 752   12,2 %
 ---
 
 ## N113 — Le recoupement interne d'une mesure : ce qui dit qu'un instrument lit bien l'objet qu'il prétend lire
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 La mesure A a rendu deux chiffres qui n'étaient pas demandés et qui l'ont validée :
@@ -2616,7 +2616,7 @@ La mesure A a rendu deux chiffres qui n'étaient pas demandés et qui l'ont vali
 ---
 
 ## N114 — La clé de récupération était un MOT VIDE, et c'est une apostrophe devenue une espace
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, après la mesure C.)*
 
 `normaliser` remplace la ponctuation par des espaces. **Donc le « premier mot » d'un nom n'est pas son premier mot :**
@@ -2639,7 +2639,7 @@ moitié du problème, littéralement.**
 ---
 
 ## N115 — Le coût dominant d'une résolution est le SCORAGE, pas la requête — donc un meilleur lot coûte MOINS
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 Par résolution : deux `GLOB` indexés bornés, deux replis possibles, une jointure — **puis
@@ -2656,7 +2656,7 @@ Par résolution : deux `GLOB` indexés bornés, deux replis possibles, une joint
 ---
 
 ## N116 — Une structure qui rend la non-régression IMPOSSIBLE vaut mieux qu'une qui la mesure
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, en départageant quatre directions.)*
 
 Trois des quatre directions envisagées changent le lot présenté au scoreur — donc exposent les **805**
@@ -2681,7 +2681,7 @@ instantané dans les modèles du miroir, seulement des dates par ligne.
 ---
 
 ## N117 — J'ai désigné un outil comme mesurant une chose qu'il ne mesure pas, et l'erreur est exactement celle qu'il dénonce
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, relevé par Alexandre.)*
 
 **Écrit dans la conception** : *« E, le coût en ambiguïté, sur
@@ -2710,7 +2710,7 @@ et ça se voit en dix lignes de lecture.
 ---
 
 ## N118 — Deux chiffres qui ne peuvent pas être vrais ensemble désignent une chaîne, pas une erreur
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, relevé par Alexandre.)*
 
 **6 009 résolutions franches** *(`impact_tous_les_noms`)* contre **805 retenus**
@@ -2737,7 +2737,7 @@ devant tout le reste.* **La question ne se tranche pas par le raisonnement.**
 ---
 
 ## N119 — « Réversible » se vérifie champ par champ, pas geste par geste
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, trouvé en répondant aux trois questions d'Alexandre avant d'appliquer.)*
 
 L'instantané de la passe de reprise portait `neq` et `statut_resolution`. ⚠️ *Or
@@ -2765,7 +2765,7 @@ n'est plus celui qu'on avait posé n'est plus le nôtre.
 ---
 
 ## N120 — Idempotent sur les dossiers ne veut pas dire idempotent sur le journal
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 La passe de reprise est idempotente sur les **écritures aux dossiers** : un
@@ -2786,7 +2786,7 @@ tout le geste aurait rendu « idempotent » sans réserve.*
 ---
 
 ## N121 — Un écart de 16 000 qu'on avait noté sans l'expliquer portait la réponse à la question
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 **La question** : le 6 009 de `impact_tous_les_noms` est-il un gain disponible, ou déjà en base?
@@ -2818,7 +2818,7 @@ tranché le jour où il est apparu; il aurait épargné une mesure et une concep
 ---
 
 ## N122 — Un filtre échoue FERMÉ, et un pont vide ressemble à une archive plus petite
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, trouvé en concevant le traitement de l'archive.)*
 
 ```python
@@ -2844,7 +2844,7 @@ apparaîtrait : `FICHIERS_REQ_REELS` vérifie une présence, jamais une absence 
 ---
 
 ## N123 — L'identité d'une édition se calcule sur son contenu, jamais sur son nom
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 **Le REQ publie deux archives par mois, le 2 et le 16.** *Et rien, dans le miroir, ne dit de quelle
@@ -2863,7 +2863,7 @@ les lit déjà.*
 ---
 
 ## N124 — J'ai classé un fichier entier sur son NOM, et un gisement est resté ignoré une journée de plus
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, relevé par Alexandre après ouverture complète de l'archive.)*
 
 **Écrit dans ma conception** : *« deux fichiers de relations NEQ→NEQ qui sont en
@@ -2892,7 +2892,7 @@ quelques kilo-octets.
 ---
 
 ## N125 — Un garde par lecture de l'arbre syntaxique ne voit pas ce qui vient d'une table
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, trouvé à l'écriture.)*
 
 `colonnes_brutes_lues` extrait les en-têtes lues en cherchant `row.get("…")` dans
@@ -2916,7 +2916,7 @@ une à une et vérifie que le garde refuse.**
 ---
 
 ## N126 — Un index et sa requête ont deux découpeurs, et leur divergence ne lève nulle part
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, en construisant l'index par mots.)*
 
 L'index est bâti **en SQL** — une CTE récursive qui coupe `nom_normalise` sur
@@ -2937,7 +2937,7 @@ l'index.* **Une seule qui échoue fait REFUSER l'import.**
 ---
 
 ## N127 — À fréquence égale, l'alphabet n'est pas un critère
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 La récupération par mots choisit **le mot le plus rare**. *Sur un index réel
@@ -2954,7 +2954,7 @@ défaut que la tranche du `LIMIT`, un étage plus haut.*
 ---
 
 ## N128 — Une conclusion vraie d'un état du code doit porter sa date
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 Le matin, l'arithmétique fermait la piste des noms en vigueur :
@@ -2973,7 +2973,7 @@ apercevrait, parce que les deux chiffres continueraient d'exister.
 ---
 
 ## N129 — Le second temps a livré, et il a déplacé le problème plutôt que de le supprimer
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, mesuré sur l'hôte.)*
 
 ```
@@ -3000,7 +3000,7 @@ DEUX candidats que le nom ne sépare pas.
 ---
 
 ## N130 — « Je ne sais pas » n'est pas « non » — la règle qui sépare un départageur d'un filtre
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, à l'écriture des trois départageurs.)*
 
 Un départage n'est prononcé que si **trois** conditions tiennent :
@@ -3026,7 +3026,7 @@ signal, et il se compte à part.**
 ---
 
 ## N131 — Un code postal lu par fenêtre glissante invente des codes qui n'existent pas
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, attrapé en écrivant le test.)*
 
 `'St-Isidore, QC J0L  2A'` compacté donne `STISIDOREQCJ0L2A`. **Une lecture
@@ -3050,7 +3050,7 @@ la région de tri qui reste comparable.**
 ---
 
 ## N132 — Deux classifications qui ne se joignent pas par code : le dire plutôt que d'inventer la table
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 Le SEAO classe en **UNSPSC**, le REQ en **CAE**, et **aucune table ne les relie**.
@@ -3071,7 +3071,7 @@ plomberie sur « autres services »**, ce qui est pire qu'aucun départage.
 ---
 
 ## N133 — Un repli n'est pas un second avis : il ne franchit pas une contradiction établie
-
+- **Notée le** : 2026-09-17
 *(2026-09-17, construction du départageur d'adresse.)*
 
 La ville a été demandée **comme repli du code postal, dans le même départageur**.
@@ -3098,7 +3098,7 @@ plus précis le dément.*
 ---
 
 ## N134 — Une non-régression se rend STRUCTURELLE, ou elle reste une intention
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 La non-régression sur les **2 634 retenus** a été demandée comme **critère, pas
@@ -3122,7 +3122,7 @@ retire la garde et vérifie que l'outil sort en erreur au lieu de continuer.
 ---
 
 ## N135 — Un échantillon se tire à pas constant, jamais en tête
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 Pour dire lequel des deux — *le bon candidat n'est pas dans le lot*, ou *le fait
@@ -3150,7 +3150,7 @@ lue — et c'est CETTE relecture-là qui décide du prix, pas la machine.**
 ---
 
 ## N136 — Une garde qui lit des LIGNES ne distingue pas le code du commentaire qui le cite
-
+- **Notée le** : 2026-09-17
 *(2026-09-17.)*
 
 `tests/test_format_des_nombres.py` interdit la substitution posée sur la ligne
@@ -3171,6 +3171,8 @@ sans faux négatif, et la payer en faux positifs sur les commentaires est le bon
 ---
 
 ## N137 — Un rappel qui ne bloque jamais et qui compte faux ne rappelle rien
+
+- **Notée le** : 2026-09-18
 
 *(2026-09-18, en versant `falkye-le-cerveau.md` au corpus.)*
 
@@ -3207,7 +3209,7 @@ dit leur ancienneté ne l'est pas.**
 ---
 
 ## N138 — Ce qui fait d'un document un document de CHANTIER et non un relevé de mesures
-
+- **Notée le** : 2026-09-18
 *(2026-09-18, arbitré par Alexandre sur les deux versions du 3+4.)*
 
 Deux versions du même document se sont présentées : douze sections et dix-huit.
@@ -3235,7 +3237,7 @@ règle qui a déjà mordu sur « sept sur dix en tête d'alphabet ».
 ---
 
 ## N139 — Une divergence nommée et LAISSÉE : quand le chiffre qui portait le risque est déjà juste
-
+- **Notée le** : 2026-09-18
 *(2026-09-18, décision d'Alexandre.)*
 
 Le rappel du tampon lit les dates sous une forme que **85 notes sur 136** n'emploient
@@ -3260,7 +3262,7 @@ prochain lecteur, qui lira « la plus ancienne du 14 septembre » sans savoir qu
 ---
 
 ## N140 — Un renvoi vers un chantier non ouvert ne se comble pas d'avance
-
+- **Notée le** : 2026-09-18
 *(2026-09-18, décision d'Alexandre.)*
 
 `falkye-le-cerveau.md` attribue la table `(code, rôle) → sphère` au **chantier 22**,
@@ -3282,7 +3284,7 @@ lira comme un état.**
 ---
 
 ## N141 — Le code postal ne tranchait rien : c'était la région de tri, sur 100 % des cas
-
+- **Notée le** : 2026-09-18
 *(2026-09-18, relecture des 50 premières corrections par Alexandre.)*
 
 Le départageur d'adresse avait un niveau nommé « code postal ». **Il décidait
@@ -3316,7 +3318,7 @@ la même étiquette, et rien ne disait lequel on lisait.*
 ---
 
 ## N142 — « Le fait les exclut tous » se franchit vers une DÉGRADATION du même fait, jamais vers un autre fait
-
+- **Notée le** : 2026-09-18
 *(2026-09-18, en scindant le code postal en deux niveaux.)*
 
 N133 avait posé qu'*« un repli répond à “je ne sais pas”; il n'a rien à répondre
@@ -3345,7 +3347,7 @@ d'une règle pensée pour deux.* **Elle est donc portée par l'objet `Niveau` :
 ---
 
 ## N143 — Un compte figé dans une étiquette, troisième occurrence — et cette fois dans un libellé de tableau
-
+- **Notée le** : 2026-09-18
 *(2026-09-18.)*
 
 `profil_des_6176.py` portait une mesure périmée **dans son nom de fichier**; un
@@ -3367,7 +3369,7 @@ juste — jusqu'au jour où la population bouge.**
 ---
 
 ## N144 — Un test qui compte les jetons d'une ligne lit le décor, pas la mesure
-
+- **Notée le** : 2026-09-18
 *(2026-09-18.)*
 
 Les tests du départageur vérifiaient un compte par `ligne.split()[-3]`. ⚠️
@@ -3389,7 +3391,7 @@ citer les titres en entier plutôt que par fragment.*
 ---
 
 ## N145 — Un critère qui refuse le gain pour lequel il a été écrit change de FORME, il ne se desserre pas
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, après l'échec du critère sur les 2 032.)*
 
 Le critère du découpage disait : **« aucun départage perdu, aucun gagnant
@@ -3423,7 +3425,7 @@ sans condition.* **Changer de forme n'est pas tout rouvrir.**
 ---
 
 ## N146 — Un balayage exhaustif dit ce qui est POSSIBLE; dix cas tirés disent ce qui est arrivé
-
+- **Notée le** : 2026-09-19
 *(2026-09-19.)*
 
 Quatre gagnants déplacés, deux lectures : **un défaut de construction**, ou **le
@@ -3460,7 +3462,7 @@ et une seule qui montrerait autre chose la renverserait.*
 ---
 
 ## N147 — Une paire refusée se lit AVANT le refus, sinon il ne reste rien à examiner
-
+- **Notée le** : 2026-09-19
 *(2026-09-19.)*
 
 Le critère échouait en imprimant `gagnant : Beauce Carnaval inc  1 → 2` — **deux
@@ -3482,7 +3484,7 @@ n'en confirme aucun** — un déplacement légitime reste une paire à regarder.
 ---
 
 ## N148 — Le scoreur savait sur quoi il avait décidé, et il le jetait
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, relecture des 50 paires de la passe par Alexandre.)*
 
 ```
@@ -3517,7 +3519,7 @@ lecture par paire ferait N requêtes pour un rapport de cinquante lignes.
 ---
 
 ## N149 — « Cinquante paires lues » ne dit pas combien sont dans ce cas
-
+- **Notée le** : 2026-09-19
 *(2026-09-19.)*
 
 Deux paires sur cinquante décidées sur une autre forme que celle affichée. ⚠️
@@ -3541,7 +3543,7 @@ retiré.*
 ---
 
 ## N150 — Un statut absent là où il n'y a rien à lire n'est pas « inconnu »
-
+- **Notée le** : 2026-09-19
 *(2026-09-19.)*
 
 La forme gagnante affiche son gisement et son statut. **Quand c'est la
@@ -3563,7 +3565,7 @@ manque vraiment : *une forme de `req_noms` sans statut est une lacune réelle.*
 ---
 
 ## N151 — Une théorie se verse au corpus avec ce qui l'appuie ET avec ce qui n'est pas compté
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, trois constats versés aux chantiers 3+4 et 22.)*
 
 Trois théories d'Alexandre sur ce qui restera **après** les écritures. **Aucune
@@ -3588,7 +3590,7 @@ seul des deux a été établi.*
 ---
 
 ## N152 — Remplir la place d'avance : la règle tient quand c'est nous qui écrivons le document
-
+- **Notée le** : 2026-09-19
 *(2026-09-19.)*
 
 N140 posait que *nommer où le travail ira n'est pas le commencer; remplir sa
@@ -3612,7 +3614,7 @@ chantier 22 qu'il corrige un chiffre que le chantier 3+4 a déjà périmé.**
 ---
 
 ## N153 — Un `(inconnu)` qui « s'explique de lui-même » referme une question ouverte
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, sur la ventilation par gisement de la passe.)*
 
 **332 des 577 paires décidées sur une autre forme affichent un gisement
@@ -3640,7 +3642,7 @@ par gisement tant qu'elle tient.* **Vérification à une requête :**
 ---
 
 ## N154 — `INSERT OR IGNORE` rend une table APPEND-ONLY, et personne ne l'avait écrit
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, en répondant à « le prochain import remplira-t-il la colonne? ».)*
 
 **Non. Et le mécanisme va bien au-delà de la colonne `gisement`.**
@@ -3674,7 +3676,7 @@ vérifie que le réimport **ne casse pas**. *Il ne dit rien de ce qu'il FAIT.*
 ---
 
 ## N155 — Le rechargement d'une colonne n'est pas « relancer le chargeur »
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, chiffrage demandé avant de faire.)*
 
 ⚠️ **Relancer `_charger_tous_les_noms` ne remplirait RIEN** *(N154)*. Le
@@ -3703,7 +3705,7 @@ un fait.*
 ---
 
 ## N156 — Une ventilation porte sa COUVERTURE, ou elle se lit comme complète
-
+- **Notée le** : 2026-09-19
 *(2026-09-19.)*
 
 `gisement` est vide sur **1 505 879 lignes sur 5 071 984 — 29,7 %**. *Toute
@@ -3728,7 +3730,7 @@ compte, qui a fait écrire « 103 `NOM_ASSUJ` » là où il fallait lire 435.
 ---
 
 ## N157 — Deux passes qui écrivent le même geste : extraire AVANT d'écrire la seconde
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, avant de construire l'écriture des départages.)*
 
 Deux passes posent un NEQ : la **reprise** pose ce que le NOM a tranché,
@@ -3758,7 +3760,7 @@ ajustement de tests n'est pas une extraction, c'est une réécriture.**
 ---
 
 ## N158 — Une note écrite ne protège pas le doigt qui tape
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, une heure après avoir écrit N144.)*
 
 N144 dit : *un test qui repère sa valeur par rang de jeton mesure la mise en
@@ -3781,7 +3783,7 @@ code au bon endroit.**
 ---
 
 ## N159 — Restreindre l'écriture par NIVEAU, pas le départageur
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, décision d'Alexandre après relecture de 50 paires sur 292.)*
 
 Le départageur d'adresse sépare **2 032** ambigus. **On n'en écrit que 1 764** —
@@ -3814,7 +3816,7 @@ touchés, sinon la différence se lit comme une perte.*
 ---
 
 ## N160 — Deux corrections qui portent le même nom ne se mesurent pas sous le même nom
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, chiffrage du retrait de parenthèse côté détecté.)*
 
 **« Retirer les parenthèses » désigne DEUX corrections différentes**, et la
@@ -3840,7 +3842,7 @@ et la dernière ligne redit que le registre n'a pas été touché.*
 ---
 
 ## N161 — Transformer le nom détecté ne change pas que le score : ça change le LOT
-
+- **Notée le** : 2026-09-19
 *(2026-09-19.)*
 
 `transformer_forme` s'applique au **registre**; le nom détecté, lui, est
@@ -3863,7 +3865,7 @@ au lieu de supposer l'effet nul.*
 ---
 
 ## N162 — Un libellé qui annonce le PARAMÈTRE au lieu du RÉSULTAT
-
+- **Notée le** : 2026-09-19
 *(2026-09-19.)*
 
 `--tete 5` compare la tête de table à la population *(cas 19)*. ⚠️ **Sur un lot
@@ -3884,7 +3886,7 @@ jours : un nom de fichier, un en-tête de colonne, un libellé paramétré.*
 ---
 
 ## N163 — Une ventilation d'une seule population ne peut pas dire « surreprésentée »
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, ventilation des restants par source.)*
 
 La théorie : *`rob_top_growing` et `deloitte_fast50` sont des classements
@@ -3910,7 +3912,7 @@ une source dont les noms sont sales donnent le même rapport.**
 ---
 
 ## N164 — La prémisse tenait, et le code la disait plus fort
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, vérification avant mesure.)*
 
 Théorie d'Alexandre : *le registre des sources porte les classements canadiens à
@@ -3938,7 +3940,7 @@ aurait ensuite été citée comme mesurée.
 ---
 
 ## N165 — Deux règles qui portent le même nom rendent deux chiffres, et l'un des deux est faux
-
+- **Notée le** : 2026-09-19
 *(2026-09-19.)*
 
 Le chiffrage de la parenthèse comptait les « champs multi-entités » avec une
@@ -3966,7 +3968,7 @@ promeut en compte.*
 ---
 
 ## N166 — Un compte exact sur une clé exacte est un plancher, et il doit le dire
-
+- **Notée le** : 2026-09-19
 *(2026-09-19, doublons du produit.)*
 
 **Ce qui se compte** : deux dossiers de même `nom_detecte_normalise` — donc les
@@ -3992,7 +3994,7 @@ porte DEUX noms. Le modèle actuel ne permet ni l'un ni l'autre.**
 ---
 
 ## N167 — `RawSignal` n'a AUCUN emplacement pour un code postal
-
+- **Notée le** : 2026-09-20
 *(2026-09-20, en traçant l'adresse de la source au dossier.)*
 
 ⚠️ **Vérifié dans `falkye/sources/base.py`** : `RawSignal` porte `adresse`,
@@ -4018,7 +4020,7 @@ mesure.*
 ---
 
 ## N168 — Un écart se juge emplacement par emplacement, pas « promeut quelque chose »
-
+- **Notée le** : 2026-09-20
 *(2026-09-20, défaut révélé par le décor de test.)*
 
 L'outil marquait « rangé et jamais promu » **quand le connecteur ne promouvait
@@ -4044,7 +4046,7 @@ cas commode.**
 ---
 
 ## N169 — Le dépôt dit ce que le connecteur LIT, jamais ce que la source PUBLIE
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 **Trois issues possibles pour une adresse manquante, et elles n'appellent pas le
@@ -4072,7 +4074,7 @@ les deux colonnes séparées, « présent » (la clé) et « rempli » (la valeu
 ---
 
 ## N170 — L'asymétrie du SEAO n'était pas dans la source : elle était dans le lecteur
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 **SEAO : 88,7 % de code postal, 9,6 % de ville.** *On pouvait lire ça comme
@@ -4098,7 +4100,7 @@ entre eux qui produit un chiffre qu'on lit comme une propriété de la source.*
 ---
 
 ## N171 — Une promotion ne vaut que ce que le lecteur en aval ne lit pas déjà
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 **La promotion sert `RawSignal`. Le départageur, lui, lit `Signal.champs`
@@ -4125,7 +4127,7 @@ compte les têtes qui commencent par un numéro avant qu'on construise.
 ---
 
 ## N172 — Le quatrième `split()[-2]`, et le helper qui aurait dû exister au premier
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 N144 a nommé le défaut. N158 a constaté qu'une note ne protège pas le doigt qui
@@ -4149,7 +4151,7 @@ PROCHAIN fichier de test trouvera sans y penser.* Les cinq fichiers l'importent.
 ---
 
 ## N173 — Un croisement sans clé n'est pas un croisement difficile
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 La demande était un croisement : **combien des 4 673 restants sont des entreprises
@@ -4180,7 +4182,7 @@ l'indirect se relit comme un pis-aller, alors qu'il est le seul régime possible
 ---
 
 ## N174 — Deux cibles qui se ressemblent, et la population témoin n'en contient qu'une
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 **T1** — *« c'est une personne physique »*. Une forme juridique, **mesurable** sur
@@ -4214,7 +4216,7 @@ laquelle le chiffre se lit comme un plancher.*
 ---
 
 ## N175 — Une garde qui ne peut JAMAIS se déclencher
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 L'heuristique portait trois exclusions, chacune avec sa raison affichable : forme
@@ -4243,7 +4245,7 @@ exclusion future sera masquée par une antérieure.*
 ---
 
 ## N176 — Un plancher qui est un produit hérite de son facteur le plus faible
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 Le chiffre final est un **produit** : *(combien de restants ont un nom en forme de
@@ -4274,7 +4276,7 @@ que les deux populations déclarent un nom au même rythme.*
 ---
 
 ## N177 — Le seuil du verdict se pose avant de voir le chiffre
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 *« Un critère qu'on desserre parce qu'il a échoué n'en est plus un »* — la phrase
@@ -4306,7 +4308,7 @@ l'outil existe pour éviter.
 ---
 
 ## N178 — Quand plusieurs hypothèses bien mesurées tombent, la question est mal posée
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 Cinq théories sur les 4 673 restants, toutes mesurées proprement, **toutes
@@ -4342,7 +4344,7 @@ apparaître dans un tableau.
 ---
 
 ## N179 — Deux axes que personne n'avait regardés, et ils étaient là depuis le début
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 **Le nombre de signaux d'un dossier** et **l'âge de son signal le plus récent**
@@ -4367,7 +4369,7 @@ sauf le commentaire du modèle, qui le disait.
 ---
 
 ## N180 — Une garde qui lit des lignes ne distingue pas un libellé de la phrase qui l'interdit
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Deuxième occurrence — voir N136.)*
 
 Le test le plus important du portrait vérifie qu'**aucun mot de jugement**
@@ -4399,7 +4401,7 @@ qui lisait toute la sortie surveillait surtout de la prose.*
 ---
 
 ## N181 — Une étiquette plus longue que sa colonne pousse le nombre
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Troisième occurrence, et la première qui soit gardée.)*
 
 `« 92 et plus  ← AU-DESSUS du seuil »` fait 32 caractères dans une colonne de 30.
@@ -4431,7 +4433,7 @@ silence.*
 ---
 
 ## N182 — Une échelle exclusive se mesure, elle ne s'affirme pas
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 L'échelle d'adresse du portrait — *code complet, région de tri seule, ville
@@ -4455,7 +4457,7 @@ exprès.
 ---
 
 ## N183 — Une affirmation qui vient de nous vaut une hypothèse, pas une mesure
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 *« L'EIMT n'a aucune classification »* était dit ici depuis plusieurs jours, et
@@ -4486,7 +4488,7 @@ preuve voyage avec le fait », appliqué à ce qu'on a dit soi-même.*
 ---
 
 ## N184 — Une garde branchée sur la mauvaise source n'est jamais juste
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 La table des clés d'activité se recoupe contre le code, pour qu'une clé déclarée
@@ -4513,7 +4515,7 @@ c'est précisément ce que la confusion avait effacé.*
 ---
 
 ## N185 — Le remplissage d'une colonne d'archive n'est pas celui du miroir
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 *« `COD_ACT_ECON_CAE` est rempli à 99,6 % au registre »* — vrai, et **sans
@@ -4540,7 +4542,7 @@ une réserve sans chiffre reste une réserve.*
 ---
 
 ## N186 — Le cinquième `split()[-2]`, et ce que le helper n'a pas empêché
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Cinquième occurrence — voir N144, N158, N172.)*
 
 N172 a rangé `compte_de_la_ligne` dans `tests/conftest.py`, *« le seul endroit
@@ -4573,7 +4575,7 @@ dépende pas. **Rien n'est construit.**
 ---
 
 ## N187 — Porter le fait des deux côtés ne départage rien s'il est le même
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 Le plafond d'un départageur se calcule d'habitude comme une **intersection** :
@@ -4604,7 +4606,7 @@ plutôt que de le découvrir dans les issues après.**
 ---
 
 ## N188 — Une lecture se fait là où sont les données, et il faut le vérifier AVANT
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 Demande : **lire des dossiers entiers et en tirer des motifs.** *Pas une mesure —
@@ -4637,7 +4639,7 @@ qui rend la lecture possible là où les données sont.
 ---
 
 ## N189 — Le sac de champs se rend ENTIER, parce que le filtrer c'est déjà décider
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 L'outil de lecture rend `Signal.champs` **en totalité**, trié par clé, sans
@@ -4663,7 +4665,7 @@ décision, et elle n'appartient pas à un outil de lecture.*
 ---
 
 ## N190 — Une lentille employée d'abord confirme ce qu'on est allé chercher
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Le cas 19 sous une autre forme.)*
 
 L'outil porte des **lentilles** — *un seul mot, sans code postal, tête numérique,
@@ -4691,7 +4693,7 @@ lecteur de la semaine prochaine regardera.**
 ---
 
 ## N191 — La leçon de N180 a tenu au premier contact
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 N180 : *une garde qui lit des lignes ne distingue pas un libellé de la phrase qui
@@ -4714,7 +4716,7 @@ dit « la bonne portée est plus étroite que tout », ce qui est une instructio
 ---
 
 ## N192 — L'instrument montrait le statut du NOM, et on l'a lu comme celui de l'ENTREPRISE
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Trouvé par la lecture d'Alexandre, pas par une relecture du code.)*
 
 La première lecture de dossiers a produit un motif — *« le doublon est au
@@ -4754,7 +4756,7 @@ au-dessus de la liste.
 ---
 
 ## N193 — Un nom d'un seul mot ne peut pas être resserré par le second temps
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Lu dans le code, à la suite d'une lecture de dossiers.)*
 
 Deux observations d'Alexandre semblaient séparées : *« le lot du second temps se
@@ -4790,7 +4792,7 @@ fait de mots courants. Le cas symétrique, un nom COURT, n'a pas de deuxième mo
 ---
 
 ## N194 — Une mesure qui ne cherche que ce qu'elle attend confirme sa propre liste
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 Une lecture de 32 dossiers avait relevé **quatre paliers de score** — `100,0`,
@@ -4822,7 +4824,7 @@ avait vu une forme partielle — et le dire vaut mieux que quatre confirmations.
 ---
 
 ## N195 — Un palier de score est une constante de bibliothèque, et l'écart lui est comparé
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 **Mesuré sur `rapidfuzz`, pas déduit** : un nom du registre **entièrement
@@ -4860,7 +4862,7 @@ serait recopiée indéfiniment.**
 ---
 
 ## N196 — Le bonus de ville déplace la distribution qu'on vient mesurer
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 `_scorer` ajoute **+5** au candidat dont la ville concorde, **après** la coupe à
@@ -4889,7 +4891,7 @@ si le moteur changeait sa condition, celle-ci divergerait en silence.*
 ---
 
 ## N197 — Une borne d'affichage qu'on ne peut pas bouger ne se conteste pas
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 *« Un palier est une valeur portée par au moins 50 dossiers. »* **Cinquante est
@@ -4910,7 +4912,7 @@ au-dessus du tableau, et la borne est un **paramètre de ligne de commande**
 ---
 
 ## N198 — Un fait porté d'un seul côté n'est pas un départageur, c'est une exclusion
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 `outils/departageurs.py::departager` compare **un fait que le DOSSIER porte** aux
@@ -4944,7 +4946,7 @@ entreprise immatriculée.
 ---
 
 ## N199 — Deux exclusions qui diffèrent d'un seul code se rendent côte à côte
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 `REQEntry.statut` porte quatre choses, pas deux — **lu dans
@@ -4980,7 +4982,7 @@ disparaître la question.*
 ---
 
 ## N200 — Une égalité stricte n'est pas une échelle mal calibrée
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Le constat est d'Alexandre, sur la sortie des paliers.)*
 
 Sur 3 267 ambigus, **1 629 ont leur meilleur et leur second à ÉGALITÉ STRICTE** —
@@ -5003,7 +5005,7 @@ population rend cette question sans objet**, et appelle un fait de plus, pas une
 ---
 
 ## N201 — Le pluriel d'un helper se range à côté du singulier
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Suite de N144, N158, N172, N186.)*
 
 `tests/conftest.py` porte `compte_de_la_ligne`, qui rend **le premier** compte
@@ -5028,7 +5030,7 @@ l'endroit où l'on verra qu'elle existe en cherchant le singulier.
 ---
 
 ## N202 — Ne pas fournir un substitut à ce qui manque
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. N192 appliquée en CONCEPTION, plus en correction.)*
 
 La lecture des paires du statut doit aider à juger si une radiée écartée pouvait
@@ -5062,7 +5064,7 @@ apparaît.*
 ---
 
 ## N203 — Là où deux règles divergent est un lot de décision, et il passe devant
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 Le statut peut s'employer de deux façons — *ne garder que les immatriculées, ou
@@ -5082,7 +5084,7 @@ parmi des cas où il n'y a rien à trancher.*
 ---
 
 ## N204 — Un lot vidé n'est pas un départage manqué
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Le constat est d'Alexandre.)*
 
 Sur les ambigus, l'exclusion par le statut **vide** le lot de certains dossiers :
@@ -5106,7 +5108,7 @@ lit pas un lot vidé comme on lit un départage.*
 ---
 
 ## N205 — Le produit n'a rien pour reconnaître une entité publique, et le corpus le disait déjà
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 Cinq des huit divergences lues sont des entités publiques — *CIUSSS, commissions
@@ -5147,7 +5149,7 @@ préfixe de NEQ, secteur — et le croisement préfixe × statut sur tout le mir
 ---
 
 ## N206 — La quatrième tentative contre `split()[-2]` échoue aussi, et on sait pourquoi
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Clôt le « on verra » de N186.)*
 
 N186 listait une quatrième remède **non construit** : *une garde qui lit les
@@ -5184,7 +5186,7 @@ mécanique — parce que le défaut n'est pas mécaniquement détectable.*
 ---
 
 ## N207 — Quand le statut écarte le candidat de tête, deux instruments se contredisent
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 *Les Ruchers du Roi Bourdon* : l'exclusion par le statut garde un candidat à
@@ -5213,7 +5215,7 @@ restant, pour qu'on sache si la contradiction est de deux points ou de dix.
 ---
 
 ## N208 — Une portée peut contenir ce qu'elle était censée exclure
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Réserve posée AVANT de construire, à la demande d'Alexandre.)*
 
 **La décision** : écrire le départage par le statut, **restreint aux égalités
@@ -5247,7 +5249,7 @@ claire.*
 ---
 
 ## N209 — Une constante recopiée dans trois outils n'a pas de domicile
-
+- **Notée le** : 2026-09-20
 *(2026-09-20.)*
 
 `DOSSIER_INSTANTANE = Path("/var/lib/falkye")` vivait **à l'identique dans trois
@@ -5276,7 +5278,7 @@ d'égalité tout en étant deux copies.*
 ---
 
 ## N210 — Un outil qui écrit une partie doit nommer ce qu'il n'a pas touché
-
+- **Notée le** : 2026-09-20
 *(2026-09-20. Forme reprise du 19 septembre.)*
 
 L'écriture du statut pose **une** catégorie et en laisse **quatre** en suspens.
@@ -5306,7 +5308,7 @@ les mêmes mots.
 ---
 
 ## N211 — Un blocage qui devient une portée se dit, sinon l'écart se lit comme un oubli
-
+- **Notée le** : 2026-09-21
 *2026-09-21, l'élargissement de l'écriture du statut.*
 
 Le 20 septembre, `PAS_UNE_EGALITE` était une **raison de laisser en suspens**. Le
@@ -5325,7 +5327,7 @@ date elle en est sortie et vers quoi elle est partie.
 ---
 
 ## N212 — Deux instruments qui ne regardent que le LOT ne sont pas deux avis sur le DOSSIER
-
+- **Notée le** : 2026-09-21
 *2026-09-21, la réserve sur l'élargissement — dite avant de construire.*
 
 Le score et le statut paraissent indépendants : ils viennent de deux colonnes,
@@ -5349,7 +5351,7 @@ tous deux « aucun concurrent compatible — le fait les exclut tous ».
 ---
 
 ## N213 — Une réserve qu'on garde se rend en COLONNE, jamais en condition
-
+- **Notée le** : 2026-09-21
 *2026-09-21, suite de N212.*
 
 La réserve était juste, et la décision restait à Alexandre. **Deux issues
@@ -5368,7 +5370,7 @@ rien.* ⚠️ **Et l'appel passe par `departager_ladresse`, le mécanisme du pro
 ---
 
 ## N214 — Un témoin nommé s'AFFICHE; il ne s'affirme pas
-
+- **Notée le** : 2026-09-21
 *2026-09-21, `Les Ruchers du Roi Bourdon`.*
 
 Alexandre a nommé un dossier comme contradiction et demandé que la condition
@@ -5389,7 +5391,7 @@ vert tenir lieu de démonstration.
 ---
 
 ## N215 — Une séparation PAR CONSTRUCTION se vérifie, sinon elle reste une intention
-
+- **Notée le** : 2026-09-21
 *2026-09-21, les 1 065 NEQ posés la veille.*
 
 « L'outil ne doit pas retoucher les égalités déjà posées » est vrai **par
@@ -5408,7 +5410,7 @@ appliquer avant d'avoir lu pourquoi.
 ---
 
 ## N216 — Un décor de test dont les noms se ressemblent mesure autre chose qu'il ne croit
-
+- **Notée le** : 2026-09-21
 *2026-09-21, six dossiers nommés `Pecheries Alpha/Beta/Gamma/Delta/Zeta`.*
 
 Le décor visait un cas par ligne du rapport. **Il en rendait un autre :** les
@@ -5429,7 +5431,7 @@ le compte était faux à cause du décor, pas à cause du code. **Corrigé en do
 ---
 
 ## N217 — La largeur d'une colonne se calcule sur TOUTES ses étiquettes, pas sur une partie
-
+- **Notée le** : 2026-09-21
 *2026-09-21, sixième occurrence du même défaut évitée.*
 
 `LARGEUR_DUNE_RAISON` était calculée sur `RAISONS` seules, alors que la colonne
@@ -5449,7 +5451,7 @@ plus diverger, parce qu'elles n'ont plus qu'une source.**
 ---
 
 ## N218 — Le nom AFFICHÉ n'est pas celui qui a SCORÉ
-
+- **Notée le** : 2026-09-21
 *2026-09-21, `Les Ruchers du Roi Bourdon` (#4092) — relevé en vérifiant une
 lecture d'Alexandre.*
 
@@ -5475,7 +5477,7 @@ dénomination élue porte maintenant `↳ a scoré sur « … » (gisement)`.
 ---
 
 ## N219 — La PORTE est gelée, le JUGEMENT est frais
-
+- **Notée le** : 2026-09-21
 *2026-09-21, réponse à « d'où l'exclusion lit-elle le statut? ».*
 
 Les deux tables du miroir n'ont pas le même régime, et la règle du statut en
@@ -5505,7 +5507,7 @@ alors « radiation observée » en « NEQ posé », en silence.*
 ---
 
 ## N220 — Un lot qui ne peut que GRANDIR
-
+- **Notée le** : 2026-09-21
 *2026-09-21, suite de N219.*
 
 `req_noms` n'est jamais vidée et ses lignes ne sont jamais réécrites. **À chaque
@@ -5529,7 +5531,7 @@ une baisse de rendement se lira comme une panne.
 ---
 
 ## N221 — « L'adresse contredit 81 fois » est DEUX faits, pas un
-
+- **Notée le** : 2026-09-21
 *2026-09-21, lecture des chiffres de la passe élargie.*
 
 Les 81 se découpent en **8** *« l'adresse désigne un AUTRE candidat »* et **73**
@@ -5550,7 +5552,7 @@ tous » ferme le repli par conception.* Seuls les codes postaux ont parlé.
 ---
 
 ## N222 — Un fait peut vivre AILLEURS que dans la table qui porte son nom
-
+- **Notée le** : 2026-09-21
 *2026-09-21, les adresses d'établissement.*
 
 La question « l'adresse du dossier est-elle celle d'un établissement du retenu? »
@@ -5572,7 +5574,7 @@ avec la date du gel quand c'est le miroir qui a répondu.
 ---
 
 ## N223 — Une case que le produit ne sait pas remplir se nomme comme telle
-
+- **Notée le** : 2026-09-21
 *2026-09-21, les quatre cases demandées pour les 81 contradictions.*
 
 Trois des quatre se décident mécaniquement : *établissement du retenu*, *candidat
@@ -5592,7 +5594,7 @@ paire est rendue entière pour qu'elle se lise.
 ---
 
 ## N224 — Un garde-fou muet trois fois sur quatre n'est pas un garde-fou
-
+- **Notée le** : 2026-09-21
 *2026-09-21, l'adresse comme condition permanente.*
 
 Sur les 494 dossiers que la règle poserait, **l'adresse ne juge que 125 fois
@@ -5611,7 +5613,7 @@ dossiers** — et il ne s'améliorera pas tout seul.
 ---
 
 ## N225 — Une passe qui DÉFINIT une population se nomme et s'emprunte
-
+- **Notée le** : 2026-09-21
 *2026-09-21, `parcourir` extrait de `ecriture_du_statut`.*
 
 La mesure des contradictions devait porter **exactement** sur les 494 dossiers que
@@ -5631,7 +5633,7 @@ et `departager_ladresse`* : **ce qui décide se nomme une fois.**
 ---
 
 ## N226 — Une mesure doit montrer SON ENTRÉE, pas une entrée voisine
-
+- **Notée le** : 2026-09-21
 *2026-09-21, relevé par Alexandre sur la sortie des contradictions.*
 
 Les paires affichaient `dossier : — · — · —` sous un verdict qui disait *« l'adresse
@@ -5655,7 +5657,7 @@ provenance reconstruite en appelant les mêmes lecteurs source par source**
 ---
 
 ## N227 — « Les exclut tous » n'est pas un verdict du CODE POSTAL
-
+- **Notée le** : 2026-09-21
 *2026-09-21. Alexandre relève sept paires où le retenu et son « suspect »
 portent le MÊME code postal. Trouvé en ÉNUMÉRANT les configurations, pas en
 raisonnant.*
@@ -5681,7 +5683,7 @@ municipalité renverse donc un code postal qui était d'accord.**
 ---
 
 ## N228 — Un instrument bâti pour REFUSER ne peut pas servir à ACCUSER
-
+- **Notée le** : 2026-09-21
 *2026-09-21, la leçon de fond derrière N227.*
 
 `departager_ladresse` a été calibré pour **une seule question** : *« puis-je
@@ -5702,7 +5704,7 @@ exclusions prononcées sur une graphie.*
 ---
 
 ## N229 — Le GISEMENT de la forme gagnante : un signal qui, lui, ne se tait jamais
-
+- **Notée le** : 2026-09-21
 *2026-09-21, piste ouverte par Alexandre après lecture de 34 paires.*
 
 Ses trois faux probables — `#1136 Crossroads Law` → `CARREFOUR`, `#3705 Ferme
@@ -5729,7 +5731,7 @@ l'écrit.
 ---
 
 ## N230 — Un chiffre différent dans un numéro d'entreprise, c'est une autre entreprise
-
+- **Notée le** : 2026-09-21
 *2026-09-21, relevé par Alexandre — à verser à l'hypothèse des paliers.*
 
 `9087-7184 QUÉBEC INC.` contre `9087-1484`, `9087-1849`, `9087-1864`,

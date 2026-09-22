@@ -478,23 +478,26 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 
 **En mesure, au 17 septembre**
 - Le recomptage du plancher, **mesure C seule** — ce qu'une borne levée récupérerait. *Les mesures **A** et **B** ont tourné le 17 septembre sur l'hôte et sont versées aux sections 7 et 7bis; **C est en cours**.* ⚠️ **Elle portera sur un échantillon de 200 dossiers, avec un plafond de gisement qui écarte précisément les plus gros cas** — *le chiffre qu'elle rendra sera un PLANCHER du gain, jamais une estimation.*
-- Le code postal : le second terme qui se recouvre entre l'EIMT et le REQ, **jamais regardé**.
+- ~~Le code postal : le second terme qui se recouvre entre l'EIMT et le REQ, **jamais regardé**.~~ ✅ **Regardé, construit et ÉCRIT le 19 septembre** — `outils/ecriture_des_departages.py`, **1 735 NEQ posés** au code postal complet. *Décision d'Alexandre du 19 : n'écrire que ce niveau; 268 départages laissés EN SUSPENS — 188 par région de tri, 80 par ville.*
 - La trace sur un nom ordinaire — la réserve sur le préfixe parlant, encore non testée sur un cas réel.
 - La normalisation des municipalités sur les 612 sans concordance. *Observation non mesurée : une part semble relever de l'écriture — « St-Apollinaire » contre « Saint-Apollinaire ».*
 - L'alias de la RBQ, jamais mesuré.
 
 **En décision d'Alexandre**
-- La promotion de la ville vers le dossier (1 111 dossiers).
-- L'application de la passe de reprise sur les 705.
+- ~~La promotion de la ville vers le dossier (1 111 dossiers).~~ ⛔ **Mesurée le 19 septembre : +0 au départage.** *Le gisement existait; il ne séparait rien de plus que ce qui l'était déjà.* **Piste close, et son chiffre reste** — voir section 8.
+- ~~L'application de la passe de reprise sur les 705.~~ ✅ **Appliquée le 19 septembre** — `outils/reresolution_neq.py --appliquer`, **2 523 NEQ posés** *(et non 705 : la passe recalcule sa propre liste, et la population avait changé)*. *Instantané et `--defaire` à `/var/lib/falkye/`.*
 - L'écart minimal : 2 097 dossiers à écart 4, au prix de 2 097 décisions machine entre deux entités.
 - **D27, D28, D29** — préalables à la conception de la clé.
 - L'ordonnancement et le filtrage du registre : hypothèse d'Alexandre du 16 septembre, appuyée par la saturation mesurée. *Conception à deux, non commencée.*
+- ⚠️ **Vérifier que la fusion ≥95 tourne encore** dans `falkye/dedup_entreprises.py`. *C'est une vérification, pas une décision : l'échelle **95 / 90** est celle de la confiance d'appariement, donc de ce chantier.* **À trancher avec elle : quelle branche fait foi.** *Un README est de la documentation, pas le code — cas 38.*
 
 **En conception, non commencé**
 - **Tout le chantier 3.** L'identité interne, la table d'identifiants externes, la famille d'entité, le niveau de vérification par couple identité × territoire.
 - La structure du dossier à plusieurs noms. `company_noms` est tombée **comme structure définitive** — elle accrochait les noms à `company_id` et supposait `Company.neq` comme pivot, alors que le mandat dit que la clé du moteur cesse d'être un identifiant de territoire. **La forme survit** — `(identité, nom_normalisé)` avec `nom`, `source_id`, `first_seen_at` — son point d'accrochage et son moment tombent. *Détail dans `docs/PROPOSITION-DOSSIER-MULTI-NOMS.md`.*
 
-⚠️ **Où vivent les noms — à trancher.** Trois structures peuvent porter la même correspondance : `req_noms` (miroir, 1 505 879 paires), la table d'apprentissage du chantier 4, et le dossier lui-même. *Charte : un point vit à un seul endroit.*
+⚠️ **Où vivent les noms — à trancher.** Trois structures peuvent porter la même correspondance : `req_noms` *(miroir, **5 071 984 formes** depuis le 17 septembre — 1 505 879 avant)*, la table d'apprentissage du chantier 4, et le dossier lui-même. *Charte : un point vit à un seul endroit.*
+
+⚠️ **Et `req_noms` ne porte plus seulement des noms EN VIGUEUR.** *Le 17 septembre, le chargeur a cessé de filtrer `STAT_NOM='V'`* — **ce que le moteur doit faire d'un nom retiré est ouvert au registre, D51**, et se tranche avant toute nouvelle écriture de NEQ.
 
 ---
 
