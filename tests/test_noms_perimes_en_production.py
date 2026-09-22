@@ -110,3 +110,87 @@ def test_la_prediction_sur_les_lignes_SANS_GISEMENT_est_controlee(decor, capsys)
     sortie = capsys.readouterr().out
     assert "LA PRÉDICTION, ET SON CONTRÔLE" in sortie
     assert "attendu : 0" in sortie
+
+
+# ---------------------------------------------------------------------------
+# ⚠️ LA SÉPARATION QUI DÉCIDE — son propre ancien nom, ou un nom repris
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("statut, attendu", [
+    ("V", "en vigueur"), ("v", "en vigueur"),
+    ("A", "⚠️ plus en vigueur"), ("RD", "⚠️ plus en vigueur"),
+    (None, "non qualifié"), ("", "non qualifié"), ("?", "non qualifié"),
+])
+def test_la_nature_d_un_statut_se_lit_SANS_forme_gagnante(statut, attendu):
+    """*Le croisement `gisement × statut` n'a pas de forme — seulement une ligne
+    de `req_noms`.*"""
+    assert outil.nature_du_statut(statut) == attendu
+
+
+@pytest.fixture()
+def decor_repris(db_session, monkeypatch):
+    """Deux dossiers posés sur un nom retiré : l'un sur SON propre ancien nom,
+    l'autre sur un nom qu'une AUTRE entreprise porte aujourd'hui en vigueur."""
+    monkeypatch.setenv("FALKYE_DB_URL", "sqlite:////tmp/essai-produit.sqlite3")
+    monkeypatch.setenv("FALKYE_MIROIR_DB_URL", "sqlite:////tmp/essai-miroirs.sqlite3")
+
+    #: (nom détecté, NEQ posé, un autre NEQ porte-t-il ce nom en vigueur?)
+    cas = [("Savonnerie Kappa inc", "1600000001", False),
+           ("Chapellerie Lambda inc", "1600000002", True)]
+    for nom, neq, repris in cas:
+        db_session.add(Company(neq=neq, nom_detecte=nom,
+                               nom_detecte_normalise=normaliser(nom),
+                               statut_resolution=StatutResolution.RESOLU,
+                               first_detected_at=_dt.datetime(2026, 1, 1)))
+        # La dénomination élue ne ressemble pas au nom détecté : seule la forme
+        # retirée de `req_noms` fait entrer ce candidat.
+        db_session.add(REQEntry(neq=neq, nom=f"{neq[:4]}-0000 Québec inc.",
+                                nom_normalise=normaliser(f"{neq[:4]}-0000 Québec inc."),
+                                statut="immatriculee"))
+        db_session.add(REQNom(neq=neq, nom=nom, nom_normalise=normaliser(nom),
+                              statut="A", type_nom="NOM", gisement="NOM_ASSUJ"))
+        if repris:
+            # ⚠️ Un AUTRE NEQ porte le même nom, EN VIGUEUR.
+            db_session.add(REQNom(neq="1699999999", nom=nom,
+                                  nom_normalise=normaliser(nom),
+                                  statut="V", type_nom="NOM", gisement="NOM_ASSUJ"))
+    db_session.commit()
+    monkeypatch.setattr("falkye.db.get_session", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    return db_session
+
+
+def test_les_deux_cas_sont_SEPARES_et_le_risque_est_nomme(decor_repris, capsys):
+    """⚠️ **Une entreprise retrouvée sous son propre ancien nom est juste.** *Le
+    risque est un nom abandonné par un NEQ et porté aujourd'hui par un autre* —
+    et seul le second compte comme tel."""
+    assert outil.main(["--pas", "0", "--exemples", "5"]) == 0
+    sortie = capsys.readouterr().out
+    from tests.conftest import compte_de_la_ligne
+
+    propre = next(l for l in sortie.splitlines()
+                  if l.strip().startswith(outil.SON_PROPRE_ANCIEN_NOM))
+    repris = next(l for l in sortie.splitlines()
+                  if l.strip().startswith(outil.REPRIS_PAR_UN_AUTRE))
+    assert compte_de_la_ligne(propre) == "1", propre
+    assert compte_de_la_ligne(repris) == "1", repris
+    assert "1699999999" in sortie, "le NEQ qui porte aussi le nom est NOMMÉ"
+
+
+def test_les_limites_de_la_separation_sont_DITES(decor_repris, capsys):
+    """*Un nom porté par deux NEQ ne dit pas lequel le dossier visait.*"""
+    assert outil.main(["--pas", "0"]) == 0
+    sortie = capsys.readouterr().out
+    assert "CE QUE CETTE SÉPARATION NE FAIT PAS" in sortie
+    assert "peut être une SUCCESSION" in sortie
+    assert "ELLE NE VOIT QUE CE QUE LE MIROIR PORTE" in sortie
+
+
+def test_le_croisement_gisement_par_statut_est_rendu(decor_repris, capsys):
+    """*C'est lui qui tranche d'où vient la hausse de `req_noms`.*"""
+    assert outil.main(["--pas", "0"]) == 0
+    sortie = capsys.readouterr().out
+    assert "PAR GISEMENT ET PAR STATUT" in sortie
+    ligne = next(l for l in sortie.splitlines()
+                 if "NOM_ASSUJ" in l and "plus en vigueur" in l)
+    assert ligne.split()[-1] == "2", ligne

@@ -54,7 +54,7 @@ Usage, SUR L'HÔTE :
 from __future__ import annotations
 
 import argparse
-from collections import Counter
+from collections import Counter, defaultdict
 
 from outils.nombres import milliers
 
@@ -73,13 +73,32 @@ def _statut_non_qualifie() -> str:
 
 #: Les trois natures d'une forme gagnante, **et chacune appelle une suite
 #: différente.**
+#: Les deux cas que la question de Claude sépare. ⚠️ *Le premier est juste par
+#: construction; le second est le seul qui porte un risque d'identité.*
+SON_PROPRE_ANCIEN_NOM = "son propre ancien nom — aucun autre NEQ ne le porte"
+REPRIS_PAR_UN_AUTRE = "⚠️ nom porté AUSSI par un autre NEQ, en vigueur"
+
 EN_VIGUEUR = "nom EN VIGUEUR"
 PERIME = "⚠️ nom PLUS EN VIGUEUR — porte ouverte le 17 septembre"
 NON_QUALIFIE = "statut non qualifié — le gisement n'a pas de colonne"
 ELUE = "la dénomination élue de `req_entries`"
 NATURES = (ELUE, EN_VIGUEUR, PERIME, NON_QUALIFIE)
 
-LARGEUR = max(len(n) for n in NATURES) + 1
+LARGEUR = max(len(n) for n in
+              NATURES + (SON_PROPRE_ANCIEN_NOM, REPRIS_PAR_UN_AUTRE,
+                         "posés sur un nom retiré")) + 1
+
+
+def nature_du_statut(statut: str | None) -> str:
+    """La nature d'un statut de NOM, **sans passer par une forme gagnante.**
+
+    *Sert au croisement `gisement × statut`, où il n'y a pas de forme — seulement
+    une ligne de `req_noms`.*
+    """
+    if statut is None or not statut.strip() or statut == _statut_non_qualifie():
+        return "non qualifié"
+    return ("en vigueur" if statut.strip().upper() == STATUT_EN_VIGUEUR
+            else "⚠️ plus en vigueur")
 
 
 def nature_de(forme) -> str:
@@ -122,6 +141,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from falkye.db import get_session
     from falkye.models.company import Company
+    from falkye.models.req_entry import REQEntry
     from falkye.models.req_nom import REQNom
     from falkye.sources import req as req_source
     from outils.reresolution_neq import _resoudre_une
@@ -168,6 +188,21 @@ def main(argv: list[str] | None = None) -> int:
                 etiquette += "  ⚠️ PLUS EN VIGUEUR"
             print(_ligne(etiquette, combien, total))
         print(_ligne("TOTAL", total))
+
+        # ⚠️ **LE CROISEMENT QUI TRANCHE D'OÙ VIENT LA HAUSSE** de 1 505 879 à
+        # 5 071 984 formes. *Deux lectures s'opposaient : les trois gisements
+        # ajoutés, ou la levée du filtre `STAT_NOM='V'` sur `NOM_ASSUJ`.*
+        # **L'arithmétique du dépôt borne déjà la première à 802 438 formes
+        # (N124, avant déduplication); ce tableau la mesure.**
+        print("\n   PAR GISEMENT ET PAR STATUT\n")
+        croise = session.execute(
+            select(REQNom.gisement, REQNom.statut, func.count())
+            .group_by(REQNom.gisement, REQNom.statut)
+        ).all()
+        for gisement, statut, combien in sorted(croise, key=lambda t: -t[2]):
+            print(f"      {(gisement or '(sans gisement)'):<36} "
+                  f"{(statut or '—'):<4} {nature_du_statut(statut):<22} "
+                  f"{milliers(combien):>11}")
 
         sans_gisement, _ = req_source.lignes_sans_gisement(session)
         perimes_sans_gisement = session.execute(
@@ -242,6 +277,68 @@ def main(argv: list[str] | None = None) -> int:
       consulte les noms périmés qu'en SECOND TEMPS, soit leur score est
       PLAFONNÉ. Ni l'une ni l'autre n'est construite.
 """)
+
+        # ---- 3. LE NOM EST-IL REPRIS PAR UN AUTRE NEQ? -------------------
+        # ⚠️ **La séparation qui décide** *(question de Claude, 22 septembre)* :
+        # *« Un nom retiré n'est pas forcément un risque : une entreprise
+        # trouvée sous son propre ancien nom est juste. Le risque serait un nom
+        # abandonné par un NEQ et repris par un autre. »*
+        if sur_perime:
+            formes_perimees = {f.nom_normalise for _c, _r, f in sur_perime}
+            porteurs: dict[str, set[str]] = defaultdict(set)
+            for forme_norm, neq in session.execute(
+                select(REQNom.nom_normalise, REQNom.neq).where(
+                    REQNom.nom_normalise.in_(list(formes_perimees)),
+                    func.upper(REQNom.statut) == STATUT_EN_VIGUEUR)
+            ):
+                porteurs[forme_norm].add(neq)
+            for forme_norm, neq in session.execute(
+                select(REQEntry.nom_normalise, REQEntry.neq).where(
+                    REQEntry.nom_normalise.in_(list(formes_perimees)))
+            ):
+                porteurs[forme_norm].add(neq)
+
+            repris: list[tuple] = []
+            for company, retenu, forme in sur_perime:
+                autres = porteurs.get(forme.nom_normalise, set()) - {company.neq}
+                if autres:
+                    repris.append((company, retenu, forme, sorted(autres)))
+
+            print("-" * 78)
+            print("3. LE NOM RETIRÉ EST-IL REPRIS PAR UN AUTRE NEQ?")
+            print("-" * 78)
+            print("""
+   Une entreprise retrouvée sous SON PROPRE ancien nom est juste. Le
+   risque est ailleurs : un nom abandonné par un NEQ et porté
+   aujourd'hui, EN VIGUEUR, par un autre.
+""")
+            print(_ligne("posés sur un nom retiré", len(sur_perime)))
+            print(_ligne(SON_PROPRE_ANCIEN_NOM,
+                         len(sur_perime) - len(repris), len(sur_perime)))
+            print(_ligne(REPRIS_PAR_UN_AUTRE, len(repris), len(sur_perime)))
+            print(f"""
+   ⚠️ CE QUE CETTE SÉPARATION NE FAIT PAS. Un nom porté par deux NEQ ne
+      dit pas lequel le dossier visait — il dit que le nom ne suffit plus
+      à le dire. Et le porteur « en vigueur » peut être une SUCCESSION de
+      celui qu'on a posé, donc la bonne entreprise malgré tout.
+
+   ⚠️ ET ELLE NE VOIT QUE CE QUE LE MIROIR PORTE. Un nom repris par une
+      entreprise que `req_noms` ne connaît pas reste invisible ici.
+""")
+            if args.exemples and repris:
+                print("=" * 78)
+                print(f"DES NOMS RETIRÉS PORTÉS PAR UN AUTRE NEQ — "
+                      f"{min(args.exemples, len(repris))} sur {milliers(len(repris))}")
+                print("=" * 78)
+                for company, retenu, forme, autres in repris[:args.exemples]:
+                    print(f"\n   #{company.id}   {(company.nom_detecte or '')[:54]}")
+                    print(f"      → posé sur {company.neq}  "
+                          f"{(retenu.entry.nom or '—')[:38]}   "
+                          f"[{retenu.entry.statut}]")
+                    print(f"      ↳ a scoré sur « {(forme.nom_publie or '—')[:40]} »"
+                          f"   [nom : {forme.statut}]")
+                    print(f"      ⚠️ ce nom est aussi porté par : "
+                          f"{', '.join(autres[:5])}")
 
         if args.exemples and sur_perime:
             print("=" * 78)
