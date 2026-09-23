@@ -153,23 +153,30 @@ def test_la_FAUSSE_GARANTIE_est_retractee_LA_OU_elle_etait(decor, capsys):
     assert "NE PEUT RIEN FAIRE PERDRE" not in sortie
 
 
-def test_la_garde_des_pretendants_est_dite_ABSENTE_de_la_resolution(decor, capsys):
-    """⚠️ **Le point le plus grave du 23 septembre.** *La garde du 17 vit dans
-    `outils/`; rien dans `falkye/` ne compte les prétendants* — et
-    `resolve_company` rattache au MÊME `Company` deux dossiers résolus vers le
-    même NEQ."""
+def test_la_garde_des_pretendants_est_dite_DESCENDUE_dans_la_resolution(decor, capsys):
+    """⚠️ **Le point le plus grave du 23 septembre, et il est corrigé.** *La
+    garde n'a vécu que dans `outils/` du 17 au 23; la sortie dit maintenant
+    qu'elle est descendue, ET que la FORME du refus a changé en descendant.*
+
+    ⛔ *Ce test affirmait l'inverse jusqu'au 2026-09-23* — il est retourné, pas
+    supprimé : la trace de ce que la sortie disait avant vaut autant que ce
+    qu'elle dit maintenant."""
     assert outil.main(["--pas", "0"]) == 0
     sortie = capsys.readouterr().out
-    assert "CETTE GARDE N'EXISTE QUE DANS `outils/`" in sortie
-    assert "FUSIONNÉS de\n      fait" in sortie.replace("\n", "\n")
+    assert "CETTE GARDE EST DESCENDUE DANS LA RÉSOLUTION" in sortie
+    assert "LA FORME DU REFUS A CHANGÉ EN DESCENDANT" in sortie
+    assert "CE QUI N'EST PAS DESCENDU" in sortie
     assert "D27" in sortie and "D28" in sortie
 
 
-def test_la_garde_des_pretendants_est_ABSENTE_de_falkye():
-    """*Vérifié sur le code, pas sur la sortie.*"""
+def test_la_garde_des_pretendants_vit_MAINTENANT_dans_falkye():
+    """*Vérifié sur le code, pas sur la sortie* — contre-épreuve du test qui
+    affirmait son absence jusqu'au 2026-09-23."""
     import pathlib
 
-    assert "PRETENDANTS_MAX_POUR_TRANCHER" in pathlib.Path(
-        "outils/pose_du_neq.py").read_text(encoding="utf-8")
-    for chemin in pathlib.Path("falkye").rglob("*.py"):
-        assert "pretendant" not in chemin.read_text(encoding="utf-8").lower(), chemin
+    resolution = pathlib.Path("falkye/resolution.py").read_text(encoding="utf-8")
+    assert "PRETENDANTS_MAX_POUR_TRANCHER = 2" in resolution
+    # ⚠️ EMPRUNTÉE, jamais recopiée — le geste est un geste d'ÉCRITURE.
+    pose = pathlib.Path("outils/pose_du_neq.py").read_text(encoding="utf-8")
+    assert "from falkye.resolution import PRETENDANTS_MAX_POUR_TRANCHER" in pose
+    assert "PRETENDANTS_MAX_POUR_TRANCHER = 2" not in pose

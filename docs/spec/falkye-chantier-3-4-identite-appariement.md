@@ -628,7 +628,7 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 
 ---
 
-## 12bis. Les défauts du CODE DE RÉSOLUTION — identifiés, aucun corrigé
+## 12bis. Les défauts du CODE DE RÉSOLUTION — identifiés, UN SEUL corrigé
 
 > ⚠️ **À ne pas confondre avec la section 12**, qui porte les défauts des INSTRUMENTS DE MESURE. *Ceux-ci sont dans le produit, ils tournent en production, et leur correction est l'étape 13 du bloc de l'import.*
 
@@ -642,6 +642,27 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 | **le garde-fou des noms d'un mot** | `candidats_par_mot_rare` exige un **deuxième mot**, qu'un nom d'un mot n'a pas — **c'est la cause du ×3,4 du portrait** | `candidats_par_mot_rare` |
 | **`ni` → `IMMATRICULEE`** | tout ce qui n'est pas `radiee` devient `IMMATRICULEE` | `falkye/resolution.py` |
 | **la radiation silencieuse** | `verification.py` exclut les `RADIEE` **après** résolution, sans le dire — *le dossier disparaît* | `falkye/verification.py` |
+| ~~**la fusion de fait par le NEQ**~~ ✅ | `resolve_company` cherchait un `Company` **par NEQ** avant d'en créer un : *tous les dossiers résolus vers le même NEQ étaient rattachés au MÊME dossier* — **corrigé le 23 septembre**, voir ci-dessous | `falkye/resolution.py` |
+
+✅ **LE SEUL CORRIGÉ — la fusion de fait par le NEQ** *(23 septembre, demandé par Alexandre avant tout le reste : « c'est le seul point qui peut abîmer la base »)*.
+
+**Ce qu'il faisait.** `resolve_company` cherchait un `Company` **par NEQ** avant d'en créer un. *Plusieurs noms détectés résolus vers le même NEQ étaient donc rattachés au MÊME dossier* — **fusionnés de fait, silencieusement, sans qu'aucune ligne ne le dise.** ⚠️ *Décision du 16 septembre : conservation toujours, aucune fusion.* **Six dossiers CISSS réunis sur `8879690699` sont une fusion de fait.**
+
+**Pourquoi la garde du 17 septembre ne le couvrait pas** : `PRETENDANTS_MAX_POUR_TRANCHER` vivait dans `outils/pose_du_neq.py`, donc elle ne protégeait que les passes par LOT — **jamais la production.** *Elle vit maintenant dans `falkye/resolution.py`, et `outils/` l'emprunte.*
+
+⚠️ **La FORME du refus a changé en descendant, et elle ne pouvait pas ne pas changer** :
+
+| | la passe par LOT | la RÉSOLUTION |
+|---|---|---|
+| ce qu'elle voit | tous les prétendants ensemble | UN dossier à la fois |
+| qui détient le NEQ au moment de décider | **personne** | **quelqu'un, déjà** |
+| le refus | personne ne l'obtient | le **nouveau venu** ne l'obtient pas |
+
+*C'est une contrainte de schéma qui l'impose* : **`Company.neq` est UNIQUE.** Le partage n'est pas une issue, et retirer le NEQ au détenteur serait **une écriture qui EFFACE une identité**, pas une garde. **La garde ne peut que RÉDUIRE les écritures.**
+
+⛔ **CE QUI N'EST PAS DESCENDU, et qui reste à trancher avec Alexandre : le SEUIL.** *Au-delà de deux prétendants, la passe par lot retire le NEQ à tout le monde; ici le premier arrivé le garde*, et le rang n'est qu'**écrit au journal** (`statut="pretendant_refuse"`, délibérément pas `a_examiner` — *`diagnostic confirmer-fusion` n'agit que sur `a_examiner` et appliquerait la fusion que la garde vient d'empêcher*).
+
+⚠️ **La frontière, posée pour être vue** : la garde ne s'applique qu'au NEQ **inféré par le scoreur**, jamais à celui qu'une source **affirme** (`RawSignal.neq`). *La garde est née d'un appariement par le nom; un NEQ affirmé n'est pas un appariement.*
 
 ⚠️ **Deux d'entre eux portent une échelle, et une échelle se pose avec Alexandre** : la **coupe à cinq** *(une valeur, donc une échelle)* et le **bonus de ville**.
 

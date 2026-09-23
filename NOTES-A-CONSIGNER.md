@@ -6322,3 +6322,121 @@ rattachés au MÊME dossier — donc FUSIONNÉS de fait**, ce que la décision d
 > restent où elles sont, et certaines ne PEUVENT pas suivre, parce qu'elles
 > lisent une population que le moteur ne voit jamais. Ce qui protégeait en lot ne
 > protège plus à l'unité.**
+
+⛔ **CORRIGÉE LE 2026-09-23 PAR N253.** *« Certaines ne peuvent pas suivre »
+était trop fort* : celle-ci a suivi. **Ce qui ne pouvait pas suivre, c'est sa
+FORME**, et la note qui suit dit laquelle.
+
+
+---
+
+## N253 — Une garde descend, mais jamais dans la même forme
+
+- **Notée le** : 2026-09-23
+
+*Construite sur demande d'Alexandre, qui l'a placée avant tout le reste : « c'est
+le seul point qui peut abîmer la base ».*
+
+**N252 concluait que certaines gardes ne PEUVENT pas descendre.** ⛔ *Trop fort.*
+Celle-ci est descendue — `PRETENDANTS_MAX_POUR_TRANCHER` vit maintenant dans
+`falkye/resolution.py`, et `outils/pose_du_neq.py` l'emprunte. **Ce qui ne
+pouvait pas descendre, c'est la forme du refus.**
+
+| | la passe par LOT (17 sept.) | la RÉSOLUTION (23 sept.) |
+|---|---|---|
+| ce qu'elle voit | tous les prétendants ensemble | UN dossier à la fois |
+| qui détient le NEQ au moment de décider | **personne** | **quelqu'un, déjà** |
+| le refus | personne ne l'obtient | le NOUVEAU VENU ne l'obtient pas |
+
+**Et c'est une contrainte de SCHÉMA qui dicte la forme, pas un choix de
+conception** : `Company.neq` est **UNIQUE**. *Deux dossiers ne peuvent pas
+porter le même NEQ; le partage n'est pas une issue possible.* **Retirer le NEQ
+au détenteur ne serait pas une garde, ce serait une écriture qui EFFACE une
+identité** — et une garde, par définition, ne peut que RÉDUIRE les écritures.
+
+> **Une règle qui descend d'un lot vers l'unité arrive dans un monde où une
+> partie de sa décision est DÉJÀ PRISE. Elle ne garde donc pas la même forme :
+> elle garde le même principe, et change de geste. Demander « la même règle
+> descend-elle ? » est la mauvaise question; la bonne est « que reste-t-il à
+> décider quand elle arrive ? ».**
+
+---
+
+## N254 — Ce qui n'a pas pu descendre : le seuil ne décide plus, il nomme
+
+- **Notée le** : 2026-09-23
+
+**Dans la passe par lot, `PRETENDANTS_MAX_POUR_TRANCHER` DÉCIDE** : au-delà de
+deux prétendants, le NEQ n'est posé sur personne. **Dans la résolution, il ne
+peut plus que NOMMER** — le premier arrivé porte déjà le NEQ, et le rang du
+prétendant n'est qu'écrit au journal, pour rendre ces NEQ-là visibles.
+
+⚠️ **Le dire plutôt que de le combler.** *Combler l'écart demanderait de révoquer
+le NEQ d'un détenteur quand un troisième prétendant se présente* — une écriture
+destructrice, sur une identité déjà posée, déclenchée par l'arrivée d'un signal.
+**C'est une décision d'Alexandre, pas un effet de bord d'une garde.**
+
+> **Une constante qui descend d'un niveau peut perdre son pouvoir de décider sans
+> perdre son nom. Le plus dangereux n'est pas qu'elle disparaisse, c'est qu'elle
+> reste écrite au même endroit avec le même nom, en ne gouvernant plus rien.**
+
+---
+
+## N255 — Le journal comme ORGANE DE COMPTAGE, pas comme trace de confort
+
+- **Notée le** : 2026-09-23
+
+**La passe par lot compte ses prétendants en les regardant.** *La résolution ne
+le peut pas : elle les voit un par un, étalés sur des semaines.* **Le seul
+nombre qu'elle puisse produire est celui de ses propres refus déjà consignés** —
+donc `compter_pretendants` lit le journal, et non une variable.
+
+⚠️ **Conséquence directe** : la journalisation devient **idempotente par
+nécessité**, pas par propreté. *Un dossier refusé re-détecté cinquante fois
+écrirait cinquante entrées, et le décompte compterait des SIGNAUX au lieu de
+dossiers* — le nombre qui sert à juger un appariement serait alors le nombre de
+fois qu'une source a publié.
+
+> **Quand une règle perd la population qu'elle lisait, sa trace devient son
+> organe de mesure. Et une trace qui sert à compter n'a plus le droit d'être
+> approximative : sa duplication n'est plus du bruit, c'est un faux chiffre.**
+
+---
+
+## N256 — Un identifiant AFFIRMÉ et un identifiant INFÉRÉ ne se gardent pas pareil
+
+- **Notée le** : 2026-09-23
+
+**La garde ne s'applique qu'au NEQ trouvé par le SCOREUR**, jamais à celui qu'une
+source affirme (`RawSignal.neq`). *La garde du 17 septembre est née d'un
+appariement par le nom* — « le nombre de prétendants est une preuve contre
+l'appariement ». **Un NEQ affirmé n'est pas un appariement** : deux graphies sous
+le même NEQ affirmé désignent la même personne morale, et les séparer perdrait
+l'identité que la source donnait.
+
+⚠️ **Posée pour être VUE, pas supposée.** *C'est un choix, et il se renverse :
+si une source affirme mal, la garde ne la rattrapera pas.* Ce serait alors un
+défaut de source, à traiter comme tel — pas à noyer dans une garde d'appariement.
+
+> **Une garde bâtie contre une INFÉRENCE ne se transpose pas automatiquement à
+> une AFFIRMATION. Les appliquer toutes les deux « par prudence » coûte
+> exactement ce que la prudence devait protéger : l'identité que la source
+> donnait gratuitement.**
+
+---
+
+## N257 — Journaliser sous un statut qu'aucun levier existant ne sait défaire
+
+- **Notée le** : 2026-09-23
+
+Le refus est consigné dans `journal_diagnostic` avec
+`statut="pretendant_refuse"` — **délibérément pas `"a_examiner"`**. *`falkye
+diagnostic confirmer-fusion` n'agit que sur `a_examiner`, et applique une
+FUSION.* **Un refus journalisé sous ce statut-là aurait offert, d'un coup de CLI
+déjà écrit, le moyen exact de défaire la garde qui venait de séparer les deux
+dossiers.**
+
+> **Réutiliser une table, c'est aussi hériter de ses leviers. Avant de ranger un
+> fait nouveau dans une structure existante, regarder quelles commandes savent
+> déjà agir dessus — et vérifier qu'aucune ne fait, gratuitement, le contraire
+> de ce qu'on vient de construire.**

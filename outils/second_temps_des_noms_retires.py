@@ -106,10 +106,12 @@ PAR_LE_SECOND_TEMPS = "⚠️ le SECOND TEMPS — le lot s'est élargi, un ambig
 PAR_LE_PREMIER_TEMPS = "le PREMIER TEMPS — sans le nom retiré, le sommet ne passe plus"
 CAUSES_DE_PERTE_REELLE = (PAR_LE_SECOND_TEMPS, PAR_LE_PREMIER_TEMPS)
 
-#: ⚠️ **La garde des PRÉTENDANTS MULTIPLES n'existe QUE dans `outils/`.**
-#: *`PRETENDANTS_MAX_POUR_TRANCHER = 2` vit dans `outils/pose_du_neq.py`; rien
-#: dans `falkye/` ne compte les prétendants.* **Une règle qui vit dans la
-#: résolution résout UN dossier à la fois et ne peut pas les voir.**
+#: ⚠️ **La garde des PRÉTENDANTS MULTIPLES est DESCENDUE dans la résolution**
+#: *(2026-09-23, sur demande d'Alexandre)*. `PRETENDANTS_MAX_POUR_TRANCHER` vit
+#: désormais dans `falkye/resolution.py`, et `outils/pose_du_neq.py` l'emprunte.
+#: **Mais la forme du refus a changé en descendant** : la passe par lot refuse à
+#: TOUS les prétendants, la résolution refuse au NOUVEAU VENU — *le détenteur a
+#: déjà le NEQ, et `Company.neq` est UNIQUE.* Voir `garde_des_pretendants`.
 TROP_DE_PRETENDANTS = "⛔ NEQ visé par PLUS DE DEUX dossiers — la garde du 17 sept."
 
 LARGEUR = max(len(t) for t in
@@ -356,13 +358,13 @@ def main(argv: list[str] | None = None) -> int:
 """)
 
         # ---- 4. LES PRÉTENDANTS MULTIPLES ---------------------------------
-        # ⚠️ **La garde du 17 septembre n'existe QUE dans `outils/`.** *Vérifié :
-        # `PRETENDANTS_MAX_POUR_TRANCHER` vit dans `outils/pose_du_neq.py`, et
-        # rien dans `falkye/` ne compte les prétendants.* **Une règle qui vit
-        # dans la résolution traite UN dossier à la fois et ne peut pas les
-        # voir** — et `resolve_company` rattache alors tous ces dossiers au
-        # MÊME `Company`, puisqu'il cherche par NEQ avant de créer.
-        from outils.pose_du_neq import PRETENDANTS_MAX_POUR_TRANCHER
+        # ✅ **La garde est DESCENDUE dans la résolution le 2026-09-23.** *Elle
+        # n'a vécu que dans `outils/` du 17 au 23 septembre, et pendant ces six
+        # jours `resolve_company` rattachait tous les dossiers visant un même
+        # NEQ au MÊME `Company` — fusionnés de fait.* **La forme du refus a
+        # changé en descendant**, et c'est la seule chose qu'elle pouvait faire
+        # : le détenteur porte déjà le NEQ, et `Company.neq` est UNIQUE.
+        from falkye.resolution import PRETENDANTS_MAX_POUR_TRANCHER
 
         vises: Counter = Counter()
         for _c, _a, apres, _m in changent + gagnent:
@@ -374,15 +376,26 @@ def main(argv: list[str] | None = None) -> int:
         print("4. LES PRÉTENDANTS MULTIPLES — la garde du 17 septembre")
         print("-" * 78)
         print(f"""
-   ⛔ CETTE GARDE N'EXISTE QUE DANS `outils/`. Vérifié :
-      `PRETENDANTS_MAX_POUR_TRANCHER = {PRETENDANTS_MAX_POUR_TRANCHER}` vit dans `outils/pose_du_neq.py`,
-      et RIEN dans `falkye/` ne compte les prétendants.
+   ✅ CETTE GARDE EST DESCENDUE DANS LA RÉSOLUTION le 23 septembre.
+      `PRETENDANTS_MAX_POUR_TRANCHER = {PRETENDANTS_MAX_POUR_TRANCHER}` vit dans `falkye/resolution.py`,
+      et `outils/pose_du_neq.py` l'EMPRUNTE. Du 17 au 23, elle n'a
+      protégé que les passes par LOT.
 
-   ⚠️ UNE RÈGLE QUI VIT DANS LA RÉSOLUTION NE PEUT PAS LA VOIR. Elle
-      traite un dossier à la fois. Et `resolve_company` cherche un
-      `Company` PAR NEQ avant d'en créer un : plusieurs dossiers résolus
-      vers le même NEQ sont rattachés au MÊME dossier, donc FUSIONNÉS de
-      fait — ce que la décision du 16 septembre interdit.
+   ⚠️ LA FORME DU REFUS A CHANGÉ EN DESCENDANT, et elle ne pouvait pas
+      ne pas changer. La passe par LOT voit tous les prétendants
+      ensemble et décide AVANT que quiconque ait le NEQ : elle peut donc
+      refuser à TOUT LE MONDE. La résolution voit UN dossier à la fois,
+      et le détenteur porte DÉJÀ le NEQ — que `Company.neq` soit UNIQUE
+      interdit de le partager, et le lui retirer serait une écriture qui
+      EFFACE une identité, pas une garde. Elle refuse donc au NOUVEAU
+      VENU : il reste un dossier SÉPARÉ, sans NEQ, et le refus est
+      journalisé (`statut="pretendant_refuse"`).
+
+   ⚠️ CE QUI N'EST PAS DESCENDU, ET QUI RESTE À TRANCHER : le SEUIL.
+      Au-delà de {PRETENDANTS_MAX_POUR_TRANCHER}, la passe par lot retire le NEQ à tout le
+      monde; ici le premier arrivé le garde, et le rang est seulement
+      ÉCRIT au journal pour rendre ces NEQ visibles. Révoquer le NEQ
+      d'un détenteur est une décision d'Alexandre.
 """)
         print(_ligne("NEQ visés par au moins un changement ou un gain", len(vises)))
         print(_ligne(TROP_DE_PRETENDANTS, len(en_bloc), len(vises)))

@@ -126,7 +126,17 @@ class MeilleurCandidat:
     score: float
 
 
-def _score(nom_normalise: str, ville: str | None, autre: Company) -> float:
+def score_des_noms_detectes(nom_normalise: str, ville: str | None, autre: Company) -> float:
+    """Le score entre un nom DÉTECTÉ et celui d'un dossier existant.
+
+    ⚠️ **Publique depuis le 2026-09-23** *(elle s'appelait `_score`)* : la garde
+    des prétendants (`falkye/resolution.py`) doit dire, dans son journal, à quel
+    point les deux noms se ressemblaient — et **elle l'emprunte ici plutôt que
+    de recopier un scoreur à côté.** *Le garde-fou des compagnies à numéro en
+    fait partie, et il vaut exactement autant pour deux dossiers qui convergent
+    vers le même NEQ : « 9519-3801 Québec inc. » et « 9519-3850 Québec inc. »
+    sont deux entités DISTINCTES, quoi qu'en dise la similarité de chaînes.*
+    """
     numero_a = _numero_entreprise(nom_normalise)
     numero_b = _numero_entreprise(autre.nom_detecte_normalise)
     if numero_a is not None and numero_b is not None and numero_a != numero_b:
@@ -177,7 +187,7 @@ def trouver_meilleur_candidat_fusion(
             continue
         if autre.nom_detecte_normalise == nom_normalise:
             continue  # correspondance EXACTE — gérée séparément par resolution.py, pas ici
-        score = _score(nom_normalise, ville, autre)
+        score = score_des_noms_detectes(nom_normalise, ville, autre)
         if meilleur is None or score > meilleur.score:
             meilleur = MeilleurCandidat(company=autre, score=score)
 
