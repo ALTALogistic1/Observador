@@ -47,6 +47,38 @@ perdue, en silence.
 3. **Un instantané JSON est écrit AVANT le commit**, avec l'état d'avant de
    chaque dossier touché. ⚠️ *Sans lui, « reversible » est une intention.*
 
+## ⚠️ Ce qu'une reprise ne peut PAS faire — et c'est structurel
+
+**Elle ne balaie que `Company.neq IS NULL`**, et chaque paire porte
+`neq_avant = None`. ⛔ **Une reprise ne REMPLACE donc jamais un NEQ déjà posé**,
+quelle que soit la règle de résolution du jour. *Décision d'Alexandre du
+2026-09-23 (registre D63) : « poser une identité et en remplacer une ne sont pas
+le même geste »* — les **35 changements** que le troisième temps produirait,
+dont plusieurs vers une entreprise **radiée** (`#594`, `#1728`, `#4949`),
+attendent l'étape de **réouverture**, avec la règle du statut par-dessus.
+
+**Une consigne se contourne en changeant un argument; une population ne se
+contourne qu'en réécrivant la requête.** *Un test le verrouille.*
+
+## La marche pour appliquer le troisième temps *(2026-09-23)*
+
+    # 1. LE RAPPORT — aucune écriture, et on relit les paires.
+    python3 -m outils.reresolution_neq --comparer 20
+    python3 -m outils.reresolution_neq --comparer 20 --depuis 20
+
+    # 2. L'ÉCRITURE — l'instantané est écrit AVANT le commit.
+    python3 -m outils.reresolution_neq --appliquer
+
+    # 3. DÉFAIRE, si besoin — le fichier est nommé par l'étape 2.
+    python3 -m outils.reresolution_neq --defaire /var/lib/falkye/<fichier>.json
+
+⚠️ **Le compte annoncé par la mesure n'est pas le compte posé.**
+*`second_temps_des_noms_retires` annonçait **278 gains**; la reprise en écrira
+MOINS* — elle retire en plus les NEQ **déjà PRIS** par un autre dossier
+*(journalisés, jamais fusionnés)* et ceux que la garde des prétendants refuse.
+**Les 26 dossiers visant `8879690699` en font partie** : *au-delà de deux
+prétendants, personne ne l'obtient* — ils restent sans NEQ jusqu'à D27 et D28.
+
 Usage, SUR L'HÔTE :
     python3 -m outils.reresolution_neq --comparer 20      # ne touche à rien
     python3 -m outils.reresolution_neq --appliquer

@@ -26,6 +26,22 @@ def test_la_longueur_se_mesure_sur_la_forme_NORMALISEE():
     assert transformer("Boulangerie") == "Boulangerie"
 
 
+def test_l_UNITE_TRANCHEE_est_la_LETTRE():
+    """✅ **Tranchée par Alexandre le 2026-09-23** *(registre D60)* : *« c'est la
+    seule qui traite `« LA »` et `« L.A. »` comme la même porte. »*
+
+    ⬜ *La VALEUR, elle, n'est toujours pas posée* — et le test qui l'interdit
+    est juste en dessous.
+    """
+    import inspect
+
+    assert inspect.signature(outil.transformateur_de_borne).parameters[
+        "mesure"].default == "lettres"
+    # Et le défaut de la ligne de commande dit la même chose.
+    assert outil.transformateur_de_borne(3)("L.A.") == ""
+    assert outil.transformateur_de_borne(3)("LA") == ""
+
+
 def test_les_TROIS_mesures_ne_classent_PAS_pareil():
     """⛔ **La sous-question, verrouillée par le cas qui la pose.** *`« L.A. »`
     se normalise en `« l a »` : 3 caractères, 2 lettres, 2 mots.* **Une borne
