@@ -18,6 +18,10 @@ contradiction. Le récit de l'incident fondateur est au journal des cas, n° 14.
 horodatage rafraîchi, premier déclenchement automatique annoncé pour le mardi 15 septembre à 8 h 04 min 57 s
 (`RandomizedDelaySec=300` appliqué au créneau de 8 h).*
 
+⏸️ **Le minuteur est à l'arrêt depuis le 15 septembre au soir**, par décision d'Alexandre, pour laisser
+les tests tourner sur une base tranquille — *un état choisi, pas un geste qui reste à faire.* **Détail
+plus bas**, section du minuteur.
+
 **Ce que « terminé » veut dire ici, et ce qu'il ne veut pas dire.** Les trois gestes qui restaient sont
 posés : le minuteur est actif, la fenêtre de restauration a été testée, et la condition de coût est
 remplie — **120 311 lectures par cycle contre 411 963 777**, mesurées au compteur de l'hébergeur des deux
@@ -304,6 +308,12 @@ exécution interrompue** — la modifier sans le savoir rendrait la réconciliat
   `systemctl list-timers` annonce le prochain déclenchement le **mardi 15 septembre à 8 h 04 min 57 s**.
   *La condition de coût était remplie depuis le soir du 11 septembre; c'est la lecture de l'horodatage,
   pas la condition, qui a décidé du MOMENT.*
+
+  ⏸️ **ARRÊTÉ le 15 septembre 2026 au soir, par décision d'Alexandre** — *pour laisser les tests tourner
+  sur une base tranquille*. **Ce n'est pas un geste qui reste à faire : c'est un état choisi.** Le
+  chantier reste fonctionnel et vérifié; `systemctl start falkye-cycle.timer` le relance. ⚠️ *Écrit le
+  22 septembre : le document affirmait un minuteur actif depuis une semaine, et rien ne disait qu'il
+  avait été arrêté* — **un état choisi qui n'est pas consigné se relit comme un état courant.**
 
   ⚠️ **`Persistent=true` — ce qui a été établi le 14 septembre, et ce qui ne l'a PAS été.** Le rattrapage
   a été mis à l'essai avec un filet *(ci-dessous)* : sept minutes après le démarrage du minuteur, le

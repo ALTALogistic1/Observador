@@ -23,11 +23,29 @@ from outils import portrait_des_restants as outil
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("k, attendu", [
-    (0, "aucun"), (1, "1"), (2, "2"), (3, "3 à 5"), (5, "3 à 5"),
-    (6, "6 à 20"), (100, "21 à 100"), (101, "plus de 100"), (5000, "plus de 100"),
+    (0, "aucun"), (1, "1"), (2, "2"), (3, "3 à la coupe"), (5, "3 à la coupe"),
 ])
 def test_les_tranches_de_candidats_prennent_toute_la_droite(k, attendu):
     assert outil.tranche_de_candidats(k) == attendu
+
+
+def test_aucune_tranche_ne_peut_rester_VIDE_par_construction():
+    """⚠️ **Le défaut du 22 septembre.** *Les tranches allaient jusqu'à « plus de
+    100 », et trois d'entre elles ne pouvaient JAMAIS se remplir* —
+    `resolve_neq_by_name` coupe le lot à cinq. **La sortie annonçait « aucun n'en
+    a plus de 5 » comme un fait de population, alors que c'est le plafond de
+    l'instrument, et la ligne allait entrer au corpus.**
+
+    *Une tranche d'affichage qui ne peut pas se remplir n'est pas une précaution :
+    c'est une affirmation sur la population, faite par la forme du tableau.*
+    """
+    from outils.valeur_des_contradictions import coupe_de_production
+
+    coupe = coupe_de_production()
+    bornes = [b for b, _e in outil.TRANCHES_DE_CANDIDATS if b is not None]
+    assert max(bornes) < coupe, (
+        f"une borne d'affichage dépasse la coupe du produit ({coupe}) — "
+        "la tranche au-delà ne pourra jamais se remplir")
 
 
 @pytest.mark.parametrize("score, attendu", [

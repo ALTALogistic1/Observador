@@ -118,9 +118,12 @@ redécrire. **Trancher inclut « non, et voici pourquoi ».**
 | D48 | La correspondance code → sphère, sur DEUX référentiels | Mesures des 13 et 14 septembre 2026 | ⬜ **avant le chantier 22.** **Deux sources sur cinq portent un code sectoriel normalisé, et aucune n'était lue.** *SEAO : `items[].classification`, schéma **UNSPSC**, **93,6 %** des avis, **1 242 codes distincts en une semaine**. Contrats fédéraux : `economic_object_code`, **100 %**, **47 valeurs distinctes**.* **Les deux sont CAPTÉS depuis le 14 septembre, et aucun n'est interprété** — la correspondance reste une décision de produit *(charte, règle 5)*. ⚠️ **Ils ne sont pas commensurables** : *47 valeurs contre 1 242.* **Un référentiel à 47 entrées discrimine grossièrement; un à 1 242 discrimine finement mais demande un regroupement.** *La même décision, deux formes de travail.* ⚠️ **Le garde-fou, à reprendre mot pour mot** : un contrat de construction ne doit pas ouvrir d'un coup la construction, l'assurance, le cautionnement, l'équipement et l'entretien. *Un signal qui sert cinq sphères sans discriminer n'en sert aucune.* **La classification DISTINGUE les signaux entre eux; elle ne multiplie pas les correspondances d'un même signal.** ⚠️ **Et le passé ne l'aura pas tout seul** : `champs` s'écrit à l'ingestion et la déduplication par `source_ref` fait qu'un avis déjà vu ne repasse jamais. *Réglé pour le SEAO le 14 septembre par `outils/reprise_champs_seao.py` — **2 280 signaux complétés en huit lots**. Le même problème se reposera pour toute source dont on élargit la capture.* |
 | D49 | Le statut d'attribution du SEAO est capté et jamais filtré | Relevé du 13 septembre 2026 | ⬜ **défaut à corriger, pas décision de conception.** `champs["statut_attribution"]` est conservé et **aucun code ne le lit** : *un avis annulé ou infructueux produirait donc un signal comme un autre.* **Mesuré le 13 septembre sur un fichier réel** : 4 125 `active`, **2 `cancelled`** sur 4 127 — *l'ampleur est faible, le défaut reste.* |
 | D50 | Le seuil de publication a tout retenu au premier cycle livré — et il a eu raison | Rejeu du 16 septembre 2026 | ✅ **FERMÉE le 16 septembre 2026. Aucun ajustement.** Le cycle du 15 a produit **trois dossiers et n'en a livré aucun**. *Rejoués, leurs scores sont **45, 38 et 25 contre un seuil de 65** — ils manquaient de loin, pas de peu.* **La formulation d'Alexandre, reprise telle quelle : « Un seuil qui retient tout n'est pas un seuil trop haut si rien n'a encore de quoi le franchir. »** ⚠️ **Et la raison est structurelle, pas statistique** : *sans lecture, la pertinence plafonne à 50* — donc **seule la corroboration pouvait franchir**, et trois dossiers à un signal chacun ne corroborent rien. *Le seuil n'a pas filtré des dossiers faibles : il a constaté qu'aucun dossier n'avait encore les moyens d'être fort.* **Le seuil attend le 22.** ⚠️ **Ce qui rouvrirait la question, et rien d'autre** : un cycle où des dossiers CORROBORÉS restent sous 65. *Un second cycle à trois dossiers isolés ne dira rien de plus que le premier — il n'ajoutera pas une mesure, il répétera la même.* |
+| D51 | Ce que le moteur fait d'un nom PLUS EN VIGUEUR | `docs/CONCEPTION-TRAITEMENT-ARCHIVE-REQ.md`; commit `a362d35` du 17 septembre 2026 | ⬜ **Déclencheur : après la mesure `outils/noms_perimes_en_production.py`, et AVANT toute nouvelle écriture de NEQ — l'élargissement du statut compris.** **Le 17 septembre, DEUX décisions se tenaient l'une derrière l'autre, et une seule a été prise.** *(1) « Tout entre dans `req_noms` »* — prise ce jour-là : le chargeur a cessé de filtrer `STAT_NOM='V'`, et `req_noms` est passée de 1 505 879 à 5 071 984 formes. ⚠️ *(2) « Ce que le MOTEUR fait d'un nom retiré »* — **jamais prise.** Le commit annonçait que « la règle se pose dans le moteur, pas dans le chargeur »; **elle n'y est pas arrivée** : ni `candidats_par_nom`, ni `_scorer`, ni `resolve_neq_by_name` ne lisent `REQNom.statut`. *Un nom retiré est donc aujourd'hui une porte à PLEINE FORCE, indiscernable d'un nom en vigueur, et `tests/test_reresolution_neq.py` verrouille ce comportement.* **TROIS FORMES, aucune retenue :** *(a)* **plafonner le score** d'un appariement obtenu par un nom retiré; *(b)* **ne le consulter qu'en SECOND TEMPS**, après échec du premier; *(c)* **le laisser tel quel** — un nom abandonné mène souvent à la bonne entreprise, et le coût serait de perdre ce que le 17 septembre a gagné. ⚠️ **Ce qui distingue le risque : un nom retiré porté AUJOURD'HUI, en vigueur, par un AUTRE NEQ.** *Une entreprise retrouvée sous son propre ancien nom est juste; c'est la reprise du nom qui déplace une identité.* **La mesure sépare les deux cas et ne tranche pas entre eux.** ⚠️ **Pourquoi cette entrée arrive cinq jours en retard** : la phrase qui la qualifiait de décision — *« c'est une règle, donc une décision d'Alexandre »* — vivait **hors du corpus**, donc la section 15 de la charte ne s'y est jamais appliquée. *C'est la faille I, sur le produit lui-même.* |
 
-**41 entrées, 9 tranchées.** *Compte relu dans le tableau le 11 septembre 2026 — la phrase
-qui vivait ici en annonçait trente, dont trois tranchées, et elle avait vieilli sans que rien ne le dise.
+**50 entrées, 13 tranchées.** *Compte relu dans le tableau le 22 septembre 2026 — il annonçait
+« 41 entrées, 9 tranchées », relu le 11 septembre, et **il avait vieilli une seconde fois sans que rien
+ne le dise**. ⚠️ **La phrase qui existe pour empêcher un compte périmé en est un.** *Le relire fait partie
+de toute demande qui ajoute une entrée.*
 **D16 est un trou de numérotation, pas une entrée perdue** : aucun document du corpus n'y renvoie, et le
 numéro ne sera pas réattribué.*
 
@@ -691,12 +694,12 @@ troisième état est celui qui manquait partout, **et c'est exactement là que s
 
 | Rang | Nº | Nom | Ce qu'il règle | Coût d'attente |
 |---|---|---|---|---|
-| 🟡 | 29 | **Persistance de la base et hôte** | Trois gestes restent, et une question ouverte sur le placement des tables de diff | — |
+| 🟡 | 29 | **Persistance de la base et hôte** | **Une question ouverte** — le placement des tables de diff. *Le minuteur n'en est plus une : activé le 14 septembre, à l'arrêt par décision depuis le 15* | — |
 | ✅ | 1 | **Quarantaine de diff** | Conserver l'état d'une source, quarantaine, écriture groupée | — |
 | ✅ | 28 | **Première boucle complète** | Courriel réel livré et authentifié | — |
 | 🟡 2 | 2 | **Santé de source** | Distinguer une source silencieuse d'une source brisée — **et mesurer ce qu'un cycle coûte** | Constant |
-| 3 | 22 | **Calibration et durée de pertinence** | La lecture du signal — **précède 4 et 6** | Constant |
-| 4 | 3+4 | **Identité et confiance d'appariement** | La clé du moteur, et le score qui la qualifie | **Croissant** |
+| 🟡 3 | 3+4 | **Identité et confiance d'appariement** | La clé du moteur, et le score qui la qualifie | **Croissant** |
+| 4 | 22 | **Calibration et durée de pertinence** | La lecture du signal — **précède le SCORE du 4, et le 6** | Constant |
 | 5 | 27 | **Consolidation** | Point 27.1 d'abord — l'enrichissement est la moitié d'un cycle | Constant |
 | 6 | 5 | **Placement des sources et fonctionnalités** | Couverture contre enrichissement, par couple | Constant |
 | 7 | 6 | **Registre légal et page de crédits** | Bloquant pour l'activation des sources gratuites | Constant |
@@ -739,10 +742,22 @@ deux sources vérifiées n'en livrant aucun. Le chantier garde son rang **pour u
 fonctionnalité** : son prix monte avec le volume accumulé, et différer l'expansion est précisément ce qui
 le renchérit.
 
-**Pourquoi le chantier 22 précède les chantiers 4 et 6.** Le moteur de notation n'est pas en cause : il
-calcule fidèlement ce qu'on lui donne. **Tous les signaux d'une source portent aujourd'hui la même sphère
-avec la même confiance, donc le score n'a rien à départager.** Le raffiner avant d'avoir appris à lire un
-signal produirait une notation plus fine nourrie de la même uniformité.
+**Pourquoi le chantier 22 précède le SCORE du chantier 4, et le chantier 6.** Le moteur de notation
+n'est pas en cause : il calcule fidèlement ce qu'on lui donne. **Tous les signaux d'une source portent
+aujourd'hui la même sphère avec la même confiance, donc le score n'a rien à départager.** Le raffiner
+avant d'avoir appris à lire un signal produirait une notation plus fine nourrie de la même uniformité.
+
+⚠️ **Ce que cet argument ne dit PAS, et le rang l'a longtemps laissé croire** *(relevé le 22 septembre
+2026, en transférant le plan de travail)*. **Il porte sur la NOTATION, jamais sur l'identité.** *Le 3 et
+le 4 sont inséparables — le score n'a nulle part où vivre sans la clé — mais leurs deux moitiés n'ont pas
+le même préalable :* **la récupération d'identité ne dépend d'aucune lecture de signal, et elle a produit
+5 323 NEQ du 14 au 21 septembre pendant que le 22 attendait.** *Le 22 précède donc le score, et il ne
+précède plus la clé.*
+
+⚠️ **Et la dépendance s'est inversée dans les faits** : `falkye-chantier-22-calibration.md` porte
+désormais une section *« Le besoin mesuré — les indépartageables du chantier 3+4 »*. **Le 22 sert
+aujourd'hui le 3+4 autant qu'il le précède** — l'activité économique est le dernier départageur que le
+nom et l'adresse laissent au mur de l'identité.
 
 **Ce que les deux chantiers clos ont apporté à l'ordre.** Le chantier 28 a fait exister la chaîne
 complète, et **c'est lui qui a transformé trois hypothèses en mesures** — la faille A chiffrée, la faille
@@ -2048,7 +2063,7 @@ est le filet des migrations qui modifient des données.**
 
 - ✅ Persistance, découpage, hôte, application en production, déploiement, miroir, cycle en régime — **chaque case porte sa preuve au mandat**.
 - ✅ Fuseau de l'hôte corrigé · minuteur vérifié `inactive` · index composite posé et vérifié.
-- ⬜ **Activer le minuteur** — dernier geste du chantier 29, en attente d'un rapport de coût qui mesure vraiment quelque chose. *Deux cases fermées le 10 septembre : la fenêtre de restauration, et la liste blanche — qui n'était pas nécessaire, le domaine passait déjà.*
+- ✅ **Minuteur activé le 14 septembre 2026 à 14 h 43 min 56 s**, vérifié en régime — *preuve au mandat du chantier 29*. **⏸️ À l'arrêt depuis le 15 septembre au soir, par décision d'Alexandre**, pour laisser les tests tourner sur une base tranquille. **Rien à construire** : `systemctl start falkye-cycle.timer` le relance. ⚠️ *Le motif que cette ligne invoquait jusqu'au 22 septembre — « en attente d'un rapport de coût » — était levé depuis le 11 : **D14 porte les 120 311 lectures du cycle entier**, mesurées au compteur de l'hébergeur.* *Deux cases fermées le 10 septembre : la fenêtre de restauration, et la liste blanche — qui n'était pas nécessaire, le domaine passait déjà.*
 - ⚠️ **Question ouverte : où vivent l'historique et les quarantaines de diff.** Le mandat les place au
   distant; le travail 1bis du chantier 2 les a mesurés dans le fichier miroir local. **Les deux ne peuvent
   pas être vrais ensemble**, et si l'état de diff vit hors de la base durable, la garantie de persistance

@@ -73,8 +73,13 @@ from outils.diagnostic_appariement import est_numero
 #: frontière du produit** — la seule frontière qui décide est le seuil, et elle
 #: vit dans `falkye/resolution.py`. *Dire lesquelles sont arbitraires évite
 #: qu'on leur prête un sens dans trois semaines.*
-TRANCHES_DE_CANDIDATS = ((0, "aucun"), (1, "1"), (2, "2"), (5, "3 à 5"),
-                         (20, "6 à 20"), (100, "21 à 100"), (None, "plus de 100"))
+#: ⚠️ **CORRIGÉ le 22 septembre.** *Les tranches allaient jusqu'à « plus de 100 »,
+#: et TROIS D'ENTRE ELLES NE POUVAIENT JAMAIS SE REMPLIR* — `resolve_neq_by_name`
+#: coupe le lot à cinq. **La sortie annonçait donc « 94,9 %, aucun n'en a plus de
+#: 5 » comme un fait de population, alors que c'est le plafond de l'instrument.**
+#: *Relevé par Alexandre en lisant le plan de travail : la ligne allait entrer au
+#: corpus.* **Les tranches s'arrêtent maintenant à la coupe, et la coupe est LUE.**
+TRANCHES_DE_CANDIDATS = ((0, "aucun"), (1, "1"), (2, "2"), (None, "3 à la coupe"))
 
 #: Les tranches de score. ⚠️ **Seule la borne du seuil a un sens** : au-dessus,
 #: le dossier est assez sûr et n'échoue que par l'écart au second. Les autres
@@ -271,6 +276,9 @@ def main(argv: list[str] | None = None) -> int:
     # produit passe; le réécrire à côté ferait diverger les deux comptes sans
     # que rien ne le dise.*
     from outils.reresolution_neq import _resoudre_une
+    from outils.valeur_des_contradictions import coupe_de_production
+
+    coupe = coupe_de_production()
 
     print("=" * 78)
     print("LE PORTRAIT DES RESTANTS — ce qu'ils SONT, pas pourquoi ils échouent")
@@ -359,9 +367,9 @@ def main(argv: list[str] | None = None) -> int:
             famille_du_dossier[company.id] = famille
             par_famille[famille] += 1
             par_candidats[tranche_de_candidats(len(matches))] += 1
-            par_score[tranche_de_score(matches[0].score if matches else None)] += 1
-            if len(matches) >= LIMITE_CANDIDATS_PAR_NOM:
+            if len(matches) >= coupe:
                 au_plafond += 1
+            par_score[tranche_de_score(matches[0].score if matches else None)] += 1
 
         # ---- 1. LA FAMILLE DE DÉCISION --------------------------------------
         print("\n" + "-" * 78)
@@ -382,14 +390,15 @@ def main(argv: list[str] | None = None) -> int:
         print("-" * 78)
         print("2. CANDIDATS TROUVÉS, ET MEILLEUR SCORE OBTENU")
         print("-" * 78)
-        print(f"\n   candidats rendus par la récupération")
+        print(f"\n   candidats rendus par le SCORAGE, coupés à {coupe}")
         print(f"   {'':<{LARGEUR_DES_AXES}} {'dossiers':>9} {'part':>8}")
         ventiler_seul([e for _b, e in TRANCHES_DE_CANDIDATS], par_candidats, n)
-        if au_plafond:
-            print(f"\n   ⚠️ {milliers(au_plafond)} dossier(s) atteignent la borne de "
-                  f"{milliers(LIMITE_CANDIDATS_PAR_NOM)} candidats.")
-            print("      Leur compte est TRONQUÉ, pas mesuré — la récupération s'est")
-            print("      arrêtée là. Ce ne sont pas des dossiers à 2 000 candidats.")
+        print(f"""
+   ⚠️ CET AXE NE MESURE PAS LA RÉCUPÉRATION. `resolve_neq_by_name` rend au
+      plus {coupe} candidats ({milliers(au_plafond)} dossiers y sont). La récupération, elle,
+      en ramène jusqu'à {milliers(LIMITE_CANDIDATS_PAR_NOM)} avant le scorage, et CE compte n'est
+      pas lu ici. « Aucun dossier n'a plus de {coupe} candidats » serait donc une
+      propriété de l'OUTIL, jamais des dossiers.""")
         print(f"\n   meilleur score obtenu")
         print(f"   {'':<{LARGEUR_DES_AXES}} {'dossiers':>9} {'part':>8}")
         ventiler_seul([e for _b, e in TRANCHES_DE_SCORE], par_score, n)

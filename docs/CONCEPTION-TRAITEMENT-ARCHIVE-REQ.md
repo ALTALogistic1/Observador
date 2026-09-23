@@ -1,5 +1,18 @@
 # Traiter l'archive REQ en entier — une direction, et le chiffre qui la borne
 
+> ⚠️ **AVERTISSEMENT AJOUTÉ LE 22 SEPTEMBRE 2026 — DES PARTIES DE CE DOCUMENT SONT PÉRIMÉES, ET IL NE FAIT PAS FOI.**
+>
+> *Il a été écrit avant le 17 septembre.* **Ce qui a changé depuis, et qu'on lit ici encore à l'ancien état :**
+>
+> - **`req_noms` porte 5 071 984 formes, pas 1 505 879.** *Les quatre gisements ont été déployés le 17 septembre.*
+> - ⚠️ **Le chargeur ne filtre PLUS `STAT_NOM='V'`.** *Décision d'Alexandre du 17 septembre.* **Donc les « 3 129 272 lignes de noms PLUS EN VIGUEUR » ne sont plus un gisement à exploiter : elles sont, pour la plus grande part, DÉJÀ EN BASE et déjà scorées à pleine force.**
+> - ⚠️ **Et la règle que ce document appelait de ses vœux — *« soit `resolve_neq_by_name` ne les consulte qu'en second temps, soit leur score est plafonné »* — n'a JAMAIS été posée.** *Elle est ouverte au registre sous **D51**, et se tranche avant toute nouvelle écriture de NEQ.*
+> - **`FusionScissions.csv` n'est plus « jamais regardé »** : `DENOMN_SOC` en est le quatrième gisement de noms depuis le 17. ⚠️ *Mais qui est le SUJET d'une de ses rangées — l'absorbante ou l'absorbée — n'est toujours pas établi, et ce gisement n'a aucune colonne de statut.*
+> - **Le `~32,7 %` de lignes en vigueur reste vrai du FICHIER**, et faux de ce que le chargeur RETIENT : il garde tout depuis le 17.
+>
+> **Le bloc de l'import fait foi à sa place** : `docs/spec/falkye-chantier-3-4-identite-appariement.md`, section 17bis.
+
+
 > **Conception.** Hors corpus — `docs/`, pas `docs/spec/`.
 > ⚠️ **Le chiffre est en tête, et il ferme une piste.**
 
