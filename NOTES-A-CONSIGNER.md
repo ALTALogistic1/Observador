@@ -6440,3 +6440,68 @@ dossiers.**
 > fait nouveau dans une structure existante, regarder quelles commandes savent
 > déjà agir dessus — et vérifier qu'aucune ne fait, gratuitement, le contraire
 > de ce qu'on vient de construire.**
+
+---
+
+## N258 — La cause d'une perte et le remède proposé étaient le MÊME appel
+
+- **Notée le** : 2026-09-23
+
+**`cause_dune_perte` rejouait la résolution avec `elargir=False` pour dire
+laquelle des deux causes fait perdre un NEQ.** *La « troisième forme » qu'Alexandre
+demandait à chiffrer — rejouer le pipeline entier depuis le préfixe — **est
+exactement le même appel.*** **Le diagnostic et le remède étaient la même
+mesure, lue deux fois.**
+
+⚠️ **Et ce n'est pas une coïncidence, c'est une identité** : *le troisième temps
+ne tire que là où les deux premiers n'ont rien retenu*, donc les deux formes
+partagent leur premier temps, et `elargir=False` ne coupe pas le troisième.
+**`elargir=False` rend la troisième forme EXACTEMENT — ce n'est pas une
+approximation, et le dire évite de chiffrer un coût « à peu près ».**
+
+> **Avant d'écrire une mesure pour chiffrer un remède, regarder si l'instrument
+> qui a nommé la cause ne le chiffre pas déjà. Deux appels séparés pour la même
+> question divergent le jour où l'un des deux change de paramètre — et rien ne
+> le dit.**
+
+---
+
+## N259 — Mesurer une règle sur la population qu'elle ne touche pas gonfle son dénominateur
+
+- **Notée le** : 2026-09-23
+
+*Premier réflexe pour chiffrer la troisième forme : la rejouer sur les 8 742
+dossiers.* ⛔ **Faux.** `elargir=False` coupe le second temps **partout**, alors
+que la troisième forme ne change rien là où le troisième temps ne tire pas. *La
+mesure aurait porté sur une QUATRIÈME règle que personne n'a proposée* — et son
+dénominateur aurait rendu le coût microscopique par dilution.
+
+**La correction tient dans une clé** : `journal["troisieme_temps"]` dit où les
+deux formes diffèrent, et la mesure ne s'y exécute que là. *Elle coûte aussi un
+appel de moins par dossier.*
+
+> **Le dénominateur d'une mesure de règle, c'est la population où la règle
+> s'applique — pas la population sur laquelle on l'a lancée. Un pourcentage
+> calculé sur des dossiers que la règle ne touche pas dit toujours « c'est
+> négligeable », quelle que soit la règle.**
+
+---
+
+## N260 — Un décor qui ne produit pas la forme qu'il teste ne teste rien
+
+- **Notée le** : 2026-09-23
+
+*Le décor des tests du troisième temps ne perdait AUCUN NEQ* — donc la section
+qui rend les pertes n'était jamais exécutée, et aucun test ne le disait.
+**Raison mesurée** : `req_mots` et `req_mots_frequence` étaient vides, donc
+**le second temps ne ramenait jamais rien**, donc le lot ne s'élargissait
+jamais, donc la seule cause de perte observée en production ne pouvait pas
+exister dans le décor.
+
+⚠️ **Le décor reproduisait la RÈGLE, pas la POPULATION** — et c'est la
+population qui produisait le défaut.
+
+> **Une branche qu'un décor n'atteint jamais est du code non testé sous une
+> suite verte. Quand une mesure rend « zéro » sur un décor, la première
+> question n'est pas « la règle est-elle bonne ? » mais « le décor peut-il
+> seulement produire un non-zéro ? ».**

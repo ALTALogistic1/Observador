@@ -114,9 +114,19 @@ CAUSES_DE_PERTE_REELLE = (PAR_LE_SECOND_TEMPS, PAR_LE_PREMIER_TEMPS)
 #: déjà le NEQ, et `Company.neq` est UNIQUE.* Voir `garde_des_pretendants`.
 TROP_DE_PRETENDANTS = "⛔ NEQ visé par PLUS DE DEUX dossiers — la garde du 17 sept."
 
+#: Ce que **la TROISIÈME FORME** ferait à un dossier, comparée à la forme
+#: actuelle. *Elle ne se mesure QUE là où le troisième temps tire* — ailleurs,
+#: les deux formes sont le même appel.
+FORME_IDENTIQUE = "même issue qu'aujourd'hui"
+FORME_RECUPERE = "✅ RÉCUPÈRE un NEQ que le lot élargi lui prenait"
+FORME_PERD = "⛔ PERD un NEQ que le lot élargi lui donnait"
+FORME_AUTRE_NEQ = "⚠️ rend un NEQ DIFFÉRENT"
+EFFETS_DE_LA_FORME = (FORME_IDENTIQUE, FORME_RECUPERE, FORME_PERD, FORME_AUTRE_NEQ)
+
 LARGEUR = max(len(t) for t in
               ISSUES_DES_POSES + ISSUES_DES_RESTANTS + CAUSES_DE_LA_PERTE
-              + RANGS + CAUSES_DE_PERTE_REELLE + (TROP_DE_PRETENDANTS,)) + 1
+              + RANGS + CAUSES_DE_PERTE_REELLE + EFFETS_DE_LA_FORME
+              + (TROP_DE_PRETENDANTS,)) + 1
 
 
 def _part(k: int, n: int) -> str:
@@ -129,10 +139,14 @@ def _ligne(etiquette: str, k: int, n: int = 0) -> str:
 
 
 def les_deux_regles(session, company):
-    """`(neq d'avant, neq d'après, matches d'après)` — **par DEUX APPELS de la
-    production**, jamais par une copie du scoreur.
+    """`(neq d'avant, neq d'après, matches d'après, journal d'après)` — **par
+    DEUX APPELS de la production**, jamais par une copie du scoreur.
 
     *`retires_en_dernier=False` rejoue le comportement du 17 au 22 septembre.*
+
+    Le `journal` du second appel dit notamment si **le troisième temps a
+    tiré** — et c'est ce qui permet de mesurer la troisième forme sans rejouer
+    la résolution une fois de plus sur les dossiers qu'elle ne touche pas.
     """
     from falkye.resolution import neq_retenu
     from falkye.sources import req as req_source
@@ -140,9 +154,10 @@ def les_deux_regles(session, company):
     avant = req_source.resolve_neq_by_name(
         session, company.nom_detecte, ville=company.ville,
         retires_en_dernier=False)
+    journal: dict = {}
     apres = req_source.resolve_neq_by_name(
-        session, company.nom_detecte, ville=company.ville)
-    return neq_retenu(avant), neq_retenu(apres), apres
+        session, company.nom_detecte, ville=company.ville, journal=journal)
+    return neq_retenu(avant), neq_retenu(apres), apres, journal
 
 
 def ce_qui_a_change(session, company, matches, profondeur: int):
@@ -166,18 +181,40 @@ def ce_qui_a_change(session, company, matches, profondeur: int):
     return cause, ABSENT_DU_LOT, None
 
 
+def la_troisieme_forme(session, company) -> str | None:
+    """Le NEQ que rendrait **la TROISIÈME FORME** — *rejouer le pipeline entier
+    depuis le PRÉFIXE quand le troisième temps tire*, au lieu de rejouer les
+    formes sur le lot déjà élargi.
+
+    ⚠️ **`elargir=False` la rend EXACTEMENT, et ce n'est pas une approximation.**
+    *Le troisième temps ne tire que là où les deux premiers n'ont rien retenu* —
+    donc le premier temps de la forme actuelle et celui-ci rendent le même lot,
+    et la suite est le préfixe augmenté des noms retirés. **`elargir=False` ne
+    coupe pas le troisième temps**, il coupe le second : c'est la définition
+    même de la troisième forme.
+
+    ⚠️ **À n'appeler que là où le troisième temps a tiré** — ailleurs il coupe un
+    second temps que la troisième forme ne touche pas, et la mesure deviendrait
+    celle d'une QUATRIÈME règle que personne n'a proposée.
+    """
+    from falkye.resolution import neq_retenu
+    from falkye.sources import req as req_source
+
+    return neq_retenu(req_source.resolve_neq_by_name(
+        session, company.nom_detecte, ville=company.ville, elargir=False))
+
+
 def cause_dune_perte(session, company) -> str:
     """Laquelle des deux causes fait perdre ce NEQ — **par un APPEL.**
 
     *`elargir=False` coupe le second temps.* **Si la perte disparaît alors, c'est
     le lot élargi qui l'a causée; sinon, c'est le premier temps.**
-    """
-    from falkye.resolution import neq_retenu
-    from falkye.sources import req as req_source
 
-    sans_second = neq_retenu(req_source.resolve_neq_by_name(
-        session, company.nom_detecte, ville=company.ville, elargir=False))
-    return (PAR_LE_SECOND_TEMPS if sans_second == company.neq
+    *C'est le même appel que `la_troisieme_forme`, et ce n'est pas un hasard :
+    **la cause d'une perte et le remède de la troisième forme sont la même
+    question**, lue une fois comme diagnostic et une fois comme coût.*
+    """
+    return (PAR_LE_SECOND_TEMPS if la_troisieme_forme(session, company) == company.neq
             else PAR_LE_PREMIER_TEMPS)
 
 
@@ -250,10 +287,17 @@ def main(argv: list[str] | None = None) -> int:
         changent: list = []
         gagnent: list = []
         introuvables: list = []
+        pertes: list = []          # (company, matches) — rendues dossier par dossier
+        # ⚠️ **La troisième forme ne se mesure QUE là où le troisième temps a
+        # tiré.** Ailleurs elle est le MÊME appel que la forme actuelle, et
+        # couper le second temps y mesurerait une quatrième règle.
+        a_tire: list = []          # (company, neq d'aujourd'hui)
         for i, company in enumerate(dossiers, 1):
             if args.pas and i % args.pas == 0:
                 print(f"   … {milliers(i)} / {milliers(len(dossiers))}", flush=True)
-            avant, apres, matches = les_deux_regles(session, company)
+            avant, apres, matches, journal = les_deux_regles(session, company)
+            if journal.get("troisieme_temps"):
+                a_tire.append((company, apres))
             if company.neq:
                 if apres == company.neq:
                     par_issue[INCHANGE] += 1
@@ -263,6 +307,7 @@ def main(argv: list[str] | None = None) -> int:
                     if avant == company.neq:
                         par_issue[PERDU] += 1
                         changent.append((company, avant, apres, matches))
+                        pertes.append((company, matches))
                     else:
                         introuvables.append(company)
                 else:
@@ -300,6 +345,44 @@ def main(argv: list[str] | None = None) -> int:
    ⚠️ ET AUCUNE DES DEUX NE RETIRE UN NEQ DE LA BASE. Une reprise POSE,
       elle n'efface pas : un dossier qui cesse d'être résolu garde le NEQ
       qu'il porte. La perte est une perte de RECONFIRMATION.""")
+
+            # ---- 1bis. LES PERTES, DOSSIER PAR DOSSIER --------------------
+            # ⚠️ **Toutes, jamais un échantillon.** *Neuf dossiers se lisent en
+            # entier; un `--paires` qui en montrerait trois ferait juger une
+            # règle sur un tiers de ce qu'elle casse.*
+            print("\n" + "-" * 78)
+            print(f"1bis. LES {milliers(len(pertes))} PERTES, DOSSIER PAR DOSSIER")
+            print("-" * 78)
+            formes_p = req_source.formes_retenues(
+                session, [m for _c, ms in pertes for m in ms[:3]])
+            for company, matches in pertes:
+                cause = cause_dune_perte(session, company)
+                print(f"\n   #{company.id}   {(company.nom_detecte or '')[:54]}")
+                print(f"      NEQ posé          : {company.neq}")
+                print(f"      ville du dossier  : {company.ville or '—'}")
+                print(f"      cause             : {cause}")
+                if cause == PAR_LE_SECOND_TEMPS:
+                    print("      ↳ la TROISIÈME FORME le récupérerait "
+                          "(le préfixe seul le retenait)")
+                else:
+                    print("      ↳ la troisième forme n'y changerait RIEN "
+                          "(le préfixe seul ne le retient pas non plus)")
+                if not matches:
+                    print("      aucun candidat aujourd'hui")
+                for m in matches[:3]:
+                    forme = formes_p.get((m.entry.neq, m.forme_normalisee))
+                    marque = "→" if m.entry.neq == company.neq else " "
+                    print(f"      {marque} {m.entry.neq}  {m.score:>6.1f}  "
+                          f"{(m.entry.nom or '—')[:36]:<38} [{m.entry.statut}]")
+                    if forme is not None and not forme.est_la_denomination_elue:
+                        print(f"         ↳ a scoré sur "
+                              f"« {(forme.nom_publie or '—')[:40]} »"
+                              f"   [nom : {forme.statut}]")
+                if len(matches) > 1:
+                    from falkye.resolution import SEUIL_AMBIGUITE_ECART_MIN
+                    print(f"      écart sommet/second : "
+                          f"{matches[0].score - matches[1].score:.1f} "
+                          f"(il en faut {SEUIL_AMBIGUITE_ECART_MIN:.0f})")
         else:
             print("""
    ✅ Aucun dossier ne perd son NEQ sur cette population.""")
@@ -335,7 +418,7 @@ def main(argv: list[str] | None = None) -> int:
         par_rang: Counter = Counter()
         detail: list = []
         for company in introuvables:
-            _avant, _apres, matches = les_deux_regles(session, company)
+            _avant, _apres, matches, _j = les_deux_regles(session, company)
             cause, ou, rang = ce_qui_a_change(session, company, matches,
                                               args.profondeur)
             par_cause[cause] += 1
@@ -425,6 +508,81 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"      NEQ posé : {company.neq}")
                 print(f"      {cause}")
                 print(f"      {ou}" + (f"   (rang {rang + 1})" if rang is not None else ""))
+
+        # ---- 5. CE QUE LA TROISIÈME FORME COÛTERAIT ----------------------
+        # ⚠️ **Mesurée là où elle s'applique, et nulle part ailleurs.** *Le
+        # troisième temps ne tire que sur les dossiers que les deux premiers
+        # n'ont pas retenus; partout ailleurs les deux formes sont le MÊME
+        # appel, et les compter comme « inchangés » gonflerait le dénominateur
+        # d'une population que la question ne touche pas.*
+        print("\n" + "-" * 78)
+        print("5. CE QUE LA TROISIÈME FORME COÛTERAIT")
+        print("-" * 78)
+        print(f"""
+   LA QUESTION. La forme ACTUELLE rejoue les formes d'avant sur le lot
+   DÉJÀ ÉLARGI par le second temps. La TROISIÈME FORME rejouerait le
+   pipeline entier DEPUIS LE PRÉFIXE — donc sans l'information que le
+   mot rare avait ramenée.
+
+   ⚠️ CE N'EST PAS UNE APPROXIMATION. `elargir=False` rend la troisième
+      forme EXACTEMENT : le troisième temps ne tire que là où les deux
+      premiers n'ont rien retenu, donc les deux formes partagent leur
+      premier temps, et `elargir=False` ne coupe pas le troisième.
+""")
+        print(_ligne("dossiers où le TROISIÈME TEMPS tire", len(a_tire), len(dossiers)))
+        print("      (c'est là, et seulement là, que les deux formes diffèrent)\n")
+        par_forme: Counter = Counter()
+        recuperes: list = []
+        perdus_par_la_forme: list = []
+        autres: list = []
+        for i, (company, aujourdhui) in enumerate(a_tire, 1):
+            if args.pas and i % args.pas == 0:
+                print(f"   … {milliers(i)} / {milliers(len(a_tire))}", flush=True)
+            troisieme = la_troisieme_forme(session, company)
+            if troisieme == aujourdhui:
+                par_forme[FORME_IDENTIQUE] += 1
+            elif aujourdhui is None:
+                par_forme[FORME_RECUPERE] += 1
+                recuperes.append((company, troisieme))
+            elif troisieme is None:
+                par_forme[FORME_PERD] += 1
+                perdus_par_la_forme.append((company, aujourdhui))
+            else:
+                par_forme[FORME_AUTRE_NEQ] += 1
+                autres.append((company, aujourdhui, troisieme))
+        for effet in EFFETS_DE_LA_FORME:
+            print(_ligne(effet, par_forme.get(effet, 0), len(a_tire)))
+
+        # ⚠️ **Ce que « perdre » veut dire ici, et ce qu'il ne veut pas dire.**
+        # *On mesure une DIFFÉRENCE D'ISSUE, jamais une justesse* — rien dans
+        # cette sortie ne dit lequel des deux NEQ est le bon.
+        deja_poses = [c for c, _n in perdus_par_la_forme if c.neq]
+        print(f"""
+   ⚠️ « PERD » VEUT DIRE : le lot élargi retenait, le préfixe seul ne
+      retient plus. RIEN ICI NE DIT LEQUEL DES DEUX EST JUSTE — c'est une
+      différence d'issue, pas une mesure de justesse (§13, point 10).
+
+   ⚠️ ET « RÉCUPÈRE » NON PLUS. Un dossier que le lot élargi rendait
+      ambigu EST peut-être ambigu : le préfixe seul le retient par
+      IGNORANCE du concurrent, exactement comme l'ancienne règle
+      retenait les 9 pertes.
+""")
+        print(_ligne("dont DÉJÀ POSÉS (une reconfirmation perdue)",
+                     len(deja_poses), max(len(perdus_par_la_forme), 1)))
+        for company, neq in perdus_par_la_forme[:args.paires or 5]:
+            print(f"      #{company.id}  {(company.nom_detecte or '')[:44]:<46} "
+                  f"perdrait {neq}")
+        if recuperes:
+            print()
+            for company, neq in recuperes[:args.paires or 5]:
+                print(f"      #{company.id}  {(company.nom_detecte or '')[:44]:<46} "
+                      f"retrouverait {neq}"
+                      + ("  ⚠️ ≠ du NEQ posé" if company.neq and company.neq != neq else ""))
+        if autres:
+            print()
+            for company, a, b in autres[:args.paires or 5]:
+                print(f"      #{company.id}  {(company.nom_detecte or '')[:34]:<36} "
+                      f"{a} → {b}")
 
         if args.paires and changent:
             print("\n" + "=" * 78)
