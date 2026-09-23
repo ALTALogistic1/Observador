@@ -6129,3 +6129,51 @@ plus qu'un endroit où le poser.*
 > **Quand une règle doit s'appliquer à toutes les sorties d'une fonction, elle
 > n'est pas une ligne à répéter : c'est une fonction. Le test qui la vérifie doit
 > viser la sortie la moins fréquente — c'est celle qu'on oublie.**
+
+---
+
+## N246 — Une section datée dans son TITRE cesse de mentir
+
+- **Notée le** : 2026-09-23
+
+*En versant le portrait des restants au document du chantier 3+4.*
+
+La section « Phase 0 — l'état mesuré » présentait **8 931 dossiers sans NEQ**
+comme *l'état*. **C'était vrai du 16 au 18 septembre, et faux depuis** — 4 673 le
+19, 3 608 le 20. *Rien dans la section ne le disait : ses chiffres étaient
+sourcés, datés dans le texte, et lus comme courants.*
+
+⚠️ **Ajouter le portrait « à la suite » aurait mis DEUX populations côte à côte
+sans qu'une phrase dise laquelle vit.** *C'est exactement le défaut relevé au
+chantier 22, où « le besoin mesuré » porte 5 002 ambigus pendant que le plan en
+donne 3 267.*
+
+**Ce qui a été fait :** la date entre dans le TITRE — *« l'état mesuré AU 16-17
+SEPTEMBRE »* — et un encadré renvoie aux deux sections qui portent la suite.
+
+> **Une date dans le corps d'une section qualifie une mesure; une date dans son
+> TITRE qualifie la section entière. La première se lit après coup, la seconde
+> avant — et c'est avant qu'on décide si on peut s'en servir.**
+
+---
+
+## N247 — Une impasse et un argument sont la même mesure, lue deux fois
+
+- **Notée le** : 2026-09-23
+
+**Les 111 RETENU rendent 0 NEQ libre** : ce sont les NEQ déjà pris que la
+conservation interdit de poser. *Lue comme une piste de gain, la mesure la
+ferme.*
+
+**Lue autrement, la même mesure ouvre autre chose** : *111 + 50 consortiums + 44
+doublons ≈ **205 dossiers** que seule la structure « un dossier, plusieurs
+identifiants » débloquerait.* **C'est le premier argument CHIFFRÉ pour le
+chantier 3, et il vient du compte qui a fermé la piste.**
+
+⚠️ *Le document portait les deux moitiés à deux endroits* — l'impasse dans un
+plan hors dépôt, l'argument dans une section qui disait encore « jamais
+compté ». **Les réunir était tout le travail.**
+
+> **Un chiffre qui ferme une piste n'est pas un chiffre perdu. Avant de le
+> classer, demander ce qu'il OUVRE — c'est souvent la justification d'une
+> structure que rien d'autre ne chiffrait.**
