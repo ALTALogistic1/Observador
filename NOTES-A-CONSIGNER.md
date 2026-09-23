@@ -6232,3 +6232,93 @@ DISTINCTE** — le plancher de remplissage — pour qu'on ne les confonde pas.
 > c'est une règle de coût. Le prix de la doublure se paie au moment de la
 > divergence, par quelqu'un d'autre, et il n'est jamais imputé à celui qui l'a
 > créée.**
+
+---
+
+## N250 — La garantie valait pour les FORMES, jamais pour le LOT
+
+- **Notée le** : 2026-09-23
+
+**J'avais écrit, dans l'outil et dans le registre** : *« perdre son NEQ est
+impossible par construction — écarter des formes ne peut qu'abaisser des scores,
+donc quand le premier temps ne retient rien, le troisième rejoue le comportement
+d'avant. »*
+
+⛔ **La mesure a rendu 9 pertes.** *La garde s'est déclenchée au lieu de rendre un
+succès, et c'est la seule raison pour laquelle on le sait.*
+
+**Où le raisonnement se casse.** *Le troisième temps rejoue bien les FORMES
+d'avant — mais sur un LOT plus grand.* **Quand le premier temps ne retient rien,
+le SECOND temps s'ouvre** et ajoute les candidats du mot rare. *L'ancienne règle
+retenait dès le préfixe et ne voyait jamais ces candidats.* **Un candidat de plus
+à moins de 8 points fait un ambigu.**
+
+⚠️ *La monotonie que j'avais établie était vraie — sur le même lot.* **Je l'ai
+appliquée à deux lots différents sans le voir**, parce que la phrase « le
+troisième temps rejoue le comportement d'avant » est vraie de ce qu'il SCORE et
+fausse de ce qu'il score SUR.
+
+> **Un invariant se démontre à paramètres égaux. Quand la branche qui le rétablit
+> n'est pas la branche d'origine, il faut re-démontrer — et « c'est le même
+> calcul » ne suffit pas si l'entrée a changé en route.**
+
+---
+
+## N251 — Une borne d'instrument nommée comme un fait du monde, pour la troisième fois
+
+- **Notée le** : 2026-09-23
+
+*L'outil nommait « **le NEQ est passé sous la coupe** » la cause d'un dossier que
+le rejeu ne résout plus.* **C'était faux :** `neq_retenu` ne lit que `matches[0]`
+et `matches[1]`, donc **relever le plafond du lot ne change AUCUNE décision** — et
+les paires montraient le NEQ posé aux rangs 2 et 3, *bien à l'intérieur de la
+coupe*.
+
+**La vraie cause est la FAMILLE que la résolution rend aujourd'hui** : le lot a
+grandi, un concurrent est arrivé à moins de 8 points, **le dossier est devenu
+ambigu**. *La coupe n'y est pour rien.*
+
+⚠️ **Et le coût de l'étiquette a été immédiat** : elle a fait poser une question
+de dimensionnement — *« combien coûte un plafond plus haut »* — **sur un levier
+qui ne touche à rien.**
+
+**Les trois fois, en trois jours :**
+
+1. l'axe « candidats » du portrait, dont trois tranches ne pouvaient pas se remplir;
+2. la ligne « aucun dossier n'a plus de 5 candidats », prête à entrer au corpus;
+3. celle-ci.
+
+> **Le même défaut à trois reprises n'est pas une distraction : c'est que rien,
+> dans la façon d'écrire une étiquette, n'oblige à demander « est-ce que
+> l'instrument pourrait rendre autre chose? ». La question doit venir AVANT le
+> nom, pas après la lecture.**
+
+---
+
+## N252 — Une garde qui vit dans l'outil ne descend pas avec la règle
+
+- **Notée le** : 2026-09-23
+
+*Relevé par Alexandre sur six dossiers CISSS que la nouvelle règle enverrait tous
+vers `8879690699` — **le NEQ refusé en bloc le 19 septembre, avec ses 17
+prétendants.***
+
+**Vérifié dans le code** : `PRETENDANTS_MAX_POUR_TRANCHER = 2` vit dans
+`outils/pose_du_neq.py`. ⚠️ **Rien dans `falkye/` ne compte les prétendants** —
+`grep` rend zéro.
+
+**Pourquoi c'est structurel, et pas un oubli** : *une règle qui vit dans la
+résolution traite **UN dossier à la fois**.* **Elle ne peut pas voir qu'un autre
+dossier vise le même NEQ** — la garde de l'outil, elle, voit tout le lot d'une
+passe.
+
+⚠️ **Et la conséquence n'est pas « on pose deux fois » : c'est pire.**
+`resolve_company` cherche un `Company` **par NEQ** avant d'en créer un *(`falkye/
+resolution.py:140`)*. **Plusieurs dossiers résolus vers le même NEQ sont
+rattachés au MÊME dossier — donc FUSIONNÉS de fait**, ce que la décision du
+16 septembre interdit explicitement.
+
+> **Monter une règle d'un outil vers le moteur ne déplace pas ses gardes : elles
+> restent où elles sont, et certaines ne PEUVENT pas suivre, parce qu'elles
+> lisent une population que le moteur ne voit jamais. Ce qui protégeait en lot ne
+> protège plus à l'unité.**

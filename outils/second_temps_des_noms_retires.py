@@ -8,14 +8,28 @@
 n'a trouvé l'entreprise. Je ne plafonne pas les scores : ça ferait perdre des
 changements de nom qui sont justes. »*
 
-⚠️ **Ce que la forme retenue garantit, et qu'aucune mesure n'a besoin
-d'établir.** *Écarter des formes ne peut qu'ABAISSER des scores.* Donc le
-premier temps ne retient jamais moins que le troisième, et **quand il ne retient
-rien, le troisième rejoue exactement le comportement d'avant.**
+## ⚠️ LA GARANTIE ANNONCÉE ÉTAIT FAUSSE, ET LA MESURE L'A DIT
 
-> **La règle ne change l'issue que là où un nom EN VIGUEUR désigne quelqu'un
-> d'AUTRE que le nom retiré.** *« Perdre son NEQ » est donc impossible par
-> construction — et l'outil le VÉRIFIE au lieu de s'en remettre au raisonnement.*
+**Cet outil annonçait : « perdre son NEQ est impossible par construction ».**
+*Le raisonnement : écarter des formes ne peut qu'abaisser des scores, donc quand
+le premier temps ne retient rien, le troisième rejoue le comportement d'avant.*
+
+⛔ **La mesure du 23 septembre a rendu 9 pertes.** **La garde s'est déclenchée au
+lieu de rendre un succès** — *c'est ce qu'on lui demandait, et c'est la seule
+raison pour laquelle on le sait.*
+
+**Où le raisonnement se casse.** *Le troisième temps rejoue les formes d'avant,
+**mais pas le LOT d'avant**.* Quand le premier temps ne retient rien, **le second
+temps s'ouvre** — celui du mot rare — et y ajoute des candidats. *L'ancienne
+règle, elle, retenait dès le préfixe et **ne voyait jamais ces candidats-là**.*
+
+> **La garantie valait pour les FORMES, jamais pour le LOT.** ⚠️ *Et le lot
+> décide autant que les formes : un candidat de plus à moins de 8 points fait un
+> ambigu.*
+
+**Cet outil ne conclut donc plus : il MESURE laquelle des deux causes agit**,
+dossier par dossier, en rejouant avec `elargir=False` — *le drapeau qui coupe le
+second temps.*
 
 ## Les trois sections
 
@@ -28,10 +42,18 @@ reprise ferait, pas ce qui s'est produit.**
 faire tomber un concurrent sous l'écart, donc RÉSOUDRE un dossier qui était
 ambigu.* **C'est le gain, et il est du même mécanisme que le risque.**
 
-**3. Les dossiers dont le rejeu ne retrouve plus le NEQ posé.** *La mesure du
-22 septembre en comptait 14 sans les expliquer.* Deux causes, et elles ne se
-confondent pas : **le lot a grandi et le NEQ est passé sous la coupe**, ou **la
-porte a disparu — plus aucun nom ne le récupère.**
+**3. Les dossiers que la résolution d'aujourd'hui NE RÉSOUT PLUS.** ⚠️ *Cet outil
+en nommait la cause « le NEQ est passé sous la coupe ». **C'était faux** :
+`neq_retenu` ne lit que `matches[0]` et `matches[1]`, donc relever le plafond du
+lot ne change aucune décision.* **La vraie cause est la FAMILLE que la résolution
+rend aujourd'hui** — le plus souvent *ambigu*, parce que le lot a grandi et qu'un
+concurrent est arrivé à moins de 8 points.
+
+**4. Les PRÉTENDANTS MULTIPLES.** ⚠️ *La garde du 17 septembre — « le nombre de
+prétendants est une preuve contre l'appariement » — **n'existe que dans
+`outils/`**.* **Rien dans `falkye/` ne compte les prétendants, et
+`resolve_company` rattache au MÊME `Company` deux dossiers résolus vers le même
+NEQ.**
 
 ⚠️ **RIEN N'EST ÉCRIT. Les échelles ne bougent pas : seuil 92, écart 8.**
 
@@ -58,13 +80,41 @@ GAGNE = "✅ GAGNERAIT un NEQ"
 TOUJOURS_SANS = "reste sans NEQ"
 ISSUES_DES_RESTANTS = (GAGNE, TOUJOURS_SANS)
 
-#: Pourquoi un rejeu ne retrouve plus le NEQ posé. *Deux causes, deux suites.*
-SOUS_LA_COUPE = "⚠️ le lot a GRANDI — le NEQ est passé sous la coupe"
-PORTE_DISPARUE = "⛔ la PORTE a disparu — plus aucun nom ne le récupère"
-CAUSES_DE_LA_PERTE = (SOUS_LA_COUPE, PORTE_DISPARUE)
+#: ⚠️ **CORRIGÉ le 23 septembre.** *Cet outil nommait « le NEQ est passé sous la
+#: coupe » la cause d'un dossier que le rejeu ne résout plus.* **C'était faux, et
+#: c'était l'instrument pris pour le monde** : `neq_retenu` ne lit QUE `matches[0]`
+#: et `matches[1]`, donc **le plafond à cinq ne change aucune décision** — et les
+#: paires montraient le NEQ posé aux rangs 2 et 3, bien à l'intérieur de la coupe.
+#:
+#: *La vraie cause est la FAMILLE que la résolution rend aujourd'hui.* ⚠️ **Troisième
+#: fois qu'une borne d'instrument est nommée comme un fait du monde** — après l'axe
+#: des candidats du portrait et le « aucun n'a plus de 5 candidats » du plan.
+DEVENU_AMBIGU = "⚠️ devenu AMBIGU — un concurrent est arrivé à moins de 8 points"
+DEVENU_TROP_FAIBLE = "devenu TROP FAIBLE — le sommet est passé sous le seuil"
+SANS_CANDIDAT = "aucun candidat aujourd'hui"
+CAUSES_DE_LA_PERTE = (DEVENU_AMBIGU, DEVENU_TROP_FAIBLE, SANS_CANDIDAT)
+
+#: Où le NEQ posé se trouve dans le lot d'aujourd'hui. ⚠️ *Rendu pour qu'on cesse
+#: de confondre « le dossier n'est plus résolu » et « le NEQ a disparu ».*
+ENCORE_EN_TETE = "le NEQ posé est encore le MIEUX scoré"
+ENCORE_DANS_LE_LOT = "le NEQ posé est encore dans le lot, plus bas"
+ABSENT_DU_LOT = "⛔ le NEQ posé n'est plus dans le lot du tout"
+RANGS = (ENCORE_EN_TETE, ENCORE_DANS_LE_LOT, ABSENT_DU_LOT)
+
+#: Laquelle des deux causes fait perdre un NEQ. *Mesuré, jamais supposé.*
+PAR_LE_SECOND_TEMPS = "⚠️ le SECOND TEMPS — le lot s'est élargi, un ambigu est né"
+PAR_LE_PREMIER_TEMPS = "le PREMIER TEMPS — sans le nom retiré, le sommet ne passe plus"
+CAUSES_DE_PERTE_REELLE = (PAR_LE_SECOND_TEMPS, PAR_LE_PREMIER_TEMPS)
+
+#: ⚠️ **La garde des PRÉTENDANTS MULTIPLES n'existe QUE dans `outils/`.**
+#: *`PRETENDANTS_MAX_POUR_TRANCHER = 2` vit dans `outils/pose_du_neq.py`; rien
+#: dans `falkye/` ne compte les prétendants.* **Une règle qui vit dans la
+#: résolution résout UN dossier à la fois et ne peut pas les voir.**
+TROP_DE_PRETENDANTS = "⛔ NEQ visé par PLUS DE DEUX dossiers — la garde du 17 sept."
 
 LARGEUR = max(len(t) for t in
-              ISSUES_DES_POSES + ISSUES_DES_RESTANTS + CAUSES_DE_LA_PERTE) + 1
+              ISSUES_DES_POSES + ISSUES_DES_RESTANTS + CAUSES_DE_LA_PERTE
+              + RANGS + CAUSES_DE_PERTE_REELLE + (TROP_DE_PRETENDANTS,)) + 1
 
 
 def _part(k: int, n: int) -> str:
@@ -93,21 +143,40 @@ def les_deux_regles(session, company):
     return neq_retenu(avant), neq_retenu(apres), apres
 
 
-def cause_de_la_perte(session, company, profondeur: int):
-    """`(cause, rang)` — pourquoi le rejeu ne retrouve plus le NEQ posé.
+def ce_qui_a_change(session, company, matches, profondeur: int):
+    """`(cause, où est le NEQ posé, rang)` — pourquoi le dossier n'est plus résolu.
 
-    ⚠️ *Le plafond est relevé par un APPEL, pas par une réécriture de la
-    récupération* : ce qui remonte alors a bien été RÉCUPÉRÉ, et c'est la coupe
-    qui l'écartait.
+    ⚠️ **La cause est la FAMILLE que la résolution rend aujourd'hui**, jamais le
+    plafond du lot : `neq_retenu` ne lit que `matches[0]` et `matches[1]`, donc
+    **relever la coupe ne change aucune décision.**
     """
+    from falkye.resolution import famille_de
     from falkye.sources import req as req_source
 
+    famille = famille_de(matches)
+    cause = {"ambigu": DEVENU_AMBIGU, "trop faible": DEVENU_TROP_FAIBLE}.get(
+        famille, SANS_CANDIDAT)
     profonds = req_source.resolve_neq_by_name(
         session, company.nom_detecte, ville=company.ville, limit=profondeur)
     for rang, m in enumerate(profonds):
         if m.entry.neq == company.neq:
-            return SOUS_LA_COUPE, rang
-    return PORTE_DISPARUE, None
+            return cause, (ENCORE_EN_TETE if rang == 0 else ENCORE_DANS_LE_LOT), rang
+    return cause, ABSENT_DU_LOT, None
+
+
+def cause_dune_perte(session, company) -> str:
+    """Laquelle des deux causes fait perdre ce NEQ — **par un APPEL.**
+
+    *`elargir=False` coupe le second temps.* **Si la perte disparaît alors, c'est
+    le lot élargi qui l'a causée; sinon, c'est le premier temps.**
+    """
+    from falkye.resolution import neq_retenu
+    from falkye.sources import req as req_source
+
+    sans_second = neq_retenu(req_source.resolve_neq_by_name(
+        session, company.nom_detecte, ville=company.ville, elargir=False))
+    return (PAR_LE_SECOND_TEMPS if sans_second == company.neq
+            else PAR_LE_PREMIER_TEMPS)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -139,13 +208,21 @@ def main(argv: list[str] | None = None) -> int:
         print("CE QUE LE TROISIÈME TEMPS CHANGE — une MESURE")
         print("=" * 78)
         print("""
-⚠️ LA RÈGLE NE PEUT RIEN FAIRE PERDRE, ET C'EST STRUCTUREL
+⛔ CET OUTIL A ANNONCÉ UNE GARANTIE QUI ÉTAIT FAUSSE
 
-   Écarter des formes ne peut qu'ABAISSER des scores. Le premier temps ne
-   retient donc jamais moins que le troisième, et quand il ne retient
-   rien, le troisième rejoue exactement le comportement d'avant. La règle
-   ne change l'issue que là où un nom EN VIGUEUR désigne quelqu'un
-   d'AUTRE. L'outil le VÉRIFIE plutôt que de s'en remettre au raisonnement.
+   Il disait : « perdre son NEQ est impossible par construction ». La
+   mesure du 23 septembre a rendu 9 pertes. La garde s'est déclenchée au
+   lieu de rendre un succès, et c'est la seule raison pour laquelle on le
+   sait.
+
+   OÙ LE RAISONNEMENT SE CASSE. Le troisième temps rejoue les FORMES
+   d'avant, mais pas le LOT d'avant. Quand le premier temps ne retient
+   rien, le SECOND TEMPS s'ouvre — celui du mot rare — et ajoute des
+   candidats que l'ancienne règle ne voyait jamais, parce qu'elle
+   retenait dès le préfixe. Un candidat de plus à moins de 8 points fait
+   un ambigu.
+
+   La garantie valait pour les FORMES, jamais pour le LOT.
 
 ⚠️ ET RIEN NE CHANGE TOUT SEUL
 
@@ -202,14 +279,28 @@ def main(argv: list[str] | None = None) -> int:
             print(_ligne(issue, par_issue.get(issue, 0), n))
         print(_ligne("⚠️ le rejeu ne retrouvait DÉJÀ plus ce NEQ", len(introuvables), n))
         if par_issue.get(PERDU):
-            print(f"""
-   ⛔ {milliers(par_issue[PERDU])} DOSSIER(S) PERDRAIENT LEUR NEQ, ET C'EST IMPOSSIBLE.
-      Le raisonnement structurel est donc faux quelque part, et rien de
-      ce qui suit ne doit s'appliquer avant de savoir où.""")
+            print(f"\n   ⛔ {milliers(par_issue[PERDU])} DOSSIER(S) PERDRAIENT LEUR NEQ — "
+                  "et par quelle cause :\n")
+            par_cause_reelle: Counter = Counter()
+            for company, avant, apres, _m in changent:
+                if apres is None:
+                    par_cause_reelle[cause_dune_perte(session, company)] += 1
+            for cause in CAUSES_DE_PERTE_REELLE:
+                print(_ligne(cause, par_cause_reelle.get(cause, 0),
+                             par_issue[PERDU]))
+            print("""
+   ⚠️ CE QUE CHACUNE APPELLE. « Le second temps » veut dire que le lot
+      s'est élargi et qu'un ambigu est né : le dossier EST ambigu, et
+      l'ancienne règle le retenait par IGNORANCE — elle n'avait jamais vu
+      le concurrent. « Le premier temps » veut dire que sans le nom
+      retiré, plus rien ne franchit le seuil.
+
+   ⚠️ ET AUCUNE DES DEUX NE RETIRE UN NEQ DE LA BASE. Une reprise POSE,
+      elle n'efface pas : un dossier qui cesse d'être résolu garde le NEQ
+      qu'il porte. La perte est une perte de RECONFIRMATION.""")
         else:
             print("""
-   ✅ Aucun dossier ne perd son NEQ. La garantie structurelle tient sur
-      la population réelle, et pas seulement sur le papier.""")
+   ✅ Aucun dossier ne perd son NEQ sur cette population.""")
 
         print("\n" + "-" * 78)
         print("2. LES RESTANTS — ce que la règle en récupère")
@@ -222,44 +313,105 @@ def main(argv: list[str] | None = None) -> int:
       était ambigu. C'est la même opération qui déplace un NEQ ailleurs.
 """)
 
-        # ---- 3. LES INTROUVABLES ------------------------------------------
-        print("-" * 78)
-        print("3. LES DOSSIERS DONT LE REJEU NE RETROUVE PLUS LE NEQ POSÉ")
+        # ---- 3. CEUX QUI NE SONT PLUS RÉSOLUS -----------------------------
+        print("\n" + "-" * 78)
+        print("3. LES DOSSIERS QUE LA RÉSOLUTION D'AUJOURD'HUI NE RÉSOUT PLUS")
         print("-" * 78)
         print(f"""
-   La mesure du 22 septembre en comptait 14 sans les expliquer. Deux
-   causes, et elles n'appellent pas la même suite. Le plafond est relevé
-   à {args.profondeur} par un APPEL de la production : ce qui remonte alors a bien
-   été RÉCUPÉRÉ, et c'est la coupe qui l'écartait.
+   ⛔ CORRECTION DU 23 SEPTEMBRE. Cet outil nommait « le NEQ est passé
+      sous la coupe » la cause de ces dossiers. C'ÉTAIT FAUX.
+      `neq_retenu` ne lit que matches[0] et matches[1] : relever le
+      plafond du lot NE CHANGE AUCUNE DÉCISION. Et les paires montraient
+      le NEQ posé aux rangs 2 et 3, bien à l'intérieur de la coupe.
+
+      C'est la troisième fois qu'une borne d'instrument est nommée comme
+      un fait du monde, après l'axe des candidats du portrait.
+
+   LA VRAIE CAUSE est la FAMILLE que la résolution rend aujourd'hui.
 """)
         par_cause: Counter = Counter()
+        par_rang: Counter = Counter()
         detail: list = []
         for company in introuvables:
-            cause, rang = cause_de_la_perte(session, company, args.profondeur)
+            _avant, _apres, matches = les_deux_regles(session, company)
+            cause, ou, rang = ce_qui_a_change(session, company, matches,
+                                              args.profondeur)
             par_cause[cause] += 1
-            detail.append((company, cause, rang))
+            par_rang[ou] += 1
+            detail.append((company, cause, ou, rang))
         for cause in CAUSES_DE_LA_PERTE:
             print(_ligne(cause, par_cause.get(cause, 0), len(introuvables)))
-        print(f"""
-   ⚠️ « SOUS LA COUPE » EST LA DÉRIVE ANNONCÉE. `req_noms` n'oublie rien,
-      `_scorer` prend le MEILLEUR des noms d'un NEQ, donc les scores ne
-      peuvent que monter et le lot que grandir. Un NEQ posé hier sort du
-      lot aujourd'hui sans que personne ait rien changé.
+        print()
+        for ou in RANGS:
+            print(_ligne(ou, par_rang.get(ou, 0), len(introuvables)))
+        print("""
+   ⚠️ LA DÉRIVE EST RÉELLE, ET C'EST ELLE LE FAIT. `req_noms` n'oublie
+      rien, `_scorer` prend le MEILLEUR des noms d'un NEQ, donc les
+      scores montent et le lot grossit. Un dossier résolu hier devient
+      ambigu aujourd'hui sans que personne ait rien changé.
 
-   ⚠️ « LA PORTE A DISPARU » EST AUTRE CHOSE. Plus aucun nom ne récupère
-      ce NEQ — le dossier a changé de nom détecté, ou le NEQ a été posé
-      par un chemin qui n'est pas celui du nom.
+   ⚠️ MAIS UNE REPRISE NE RETIRE RIEN. `reresolution_neq` POSE un NEQ là
+      où la famille est RETENU; il n'efface jamais. Un dossier devenu
+      ambigu garde le NEQ qu'il porte.
+""")
+
+        # ---- 4. LES PRÉTENDANTS MULTIPLES ---------------------------------
+        # ⚠️ **La garde du 17 septembre n'existe QUE dans `outils/`.** *Vérifié :
+        # `PRETENDANTS_MAX_POUR_TRANCHER` vit dans `outils/pose_du_neq.py`, et
+        # rien dans `falkye/` ne compte les prétendants.* **Une règle qui vit
+        # dans la résolution traite UN dossier à la fois et ne peut pas les
+        # voir** — et `resolve_company` rattache alors tous ces dossiers au
+        # MÊME `Company`, puisqu'il cherche par NEQ avant de créer.
+        from outils.pose_du_neq import PRETENDANTS_MAX_POUR_TRANCHER
+
+        vises: Counter = Counter()
+        for _c, _a, apres, _m in changent + gagnent:
+            if apres:
+                vises[apres] += 1
+        en_bloc = {neq: k for neq, k in vises.items()
+                   if k > PRETENDANTS_MAX_POUR_TRANCHER}
+        print("-" * 78)
+        print("4. LES PRÉTENDANTS MULTIPLES — la garde du 17 septembre")
+        print("-" * 78)
+        print(f"""
+   ⛔ CETTE GARDE N'EXISTE QUE DANS `outils/`. Vérifié :
+      `PRETENDANTS_MAX_POUR_TRANCHER = {PRETENDANTS_MAX_POUR_TRANCHER}` vit dans `outils/pose_du_neq.py`,
+      et RIEN dans `falkye/` ne compte les prétendants.
+
+   ⚠️ UNE RÈGLE QUI VIT DANS LA RÉSOLUTION NE PEUT PAS LA VOIR. Elle
+      traite un dossier à la fois. Et `resolve_company` cherche un
+      `Company` PAR NEQ avant d'en créer un : plusieurs dossiers résolus
+      vers le même NEQ sont rattachés au MÊME dossier, donc FUSIONNÉS de
+      fait — ce que la décision du 16 septembre interdit.
+""")
+        print(_ligne("NEQ visés par au moins un changement ou un gain", len(vises)))
+        print(_ligne(TROP_DE_PRETENDANTS, len(en_bloc), len(vises)))
+        if en_bloc:
+            print()
+            for neq, k in sorted(en_bloc.items(), key=lambda t: -t[1]):
+                dossiers = [c for c, _a, ap, _m in changent + gagnent if ap == neq]
+                print(f"      {neq}   {k} dossiers   "
+                      f"{', '.join('#' + str(c.id) for c in dossiers[:8])}")
+                for c in dossiers[:4]:
+                    print(f"         #{c.id}  {(c.nom_detecte or '')[:60]}")
+        print("""
+   ⚠️ À TRANCHER AVANT TOUTE INTÉGRATION, que le cas se produise ou non
+      sur cette population. La garde doit DESCENDRE dans la résolution,
+      ou la règle ne doit pas y MONTER. Et le cas touche D27 et D28, qui
+      ne sont pas tranchées : des établissements publics DISTINCTS
+      finiraient sur une seule entité.
 """)
 
         if args.paires and detail:
             print("=" * 78)
-            print(f"LES DOSSIERS INTROUVABLES — {min(args.paires, len(detail))} "
+            print(f"LES DOSSIERS QUI NE SONT PLUS RÉSOLUS — {min(args.paires, len(detail))} "
                   f"sur {milliers(len(detail))}")
             print("=" * 78)
-            for company, cause, rang in detail[:args.paires]:
+            for company, cause, ou, rang in detail[:args.paires]:
                 print(f"\n   #{company.id}   {(company.nom_detecte or '')[:54]}")
                 print(f"      NEQ posé : {company.neq}")
-                print(f"      {cause}" + (f"   (rang {rang + 1})" if rang is not None else ""))
+                print(f"      {cause}")
+                print(f"      {ou}" + (f"   (rang {rang + 1})" if rang is not None else ""))
 
         if args.paires and changent:
             print("\n" + "=" * 78)

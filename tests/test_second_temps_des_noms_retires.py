@@ -113,25 +113,63 @@ def test_le_changement_de_NEQ_est_compte_et_rendu(decor, capsys):
     assert "l'ancienne règle rendait" in bloc
 
 
-def test_les_deux_causes_d_un_NEQ_introuvable_restent_DISTINCTES(decor, capsys):
-    """*« Le lot a grandi » et « la porte a disparu » n'appellent pas la même
-    suite* — la première est une dérive annoncée, la seconde un dossier qui a
-    changé de nom."""
+def test_la_cause_est_la_FAMILLE_et_jamais_la_coupe(decor, capsys):
+    """⚠️ **La correction du 23 septembre.** *L'outil nommait « le NEQ est passé
+    sous la coupe » la cause d'un dossier qu'il ne résout plus.* **C'était faux :
+    `neq_retenu` ne lit que `matches[0]` et `matches[1]`, donc relever le plafond
+    du lot ne change aucune décision.**"""
     assert outil.main(["--pas", "0", "--paires", "5"]) == 0
     sortie = capsys.readouterr().out
-    from tests.conftest import compte_de_la_ligne
+    # ⚠️ La fausse cause n'est plus une ÉTIQUETTE — elle n'apparaît que dans sa
+    # propre rétractation. *Un outil qui se corrige doit pouvoir NOMMER ce qu'il
+    # disait; l'interdire l'obligerait à se corriger en silence.*
+    assert not any("coupe" in c for c in outil.CAUSES_DE_LA_PERTE)
+    assert "C'ÉTAIT FAUX" in sortie
+    assert "NE CHANGE AUCUNE DÉCISION" in sortie
+    assert "LA VRAIE CAUSE est la FAMILLE" in sortie
+    # ⚠️ Et « ne résout plus » ne se confond pas avec « le NEQ a disparu ».
+    assert any(l.strip().startswith(outil.ABSENT_DU_LOT)
+               for l in sortie.splitlines())
 
-    disparue = next(l for l in sortie.splitlines()
-                    if l.strip().startswith(outil.PORTE_DISPARUE))
-    assert compte_de_la_ligne(disparue) == "1", disparue
-    assert "1800000004" in sortie
-    assert "LA DÉRIVE ANNONCÉE" in sortie
 
-
-def test_la_garantie_structurelle_est_DITE_avant_les_chiffres(decor, capsys):
+def test_une_reprise_NE_RETIRE_RIEN_et_la_sortie_le_dit(decor, capsys):
+    """*`reresolution_neq` POSE un NEQ là où la famille est RETENU; il n'efface
+    jamais.* **Un dossier devenu ambigu garde le NEQ qu'il porte.**"""
     assert outil.main(["--pas", "0"]) == 0
     sortie = capsys.readouterr().out
-    assert sortie.index("NE PEUT RIEN FAIRE PERDRE") < sortie.index(
-        "LES DOSSIERS DÉJÀ POSÉS")
+    assert "UNE REPRISE NE RETIRE RIEN" in sortie
     assert "RIEN NE CHANGE TOUT SEUL" in sortie
-    assert "LE GAIN EST DU MÊME MÉCANISME QUE LE RISQUE" in sortie
+
+
+def test_la_FAUSSE_GARANTIE_est_retractee_LA_OU_elle_etait(decor, capsys):
+    """⚠️ **Un outil qui s'est trompé doit le dire à l'endroit où il se
+    trompait.** *La garantie « perdre son NEQ est impossible » était imprimée en
+    tête; la rétractation l'est aussi.*"""
+    assert outil.main(["--pas", "0"]) == 0
+    sortie = capsys.readouterr().out
+    avant = sortie.index("LES DOSSIERS DÉJÀ POSÉS")
+    assert sortie.index("UNE GARANTIE QUI ÉTAIT FAUSSE") < avant
+    assert sortie.index("valait pour les FORMES, jamais pour le LOT") < avant
+    assert "NE PEUT RIEN FAIRE PERDRE" not in sortie
+
+
+def test_la_garde_des_pretendants_est_dite_ABSENTE_de_la_resolution(decor, capsys):
+    """⚠️ **Le point le plus grave du 23 septembre.** *La garde du 17 vit dans
+    `outils/`; rien dans `falkye/` ne compte les prétendants* — et
+    `resolve_company` rattache au MÊME `Company` deux dossiers résolus vers le
+    même NEQ."""
+    assert outil.main(["--pas", "0"]) == 0
+    sortie = capsys.readouterr().out
+    assert "CETTE GARDE N'EXISTE QUE DANS `outils/`" in sortie
+    assert "FUSIONNÉS de\n      fait" in sortie.replace("\n", "\n")
+    assert "D27" in sortie and "D28" in sortie
+
+
+def test_la_garde_des_pretendants_est_ABSENTE_de_falkye():
+    """*Vérifié sur le code, pas sur la sortie.*"""
+    import pathlib
+
+    assert "PRETENDANTS_MAX_POUR_TRANCHER" in pathlib.Path(
+        "outils/pose_du_neq.py").read_text(encoding="utf-8")
+    for chemin in pathlib.Path("falkye").rglob("*.py"):
+        assert "pretendant" not in chemin.read_text(encoding="utf-8").lower(), chemin
