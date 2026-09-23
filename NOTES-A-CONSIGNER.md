@@ -6129,3 +6129,460 @@ plus qu'un endroit où le poser.*
 > **Quand une règle doit s'appliquer à toutes les sorties d'une fonction, elle
 > n'est pas une ligne à répéter : c'est une fonction. Le test qui la vérifie doit
 > viser la sortie la moins fréquente — c'est celle qu'on oublie.**
+
+---
+
+## N246 — Une section datée dans son TITRE cesse de mentir
+
+- **Notée le** : 2026-09-23
+
+*En versant le portrait des restants au document du chantier 3+4.*
+
+La section « Phase 0 — l'état mesuré » présentait **8 931 dossiers sans NEQ**
+comme *l'état*. **C'était vrai du 16 au 18 septembre, et faux depuis** — 4 673 le
+19, 3 608 le 20. *Rien dans la section ne le disait : ses chiffres étaient
+sourcés, datés dans le texte, et lus comme courants.*
+
+⚠️ **Ajouter le portrait « à la suite » aurait mis DEUX populations côte à côte
+sans qu'une phrase dise laquelle vit.** *C'est exactement le défaut relevé au
+chantier 22, où « le besoin mesuré » porte 5 002 ambigus pendant que le plan en
+donne 3 267.*
+
+**Ce qui a été fait :** la date entre dans le TITRE — *« l'état mesuré AU 16-17
+SEPTEMBRE »* — et un encadré renvoie aux deux sections qui portent la suite.
+
+> **Une date dans le corps d'une section qualifie une mesure; une date dans son
+> TITRE qualifie la section entière. La première se lit après coup, la seconde
+> avant — et c'est avant qu'on décide si on peut s'en servir.**
+
+---
+
+## N247 — Une impasse et un argument sont la même mesure, lue deux fois
+
+- **Notée le** : 2026-09-23
+
+**Les 111 RETENU rendent 0 NEQ libre** : ce sont les NEQ déjà pris que la
+conservation interdit de poser. *Lue comme une piste de gain, la mesure la
+ferme.*
+
+**Lue autrement, la même mesure ouvre autre chose** : *111 + 50 consortiums + 44
+doublons ≈ **205 dossiers** que seule la structure « un dossier, plusieurs
+identifiants » débloquerait.* **C'est le premier argument CHIFFRÉ pour le
+chantier 3, et il vient du compte qui a fermé la piste.**
+
+⚠️ *Le document portait les deux moitiés à deux endroits* — l'impasse dans un
+plan hors dépôt, l'argument dans une section qui disait encore « jamais
+compté ». **Les réunir était tout le travail.**
+
+> **Un chiffre qui ferme une piste n'est pas un chiffre perdu. Avant de le
+> classer, demander ce qu'il OUVRE — c'est souvent la justification d'une
+> structure que rien d'autre ne chiffrait.**
+
+---
+
+## N248 — Un déclencheur qui a FIRÉ sans que personne le remarque
+
+- **Notée le** : 2026-09-23
+
+*En versant les huit décisions de la répartition au registre.*
+
+La première — **l'élargissement du statut aux confirmations** — portait le
+déclencheur *« la réponse de Claude Code aux quatre constats du 21 »*. **Cette
+réponse a été livrée le 21 septembre même.** *Donc la décision était DUE au
+moment où on l'écrivait au registre, et elle y serait entrée comme « en
+attente ».*
+
+⚠️ **Un déclencheur formulé comme un ÉVÉNEMENT se périme sans bruit** — *à la
+différence d'une date, qui se compare toute seule.* **Personne ne relit les
+déclencheurs pour voir lesquels ont eu lieu.**
+
+**Ce qui a été fait :** l'entrée dit que le déclencheur a firé et que la décision
+est due — **et elle dit aussi que le chiffre censé la trancher a changé de sens**
+depuis, les « 81 contradictions » étant deux faits dont une part est prononcée
+par une graphie de municipalité.
+
+> **La charte exige une échéance OU un déclencheur. Les deux ne se surveillent
+> pas de la même façon : une échéance arrive, un déclencheur se constate. Une
+> entrée à déclencheur doit dire, en plus, QUI regardera s'il a eu lieu.**
+
+---
+
+## N249 — Enrichir une entrée existante coûte plus cher que d'en créer une, et c'est pour ça qu'on la double
+
+- **Notée le** : 2026-09-23
+
+*La répartition demandait, pour les seuils de quarantaine du REQ : **enrichir
+D17, ne pas en créer une nouvelle**.*
+
+**La tentation d'en créer une est structurelle** : *une entrée neuve s'écrit
+d'un trait; enrichir demande de relire l'existante, de comprendre ce qu'elle
+dit déjà, de trouver où le chiffrage vit — ici dans D36 — et de renvoyer plutôt
+que de recopier.* **Trois lectures contre une écriture.**
+
+⚠️ **Et la différence se voit six mois plus tard, pas le jour même.** *Deux
+entrées sur le même objet divergent en silence; la seconde paraît plus récente
+donc plus vraie, et la première continue d'exister pour ceux qui la trouvent en
+premier.*
+
+**Ce qui a été fait :** D17 porte maintenant le cas du REQ, **renvoie à D36 pour
+le chiffrage plutôt que de le recopier**, et **nomme D58 comme une échelle
+DISTINCTE** — le plancher de remplissage — pour qu'on ne les confonde pas.
+
+> **« Une décision vit à un seul endroit » n'est pas une règle de rangement :
+> c'est une règle de coût. Le prix de la doublure se paie au moment de la
+> divergence, par quelqu'un d'autre, et il n'est jamais imputé à celui qui l'a
+> créée.**
+
+---
+
+## N250 — La garantie valait pour les FORMES, jamais pour le LOT
+
+- **Notée le** : 2026-09-23
+
+**J'avais écrit, dans l'outil et dans le registre** : *« perdre son NEQ est
+impossible par construction — écarter des formes ne peut qu'abaisser des scores,
+donc quand le premier temps ne retient rien, le troisième rejoue le comportement
+d'avant. »*
+
+⛔ **La mesure a rendu 9 pertes.** *La garde s'est déclenchée au lieu de rendre un
+succès, et c'est la seule raison pour laquelle on le sait.*
+
+**Où le raisonnement se casse.** *Le troisième temps rejoue bien les FORMES
+d'avant — mais sur un LOT plus grand.* **Quand le premier temps ne retient rien,
+le SECOND temps s'ouvre** et ajoute les candidats du mot rare. *L'ancienne règle
+retenait dès le préfixe et ne voyait jamais ces candidats.* **Un candidat de plus
+à moins de 8 points fait un ambigu.**
+
+⚠️ *La monotonie que j'avais établie était vraie — sur le même lot.* **Je l'ai
+appliquée à deux lots différents sans le voir**, parce que la phrase « le
+troisième temps rejoue le comportement d'avant » est vraie de ce qu'il SCORE et
+fausse de ce qu'il score SUR.
+
+> **Un invariant se démontre à paramètres égaux. Quand la branche qui le rétablit
+> n'est pas la branche d'origine, il faut re-démontrer — et « c'est le même
+> calcul » ne suffit pas si l'entrée a changé en route.**
+
+---
+
+## N251 — Une borne d'instrument nommée comme un fait du monde, pour la troisième fois
+
+- **Notée le** : 2026-09-23
+
+*L'outil nommait « **le NEQ est passé sous la coupe** » la cause d'un dossier que
+le rejeu ne résout plus.* **C'était faux :** `neq_retenu` ne lit que `matches[0]`
+et `matches[1]`, donc **relever le plafond du lot ne change AUCUNE décision** — et
+les paires montraient le NEQ posé aux rangs 2 et 3, *bien à l'intérieur de la
+coupe*.
+
+**La vraie cause est la FAMILLE que la résolution rend aujourd'hui** : le lot a
+grandi, un concurrent est arrivé à moins de 8 points, **le dossier est devenu
+ambigu**. *La coupe n'y est pour rien.*
+
+⚠️ **Et le coût de l'étiquette a été immédiat** : elle a fait poser une question
+de dimensionnement — *« combien coûte un plafond plus haut »* — **sur un levier
+qui ne touche à rien.**
+
+**Les trois fois, en trois jours :**
+
+1. l'axe « candidats » du portrait, dont trois tranches ne pouvaient pas se remplir;
+2. la ligne « aucun dossier n'a plus de 5 candidats », prête à entrer au corpus;
+3. celle-ci.
+
+> **Le même défaut à trois reprises n'est pas une distraction : c'est que rien,
+> dans la façon d'écrire une étiquette, n'oblige à demander « est-ce que
+> l'instrument pourrait rendre autre chose? ». La question doit venir AVANT le
+> nom, pas après la lecture.**
+
+---
+
+## N252 — Une garde qui vit dans l'outil ne descend pas avec la règle
+
+- **Notée le** : 2026-09-23
+
+*Relevé par Alexandre sur six dossiers CISSS que la nouvelle règle enverrait tous
+vers `8879690699` — **le NEQ refusé en bloc le 19 septembre, avec ses 17
+prétendants.***
+
+**Vérifié dans le code** : `PRETENDANTS_MAX_POUR_TRANCHER = 2` vit dans
+`outils/pose_du_neq.py`. ⚠️ **Rien dans `falkye/` ne compte les prétendants** —
+`grep` rend zéro.
+
+**Pourquoi c'est structurel, et pas un oubli** : *une règle qui vit dans la
+résolution traite **UN dossier à la fois**.* **Elle ne peut pas voir qu'un autre
+dossier vise le même NEQ** — la garde de l'outil, elle, voit tout le lot d'une
+passe.
+
+⚠️ **Et la conséquence n'est pas « on pose deux fois » : c'est pire.**
+`resolve_company` cherche un `Company` **par NEQ** avant d'en créer un *(`falkye/
+resolution.py:140`)*. **Plusieurs dossiers résolus vers le même NEQ sont
+rattachés au MÊME dossier — donc FUSIONNÉS de fait**, ce que la décision du
+16 septembre interdit explicitement.
+
+> **Monter une règle d'un outil vers le moteur ne déplace pas ses gardes : elles
+> restent où elles sont, et certaines ne PEUVENT pas suivre, parce qu'elles
+> lisent une population que le moteur ne voit jamais. Ce qui protégeait en lot ne
+> protège plus à l'unité.**
+
+⛔ **CORRIGÉE LE 2026-09-23 PAR N253.** *« Certaines ne peuvent pas suivre »
+était trop fort* : celle-ci a suivi. **Ce qui ne pouvait pas suivre, c'est sa
+FORME**, et la note qui suit dit laquelle.
+
+
+---
+
+## N253 — Une garde descend, mais jamais dans la même forme
+
+- **Notée le** : 2026-09-23
+
+*Construite sur demande d'Alexandre, qui l'a placée avant tout le reste : « c'est
+le seul point qui peut abîmer la base ».*
+
+**N252 concluait que certaines gardes ne PEUVENT pas descendre.** ⛔ *Trop fort.*
+Celle-ci est descendue — `PRETENDANTS_MAX_POUR_TRANCHER` vit maintenant dans
+`falkye/resolution.py`, et `outils/pose_du_neq.py` l'emprunte. **Ce qui ne
+pouvait pas descendre, c'est la forme du refus.**
+
+| | la passe par LOT (17 sept.) | la RÉSOLUTION (23 sept.) |
+|---|---|---|
+| ce qu'elle voit | tous les prétendants ensemble | UN dossier à la fois |
+| qui détient le NEQ au moment de décider | **personne** | **quelqu'un, déjà** |
+| le refus | personne ne l'obtient | le NOUVEAU VENU ne l'obtient pas |
+
+**Et c'est une contrainte de SCHÉMA qui dicte la forme, pas un choix de
+conception** : `Company.neq` est **UNIQUE**. *Deux dossiers ne peuvent pas
+porter le même NEQ; le partage n'est pas une issue possible.* **Retirer le NEQ
+au détenteur ne serait pas une garde, ce serait une écriture qui EFFACE une
+identité** — et une garde, par définition, ne peut que RÉDUIRE les écritures.
+
+> **Une règle qui descend d'un lot vers l'unité arrive dans un monde où une
+> partie de sa décision est DÉJÀ PRISE. Elle ne garde donc pas la même forme :
+> elle garde le même principe, et change de geste. Demander « la même règle
+> descend-elle ? » est la mauvaise question; la bonne est « que reste-t-il à
+> décider quand elle arrive ? ».**
+
+---
+
+## N254 — Ce qui n'a pas pu descendre : le seuil ne décide plus, il nomme
+
+- **Notée le** : 2026-09-23
+
+**Dans la passe par lot, `PRETENDANTS_MAX_POUR_TRANCHER` DÉCIDE** : au-delà de
+deux prétendants, le NEQ n'est posé sur personne. **Dans la résolution, il ne
+peut plus que NOMMER** — le premier arrivé porte déjà le NEQ, et le rang du
+prétendant n'est qu'écrit au journal, pour rendre ces NEQ-là visibles.
+
+⚠️ **Le dire plutôt que de le combler.** *Combler l'écart demanderait de révoquer
+le NEQ d'un détenteur quand un troisième prétendant se présente* — une écriture
+destructrice, sur une identité déjà posée, déclenchée par l'arrivée d'un signal.
+**C'est une décision d'Alexandre, pas un effet de bord d'une garde.**
+
+> **Une constante qui descend d'un niveau peut perdre son pouvoir de décider sans
+> perdre son nom. Le plus dangereux n'est pas qu'elle disparaisse, c'est qu'elle
+> reste écrite au même endroit avec le même nom, en ne gouvernant plus rien.**
+
+---
+
+## N255 — Le journal comme ORGANE DE COMPTAGE, pas comme trace de confort
+
+- **Notée le** : 2026-09-23
+
+**La passe par lot compte ses prétendants en les regardant.** *La résolution ne
+le peut pas : elle les voit un par un, étalés sur des semaines.* **Le seul
+nombre qu'elle puisse produire est celui de ses propres refus déjà consignés** —
+donc `compter_pretendants` lit le journal, et non une variable.
+
+⚠️ **Conséquence directe** : la journalisation devient **idempotente par
+nécessité**, pas par propreté. *Un dossier refusé re-détecté cinquante fois
+écrirait cinquante entrées, et le décompte compterait des SIGNAUX au lieu de
+dossiers* — le nombre qui sert à juger un appariement serait alors le nombre de
+fois qu'une source a publié.
+
+> **Quand une règle perd la population qu'elle lisait, sa trace devient son
+> organe de mesure. Et une trace qui sert à compter n'a plus le droit d'être
+> approximative : sa duplication n'est plus du bruit, c'est un faux chiffre.**
+
+---
+
+## N256 — Un identifiant AFFIRMÉ et un identifiant INFÉRÉ ne se gardent pas pareil
+
+- **Notée le** : 2026-09-23
+
+**La garde ne s'applique qu'au NEQ trouvé par le SCOREUR**, jamais à celui qu'une
+source affirme (`RawSignal.neq`). *La garde du 17 septembre est née d'un
+appariement par le nom* — « le nombre de prétendants est une preuve contre
+l'appariement ». **Un NEQ affirmé n'est pas un appariement** : deux graphies sous
+le même NEQ affirmé désignent la même personne morale, et les séparer perdrait
+l'identité que la source donnait.
+
+⚠️ **Posée pour être VUE, pas supposée.** *C'est un choix, et il se renverse :
+si une source affirme mal, la garde ne la rattrapera pas.* Ce serait alors un
+défaut de source, à traiter comme tel — pas à noyer dans une garde d'appariement.
+
+> **Une garde bâtie contre une INFÉRENCE ne se transpose pas automatiquement à
+> une AFFIRMATION. Les appliquer toutes les deux « par prudence » coûte
+> exactement ce que la prudence devait protéger : l'identité que la source
+> donnait gratuitement.**
+
+---
+
+## N257 — Journaliser sous un statut qu'aucun levier existant ne sait défaire
+
+- **Notée le** : 2026-09-23
+
+Le refus est consigné dans `journal_diagnostic` avec
+`statut="pretendant_refuse"` — **délibérément pas `"a_examiner"`**. *`falkye
+diagnostic confirmer-fusion` n'agit que sur `a_examiner`, et applique une
+FUSION.* **Un refus journalisé sous ce statut-là aurait offert, d'un coup de CLI
+déjà écrit, le moyen exact de défaire la garde qui venait de séparer les deux
+dossiers.**
+
+> **Réutiliser une table, c'est aussi hériter de ses leviers. Avant de ranger un
+> fait nouveau dans une structure existante, regarder quelles commandes savent
+> déjà agir dessus — et vérifier qu'aucune ne fait, gratuitement, le contraire
+> de ce qu'on vient de construire.**
+
+---
+
+## N258 — La cause d'une perte et le remède proposé étaient le MÊME appel
+
+- **Notée le** : 2026-09-23
+
+**`cause_dune_perte` rejouait la résolution avec `elargir=False` pour dire
+laquelle des deux causes fait perdre un NEQ.** *La « troisième forme » qu'Alexandre
+demandait à chiffrer — rejouer le pipeline entier depuis le préfixe — **est
+exactement le même appel.*** **Le diagnostic et le remède étaient la même
+mesure, lue deux fois.**
+
+⚠️ **Et ce n'est pas une coïncidence, c'est une identité** : *le troisième temps
+ne tire que là où les deux premiers n'ont rien retenu*, donc les deux formes
+partagent leur premier temps, et `elargir=False` ne coupe pas le troisième.
+**`elargir=False` rend la troisième forme EXACTEMENT — ce n'est pas une
+approximation, et le dire évite de chiffrer un coût « à peu près ».**
+
+> **Avant d'écrire une mesure pour chiffrer un remède, regarder si l'instrument
+> qui a nommé la cause ne le chiffre pas déjà. Deux appels séparés pour la même
+> question divergent le jour où l'un des deux change de paramètre — et rien ne
+> le dit.**
+
+---
+
+## N259 — Mesurer une règle sur la population qu'elle ne touche pas gonfle son dénominateur
+
+- **Notée le** : 2026-09-23
+
+*Premier réflexe pour chiffrer la troisième forme : la rejouer sur les 8 742
+dossiers.* ⛔ **Faux.** `elargir=False` coupe le second temps **partout**, alors
+que la troisième forme ne change rien là où le troisième temps ne tire pas. *La
+mesure aurait porté sur une QUATRIÈME règle que personne n'a proposée* — et son
+dénominateur aurait rendu le coût microscopique par dilution.
+
+**La correction tient dans une clé** : `journal["troisieme_temps"]` dit où les
+deux formes diffèrent, et la mesure ne s'y exécute que là. *Elle coûte aussi un
+appel de moins par dossier.*
+
+> **Le dénominateur d'une mesure de règle, c'est la population où la règle
+> s'applique — pas la population sur laquelle on l'a lancée. Un pourcentage
+> calculé sur des dossiers que la règle ne touche pas dit toujours « c'est
+> négligeable », quelle que soit la règle.**
+
+---
+
+## N260 — Un décor qui ne produit pas la forme qu'il teste ne teste rien
+
+- **Notée le** : 2026-09-23
+
+*Le décor des tests du troisième temps ne perdait AUCUN NEQ* — donc la section
+qui rend les pertes n'était jamais exécutée, et aucun test ne le disait.
+**Raison mesurée** : `req_mots` et `req_mots_frequence` étaient vides, donc
+**le second temps ne ramenait jamais rien**, donc le lot ne s'élargissait
+jamais, donc la seule cause de perte observée en production ne pouvait pas
+exister dans le décor.
+
+⚠️ **Le décor reproduisait la RÈGLE, pas la POPULATION** — et c'est la
+population qui produisait le défaut.
+
+> **Une branche qu'un décor n'atteint jamais est du code non testé sous une
+> suite verte. Quand une mesure rend « zéro » sur un décor, la première
+> question n'est pas « la règle est-elle bonne ? » mais « le décor peut-il
+> seulement produire un non-zéro ? ».**
+
+---
+
+## N261 — Un chemin de simulation qui ignore une règle confond deux mesures en une
+
+- **Notée le** : 2026-09-23
+
+`_formes_transformees` — le chemin par lequel un outil SIMULE une correction —
+**ignorait `sans_les_retires`**, et c'était écrit noir sur blanc comme un choix
+assumé : *« un outil qui simule une correction ne doit pas hériter d'une règle
+qu'il ne mesure pas ».*
+
+⛔ **Le choix était devenu faux le jour où le troisième temps a existé.**
+*Simuler une borne de longueur par `transformer_forme` aurait, du même geste,
+**réintroduit les 3,2 millions de formes retirées dans le PREMIER temps**.* **La
+mesure aurait attribué à la borne ce que le troisième temps faisait** — deux
+règles dans un seul chiffre, et pas une ligne pour le dire.
+
+*Corrigé avant d'écrire l'outil, pas après l'avoir lu.*
+
+> **Un chemin de simulation qui n'hérite pas d'une règle du produit mesure une
+> règle qui n'existe nulle part. Et la phrase qui justifie l'exception vieillit
+> sans bruit : elle était vraie quand elle a été écrite, et elle reste écrite
+> quand elle cesse de l'être.**
+
+---
+
+## N262 — « Longueur » veut dire trois choses, et elles ne classent pas pareil
+
+- **Notée le** : 2026-09-23
+
+*Demande d'Alexandre : de quoi poser une borne de longueur minimale au scorage.*
+**Premier réflexe : compter les caractères.** ⚠️ **`« L.A. »` se normalise en
+`« l a »` — trois caractères, deux lettres, deux mots.** *Une borne de 3
+caractères retirerait `« LA »` et garderait `« L.A. »`, **qui est la même
+porte**.*
+
+**La sous-question se pose donc AVANT la borne**, et l'outil rend les trois
+mesures plutôt que d'en choisir une en silence.
+
+> **Quand on demande une échelle, vérifier d'abord que l'unité est décidée. Une
+> valeur posée sur une unité qu'on n'a pas nommée n'est pas une échelle : c'est
+> une convention cachée, et elle se découvre le jour où un cas la traverse.**
+
+---
+
+## N263 — Une borne fait gagner autant qu'elle fait perdre
+
+- **Notée le** : 2026-09-23
+
+*Retirer une forme courte ne fait pas que retirer des appariements* : **elle
+fait aussi tomber un concurrent sous l'écart, donc RÉSOUT un dossier qui était
+ambigu.** ⚠️ **C'est le même mécanisme que le troisième temps** — et le même
+piège : ne compter que les pertes ferait paraître toute borne coûteuse, ne
+compter que les gains la ferait paraître gratuite.
+
+⛔ **Et ni l'un ni l'autre ne dit la JUSTESSE.** *Un appariement gagné par une
+forme de deux lettres est exactement le cas qu'on soupçonne d'être faux.* **Le
+tableau dit combien bouge, jamais dans quel sens ça va** — la mesure de justesse
+(§13, point 10) n'existe toujours pas.
+
+> **Toute règle qui retire de l'information en récupère ailleurs, parce qu'elle
+> change l'ÉCART autant que le SOMMET. Une mesure qui ne compte qu'un des deux
+> côtés n'est pas incomplète : elle est orientée.**
+
+---
+
+## N264 — Un témoin dans le tableau, pas seulement dans le test
+
+- **Notée le** : 2026-09-23
+
+**La borne `1` ne retire rien par construction.** *Elle est chiffrée quand
+même, en première ligne du tableau* : **si sa ligne n'est pas à zéro,
+l'instrument ment et le reste du tableau ne vaut rien.**
+
+*Un test le vérifie aussi* — mais le test protège le dépôt, et la ligne protège
+**le lecteur du rapport**, qui n'a pas la suite sous les yeux.
+
+> **Une mesure qui simule une règle doit chiffrer le cas où la règle ne fait
+> rien, et le montrer à celui qui lit. Un instrument sans témoin ne se
+> distingue d'un instrument faux que par la confiance qu'on lui porte.**

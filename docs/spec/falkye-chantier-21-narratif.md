@@ -49,6 +49,25 @@ sélectif que le défaut.
 
 ---
 
+### ⚠️ La règle de FRAÎCHEUR — disqualifier, et non moduler *(19 septembre 2026)*
+
+**Soulevée par Alexandre** : *« On ne voudrait pas proposer un prospect dont l'activité économique date
+de plus d'un an. »* *Des règles seront à créer — l'exemple donné : une publication du SEAO de plus de
+trois mois.*
+
+⚠️ **Elle appartient ICI, et non à la section 2, et la distinction porte.** *Moduler le grade relève de
+la section 2 et de **D24**; **disqualifier un dossier est une condition de PUBLICATION**, donc de ce
+seuil — et, au fond, du jugement, qui n'a pas de chantier.* **Rattachement au registre : D22**, qui
+porte déjà le seuil de publication.
+
+⚠️ **C'est une échelle qui n'existe pas, et elle se pose avec Alexandre.**
+
+⚠️ **Ce qui la BORNE, et qui n'est écrit nulle part : la profondeur d'historique de chaque source.**
+*Une source qui publie un jeu de données daté rend des dates anciennes — **une date ancienne ne dit pas
+une entreprise dormante**.*
+
+---
+
 ## 2. Fraîcheur et trajectoire dans le grade
 
 Le A/AA/AAA mesure l'alignement au profil. Rien ne mesure le **moment**. Un nouvel établissement

@@ -1798,7 +1798,10 @@ def candidats_par_nom(
 
 
 def _formes_transformees(
-    db_session: Session, candidates: list, transformer_forme: "Callable[[str], str]"
+    db_session: Session,
+    candidates: list,
+    transformer_forme: "Callable[[str], str]",
+    sans_les_retires: bool = False,
 ) -> dict[str, list[str]]:
     """Les formes de chaque NEQ, reconstruites depuis les noms BRUTS, transformées,
     puis renormalisées. **Chemin de SIMULATION uniquement.**
@@ -1812,6 +1815,13 @@ def _formes_transformees(
 
     **Simuler le retrait côté registre depuis `nom_normalise` rendrait un
     NO-OP déguisé en mesure.** D'où la relecture des noms publiés.
+
+    ⚠️ **`sans_les_retires` est arrivé ici le 2026-09-23, et il fallait qu'il y
+    arrive.** *Ce chemin ignorait le filtre des noms retirés* — donc une
+    simulation de BORNE DE LONGUEUR aurait, du même geste, **réintroduit les
+    3,2 millions de formes retirées dans le PREMIER temps**. La mesure aurait
+    attribué à la borne ce que le troisième temps faisait : *deux règles
+    confondues dans un seul chiffre, et aucune ligne pour le dire.*
     """
     formes: dict[str, list[str]] = {}
     neqs = [c.neq for c in candidates]
@@ -1819,9 +1829,11 @@ def _formes_transformees(
         forme = _normaliser(transformer_forme(c.nom or ""))
         if forme:
             formes.setdefault(c.neq, []).append(forme)
-    for neq, nom in db_session.execute(
-        select(REQNom.neq, REQNom.nom).where(REQNom.neq.in_(neqs))
+    for neq, nom, statut in db_session.execute(
+        select(REQNom.neq, REQNom.nom, REQNom.statut).where(REQNom.neq.in_(neqs))
     ).all():
+        if sans_les_retires and nom_retire(statut):
+            continue
         forme = _normaliser(transformer_forme(nom or ""))
         if forme:
             formes.setdefault(neq, []).append(forme)
@@ -2193,13 +2205,15 @@ def _scorer(
         noms_par_neq.setdefault(neq, []).append(forme)
 
     if transformer_forme is not None:
-        # ⚠️ **Le chemin de SIMULATION ignore `sans_les_retires`**, et c'est dit
-        # plutôt que tu. *Il reconstruit les formes depuis les noms BRUTS pour
-        # pouvoir les transformer; y greffer le filtre demanderait de relire le
-        # statut une seconde fois, pour un chemin qui ne tourne jamais en
-        # production.* **Un outil qui simule une correction ne doit pas hériter
-        # d'une règle qu'il ne mesure pas.**
-        noms_par_neq = _formes_transformees(db_session, candidates, transformer_forme)
+        # ⚠️ **Le chemin de SIMULATION honore `sans_les_retires` DEPUIS LE
+        # 2026-09-23.** *Il l'ignorait, et c'était écrit ici comme un choix
+        # assumé — « un outil qui simule une correction ne doit pas hériter
+        # d'une règle qu'il ne mesure pas ».* **Le choix était faux dès que le
+        # troisième temps a existé** : une simulation de borne de longueur
+        # aurait, du même geste, réintroduit les formes retirées dans le PREMIER
+        # temps, et attribué à la borne ce que le troisième temps faisait.
+        noms_par_neq = _formes_transformees(
+            db_session, candidates, transformer_forme, sans_les_retires)
 
     by_neq = {c.neq: c for c in candidates}
     scores: list[tuple[str, float, str]] = []

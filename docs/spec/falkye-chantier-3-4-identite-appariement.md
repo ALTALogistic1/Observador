@@ -76,11 +76,34 @@ Rien ne se construit tant que la mesure n'a pas dit ce qui est récupérable. Mo
 **17 septembre — la garde des prétendants multiples.**
 Formulation retenue : **le nombre de prétendants est une preuve contre l'appariement, et d'une autre nature que le score.** Monter le seuil n'y ferait rien, ces scores sont à 100. Refus posé au-delà de deux prétendants.
 
+**19 septembre — n'écrire que le CODE POSTAL COMPLET.**
+*Le départageur d'adresse mesure ses trois niveaux; seul le plus fin ÉCRIT.* **268 départages laissés EN SUSPENS — 188 par région de tri, 80 par ville.** ⚠️ *La restriction porte sur l'ÉCRITURE, pas sur le départageur.*
+
+> **Un départage non écrit se reprend; un départage écrit à tort coûte une identité.**
+
+**19 septembre — les noms génériques attendent le chantier 22.** *La route par code d'activité demande la table `(code, rôle) → sphère`, qui sert deux usages et se fait une fois pour deux.*
+
+**20 et 21 septembre — le BASSIN DE PRATIQUE, et c'est le principe qui gouverne tout le reste.**
+
+> *« Notre bassin actuel est un bassin de pratique. Chaque façon d'ajouter des NEQ qu'on valide ici devra servir sur les prochains fichiers zip du REQ, par la résolution qui roule à chaque import. »*
+
+**Ce que ça change dans le jugement d'une hypothèse** : la question n'est plus *« écrit-on ces dossiers aujourd'hui »*, mais **« la règle peut-elle tourner seule, à chaque import, sans que personne relise les paires »**. ⚠️ *Un outil ponctuel se relit; une règle permanente, non.*
+
+**Et deux conséquences d'ordre** : **aucun import tant que le bloc n'est pas complet** *(section 17bis)*, et **le test ultime est l'import d'un autre zip** — pour voir comment les règles se comportent sur des données que personne n'a lues.
+
+**21 septembre — ne pas élargir le statut tout de suite.** *D'abord mesurer ce que valent les 81 contradictions de l'adresse, et vérifier d'où vient le statut.* **Les deux ont été faits** *(section « Le statut comme départageur »)*.
+
+**21 septembre — la justesse des NEQ posés doit se mesurer.** *« Il faut évidemment s'assurer que les NEQ soient associés à leurs bonnes entreprises. »* **Un NEQ posé sur la mauvaise entreprise est PIRE qu'un dossier sans NEQ** : il produit un faux prospect, et rien ne le signale *(section 13, et registre)*.
+
+**23 septembre — les noms retirés, consultés en dernier.** *Registre **D52**, et construit dans `resolve_neq_by_name`.*
+
 **Les deux échelles ne bougent pas** : seuil de confiance **92**, écart minimal au second **8**. Elles se changent avec Alexandre, jamais dans une demande de mesure.
 
 ---
 
-## 5. Phase 0 — l'état mesuré
+## 5. Phase 0 — l'état mesuré AU 16-17 SEPTEMBRE
+
+> ⚠️ **Cette section est datée, et la population a bougé depuis.** *Les 8 931 sans NEQ de la phase 0 sont devenus **4 673** le 19 septembre, puis **3 608** le 20* — voir « Ce qui est posé en base » et « Le portrait des restants ». **Les chiffres ci-dessous restent le point de départ; ils ne sont plus l'état courant.**
 
 **La population, inchangée depuis le 16 et confirmée par rejeu complet le 16 septembre :**
 
@@ -95,6 +118,118 @@ Formulation retenue : **le nombre de prétendants est une preuve contre l'appari
 *Le rejeu du 16 a établi que redemander aujourd'hui ne change pas un seul dossier : la ventilation est identique, chiffre pour chiffre.*
 
 **Sur les 805 retenus** : 773 NEQ distincts visés, 32 dossiers en trop. 705 posables par la passe, 69 NEQ déjà portés, 31 contestés dans le lot.
+
+---
+
+## 5bis. Ce qui est POSÉ EN BASE — les trois écritures
+
+> **Mesuré et écrit du 19 au 20 septembre 2026.** *Chaque écriture porte son instantané et sa commande pour défaire.*
+
+**8 931 → 3 608 dossiers sans NEQ. 5 323 identifiés, soit 59,6 %.**
+
+| écriture | NEQ posés | instantané |
+|---|---|---|
+| passe de reprise *(`reresolution_neq --appliquer`)* | **2 523** | `/var/lib/falkye/reresolution-20260919T162941.json` |
+| départage par l'adresse, **code postal complet seulement** *(`ecriture_des_departages --appliquer`)* | **1 735** | `/var/lib/falkye/departages-20260919T185650.json` |
+| exclusion des radiées sur les **égalités strictes** *(`ecriture_du_statut --appliquer`)* | **1 065** | `/var/lib/falkye/statut-20260921T040739.json` |
+
+**La règle de conservation a tenu jusqu'au bout.** *108 + 28 rapprochements journalisés, **aucune fusion**. 111 puis 29 NEQ « déjà pris » conservés sans être posés.* ⚠️ **Un NEQ refusé en bloc — `8879690699`, 17 prétendants, les organisations publiques** : *le nombre de prétendants est une preuve contre l'appariement, et d'une autre nature que le score* **(§4, 17 septembre)**.
+
+⚠️ **Les restants SOUS le sommet restent en suspens** — 78 le 20 septembre. *Deux instruments s'y contredisent, et rien ne dit lequel a raison.*
+
+⚠️ **Ce sont trois OUTILS PONCTUELS, pas des étapes de la résolution.** *Aucun ne s'appliquerait au prochain zip* — c'est l'étape 10 du bloc de l'import *(section 17bis)*.
+
+### ⚠️ Ce que ces 5 323 doivent à une porte ouverte le 17 septembre
+
+**Les trois écritures sont postérieures au retrait du filtre `STAT_NOM='V'`** *(17 septembre, commit `a362d35`)*. **Mesuré le 22 septembre** *(`outils/noms_perimes_en_production.py`)* :
+
+| | dossiers | part |
+|---|---|---|
+| trouvés par un **nom retiré** | **208** | **2,4 %** |
+| … dont **leur PROPRE ancien nom** *(aucun autre NEQ ne le porte)* | 157 | 75,5 % |
+| … dont ⚠️ **un nom qu'une AUTRE entreprise porte aujourd'hui** | **51** | 24,5 % |
+
+⚠️ **« Plus en vigueur » n'est pas « faux ».** *Un nom abandonné mène souvent à la bonne entreprise — un signal antérieur au changement de nom, une source qui recopie l'inscription d'origine.* **Le compte dit l'EXPOSITION, jamais l'erreur.**
+
+**Ce qui a été fait de ce chiffre** : la règle du **troisième temps**, tranchée le 23 septembre *(registre **D52**)* — les noms retirés ne sont consultés que si aucun nom en vigueur n'a trouvé l'entreprise. ⚠️ *Elle ne réécrit rien toute seule : les 5 323 gardent leur NEQ tant qu'une reprise ne les rouvre pas (étape 14).*
+
+⚠️ **Et 14 dossiers posés ne sont plus retrouvés par le rejeu d'aujourd'hui.** *Deux causes, qui n'appellent pas la même suite* : **le lot a grandi et le NEQ est passé sous la coupe à cinq**, ou **la porte a disparu**. *La première est la dérive annoncée de l'étape 7 — `req_noms` n'oublie rien.*
+
+---
+
+## 5ter. Le portrait des restants — le mur a changé de nature
+
+> **Mesuré le 19 septembre 2026** *(`outils/portrait_des_restants.py`)*, sur les **4 673** restants d'alors.
+
+**Le mur n'est plus un problème d'appariement : c'est un problème de DÉPARTAGE.**
+
+| famille | dossiers | part | ce qui échoue |
+|---|---|---|---|
+| **ambigu** | **3 267** | 69,9 % | **l'ÉCART** au second |
+| trop faible | 1 257 | 26,9 % | le SEUIL |
+| RETENU | 111 | 2,4 % | *voir §13bis — une impasse* |
+| aucun candidat | 38 | 0,8 % | — |
+
+**72,3 % des restants ont un candidat au-dessus du seuil et restent bloqués par l'écart.** *Ils ont trouvé leur entreprise; ils ne savent pas laquelle des trois c'est.*
+
+⚠️ **`ambigu` et `trop faible` n'appellent pas le même correctif.** *Les confondre fait attribuer au seuil une masse que l'écart retient.*
+
+⚠️ **« Aucun candidat » n'est pas un score de zéro.** *Un dossier à zéro candidat et un dossier à 91 ne sont pas le même problème — le premier n'a rien à départager, le second a tout sauf deux points.*
+
+⚠️ **Les 810 dossiers entre 90 et 91,9 sont un fait, pas une invitation.** *Le seuil de 92 et l'écart de 8 ne se rouvrent qu'en dernier recours.*
+
+### L'adresse ne MANQUE pas : elle ne SÉPARE pas
+
+| finesse d'adresse | restants | résolus | rapport |
+|---|---|---|---|
+| code postal complet | 70,5 % | 99,6 % | ×0,7 |
+| région de tri seule | 5,6 % | 0,1 % | ×86 |
+| ville seule | 9,6 % | 0,3 % | ×32 |
+| rien | 14,3 % | 0,0 % | ×548 |
+
+**70,5 % des restants portent un code complet et sont ambigus quand même.** *L'EIMT en porte à 100 % et ne départage qu'un ambigu sur dix — les concurrents sont au même endroit.* **Il faut un fait d'une AUTRE NATURE, pas une adresse plus fine.**
+
+### Deux familles d'échec, pas une
+
+| source | restants | ambigu | trop faible |
+|---|---|---|---|
+| eimt | 3 053 | 79,9 % | 18,4 % |
+| investissement_quebec | 438 | 77,6 % | 13,7 % |
+| seao | 637 | 68,3 % | 28,6 % |
+| rob_top_growing | 329 | 14,9 % | **76,9 %** |
+| contrats_federaux | 191 | 19,4 % | **79,6 %** |
+| deloitte_fast50 | 64 | 15,6 % | **70,3 %** |
+
+**Les classements et les contrats fédéraux échouent sur le NOM; les sources québécoises sur l'ÉCART.** *584 dossiers dans le premier cas.* ⚠️ **Un dossier cumule ses signaux** : il compte dans chaque source qui l'a vu, et **les lignes ne s'additionnent pas**.
+
+### Le nom court, second discriminant — et personne ne l'avait regardé
+
+| longueur du nom | restants | résolus | rapport |
+|---|---|---|---|
+| **1 mot** | 5,1 % | 1,5 % | **×3,4** |
+| 2 mots | 14,8 % | 10,0 % | ×1,5 |
+| 3 mots et plus | 80,1 % | 88,6 % | ×0,9 |
+
+**C'est la théorie des noms génériques, mesurée pour la première fois.** *Les autres formes ne distinguent rien — tête numérique ×1,0, parenthèse ×1,2, conjonction ×1,1.* ⚠️ **Et la CAUSE du ×3,4 est dans notre code** : `candidats_par_mot_rare` exige un deuxième mot, qu'un nom d'un mot n'a pas *(section « Défauts du code de résolution »)*.
+
+⚠️ *« Porte une conjonction » (7,8 %) est le fait brut du caractère, pas la règle stricte des consortiums (1,1 %) : **les deux chiffres ne sont pas comparables**.*
+
+### Un croisement isole une famille distincte
+
+| forme et adresse | dossiers | ambigu | trop faible |
+|---|---|---|---|
+| **lettres · sans code postal** | **974** | 34,7 % | **57,3 %** |
+| lettres · avec code postal | 3 035 | 79,7 % | 18,1 % |
+| tête numérique · avec code postal | 522 | 74,3 % | 25,5 % |
+| tête numérique · sans code postal | 142 | 86,6 % | 12,7 % |
+
+**C'est le seul groupe qui échoue majoritairement sur le NOM, et il se repère par l'ABSENCE d'adresse.**
+
+### Deux axes jamais regardés, et ils distinguent peu
+
+*Le nombre de signaux et de sources est le même chez les restants et les résolus (×1,0)* — **sauf les dossiers à six signaux et plus (×1,5) et ceux vus par deux sources (×1,4), sur de petits effectifs.** *34 % des restants ont un signal de plus d'un an — les résolus aussi (34,9 %) : **l'âge ne distingue pas**.* ⚠️ **Mais les signaux de 30 jours ou moins sont ×1,6 chez les restants** : *un dossier récent se résout MOINS bien, et c'est l'inverse de ce qu'on aurait supposé.*
+
+⚠️ **Trois réserves de lecture, portées par l'outil lui-même.** *`detected_at` est la date de l'ÉVÉNEMENT source, `ingested_at` celle de notre collecte — lire la seconde mesurerait nos cycles.* **Une date ancienne ne dit pas une entreprise dormante** — une source qui publie un jeu de données daté rend des dates anciennes. *Et un compte arrêté à la borne de 2 000 est **tronqué, pas mesuré**.*
 
 ---
 
@@ -238,6 +373,13 @@ AUCUN mot en commun            2    0,1 %
 | Le pic 85-88 comme réserve d'appariements proches | **plancher de calcul** — 89,2 % à 85,50 *(section 7bis)* | 17 sept | close |
 | Corporations Canada comme pont | **0** — sans objet | 16 sept | close |
 | Rejeu complet de la résolution | **0** — ventilation identique | 16 sept | close |
+| Index par mots + quatre gisements | **+1 854** retenus | 17 sept | ✅ déployé |
+| Passe de reprise | **+2 523** posés | 19 sept | ✅ écrit |
+| Départage par l'adresse, code complet | **+1 735** posés | 19 sept | ✅ écrit |
+| Exclusion des radiées, égalités strictes | **+1 065** posés | 20 sept | ✅ écrit |
+| Parenthèses, côté détecté seul | **16 gagnés, 1 perdu — 15 nets.** Non appliqué | 19 sept | close |
+| Promotion de l'adresse *(seao, eimt)* | **+0** au départage | 19 sept | close |
+| Le gisement de la forme gagnante comme garde-fou | **ne sépare pas** les bons des faux | 21 sept | close |
 
 **NOM_ETAB.** Les 5 récupérations sont toutes des entreprises individuelles — des personnes physiques, que le Registraire ne publie pas. **Convergence** : `outils/profil_des_absents_req.py` avait établi que 96,6 % des 224 968 NEQ sans nom dans `Nom.csv` sont des personnes physiques. *Deux instruments indépendants, même mur.*
 
@@ -309,6 +451,96 @@ registre : '200 rue des Commandeurs'          → numéro civique et rue
 
 ---
 
+## 9bis. Le STATUT comme départageur — et ce que l'adresse en dit
+
+> **Construit et écrit du 20 au 21 septembre 2026.** *`outils/statut_sur_les_egalites.py`, `outils/ecriture_du_statut.py`, `outils/valeur_des_contradictions.py`.*
+
+**La forme retenue : n'écarter que les RADIÉES** *(codes `RD`, `RO`, `RX`)*. ⚠️ *Elle garde les 39 dossiers à candidat `ni` — les entités publiques — et l'autre forme ne rendait que 16 dossiers de plus.*
+
+⚠️ **`ni` n'est pas « immatriculée ».** *`NI = Non immatriculée`, `AI = Avis d'intention de constitution`, confirmés dans `DomaineValeur.csv`.* **`falkye/resolution.py` les transforme pourtant en `IMMATRICULEE`** *(section « Défauts du code de résolution »)*.
+
+### La portée, et les DEUX conditions qui la définissent
+
+**Le 20 septembre — les égalités strictes.** *Au moins deux candidats au score du sommet; l'exclusion en laisse un seul; il est AU sommet.* **1 065 NEQ posés.**
+
+⚠️ **La seconde condition n'est pas redondante avec la première, et c'est une correction de Claude Code, vérifiée en exécutant le code.** *Une égalité stricte entre deux RADIÉES laisse un restant **sous** le sommet* :
+
+```
+candidats : radiée 100,0 · radiée 100,0 · immatriculée 95,0
+→ égalité stricte au sommet : OUI
+→ le restant après exclusion : 95,0 — SOUS le sommet
+```
+
+**Sans la seconde condition, une partie de ce qui devait rester en suspens serait écrite.**
+
+**Le 21 septembre — l'élargissement aux CONFIRMATIONS, mesuré, non appliqué.** *La même exclusion là où le score désignait déjà un gagnant et où le statut désigne LE MÊME.* **494 dossiers sur 2 202 ambigus rejoués** — 70 sous le sommet *(en suspens)*, 1 526 où l'exclusion laisse plusieurs candidats, 47 où elle vide le lot, 65 NEQ déjà portés.
+
+⚠️ **La réserve, et elle ne se lève pas.** *Le statut et le score comparent les candidats ENTRE EUX; aucun des deux ne compare le gagnant au DOSSIER.* Élargie, la règle se lit : **« poser le mieux scoré quand tous ses concurrents sont radiés ».** *Et le bon candidat peut être absent du lot — `resolve_neq_by_name` le plafonne à cinq.* **Une entreprise radiée peut être la bonne : `REQEntry` ne porte aucune date de radiation.**
+
+### Ce que l'adresse en dit — une COLONNE, jamais une condition
+
+| verdict de l'adresse | dossiers | part |
+|---|---|---|
+| désigne le même | 44 | 8,9 % |
+| ⚠️ désigne un AUTRE candidat | 8 | 1,6 % |
+| ⚠️ les exclut TOUS | 73 | 14,8 % |
+| **ne dit rien** | **369** | **74,7 %** |
+
+⚠️ **« Les exclut tous » n'est PAS toujours un verdict du code postal.** *Quand le code postal ne tranche pas, le repli descend jusqu'à la VILLE — et `fait_de_la_ville` compare des **graphies** : `Saint-Zéphirin` et `St-Zéphirin` ne sont pas la même forme.* **Une graphie de municipalité peut donc renverser un code postal qui était d'accord** *(relevé le 21 septembre sur sept paires où le retenu et son « suspect » portaient le même code postal)*.
+
+⚠️ **Et le départageur d'adresse est bâti pour REFUSER sûrement, pas pour ACCUSER.** *En production, « aucun compatible » n'écrit rien : un refus ne coûte qu'un dossier non posé, ce qui autorise un niveau aussi grossier que la ville.* **Réemployé en garde-fou, le même refus devient une charge, et son niveau le plus faible devient accusateur.**
+
+> **Un garde-fou muet trois fois sur quatre n'en est pas un** : en faire une condition bloquerait 81 écritures et en laisserait passer 369 sans rien en dire. ⚠️ *Et la cause dominante de son silence — « un concurrent ne porte pas le fait » — mesure le **remplissage du registre**, pas la qualité des dossiers.*
+
+### Les causes des contradictions, quand on va les chercher
+
+*Cinq causes, dans l'ordre où elles se cherchent* **(`outils/valeur_des_contradictions.py`)** : l'adresse du dossier est celle d'un **établissement** du retenu *(la contradiction se dissout)*; un **autre concurrent du lot** la porte; un candidat **écarté par l'écart** la porte; un candidat **sous la coupe à cinq** la porte; **aucune**.
+
+⚠️ **Les adresses d'établissement EXISTENT.** *`req_etablissements` est gelée depuis le 2026-09-04, mais le fait a déménagé dans `etat_ligne_source`, partition `req_etablissements`.* **L'hypothèse siège/établissement est donc testable.**
+
+⚠️ **« Le candidat retenu est vraiment le mauvais » n'est pas une case que le produit sait remplir.** *Un code postal partagé n'est pas une identité.* **Les causes ② ③ ④ désignent un SUSPECT, jamais une vérité.**
+
+### ⚠️ Ce que l'adresse du dossier est, selon la source
+
+*Lu dans le code, pas supposé* **(`outils/adresse_deposee_par_source.py`)** :
+
+| source | ce qu'elle dépose |
+|---|---|
+| **seao** | `parties[].address` du **fournisseur** — l'adresse de l'ORGANISATION, pas le lieu du contrat |
+| **eimt** | la colonne `Address` d'une liste dont chaque ligne est un *(employeur × profession × trimestre)* |
+| investissement_quebec · contrats_federaux | **aucune** |
+
+⚠️ **Si une source dépose le LIEU D'UN ÉVÉNEMENT plutôt que l'adresse d'une entreprise, l'axe principal du mandat compare deux choses qui n'ont aucune raison de concorder.** *L'instrument qui tranche ne demande ni NEQ ni registre : **pour un même dossier vu plusieurs fois par la même source, l'adresse varie-t-elle?*** **La VARIATION réfute « adresse d'entreprise »; la CONSTANCE ne la confirme pas.**
+
+---
+
+## 9ter. L'ACTIVITÉ ÉCONOMIQUE — le dernier départageur, et son plafond
+
+> **Mesuré le 20 septembre 2026** *(`outils/plafond_de_lactivite.py`)*, **à la demande d'Alexandre : s'assurer que la possibilité est réelle avant de la construire.**
+
+**C'est le seul fait restant qui ne dépend ni du nom ni du lieu.** *Il sépare un `Gérard et Fils` en pavage d'un `Gérard et Fils` en plomberie, quel que soit le code postal.*
+
+**Elle est réelle, et elle est MODESTE.**
+
+| | dossiers | part | |
+|---|---|---|---|
+| ambigus au 20 septembre | **3 267** | | |
+| registre complet **ET** codes différents entre eux | 2 381 | 73,4 % | ← *le registre suit* |
+| **(a) route CODE + codes différents — LA BORNE** | **332** | 10,2 % | ← *demande la table du chantier 22* |
+| **(b) route LIBELLÉ + codes différents — LA BORNE** | **374** | 11,4 % | ← *n'en demande aucune* |
+
+**Ce n'est pas le registre qui borne, c'est NOTRE côté.** *99,2 % des dossiers ont un code chez tous leurs candidats. Mais du côté DÉTECTÉ, sur les restants : **17,7 % portent un code, 7 % un libellé**.*
+
+⚠️ **Et il ne suffit pas que l'activité existe des deux côtés : il faut que les CANDIDATS DIFFÈRENT ENTRE EUX.** *C'est cette condition qui coupe de 518 à 374* — **un code identique chez tous les candidats ne départage rien.**
+
+⚠️ **Une BORNE n'est pas un GAIN.** *Elle dit où le fait existe et diffère, jamais s'il tranche bien.* **Et un départage écarte un candidat, il n'en confirme aucun.**
+
+**La route par LIBELLÉ ne demande aucune table** — `fait_de_lactivite` la parcourt déjà, mot à mot. **La route CODE attend le chantier 22** *(`falkye-chantier-22-calibration.md`, « Le besoin mesuré »)*, qui se fait à deux : nommer les 53 familles, poser la condition de chacune. *Elle sert deux usages — l'identité et la sphère — donc le travail se fait une fois pour deux, et **332 dossiers ne la justifient pas à eux seuls**.*
+
+⚠️ **Décision d'Alexandre du 19 septembre : les noms génériques attendent le chantier 22.**
+
+---
+
 ## 10. Faits acquis, avec leur preuve
 
 **La contrainte d'unicité est portée par la base de production.** Prouvé par l'échec du 16 septembre — `UNIQUE constraint failed: companies.neq`. *C'est l'inverse exact du cas 25, où une garantie déclarée au modèle était absente en base.*
@@ -324,6 +556,16 @@ registre : '200 rue des Commandeurs'          → numéro civique et rue
 **Toute société exerçant au Québec doit avoir un NEQ.** Vérifié à la source le 16 septembre (gouvernement du Québec et trois cabinets) : une société constituée au fédéral ou à l'étranger qui exerce une activité ou possède un établissement au Québec **doit s'immatriculer au REQ dans les 60 jours** et y déclare les mêmes renseignements qu'une société québécoise.
 
 ⚠️ **Conséquence, et elle retourne la question de départ.** Il n'y a pas d'impossibilité structurelle : **ces entreprises devraient presque toutes être au registre.** Le mur n'est pas qu'il n'y ait rien à trouver — c'est qu'on ne trouve pas ce qui est là. *Corporations Canada est écarté comme pont d'identification : une entreprise qui exerce au Québec a déjà un NEQ.*
+
+---
+
+### Les vérifications closes, avec leur preuve
+
+✅ **L'écriture du 19 a PRIS.** *Le départageur relancé après la passe a lu **6 408** dossiers sans NEQ au lieu de 8 931* — la base a bien changé entre les deux.
+
+✅ **Le seuil de 92 n'est pas ce qui bloque; l'écart n'a aucun gain propre** *(section 8)*. ⚠️ *Ils ne se rouvrent qu'en DERNIER RECOURS, après épuisement des signaux disponibles.*
+
+✅ **Le statut qui écarte vient de `req_entries`, en UPSERT VRAI — jamais de `req_noms`** *(vérifié le 21 septembre)*. `candidats_par_nom` rend des `REQEntry`; `req_noms` n'apporte qu'un **nom**, jamais une entité. **La porte est gelée, le jugement est frais** : une radiée garde ses vieux noms, ils la font entrer dans le lot, et son statut à jour l'en chasse. *C'est ce qui fait tenir la règle du statut.*
 
 ---
 
@@ -344,6 +586,23 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 | 15 | la tranche serait remplie par la tête alphabétique, chiffres et ponctuation | la coupe tombe au milieu de l'alphabet — 96,6 % sur « espace puis lettre » *(section 7)* |
 
 ⚠️ **Les deux dernières ne sont pas de la même famille que les treize premières.** *Elles ne demandaient pas pourquoi la comparaison échoue : elles proposaient une EXPLICATION de ce qu'on venait de voir.* **Et elles sont tombées de la même manière — par recomptage sur la population, jamais par un cas de plus.**
+
+### Les cinq théories d'Alexandre — examinées le 19 septembre
+
+| théorie | verdict | chiffre |
+|---|---|---|
+| origine pancanadienne | réelle, **marginale** | 393 sur 4 673 — 8 % |
+| consortiums | marginale | 50 — 1,1 %, règle stricte |
+| doublons du produit | marginale, **plancher** | 44 exacts — 0,4 % |
+| absence d'adresse sur certaines sources | **close** | +0 |
+| personnes physiques | ⛔ **non connaissable** | méthode à 57,1 % de faux positifs, seuil de 20 % posé d'avance |
+| **noms génériques** | **vivante — c'est le gros du reste** | attend le chantier 22 |
+
+**Sur l'origine** : `rob_top_growing` ×7,6 et `deloitte_fast50` ×5,8 surreprésentées. ⚠️ **Et `province_code` est `null` sur TOUTES les sources** — *le mécanisme prévu pour raisonner par province existe et n'a aucune donnée.* `contrats_federaux` et `investissement_quebec` ne portent aucune adresse **(629 restants)** : fermer la piste demanderait d'ouvrir la source.
+
+**Sur les personnes physiques** : ⛔ *le croisement est SANS CLÉ* — **un restant n'a pas de NEQ, un absent de `Nom.csv` n'a pas de nom.** ✅ *Mesuré au passage : sur 1 010 580 entreprises individuelles, **224 967 sans aucun nom publié — 22,3 %**.* **« Personne physique » ne veut pas dire « introuvable ».**
+
+⚠️ **Et un effet du mécanisme que personne n'a nommé comme règle** *(Alexandre, 19 septembre)*. *Un portrait qui dirait « NEQ 3456433562 a reçu un contrat » ne veut rien dire pour un utilisateur et atteint la réputation du produit.* **Aujourd'hui, l'exigence d'un NEQ fait déjà ce travail** — une personne physique sans nom publié reste dans les restants et ne sort jamais. ⚠️ **C'est un EFFET, pas une règle nommée** : *si l'exigence du NEQ se desserre un jour — pour les entités publiques, par exemple — **le filtre tombe sans que personne y pense**.*
 
 **La règle que cette série a produite** (code de conduite, 16 sept) : *quand plusieurs hypothèses bien mesurées tombent, la question est mal posée. Le remède n'est pas une dixième de la même famille — c'est un cas entier tracé de bout en bout.* **Et : avant de demander pourquoi une comparaison échoue, vérifier que les deux termes existent.**
 
@@ -369,6 +628,65 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 
 ---
 
+## 12bis. Les défauts du CODE DE RÉSOLUTION — identifiés, UN SEUL corrigé
+
+> ⚠️ **À ne pas confondre avec la section 12**, qui porte les défauts des INSTRUMENTS DE MESURE. *Ceux-ci sont dans le produit, ils tournent en production, et leur correction est l'étape 13 du bloc de l'import.*
+
+**Relevés le 20 septembre, en lisant onze motifs sur des dossiers entiers.**
+
+| défaut | ce qu'il fait | où |
+|---|---|---|
+| **les paliers du scoreur** | `WRatio` rend 100, 95, 90 — *un nom du registre entièrement contenu dans le nom détecté rend **exactement 90,0*** | `rapidfuzz` |
+| **la coupe à cinq** | le lot soumis au score est plafonné à 5, après une récupération qui en ramène jusqu'à 2 000 | `resolve_neq_by_name(limit=5)` |
+| **le bonus de ville APRÈS la coupe** | +5 si la ville concorde, **plafonné à 100** — *donc un 95 avec bonus atteint 100, et le pré-bonus n'est conservé nulle part* | `_scorer` |
+| **le garde-fou des noms d'un mot** | `candidats_par_mot_rare` exige un **deuxième mot**, qu'un nom d'un mot n'a pas — **c'est la cause du ×3,4 du portrait** | `candidats_par_mot_rare` |
+| **`ni` → `IMMATRICULEE`** | tout ce qui n'est pas `radiee` devient `IMMATRICULEE` | `falkye/resolution.py` |
+| **la radiation silencieuse** | `verification.py` exclut les `RADIEE` **après** résolution, sans le dire — *le dossier disparaît* | `falkye/verification.py` |
+| **aucun plancher de LONGUEUR au scorage** | *`WRatio` rend au moins **90,0** quand un nom du registre est entièrement contenu dans le nom détecté* — **et deux lettres suffisent** : `« LA »` a scoré **95,0** sur `#5476` | `_scorer`, `rapidfuzz` |
+| ~~**la fusion de fait par le NEQ**~~ ✅ | `resolve_company` cherchait un `Company` **par NEQ** avant d'en créer un : *tous les dossiers résolus vers le même NEQ étaient rattachés au MÊME dossier* — **corrigé le 23 septembre**, voir ci-dessous | `falkye/resolution.py` |
+
+✅ **LE SEUL CORRIGÉ — la fusion de fait par le NEQ** *(23 septembre, demandé par Alexandre avant tout le reste : « c'est le seul point qui peut abîmer la base »)*.
+
+**Ce qu'il faisait.** `resolve_company` cherchait un `Company` **par NEQ** avant d'en créer un. *Plusieurs noms détectés résolus vers le même NEQ étaient donc rattachés au MÊME dossier* — **fusionnés de fait, silencieusement, sans qu'aucune ligne ne le dise.** ⚠️ *Décision du 16 septembre : conservation toujours, aucune fusion.* **Six dossiers CISSS réunis sur `8879690699` sont une fusion de fait.**
+
+**Pourquoi la garde du 17 septembre ne le couvrait pas** : `PRETENDANTS_MAX_POUR_TRANCHER` vivait dans `outils/pose_du_neq.py`, donc elle ne protégeait que les passes par LOT — **jamais la production.** *Elle vit maintenant dans `falkye/resolution.py`, et `outils/` l'emprunte.*
+
+⚠️ **La FORME du refus a changé en descendant, et elle ne pouvait pas ne pas changer** :
+
+| | la passe par LOT | la RÉSOLUTION |
+|---|---|---|
+| ce qu'elle voit | tous les prétendants ensemble | UN dossier à la fois |
+| qui détient le NEQ au moment de décider | **personne** | **quelqu'un, déjà** |
+| le refus | personne ne l'obtient | le **nouveau venu** ne l'obtient pas |
+
+*C'est une contrainte de schéma qui l'impose* : **`Company.neq` est UNIQUE.** Le partage n'est pas une issue, et retirer le NEQ au détenteur serait **une écriture qui EFFACE une identité**, pas une garde. **La garde ne peut que RÉDUIRE les écritures.**
+
+⛔ **CE QUI N'EST PAS DESCENDU, et qui reste à trancher avec Alexandre : le SEUIL.** *Au-delà de deux prétendants, la passe par lot retire le NEQ à tout le monde; ici le premier arrivé le garde*, et le rang n'est qu'**écrit au journal** (`statut="pretendant_refuse"`, délibérément pas `a_examiner` — *`diagnostic confirmer-fusion` n'agit que sur `a_examiner` et appliquerait la fusion que la garde vient d'empêcher*).
+
+⚠️ **La frontière, posée pour être vue** : la garde ne s'applique qu'au NEQ **inféré par le scoreur**, jamais à celui qu'une source **affirme** (`RawSignal.neq`). *La garde est née d'un appariement par le nom; un NEQ affirmé n'est pas un appariement.*
+
+⚠️ **LE PLANCHER DE LONGUEUR — relevé par Alexandre le 23 septembre** *(registre D60)*.
+
+**Rien ne borne la longueur d'une forme du registre au scorage.** *`« LA »` à 95,0 le montre* — et ce n'est pas un défaut du scoreur : **`WRatio` fait exactement ce qu'on lui demande**, il mesure une ressemblance de chaînes. *C'est la question qu'on lui pose qui est mal posée : une porte de deux lettres n'identifie personne.*
+
+⚠️ **Aucune valeur n'est posée, et c'est une consigne** : *« Je ne veux pas de valeur posée pour débloquer : je la poserai avec Claude. »* **`outils/longueur_des_formes.py` rend de quoi la poser** — la distribution de la longueur de la forme GAGNANTE chez les retenus et chez les restants, le coût de chaque borne *(simulé par le scoreur du produit, via `transformer_forme`)*, et ce que le corpus porte déjà de comparable.
+
+⛔ **Et une SOUS-QUESTION vient avec la borne** : `« L.A. »` se normalise en `« l a »` — **3 caractères, 2 lettres, 2 mots**. *Une borne de 3 caractères retirerait `« LA »` et garderait `« L.A. »`, qui est la même porte.* **L'outil rend les trois mesures; il n'en choisit aucune.**
+
+⚠️ **Ce que la mesure ne peut PAS dire** : lesquels des appariements retirés étaient BONS. *La justesse des NEQ posés n'a jamais été mesurée* — §13, point 10. **Un nombre d'appariements RETENUS n'est pas un nombre de bons appariements.**
+
+⚠️ **Et la mesure voisine du corpus ne s'applique PAS ici.** *« Le nom court, second discriminant » (§8) mesure le nom **DÉTECTÉ**, en mots, et la cause de son ×3,4 est connue : `candidats_par_mot_rare` exige un deuxième mot.* **C'est un défaut de RÉCUPÉRATION, pas une faiblesse du nom court au SCORAGE** — le lire comme un argument pour une borne serait lire un défaut d'instrument comme un fait du monde, pour la quatrième fois.
+
+⚠️ **Deux d'entre eux portent une échelle, et une échelle se pose avec Alexandre** : la **coupe à cinq** *(une valeur, donc une échelle)* et le **bonus de ville**.
+
+**Encore à tester** *(section 17)* : les 1 049 couples à 100/95; la coupe à cinq; le bonus de ville après la coupe; le garde-fou des noms d'un mot; les 1 526 où l'exclusion laisse plusieurs candidats; les 70 contradictions en suspens.
+
+**Plancher non corrigeable** — *ce qui restera quoi qu'on corrige* : hors Québec; **entités publiques** *(D27, D28)*; personnes physiques; bannières *(`SUBWAY`, `IGA`, `LA BELLE PROVINCE`)*.
+
+⚠️ **Et un défaut d'affichage qui a coûté deux jours de lecture fausse** : *`_scorer` prend le meilleur des noms d'un NEQ, `req_noms` compris, et les outils affichaient la **dénomination élue**.* **`Elevage des reines Le Roi Bourdon` rendait 61,5 contre le nom détecté, sur une ligne qui annonçait 95,0.** *`formes_retenues` existe depuis le 17 septembre pour ça; il a fallu la brancher.*
+
+---
+
 ## 13. Ce qu'il faut construire
 
 *Rien de ce qui suit n'est commencé. La liste vient du mandat; elle n'ajoute rien.*
@@ -389,7 +707,15 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 
 **Commun aux deux**
 
-9. **La passe de reprise**, seul mécanisme qui répare un dossier existant *(section 6)*. Elle existe en lecture seule; son application n'est pas décidée.
+9. ~~**La passe de reprise**, seul mécanisme qui répare un dossier existant *(section 6)*.~~ ✅ **Construite et APPLIQUÉE le 19 septembre — 2 523 NEQ posés** *(section 5bis)*. *Il lui manque son déclencheur : c'est l'étape 8 du bloc de l'import.*
+
+10. ⚠️ **LA MESURE DE JUSTESSE** *(ajoutée par Alexandre le 21 septembre — chantier 4)*. **On a compté combien de NEQ on posait, jamais combien sont BONS.** *Les paires lues servaient à décider d'une règle, pas à vérifier l'ensemble des 5 323.*
+
+   > **Un NEQ posé sur la mauvaise entreprise est PIRE qu'un dossier sans NEQ : il produit un faux prospect, et rien ne le signale.**
+
+   **La forme proposée** : un échantillon **tiré au hasard** parmi les NEQ posés, **par règle** *(passe de reprise, départage par l'adresse, exclusion des radiées)*, vérifié à la main.
+
+   ⚠️ **Une échelle qui n'existe pas, et qui se pose avec Alexandre : le TAUX D'ERREUR ACCEPTABLE pour qu'une règle tourne seule.** *C'est aussi le critère qui manque à l'étape 10 du bloc de l'import pour faire passer une règle d'outil ponctuel à règle permanente* — **les deux se posent probablement ensemble.**
 
 ⚠️ **Ordre imposé.** **D27, D28 et D29 se tranchent avant les points 1 et 2.** *La structure du dossier à plusieurs noms attend le même moment* — sa forme survit, son point d'accrochage tombe *(section 17, et `docs/PROPOSITION-DOSSIER-MULTI-NOMS.md`)*.
 
@@ -412,7 +738,7 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 
 **Les scinder et résoudre chaque membre demanderait qu'un dossier porte PLUSIEURS NEQ.** ⚠️ **Le modèle n'en permet qu'un** — `Company.neq` est unique, et la contrainte est portée par la base de production *(section 10)*. *C'est exactement la forme que la table d'identifiants externes rend possible : zéro, un ou plusieurs identifiants par identité.*
 
-⚠️ **Jamais compté.** *Personne ne sait combien de dossiers sont dans ce cas* — ni quelle part des 6 297 sans NEQ retenu. **La mesure n'est pas faite, et ce constat ne la remplace pas.**
+~~⚠️ **Jamais compté.**~~ ✅ **Compté le 19 septembre, en compte EXACT : 50 dossiers — 1,1 %, par la règle stricte.** ⚠️ *À ne pas confondre avec « porte une conjonction » (7,8 %), qui est le fait brut du caractère* — **les deux chiffres ne sont pas comparables.**
 
 ### Les doublons du produit — deux sources nomment la même entreprise différemment
 
@@ -428,6 +754,18 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 ⚠️ **Les joindre ne veut PAS dire les fusionner.** *Décision du 16 septembre, section 4 : conservation toujours, aucune fusion.* **La table d'identifiants externes permet de dire « ces deux identités portent le même NEQ » sans en supprimer une.**
 
 **Seul indice chiffré, et il est indirect** : sur les 805 retenus de la phase 0, **773 NEQ distincts visés, 32 dossiers en trop — 4 %** *(section 5)*. ⚠️ *C'est une borne basse sur les seuls dossiers que le nom résout; elle ne dit rien des doublons que le nom ne résout pas.*
+
+✅ **Compté le 19 septembre : 44 doublons EXACTS — 0,4 %**, et c'est un **plancher**.
+
+---
+
+### ✅ Les 111 RETENU — tranché le 20 septembre : une IMPASSE
+
+**0 NEQ libre.** *Ce sont les NEQ « déjà pris » que la règle de conservation interdit de poser* — donc **aucun gain n'attend derrière eux**.
+
+⚠️ **Mais ils sont le premier argument CHIFFRÉ pour le chantier 3.** *111 + 50 consortiums + 44 doublons ≈ **205 dossiers*** que la structure « un dossier, plusieurs identifiants » débloquerait — **et rien d'autre.**
+
+> **Une impasse et un argument sont la même mesure, lue deux fois.** *Le compte qui ferme la piste du gain est celui qui ouvre la justification de la structure.*
 
 ---
 
@@ -453,6 +791,7 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 3. **Les vingt candidats de fusion en attente sont examinés APRÈS le chantier, jamais avant** *(mandat)*. Ils sont le jeu de test naturel de la confiance d'appariement.
 4. **Le test du territoire fictif tourne contre le moteur réel**, pas contre un décor.
 5. **Le registre des décisions est à jour** : D27, D28, D29 tranchées et datées; D43 rouverte avec elles.
+6. ⚠️ **La justesse des NEQ posés est MESURÉE** *(section 13, point 10)*, sur un échantillon tiré au hasard, par règle. **Sans elle, le chantier peut livrer 5 323 identités dont personne ne sait ce qu'elles valent** — et la fermeture affirmerait un gain qu'elle n'a pas établi.
 
 **Critère de fermeture, en une phrase.** *Le chantier est fini quand une identité sans NEQ traverse tout le moteur aussi bien qu'une identité qui en porte un, quand une identité faible ne peut plus produire une notification forte, et quand la ventilation rejouée le montre sur la base réelle.*
 
@@ -487,9 +826,23 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 - ~~La promotion de la ville vers le dossier (1 111 dossiers).~~ ⛔ **Mesurée le 19 septembre : +0 au départage.** *Le gisement existait; il ne séparait rien de plus que ce qui l'était déjà.* **Piste close, et son chiffre reste** — voir section 8.
 - ~~L'application de la passe de reprise sur les 705.~~ ✅ **Appliquée le 19 septembre** — `outils/reresolution_neq.py --appliquer`, **2 523 NEQ posés** *(et non 705 : la passe recalcule sa propre liste, et la population avait changé)*. *Instantané et `--defaire` à `/var/lib/falkye/`.*
 - L'écart minimal : 2 097 dossiers à écart 4, au prix de 2 097 décisions machine entre deux entités.
+- ⚠️ **`RawSignal` n'a aucun emplacement pour un CODE POSTAL** — il porte `adresse`, `ville`, `region`. *Le niveau le plus fort du départageur — 1 764 départages, dont 1 735 écrits — **ne fonctionne que parce que `faits_du_dossier` va le chercher lui-même dans `Signal.champs`**.* **Deux directions : élargir `CLES_ADRESSE`, ou donner un emplacement à `RawSignal`.** *Décision de modèle, aucun dossier en jeu — **registre D59**, et rien ne se construit dessus avant.* ⚠️ *Et un usage de plus, relevé le 19 septembre : le code postal servira au **rayon d'action de l'utilisateur**.*
+- ⚠️ **Le critère qui fait passer une règle d'outil ponctuel à règle PERMANENTE** — *une échelle qui n'existe pas* **(registre D54)**, probablement la même décision que le **taux d'erreur acceptable** de la mesure de justesse **(D55)**.
+- ⚠️ **La coupe à cinq candidats : son échelle** *(registre D57)*. **Une valeur, donc une échelle, donc Alexandre.**
 - **D27, D28, D29** — préalables à la conception de la clé.
 - L'ordonnancement et le filtrage du registre : hypothèse d'Alexandre du 16 septembre, appuyée par la saturation mesurée. *Conception à deux, non commencée.*
 - ⚠️ **Vérifier que la fusion ≥95 tourne encore** dans `falkye/dedup_entreprises.py`. *C'est une vérification, pas une décision : l'échelle **95 / 90** est celle de la confiance d'appariement, donc de ce chantier.* **À trancher avec elle : quelle branche fait foi.** *Un README est de la documentation, pas le code — cas 38.*
+
+**Les pistes NEUVES — relevées après la chute des cinq théories, aucune mesurée**
+
+> *Ordre posé par Alexandre le 19 septembre : **d'abord les hypothèses qu'on a**, ensuite plonger dans celles-ci.*
+
+- **Les noms PÉRIMÉS.** ⚠️ *La piste a changé de nature le 23 septembre* : elle n'est plus « 3 129 272 lignes non indexées » — **elles sont en base depuis le 17 septembre**, et le moteur ne les consulte plus qu'en **troisième temps** *(registre D52)*. *Ce qui reste ouvert est ce qu'elles RAPPORTENT, et le compte est fait : 208 dossiers, dont 157 sur leur propre ancien nom.*
+- **Les filiales et les noms après acquisition.** *`SDI CANADA` → `BIOMEDSHIELD`, `KONE` → `DROLET KONE ELEVATORS`.* ⚠️ **`FusionScissions.csv` porte `NEQ_ASSUJ_REL` à 78,5 % — une relation NEQ→NEQ que le produit n'a jamais lue.** *Et si le signal vise la filiale mais que le prospect utile est la mère, le portrait ne dit pas lequel.* ⚠️ **Question ouverte sur le même fichier** : `DENOMN_SOC` est attaché au `NEQ` de la rangée — *mais qui est le SUJET d'une rangée de fusion, l'absorbante ou l'absorbée?* **Le dépôt ne le dit pas, et ce gisement n'a aucune colonne de statut.**
+- **Les entités publiques.** *Municipalités, CISSS, centres de services scolaires — pas de NEQ au REQ.* **Vues avec `8879690699`. Jamais comptées.** *Touche **D27** et **D28**.*
+- **Le nom détecté n'est pas un nom d'entreprise** — nom de projet, acronyme, département, marque.
+- **L'entreprise a cessé d'exister** — radiée, fusionnée, dissoute.
+- **Le nom est TRONQUÉ à la capture** — *« et 9254-61 », « ABtech » coupés net.*
 
 **En conception, non commencé**
 - **Tout le chantier 3.** L'identité interne, la table d'identifiants externes, la famille d'entité, le niveau de vérification par couple identité × territoire.
@@ -591,3 +944,5 @@ Sur les entreprises qui ont **déjà** un NEQ, une centaine seulement passe la v
 *Le mandat chiffre le même mur par l'autre bout* : **65 % d'ambiguïté sur la base complète, 0,8 % d'entreprises vérifiées au bout**, et un premier envoi réel parti vide — **953 signaux correspondaient au profil, aucun ne portait sur une entreprise que le produit accepte de nommer.**
 
 *C'est cette mesure qui dira si récupérer des NEQ rapporte vraiment.* Sans elle, on ne sait pas si 1 800 dossiers identifiés produisent 1 800 prospects ou une vingtaine.
+
+⚠️ **ORDRE — décision d'Alexandre : APRÈS le bloc de l'import** *(section 17bis)*. *Le mur d'après se mesure une fois que ce qui a été gagné se regagne à chaque import, pas avant.* **Et le chiffre a changé d'échelle** : ce ne sont plus 1 800 dossiers identifiés mais **5 323** *(section 5bis)*, donc la question « produisent-ils des prospects ou une vingtaine » porte sur trois fois plus.

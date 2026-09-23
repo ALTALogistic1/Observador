@@ -49,7 +49,14 @@ from sqlalchemy import select
 #: ⛔ **Au-delà de ce nombre de prétendants, personne n'obtient le NEQ.**
 #: *Le nombre de prétendants est lui-même une preuve CONTRE l'appariement* — voir
 #: `resoudre_les_collisions`.
-PRETENDANTS_MAX_POUR_TRANCHER = 2
+#:
+#: ⚠️ **Il a été DÉFINI ici jusqu'au 2026-09-23, et c'était le défaut.** *Une
+#: garde qui ne vit que dans `outils/` ne protège que les passes par lot*, et la
+#: production, elle, rattachait sans compter. **Il vit maintenant dans
+#: `falkye/resolution.py`, avec la règle**, et il est EMPRUNTÉ ici — jamais
+#: recopié : deux copies d'une règle de conservation divergent sans que rien ne
+#: le dise, et le geste est un geste d'ÉCRITURE.
+from falkye.resolution import PRETENDANTS_MAX_POUR_TRANCHER  # noqa: E402,F401
 
 #: Le statut d'un nom au registre, tel que `Nom.csv` l'écrit. *Traduit pour la
 #: lecture, et **jamais deviné** : un statut absent se dit « inconnu », pas
