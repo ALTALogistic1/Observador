@@ -6505,3 +6505,84 @@ population qui produisait le défaut.
 > suite verte. Quand une mesure rend « zéro » sur un décor, la première
 > question n'est pas « la règle est-elle bonne ? » mais « le décor peut-il
 > seulement produire un non-zéro ? ».**
+
+---
+
+## N261 — Un chemin de simulation qui ignore une règle confond deux mesures en une
+
+- **Notée le** : 2026-09-23
+
+`_formes_transformees` — le chemin par lequel un outil SIMULE une correction —
+**ignorait `sans_les_retires`**, et c'était écrit noir sur blanc comme un choix
+assumé : *« un outil qui simule une correction ne doit pas hériter d'une règle
+qu'il ne mesure pas ».*
+
+⛔ **Le choix était devenu faux le jour où le troisième temps a existé.**
+*Simuler une borne de longueur par `transformer_forme` aurait, du même geste,
+**réintroduit les 3,2 millions de formes retirées dans le PREMIER temps**.* **La
+mesure aurait attribué à la borne ce que le troisième temps faisait** — deux
+règles dans un seul chiffre, et pas une ligne pour le dire.
+
+*Corrigé avant d'écrire l'outil, pas après l'avoir lu.*
+
+> **Un chemin de simulation qui n'hérite pas d'une règle du produit mesure une
+> règle qui n'existe nulle part. Et la phrase qui justifie l'exception vieillit
+> sans bruit : elle était vraie quand elle a été écrite, et elle reste écrite
+> quand elle cesse de l'être.**
+
+---
+
+## N262 — « Longueur » veut dire trois choses, et elles ne classent pas pareil
+
+- **Notée le** : 2026-09-23
+
+*Demande d'Alexandre : de quoi poser une borne de longueur minimale au scorage.*
+**Premier réflexe : compter les caractères.** ⚠️ **`« L.A. »` se normalise en
+`« l a »` — trois caractères, deux lettres, deux mots.** *Une borne de 3
+caractères retirerait `« LA »` et garderait `« L.A. »`, **qui est la même
+porte**.*
+
+**La sous-question se pose donc AVANT la borne**, et l'outil rend les trois
+mesures plutôt que d'en choisir une en silence.
+
+> **Quand on demande une échelle, vérifier d'abord que l'unité est décidée. Une
+> valeur posée sur une unité qu'on n'a pas nommée n'est pas une échelle : c'est
+> une convention cachée, et elle se découvre le jour où un cas la traverse.**
+
+---
+
+## N263 — Une borne fait gagner autant qu'elle fait perdre
+
+- **Notée le** : 2026-09-23
+
+*Retirer une forme courte ne fait pas que retirer des appariements* : **elle
+fait aussi tomber un concurrent sous l'écart, donc RÉSOUT un dossier qui était
+ambigu.** ⚠️ **C'est le même mécanisme que le troisième temps** — et le même
+piège : ne compter que les pertes ferait paraître toute borne coûteuse, ne
+compter que les gains la ferait paraître gratuite.
+
+⛔ **Et ni l'un ni l'autre ne dit la JUSTESSE.** *Un appariement gagné par une
+forme de deux lettres est exactement le cas qu'on soupçonne d'être faux.* **Le
+tableau dit combien bouge, jamais dans quel sens ça va** — la mesure de justesse
+(§13, point 10) n'existe toujours pas.
+
+> **Toute règle qui retire de l'information en récupère ailleurs, parce qu'elle
+> change l'ÉCART autant que le SOMMET. Une mesure qui ne compte qu'un des deux
+> côtés n'est pas incomplète : elle est orientée.**
+
+---
+
+## N264 — Un témoin dans le tableau, pas seulement dans le test
+
+- **Notée le** : 2026-09-23
+
+**La borne `1` ne retire rien par construction.** *Elle est chiffrée quand
+même, en première ligne du tableau* : **si sa ligne n'est pas à zéro,
+l'instrument ment et le reste du tableau ne vaut rien.**
+
+*Un test le vérifie aussi* — mais le test protège le dépôt, et la ligne protège
+**le lecteur du rapport**, qui n'a pas la suite sous les yeux.
+
+> **Une mesure qui simule une règle doit chiffrer le cas où la règle ne fait
+> rien, et le montrer à celui qui lit. Un instrument sans témoin ne se
+> distingue d'un instrument faux que par la confiance qu'on lui porte.**

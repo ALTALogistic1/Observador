@@ -642,6 +642,7 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 | **le garde-fou des noms d'un mot** | `candidats_par_mot_rare` exige un **deuxième mot**, qu'un nom d'un mot n'a pas — **c'est la cause du ×3,4 du portrait** | `candidats_par_mot_rare` |
 | **`ni` → `IMMATRICULEE`** | tout ce qui n'est pas `radiee` devient `IMMATRICULEE` | `falkye/resolution.py` |
 | **la radiation silencieuse** | `verification.py` exclut les `RADIEE` **après** résolution, sans le dire — *le dossier disparaît* | `falkye/verification.py` |
+| **aucun plancher de LONGUEUR au scorage** | *`WRatio` rend au moins **90,0** quand un nom du registre est entièrement contenu dans le nom détecté* — **et deux lettres suffisent** : `« LA »` a scoré **95,0** sur `#5476` | `_scorer`, `rapidfuzz` |
 | ~~**la fusion de fait par le NEQ**~~ ✅ | `resolve_company` cherchait un `Company` **par NEQ** avant d'en créer un : *tous les dossiers résolus vers le même NEQ étaient rattachés au MÊME dossier* — **corrigé le 23 septembre**, voir ci-dessous | `falkye/resolution.py` |
 
 ✅ **LE SEUL CORRIGÉ — la fusion de fait par le NEQ** *(23 septembre, demandé par Alexandre avant tout le reste : « c'est le seul point qui peut abîmer la base »)*.
@@ -663,6 +664,18 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 ⛔ **CE QUI N'EST PAS DESCENDU, et qui reste à trancher avec Alexandre : le SEUIL.** *Au-delà de deux prétendants, la passe par lot retire le NEQ à tout le monde; ici le premier arrivé le garde*, et le rang n'est qu'**écrit au journal** (`statut="pretendant_refuse"`, délibérément pas `a_examiner` — *`diagnostic confirmer-fusion` n'agit que sur `a_examiner` et appliquerait la fusion que la garde vient d'empêcher*).
 
 ⚠️ **La frontière, posée pour être vue** : la garde ne s'applique qu'au NEQ **inféré par le scoreur**, jamais à celui qu'une source **affirme** (`RawSignal.neq`). *La garde est née d'un appariement par le nom; un NEQ affirmé n'est pas un appariement.*
+
+⚠️ **LE PLANCHER DE LONGUEUR — relevé par Alexandre le 23 septembre** *(registre D60)*.
+
+**Rien ne borne la longueur d'une forme du registre au scorage.** *`« LA »` à 95,0 le montre* — et ce n'est pas un défaut du scoreur : **`WRatio` fait exactement ce qu'on lui demande**, il mesure une ressemblance de chaînes. *C'est la question qu'on lui pose qui est mal posée : une porte de deux lettres n'identifie personne.*
+
+⚠️ **Aucune valeur n'est posée, et c'est une consigne** : *« Je ne veux pas de valeur posée pour débloquer : je la poserai avec Claude. »* **`outils/longueur_des_formes.py` rend de quoi la poser** — la distribution de la longueur de la forme GAGNANTE chez les retenus et chez les restants, le coût de chaque borne *(simulé par le scoreur du produit, via `transformer_forme`)*, et ce que le corpus porte déjà de comparable.
+
+⛔ **Et une SOUS-QUESTION vient avec la borne** : `« L.A. »` se normalise en `« l a »` — **3 caractères, 2 lettres, 2 mots**. *Une borne de 3 caractères retirerait `« LA »` et garderait `« L.A. »`, qui est la même porte.* **L'outil rend les trois mesures; il n'en choisit aucune.**
+
+⚠️ **Ce que la mesure ne peut PAS dire** : lesquels des appariements retirés étaient BONS. *La justesse des NEQ posés n'a jamais été mesurée* — §13, point 10. **Un nombre d'appariements RETENUS n'est pas un nombre de bons appariements.**
+
+⚠️ **Et la mesure voisine du corpus ne s'applique PAS ici.** *« Le nom court, second discriminant » (§8) mesure le nom **DÉTECTÉ**, en mots, et la cause de son ×3,4 est connue : `candidats_par_mot_rare` exige un deuxième mot.* **C'est un défaut de RÉCUPÉRATION, pas une faiblesse du nom court au SCORAGE** — le lire comme un argument pour une borne serait lire un défaut d'instrument comme un fait du monde, pour la quatrième fois.
 
 ⚠️ **Deux d'entre eux portent une échelle, et une échelle se pose avec Alexandre** : la **coupe à cinq** *(une valeur, donc une échelle)* et le **bonus de ville**.
 
