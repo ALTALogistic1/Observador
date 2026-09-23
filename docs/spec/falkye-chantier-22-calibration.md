@@ -147,7 +147,11 @@ quatre-vingts jours**, et **deux recours à l'EIMT en onze semaines**. **La conc
 chaque élément.**
 
 - **Condition** : *N signaux d'au moins M sources distinctes dans une fenêtre de P jours.* **Les trois
-  valeurs reviennent à Alexandre.**
+  valeurs reviennent à Alexandre.** ✅ **Tranché le 16 septembre 2026 : elles NE SE POSENT PAS
+  maintenant.** *Un raisonnement donne l'axe; **seul un incident donne le seuil**.* ⚠️ *Le relevé des
+  objets gradués du corpus (audit, D34) porte la comparaison : le seul objet gradué **complet** est le
+  95/90 de la confiance d'appariement, et ce qui l'a produit est un incident — 76 paires de doublons non
+  reconnues et une fusion erronée restaurée.*
 - ⚠️ **La condition doit exiger que les signaux CONVERGENT vers une même sphère** — *sinon on signale
   l'agitation, pas le besoin.* **Et la garde a SERVI** : dans la neuvième simulation — *quatre signaux,
   trois sources distinctes, quarante-cinq jours, convergents vers la capacité opérationnelle* — **sans
@@ -220,6 +224,8 @@ condition exigeait la bande d'effectifs; elle existe.* **Il lui manque encore l'
 
 ## Le besoin mesuré — les indépartageables du chantier 3+4 *(19 septembre 2026)*
 
+> ⚠️ **DEUX POPULATIONS, ET LA PLUS RÉCENTE FAIT FOI** *(ajouté le 23 septembre)*. *Les chiffres ci-dessous portent sur les **5 002 ambigus du 19 septembre**, AVANT les écritures du 19 et du 20.* **Le chantier 3+4 en compte 3 267 depuis le 20** — et le plafond de l'activité y a été remesuré : **332 dossiers par la route code, 374 par la route libellé**. *Voir `falkye-chantier-3-4-identite-appariement.md`, section 9ter.*
+
 > **Ce qui se verse ici est le BESOIN, pas la table.** ⚠️ *Les 53 familles ne se nomment pas, et la correspondance UNSPSC ↔ CAE ne s'esquisse pas* — **remplir la place d'avance produit ce que le cas 39 a coûté : un chantier réputé traité parce que son document en parle.**
 
 **Le chantier 3+4 a épuisé ce que le nom et l'adresse savent faire.** Sur les **5 002 ambigus** — *des dossiers avec deux candidats que le nom ne sépare pas* — le départageur d'adresse en sépare **2 032** à ses trois niveaux *(code postal complet, région de tri, ville)*.
@@ -238,7 +244,19 @@ condition exigeait la bande d'effectifs; elle existe.* **Il lui manque encore l'
 ⚠️ **Ce plancher a deux causes, et une seule se corrige ici.**
 
 1. **La comparaison se fait par LIBELLÉ, faute de table.** *Le SEAO classe en UNSPSC, le REQ en CAE, et aucune table ne les relie.* **Comparer « Travaux de pavage et revêtement » à « Entrepreneurs en plomberie » mot à mot rend ce que deux vocabulaires ont en commun, pas ce que deux activités ont en commun.** *C'est le besoin que ce chantier porte.*
-2. **La mesure PRÉCÈDE le découpage du départageur d'adresse** *(18 septembre)*. **Elle est donc à refaire** : les 97 « en propre » se comptaient contre un code postal qui décidait à la résolution de la région de tri, et ce n'est plus vrai.
+2. **La mesure PRÉCÈDE le découpage du départageur d'adresse** *(18 septembre)*. **Elle est donc à refaire** : les 97 « en propre » se comptaient contre un code postal qui décidait à la résolution de la région de tri, et ce n'est plus vrai. ✅ **Refaite le 20 septembre** — section 9ter du chantier 3+4.
+
+---
+
+### ⚠️ Deux corrections à ce que le chantier croyait de l'activité *(20 septembre 2026)*
+
+**1. « L'EIMT n'a aucune classification » était À MOITIÉ FAUX.** *Elle ne promeut aucune activité d'ENTREPRISE — vérifié par arbre syntaxique — **mais elle dépose une PROFESSION**, sur **65,3 %** des restants.*
+
+⚠️ **Une profession décrit un POSTE, pas une entreprise.** *« Cuisinier » suggère un restaurant sans le dire.* **La traduire demanderait une AUTRE table, distincte de celle de ce chantier** — elle est comptée à part et **jamais versée au plafond**.
+
+**2. Le 99,6 % de l'archive NE SE TRANSPORTE PAS au miroir.** *`_resoudre_entreprise` lit le code d'activité de l'ÉTABLISSEMENT dès qu'un établissement principal existe, et ne lit alors **jamais** celui de l'entreprise (`COD_ACT_ECON_CAE`).*
+
+⚠️ **`REQEntry.secteur_code` a donc DEUX provenances, et l'origine n'est pas conservée.** *Deux codes qui diffèrent pourraient différer pour cette raison.* **La réserve se nomme et ne se mesure pas : l'information n'est plus là.**
 
 ⚠️ **Ce que ce constat ne dit pas.** *Il ne dit pas que la table ferait passer 2 970 à zéro.* **Un départage écarte un candidat; il n'en confirme aucun** — et deux entreprises distinctes peuvent partager un secteur d'activité aussi bien qu'une ville.
 

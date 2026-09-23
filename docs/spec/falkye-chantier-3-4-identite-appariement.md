@@ -514,6 +514,33 @@ candidats : radiée 100,0 · radiée 100,0 · immatriculée 95,0
 
 ---
 
+## 9ter. L'ACTIVITÉ ÉCONOMIQUE — le dernier départageur, et son plafond
+
+> **Mesuré le 20 septembre 2026** *(`outils/plafond_de_lactivite.py`)*, **à la demande d'Alexandre : s'assurer que la possibilité est réelle avant de la construire.**
+
+**C'est le seul fait restant qui ne dépend ni du nom ni du lieu.** *Il sépare un `Gérard et Fils` en pavage d'un `Gérard et Fils` en plomberie, quel que soit le code postal.*
+
+**Elle est réelle, et elle est MODESTE.**
+
+| | dossiers | part | |
+|---|---|---|---|
+| ambigus au 20 septembre | **3 267** | | |
+| registre complet **ET** codes différents entre eux | 2 381 | 73,4 % | ← *le registre suit* |
+| **(a) route CODE + codes différents — LA BORNE** | **332** | 10,2 % | ← *demande la table du chantier 22* |
+| **(b) route LIBELLÉ + codes différents — LA BORNE** | **374** | 11,4 % | ← *n'en demande aucune* |
+
+**Ce n'est pas le registre qui borne, c'est NOTRE côté.** *99,2 % des dossiers ont un code chez tous leurs candidats. Mais du côté DÉTECTÉ, sur les restants : **17,7 % portent un code, 7 % un libellé**.*
+
+⚠️ **Et il ne suffit pas que l'activité existe des deux côtés : il faut que les CANDIDATS DIFFÈRENT ENTRE EUX.** *C'est cette condition qui coupe de 518 à 374* — **un code identique chez tous les candidats ne départage rien.**
+
+⚠️ **Une BORNE n'est pas un GAIN.** *Elle dit où le fait existe et diffère, jamais s'il tranche bien.* **Et un départage écarte un candidat, il n'en confirme aucun.**
+
+**La route par LIBELLÉ ne demande aucune table** — `fait_de_lactivite` la parcourt déjà, mot à mot. **La route CODE attend le chantier 22** *(`falkye-chantier-22-calibration.md`, « Le besoin mesuré »)*, qui se fait à deux : nommer les 53 familles, poser la condition de chacune. *Elle sert deux usages — l'identité et la sphère — donc le travail se fait une fois pour deux, et **332 dossiers ne la justifient pas à eux seuls**.*
+
+⚠️ **Décision d'Alexandre du 19 septembre : les noms génériques attendent le chantier 22.**
+
+---
+
 ## 10. Faits acquis, avec leur preuve
 
 **La contrainte d'unicité est portée par la base de production.** Prouvé par l'échec du 16 septembre — `UNIQUE constraint failed: companies.neq`. *C'est l'inverse exact du cas 25, où une garantie déclarée au modèle était absente en base.*
@@ -765,9 +792,23 @@ Toutes mesurées correctement, toutes réfutées. **Les douze premières demanda
 - ~~La promotion de la ville vers le dossier (1 111 dossiers).~~ ⛔ **Mesurée le 19 septembre : +0 au départage.** *Le gisement existait; il ne séparait rien de plus que ce qui l'était déjà.* **Piste close, et son chiffre reste** — voir section 8.
 - ~~L'application de la passe de reprise sur les 705.~~ ✅ **Appliquée le 19 septembre** — `outils/reresolution_neq.py --appliquer`, **2 523 NEQ posés** *(et non 705 : la passe recalcule sa propre liste, et la population avait changé)*. *Instantané et `--defaire` à `/var/lib/falkye/`.*
 - L'écart minimal : 2 097 dossiers à écart 4, au prix de 2 097 décisions machine entre deux entités.
+- ⚠️ **`RawSignal` n'a aucun emplacement pour un CODE POSTAL** — il porte `adresse`, `ville`, `region`. *Le niveau le plus fort du départageur — 1 764 départages, dont 1 735 écrits — **ne fonctionne que parce que `faits_du_dossier` va le chercher lui-même dans `Signal.champs`**.* **Deux directions : élargir `CLES_ADRESSE`, ou donner un emplacement à `RawSignal`.** *Décision de modèle, aucun dossier en jeu — **registre D59**, et rien ne se construit dessus avant.* ⚠️ *Et un usage de plus, relevé le 19 septembre : le code postal servira au **rayon d'action de l'utilisateur**.*
+- ⚠️ **Le critère qui fait passer une règle d'outil ponctuel à règle PERMANENTE** — *une échelle qui n'existe pas* **(registre D54)**, probablement la même décision que le **taux d'erreur acceptable** de la mesure de justesse **(D55)**.
+- ⚠️ **La coupe à cinq candidats : son échelle** *(registre D57)*. **Une valeur, donc une échelle, donc Alexandre.**
 - **D27, D28, D29** — préalables à la conception de la clé.
 - L'ordonnancement et le filtrage du registre : hypothèse d'Alexandre du 16 septembre, appuyée par la saturation mesurée. *Conception à deux, non commencée.*
 - ⚠️ **Vérifier que la fusion ≥95 tourne encore** dans `falkye/dedup_entreprises.py`. *C'est une vérification, pas une décision : l'échelle **95 / 90** est celle de la confiance d'appariement, donc de ce chantier.* **À trancher avec elle : quelle branche fait foi.** *Un README est de la documentation, pas le code — cas 38.*
+
+**Les pistes NEUVES — relevées après la chute des cinq théories, aucune mesurée**
+
+> *Ordre posé par Alexandre le 19 septembre : **d'abord les hypothèses qu'on a**, ensuite plonger dans celles-ci.*
+
+- **Les noms PÉRIMÉS.** ⚠️ *La piste a changé de nature le 23 septembre* : elle n'est plus « 3 129 272 lignes non indexées » — **elles sont en base depuis le 17 septembre**, et le moteur ne les consulte plus qu'en **troisième temps** *(registre D52)*. *Ce qui reste ouvert est ce qu'elles RAPPORTENT, et le compte est fait : 208 dossiers, dont 157 sur leur propre ancien nom.*
+- **Les filiales et les noms après acquisition.** *`SDI CANADA` → `BIOMEDSHIELD`, `KONE` → `DROLET KONE ELEVATORS`.* ⚠️ **`FusionScissions.csv` porte `NEQ_ASSUJ_REL` à 78,5 % — une relation NEQ→NEQ que le produit n'a jamais lue.** *Et si le signal vise la filiale mais que le prospect utile est la mère, le portrait ne dit pas lequel.* ⚠️ **Question ouverte sur le même fichier** : `DENOMN_SOC` est attaché au `NEQ` de la rangée — *mais qui est le SUJET d'une rangée de fusion, l'absorbante ou l'absorbée?* **Le dépôt ne le dit pas, et ce gisement n'a aucune colonne de statut.**
+- **Les entités publiques.** *Municipalités, CISSS, centres de services scolaires — pas de NEQ au REQ.* **Vues avec `8879690699`. Jamais comptées.** *Touche **D27** et **D28**.*
+- **Le nom détecté n'est pas un nom d'entreprise** — nom de projet, acronyme, département, marque.
+- **L'entreprise a cessé d'exister** — radiée, fusionnée, dissoute.
+- **Le nom est TRONQUÉ à la capture** — *« et 9254-61 », « ABtech » coupés net.*
 
 **En conception, non commencé**
 - **Tout le chantier 3.** L'identité interne, la table d'identifiants externes, la famille d'entité, le niveau de vérification par couple identité × territoire.
@@ -869,3 +910,5 @@ Sur les entreprises qui ont **déjà** un NEQ, une centaine seulement passe la v
 *Le mandat chiffre le même mur par l'autre bout* : **65 % d'ambiguïté sur la base complète, 0,8 % d'entreprises vérifiées au bout**, et un premier envoi réel parti vide — **953 signaux correspondaient au profil, aucun ne portait sur une entreprise que le produit accepte de nommer.**
 
 *C'est cette mesure qui dira si récupérer des NEQ rapporte vraiment.* Sans elle, on ne sait pas si 1 800 dossiers identifiés produisent 1 800 prospects ou une vingtaine.
+
+⚠️ **ORDRE — décision d'Alexandre : APRÈS le bloc de l'import** *(section 17bis)*. *Le mur d'après se mesure une fois que ce qui a été gagné se regagne à chaque import, pas avant.* **Et le chiffre a changé d'échelle** : ce ne sont plus 1 800 dossiers identifiés mais **5 323** *(section 5bis)*, donc la question « produisent-ils des prospects ou une vingtaine » porte sur trois fois plus.

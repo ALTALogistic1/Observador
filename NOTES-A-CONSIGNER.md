@@ -6177,3 +6177,58 @@ compté ». **Les réunir était tout le travail.**
 > **Un chiffre qui ferme une piste n'est pas un chiffre perdu. Avant de le
 > classer, demander ce qu'il OUVRE — c'est souvent la justification d'une
 > structure que rien d'autre ne chiffrait.**
+
+---
+
+## N248 — Un déclencheur qui a FIRÉ sans que personne le remarque
+
+- **Notée le** : 2026-09-23
+
+*En versant les huit décisions de la répartition au registre.*
+
+La première — **l'élargissement du statut aux confirmations** — portait le
+déclencheur *« la réponse de Claude Code aux quatre constats du 21 »*. **Cette
+réponse a été livrée le 21 septembre même.** *Donc la décision était DUE au
+moment où on l'écrivait au registre, et elle y serait entrée comme « en
+attente ».*
+
+⚠️ **Un déclencheur formulé comme un ÉVÉNEMENT se périme sans bruit** — *à la
+différence d'une date, qui se compare toute seule.* **Personne ne relit les
+déclencheurs pour voir lesquels ont eu lieu.**
+
+**Ce qui a été fait :** l'entrée dit que le déclencheur a firé et que la décision
+est due — **et elle dit aussi que le chiffre censé la trancher a changé de sens**
+depuis, les « 81 contradictions » étant deux faits dont une part est prononcée
+par une graphie de municipalité.
+
+> **La charte exige une échéance OU un déclencheur. Les deux ne se surveillent
+> pas de la même façon : une échéance arrive, un déclencheur se constate. Une
+> entrée à déclencheur doit dire, en plus, QUI regardera s'il a eu lieu.**
+
+---
+
+## N249 — Enrichir une entrée existante coûte plus cher que d'en créer une, et c'est pour ça qu'on la double
+
+- **Notée le** : 2026-09-23
+
+*La répartition demandait, pour les seuils de quarantaine du REQ : **enrichir
+D17, ne pas en créer une nouvelle**.*
+
+**La tentation d'en créer une est structurelle** : *une entrée neuve s'écrit
+d'un trait; enrichir demande de relire l'existante, de comprendre ce qu'elle
+dit déjà, de trouver où le chiffrage vit — ici dans D36 — et de renvoyer plutôt
+que de recopier.* **Trois lectures contre une écriture.**
+
+⚠️ **Et la différence se voit six mois plus tard, pas le jour même.** *Deux
+entrées sur le même objet divergent en silence; la seconde paraît plus récente
+donc plus vraie, et la première continue d'exister pour ceux qui la trouvent en
+premier.*
+
+**Ce qui a été fait :** D17 porte maintenant le cas du REQ, **renvoie à D36 pour
+le chiffrage plutôt que de le recopier**, et **nomme D58 comme une échelle
+DISTINCTE** — le plancher de remplissage — pour qu'on ne les confonde pas.
+
+> **« Une décision vit à un seul endroit » n'est pas une règle de rangement :
+> c'est une règle de coût. Le prix de la doublure se paie au moment de la
+> divergence, par quelqu'un d'autre, et il n'est jamais imputé à celui qui l'a
+> créée.**
