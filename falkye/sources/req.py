@@ -280,6 +280,30 @@ GISEMENTS_DE_NOMS: tuple[tuple[str, str, str, str | None], ...] = (
     ("DENOMN_SOC", "FusionScissions.csv", "DENOMN_SOC", None),
 )
 
+#: ⚠️ **Le code de `STAT_NOM` qui dit « en vigueur ».** *Il vient du chargeur
+#: d'avant le 17 septembre, qui comparait exactement à cette chaîne.*
+STATUT_DE_NOM_EN_VIGUEUR = "V"
+
+
+def nom_retire(statut: str | None) -> bool:
+    """`True` si cette forme est un nom que l'entreprise **n'utilise plus**.
+
+    ⚠️ **Conservateur par conception** : un code INCONNU compte comme retiré.
+    *Le coût d'une erreur est borné — une forme écartée au premier temps revient
+    au troisième si rien d'autre n'a trouvé l'entreprise* — alors qu'un code
+    nouveau traité comme « en vigueur » entrerait sans jamais être vu.
+
+    *Un gisement sans colonne de statut (`NOM_ETAB`, `DENOMN_SOC`) n'est pas
+    retiré : il n'est pas QUALIFIÉ, et les deux ne se confondent pas.*
+    """
+    if statut is None:
+        return False
+    code = statut.strip().upper()
+    if not code or code == STATUT_NON_QUALIFIE:
+        return False
+    return code != STATUT_DE_NOM_EN_VIGUEUR
+
+
 #: Le statut porté par une forme qu'aucune colonne ne qualifie. *Ni « en vigueur »
 #: ni « retiré » — le fichier ne le dit pas, et l'inventer serait affirmer.*
 STATUT_NON_QUALIFIE = "?"
@@ -1961,6 +1985,7 @@ def resolve_neq_by_name(
     limite_candidats: int | None = None,
     journal: dict | None = None,
     elargir: bool = True,
+    retires_en_dernier: bool = True,
 ) -> list[REQMatch]:
     """Résout un nom d'entreprise en candidats NEQ, par correspondance floue sur le
     miroir local. Nécessite que ingest_snapshot() ait déjà été exécuté au moins une
@@ -1996,7 +2021,7 @@ def resolve_neq_by_name(
     `journal`, comme pour `candidats_par_nom`, est rempli avec ce que la
     récupération a fait. `None` en production.
 
-    ## ⚠️ DEUX TEMPS — et le second ne s'exécute que là où le premier échoue
+    ## ⚠️ TROIS TEMPS — et chacun ne s'exécute que là où le précédent a échoué
 
     **Premier temps** : le préfixe, inchangé. **Si `neq_retenu` rend un NEQ, on
     s'arrête là.** *Les 805 dossiers retenus aujourd'hui ne voient jamais le
@@ -2006,8 +2031,30 @@ def resolve_neq_by_name(
     (`candidats_par_mot_rare`), ajoutés en **UNION** au lot du préfixe — *jamais
     en remplacement*. Puis le même scorage, par la même fonction.
 
+    **Troisième temps** *(23 septembre 2026, décision d'Alexandre — registre
+    D52)* : **les noms RETIRÉS**. `req_noms` porte 3 265 319 formes que
+    l'entreprise n'utilise plus — 64,4 % de la table — depuis que le chargeur a
+    cessé de filtrer `STAT_NOM='V'` le 17 septembre. *Elles sont écartées des
+    deux premiers temps et n'entrent que si rien n'a retenu l'entreprise.*
+
+    ⚠️ **Ce temps ne peut RIEN faire perdre, et c'est structurel.** *Écarter des
+    formes ne peut qu'abaisser des scores; le premier temps ne retient donc
+    jamais moins que le troisième, et quand il ne retient rien, le troisième
+    rejoue exactement le comportement d'avant.* **La règle ne change l'issue que
+    là où un nom EN VIGUEUR désigne quelqu'un d'AUTRE que le nom retiré.**
+
+    ⚠️ **La forme ÉCARTÉE, et pourquoi** : plafonner le score d'un nom retiré.
+    *Elle ferait perdre les changements de nom qui sont justes* — 157 des 208
+    dossiers concernés au 22 septembre sont posés sur **leur propre** ancien nom.
+
     `elargir=False` coupe le second temps — **pour mesurer l'état d'avant**, et
-    pour rien d'autre.
+    pour rien d'autre. *Il ne coupe pas le troisième : l'état d'avant le 17
+    septembre consultait bien les noms retirés, puisque le chargeur ne les
+    chargeait pas.*
+
+    `retires_en_dernier=False` rejoue le comportement du 17 au 22 septembre —
+    **tout entre au premier temps.** *Il existe pour qu'une mesure compare les
+    deux règles par un APPEL, jamais par une copie du scoreur.*
     """
     nom_norm = _normaliser(nom)
     if not nom_norm:
@@ -2019,7 +2066,11 @@ def resolve_neq_by_name(
         journal=journal,
         **({} if limite_candidats is None else {"limite": limite_candidats}),
     )
-    matches = _scorer(db_session, nom_norm, candidates, ville, limit, transformer_forme)
+    # ⚠️ **LES NOMS RETIRÉS N'ENTRENT PAS ICI** *(décision d'Alexandre du
+    # 23 septembre, registre D52)*. Ils reviennent au TROISIÈME TEMPS, plus bas,
+    # si rien n'a retenu l'entreprise — voir `retires_en_dernier`.
+    matches = _scorer(db_session, nom_norm, candidates, ville, limit,
+                      transformer_forme, sans_les_retires=retires_en_dernier)
 
     # ---- LE SECOND TEMPS ----------------------------------------------------
     #
@@ -2032,10 +2083,29 @@ def resolve_neq_by_name(
     # Ce qu'il élargit avec : **le mot le plus RARE du nom**, pas le premier.
     # *`l industrie mondiale du nord` se récupère par `mondiale`, et le gisement
     # de 309 788 lignes du préfixe `l` n'est jamais touché.*
-    if not elargir:
-        return matches
     from falkye.resolution import neq_retenu  # importé ici : `resolution` importe
     #                                           ce module, donc pas au sommet.
+
+    def troisieme_temps(lot: list, matches: list) -> list:
+        """Les noms RETIRÉS, consultés en dernier — **et en UN SEUL endroit.**
+
+        ⚠️ *Trois sorties de cette fonction doivent l'appliquer.* **Écrite trois
+        fois, elle aurait posé son témoin au journal une seule fois** — c'est
+        exactement le défaut relevé le 21 septembre sur un compte annoncé dans
+        une sortie et écrit dans une autre.
+        """
+        if not retires_en_dernier or neq_retenu(matches) is not None:
+            return matches
+        if journal is not None:
+            journal["troisieme_temps"] = True
+        return _scorer(db_session, nom_norm, lot, ville, limit,
+                       transformer_forme, sans_les_retires=False)
+
+    if not elargir:
+        # ⚠️ *`elargir=False` coupe le SECOND temps — pas le troisième.* **Il
+        # existe pour mesurer l'état d'avant le 17 septembre, et cet état-là
+        # consultait bien les noms retirés.**
+        return troisieme_temps(candidates, matches)
     if neq_retenu(matches) is not None:
         return matches
     supplement = candidats_par_mot_rare(
@@ -2047,13 +2117,31 @@ def resolve_neq_by_name(
         journal["second_temps"] = True
         journal["mots_neufs"] = len(neufs)
     if not neufs:
-        return matches
+        return troisieme_temps(candidates, matches)
     # ⚠️ **UNION, jamais remplacement.** *Le lot du préfixe reste présenté* — un
     # candidat que le préfixe trouvait et que les mots ne trouvent pas ne doit
     # pas disparaître.
-    return _scorer(
-        db_session, nom_norm, list(candidates) + neufs, ville, limit, transformer_forme
-    )
+    matches = _scorer(db_session, nom_norm, list(candidates) + neufs, ville,
+                      limit, transformer_forme,
+                      sans_les_retires=retires_en_dernier)
+
+    # ---- LE TROISIÈME TEMPS — les noms RETIRÉS ------------------------------
+    #
+    # ⚠️ **Décision d'Alexandre, 23 septembre 2026 — registre D52.** *« Le second
+    # temps. `resolve_neq_by_name` ne consulte les noms retirés que si aucun nom
+    # en vigueur n'a trouvé l'entreprise. Je ne plafonne pas les scores : ça
+    # ferait perdre des changements de nom qui sont justes. »*
+    #
+    # **La même forme que le second temps, et pour la même raison** : il ne
+    # s'exécute QUE là où les précédents ont échoué, donc **la non-régression est
+    # STRUCTURELLE, pas mesurée.**
+    #
+    # ⚠️ **Ce temps ne peut RIEN faire perdre.** *Écarter des formes ne peut
+    # qu'abaisser des scores, donc le premier temps ne retient jamais moins que
+    # le troisième — et quand il ne retient rien, le troisième rejoue exactement
+    # le comportement d'avant.* **La règle ne change l'issue que là où un nom EN
+    # VIGUEUR désigne quelqu'un d'AUTRE.**
+    return troisieme_temps(list(candidates) + neufs, matches)
 
 
 def _scorer(
@@ -2063,6 +2151,7 @@ def _scorer(
     ville: str | None,
     limit: int,
     transformer_forme: "Callable[[str], str] | None",
+    sans_les_retires: bool = False,
 ) -> list[REQMatch]:
     """Le SCORAGE, séparé de la RÉCUPÉRATION — *pour que le second temps rejoue
     la même règle et non une copie.* **C'est la leçon des -338 du 17 septembre,
@@ -2090,14 +2179,26 @@ def _scorer(
     for c in candidates:
         if c.nom_normalise:
             noms_par_neq.setdefault(c.neq, []).append(c.nom_normalise)
-    for neq, forme in db_session.execute(
-        select(REQNom.neq, REQNom.nom_normalise).where(
+    # ⚠️ **Le statut est LU ICI, et c'est neuf le 23 septembre.** *Avant, rien
+    # dans le moteur ne lisait `REQNom.statut`* — la garde du chargeur avait été
+    # retirée le 17 en annonçant que la règle se poserait ici, et elle n'y était
+    # jamais arrivée. **Décision d'Alexandre du 23 septembre, registre D52.**
+    for neq, forme, statut in db_session.execute(
+        select(REQNom.neq, REQNom.nom_normalise, REQNom.statut).where(
             REQNom.neq.in_([c.neq for c in candidates])
         )
     ).all():
+        if sans_les_retires and nom_retire(statut):
+            continue
         noms_par_neq.setdefault(neq, []).append(forme)
 
     if transformer_forme is not None:
+        # ⚠️ **Le chemin de SIMULATION ignore `sans_les_retires`**, et c'est dit
+        # plutôt que tu. *Il reconstruit les formes depuis les noms BRUTS pour
+        # pouvoir les transformer; y greffer le filtre demanderait de relire le
+        # statut une seconde fois, pour un chemin qui ne tourne jamais en
+        # production.* **Un outil qui simule une correction ne doit pas hériter
+        # d'une règle qu'il ne mesure pas.**
         noms_par_neq = _formes_transformees(db_session, candidates, transformer_forme)
 
     by_neq = {c.neq: c for c in candidates}
