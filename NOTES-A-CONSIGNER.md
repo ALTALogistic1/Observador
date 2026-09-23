@@ -6054,3 +6054,78 @@ raisonnement reste juste, ce sont ses prémisses qui ont bougé.*
 > **Un document périmé ne se reconnaît pas de l'intérieur. La seule place d'un
 > avertissement est la première ligne — là où un lecteur est encore avant sa
 > lecture, et pas déjà dedans.**
+
+---
+
+## N243 — La forme d'une règle décide de ce qu'il faut mesurer
+
+- **Notée le** : 2026-09-23
+
+*Alexandre tranche le traitement des noms retirés : **le second temps**, pas le
+plafond.*
+
+**Les deux formes avaient l'air symétriques** — écarter un nom retiré, ou
+abaisser son score. **Elles ne le sont pas du tout :**
+
+| forme | ce qu'elle peut faire perdre |
+|---|---|
+| **plafonner le score** | *tous* les appariements par nom retiré, **y compris les 157 posés sur leur PROPRE ancien nom** |
+| **le second temps** | ⚠️ **rien, par construction** |
+
+*Écarter des formes ne peut qu'abaisser des scores.* **Donc le premier temps ne
+retient jamais moins que le troisième, et quand il ne retient rien, le troisième
+rejoue exactement le comportement d'avant.** La règle ne change l'issue que là
+où **un nom en vigueur désigne quelqu'un d'autre** — c'est-à-dire exactement la
+famille des 51, et elle seule.
+
+⚠️ **Conséquence sur la mesure demandée** : *« combien perdraient leur NEQ »* a
+une réponse avant d'être mesurée — **zéro**. *L'outil la vérifie quand même, sur
+la population, parce qu'un raisonnement structurel qui se trompe se trompe en
+silence.*
+
+> **Deux formes d'une même décision ne demandent pas la même mesure. Choisir la
+> forme avant de commander la mesure change ce qu'il y a à mesurer — et parfois
+> supprime la question.**
+
+---
+
+## N244 — La prédiction de N239 ne s'est pas réalisée, et c'est la forme choisie qui l'explique
+
+- **Notée le** : 2026-09-23
+
+**N239 annonçait** : *« le jour où la règle du moteur se posera, ce test tombera
+— et c'est exactement ce qu'on veut de lui. »* *Il s'agissait de
+`tests/test_reresolution_neq.py`, qui plante un `REQNom` en `statut="A"` et exige
+que le moteur apparie dessus.*
+
+**La règle est posée, et le test passe toujours.** *Parce qu'aucun nom en vigueur
+ne dispute ce dossier : le troisième temps le rend intact.* **La couverture qui
+« pointait dans l'autre sens » ne pointait pas contre la règle — elle pointait
+contre le PLAFOND**, la forme qu'Alexandre a écartée.
+
+> **Une prédiction sur un test qui va tomber suppose la forme de la correction.
+> Celle-ci en tolérait deux, et une seule faisait tomber le test — ce qui était
+> aussi le signe que l'autre coûtait moins.**
+
+---
+
+## N245 — Trois sorties, un seul témoin : la même faute, dix jours plus tard
+
+- **Notée le** : 2026-09-23
+
+*En branchant le troisième temps, `resolve_neq_by_name` s'est trouvée avec **trois
+points de sortie** devant l'appliquer.* **Je l'ai écrit trois fois, et je n'ai
+posé le témoin au journal que dans un seul** — un test l'a relevé aussitôt.
+
+⚠️ **C'est N231, à dix jours d'écart, dans la même fonction** : *un compte écrit
+à un endroit et annoncé pour tous.* **La forme du défaut ne change pas : ce qui
+est dupliqué diverge par la branche qu'on oublie, jamais par celle qu'on
+regarde.**
+
+**Corrigé en factorisant** : `troisieme_temps(lot, matches)`, une closure nommée,
+appelée aux trois sorties. *Le témoin ne peut plus manquer, parce qu'il n'y a
+plus qu'un endroit où le poser.*
+
+> **Quand une règle doit s'appliquer à toutes les sorties d'une fonction, elle
+> n'est pas une ligne à répéter : c'est une fonction. Le test qui la vérifie doit
+> viser la sortie la moins fréquente — c'est celle qu'on oublie.**
