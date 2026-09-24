@@ -677,3 +677,72 @@ def test_la_reprise_ne_peut_PAS_remplacer_un_NEQ_deja_pose():
     assert '"neq_avant": None' in source
     # ⛔ Aucun chemin d'écriture ne lit un NEQ d'avant NON nul.
     assert "neq_avant\": company.neq" not in source
+
+
+# --------------------------------------------------------------------------
+# L'ÉCART À LA MAIN, et les deux règles candidates — 2026-09-24
+# --------------------------------------------------------------------------
+
+
+def test_la_graphie_de_personne_tient_le_cas_qui_la_pose():
+    """⚠️ **UNE HYPOTHÈSE, pas un fait du registre.** *Elle vient d'UN cas* —
+    `« BOUCHARD, MARTIN »`, la forme qui a rattaché `#3705 Ferme Martin
+    Bouchard` à `« Éditions Melançon »`.
+
+    ⛔ **Et elle a été resserrée le jour même, sur un faux positif trouvé en
+    l'essayant** : `« Boulangerie, Patisserie du Coin »` passait.
+    """
+    from outils.reresolution_neq import forme_de_personne
+
+    # Le cas qui la pose, et ses voisins de même forme.
+    assert forme_de_personne("BOUCHARD, MARTIN")
+    assert forme_de_personne("TREMBLAY, MARIE-JOSEE")
+    assert forme_de_personne("SMITH, JOHN ROBERT")
+    assert forme_de_personne("ST-PIERRE, JEAN-GUY")
+    # ⛔ Le faux positif qui l'a resserrée.
+    assert not forme_de_personne("Boulangerie, Patisserie du Coin")
+    # Une personne MORALE n'en est pas une, quelle que soit sa ponctuation.
+    assert not forme_de_personne("Gestion Tremblay, Inc.")
+    assert not forme_de_personne("Ferme Martin Bouchard")
+    assert not forme_de_personne("9412-0001 Québec inc.")
+    assert not forme_de_personne(None)
+
+
+def test_la_graphie_ne_gouverne_RIEN_dans_le_chemin_d_ecriture():
+    """⛔ **Elle sert à un COMPTE, pas à une décision.** *Une règle posée sur un
+    seul exemple retire des appariements justes en silence* — et celle-ci
+    attend le nombre qu'`--comparer` rendra sur la population entière."""
+    import pathlib
+
+    for chemin in pathlib.Path("falkye").rglob("*.py"):
+        texte = chemin.read_text(encoding="utf-8")
+        assert "forme_de_personne" not in texte, chemin
+        assert "GRAPHIE_DE_PERSONNE" not in texte, chemin
+    # Et dans l'outil, elle n'entre pas dans ce qui décide de poser.
+    source = pathlib.Path("outils/pose_du_neq.py").read_text(encoding="utf-8")
+    assert "forme_de_personne" not in source
+
+
+def test_l_ecart_a_la_main_retire_le_dossier_SANS_en_faire_gagner_un_autre():
+    """⚠️ **Écarté APRÈS la résolution des collisions, et c'est délibéré.**
+    *L'écarter avant libérerait son NEQ pour un autre dossier du lot* —
+    « écarter ce dossier » deviendrait « en faire gagner un autre »."""
+    import inspect
+
+    source = inspect.getsource(reresolution_neq.main)
+    pose = source.index("resoudre_les_collisions(")
+    ecart = source.index('if args.ecarter:')
+    assert pose < ecart, "l'écart doit venir APRÈS la résolution des collisions"
+    # L'écarté est CONSERVÉ dans `pris`, avec son motif — jamais effacé du rapport.
+    assert 'p["motif"] = "ÉCARTÉ À LA MAIN' in source
+    assert "pris.append(p)" in source
+
+
+def test_un_ecart_SANS_EFFET_se_dit():
+    """*Un écart silencieux qui ne portait sur rien laisse croire qu'il a
+    porté* — et la prochaine passe reposera le dossier."""
+    import inspect
+
+    source = inspect.getsource(reresolution_neq.main)
+    assert "SANS EFFET" in source
+    assert "n'était pas dans les NEQ à poser" in source

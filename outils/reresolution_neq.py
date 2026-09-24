@@ -87,6 +87,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 
@@ -134,6 +135,47 @@ def _resoudre_une(db_session, company) -> tuple[str | None, list]:
     return neq_retenu(matches), matches
 
 
+#: ⚠️ **UNE HYPOTHÈSE, PAS UN FAIT.** *La graphie `NOM, PRÉNOM` que le registre
+#: emploie pour une personne physique* — `« BOUCHARD, MARTIN »`, la forme qui a
+#: rattaché `#3705 Ferme Martin Bouchard` à `« Éditions Melançon »` le 2026-09-24.
+#:
+#: **Elle est ici pour être COMPTÉE, pas pour gouverner.** *Une règle posée sur
+#: un seul exemple retire des appariements justes en silence* — et le compte
+#: qu'elle rend est précisément ce qui manque pour trancher entre une règle par
+#: GISEMENT et une règle par GRAPHIE.
+#: ⚠️ **Resserrée le jour même, sur un faux positif trouvé en l'essayant** :
+#: `« Boulangerie, Patisserie du Coin »` passait. *Deux morceaux d'AU PLUS DEUX
+#: MOTS chacun* — un nom et un prénom composé — la rejettent, et gardent
+#: `« BOUCHARD, MARTIN »`, `« TREMBLAY, MARIE-JOSEE »`, `« SMITH, JOHN ROBERT »`.
+GRAPHIE_DE_PERSONNE = re.compile(
+    r"^\s*[^,\s]+(?:\s+[^,\s]+)?\s*,\s*[^,\s]+(?:\s+[^,\s]+)?\s*$"
+)
+
+#: Les suffixes qui disent « personne morale ». *Une forme qui en porte un n'est
+#: pas un nom de personne, quelle que soit sa ponctuation.*
+SUFFIXES_DE_PERSONNE_MORALE = (
+    "inc", "ltee", "ltée", "ltd", "limitee", "limitée", "senc", "srl", "sec",
+    "cie", "corp", "corporation", "enr", "s a", "sa", "coop", "association",
+    "societe", "société", "fondation", "groupe", "entreprises",
+)
+
+
+def forme_de_personne(nom_publie: str | None) -> bool:
+    """La forme ressemble-t-elle au nom d'une PERSONNE, à la graphie du registre ?
+
+    ⚠️ **Ce que cette fonction NE FAIT PAS : décider.** *Elle sert à un compte*,
+    et le compte sert à poser une règle avec Alexandre. **Rien dans le chemin
+    d'écriture ne l'appelle.**
+    """
+    if not nom_publie:
+        return False
+    texte = nom_publie.strip()
+    if not GRAPHIE_DE_PERSONNE.match(texte):
+        return False
+    mots = re.sub(r"[^a-z0-9 ]", " ", texte.lower()).split()
+    return not any(m in SUFFIXES_DE_PERSONNE_MORALE for m in mots)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -146,6 +188,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="commencer à la K-ième paire — pour les regarder PAR LOT")
     parser.add_argument("--defaire", default=None, metavar="FICHIER",
                         help="rejouer un instantané à l'envers")
+    parser.add_argument("--ecarter", type=int, nargs="*", default=[], metavar="ID",
+                        help="dossiers à NE PAS poser dans cette passe "
+                             "(relus et refusés à la main)")
     parser.add_argument("--limite", type=int, default=None,
                         help="n'examiner que les N premières (mise au point)")
     parser.add_argument("--instantane", default=str(DOSSIER_INSTANTANE),
@@ -276,6 +321,43 @@ def main(argv: list[str] | None = None) -> int:
             print("      aucun membre n'est probablement le bon.")
             for neq, combien in sorted(refuses_en_bloc.items(), key=lambda kv: -kv[1])[:5]:
                 print(f"         {neq}  ×{combien}")
+        # ---- LES DOSSIERS ÉCARTÉS À LA MAIN -------------------------------
+        #
+        # ⚠️ **Écartés APRÈS la résolution des collisions, et c'est délibéré.**
+        # *Les écarter avant libérerait leur NEQ pour un autre dossier du lot* —
+        # « écarter ce dossier » deviendrait « en faire gagner un autre », ce que
+        # personne n'a demandé. **Ici, le NEQ n'est simplement posé par
+        # personne**, et les perdants de sa collision restent journalisés comme
+        # ils l'étaient.
+        #
+        # **Le fait qui l'écrit** *(2026-09-24, relevé par Alexandre en lisant
+        # les 40 paires)* : `#3705 Ferme Martin Bouchard` était rattaché à
+        # `« Éditions Melançon »` par le nom d'ÉTABLISSEMENT `« BOUCHARD,
+        # MARTIN »`. *Un nom d'établissement désigne une personne ou un lieu, pas
+        # une raison sociale* — et `NOM_ETAB` est l'un des deux gisements sans
+        # colonne de statut. **Un dossier écarté se reprend; un NEQ posé à tort
+        # coûte une identité.**
+        if args.ecarter:
+            demandes = set(args.ecarter)
+            ecartes = [p for p in libres if p["company_id"] in demandes]
+            libres = [p for p in libres if p["company_id"] not in demandes]
+            for p in ecartes:
+                p["detenteur_id"] = None
+                p["detenteur_nom"] = None
+                p["motif"] = "ÉCARTÉ À LA MAIN — relu et refusé avant la pose"
+                pris.append(p)
+            print(f"\n   ✋ ÉCARTÉS À LA MAIN            : {len(ecartes)} dossier(s)")
+            for p in ecartes:
+                print(f"      #{p['company_id']}  {p['neq']}  "
+                      f"{(p['nom_detecte'] or '')[:40]:<42} ← {p['nom_registre'][:30]}")
+            # ⚠️ **Un identifiant demandé qui n'était PAS à poser se dit.** *Un
+            # écart silencieux qui ne portait sur rien laisse croire qu'il a
+            # porté* — et la prochaine passe reposera le dossier.
+            absents = sorted(demandes - {p["company_id"] for p in ecartes})
+            if absents:
+                print(f"      ⚠️ SANS EFFET : {', '.join('#' + str(i) for i in absents)} "
+                      "n'était pas dans les NEQ à poser.")
+
         print(f"   NEQ retenu, NEQ DÉJÀ PRIS      : {len(pris)}   (conservés, jamais fusionnés)")
         print(f"   aucun NEQ retenu               : {non_resolues}")
 
@@ -327,6 +409,49 @@ def main(argv: list[str] | None = None) -> int:
             print("         en `INSERT OR IGNORE` et rien ne la vide, donc les")
             print("         lignes existantes sont SAUTÉES. *La colonne ne se")
             print("         remplira pas d'elle-même le 2 octobre.*")
+
+        # ---- LES DEUX RÈGLES CANDIDATES, CHIFFRÉES -------------------------
+        #
+        # ⚠️ **La question posée par Alexandre le 2026-09-24** : écarter le
+        # gisement `NOM_ETAB` de la pose, ou écarter au cas par cas ? *« Je
+        # préfère la règle au cas par cas, si elle tient. »* **Ce bloc rend le
+        # nombre qui permet de trancher, sur la population entière** — les
+        # quarante paires lues ne disaient pas combien de dossiers chaque règle
+        # toucherait.
+        par_dossier = {}
+        for p in libres:
+            f = _forme_de(p)
+            par_dossier[p["company_id"]] = (
+                (f.gisement if f else None) or "(inconnu)",
+                forme_de_personne(f.nom_publie) if f else False,
+            )
+        etab = {i for i, (g, _) in par_dossier.items() if g and g.upper() == "NOM_ETAB"}
+        personnes = {i for i, (_, pers) in par_dossier.items() if pers}
+        print("\n   ⚖️ LES DEUX RÈGLES CANDIDATES — ce que chacune RETIRERAIT ici\n")
+        print(f"      écarter le GISEMENT `NOM_ETAB`                 "
+              f"{len(etab):>5} dossier(s)")
+        print(f"      écarter la GRAPHIE d'une personne (`NOM, PRÉNOM`) "
+              f"{len(personnes):>2} dossier(s)")
+        print(f"         … dont hors `NOM_ETAB`                      "
+              f"{len(personnes - etab):>5}   (la règle porte plus loin)")
+        print(f"         … `NOM_ETAB` que la graphie NE retire PAS    "
+              f"{len(etab - personnes):>5}   (ce que le gisement perdrait en plus)")
+        print("""
+      ⚠️ CE QUE CES DEUX NOMBRES NE DISENT PAS : lesquels étaient BONS.
+         La justesse des NEQ posés n'a jamais été mesurée (§13, point 10).
+         Un compte de RETRAITS n'est pas un compte d'erreurs évitées.
+
+      ⚠️ ET LA GRAPHIE EST UNE HYPOTHÈSE, pas un fait du registre. Elle
+         vient d'UN cas — « BOUCHARD, MARTIN » sur #3705. Si son compte
+         est proche de celui du gisement, elle ne tient pas mieux; s'il
+         est beaucoup plus petit ET qu'il contient le cas, elle tient.
+
+      ⚠️ ET `NOM_ETAB` N'EST PAS SEUL SANS STATUT. `DENOMN_SOC` non plus
+         — 93 816 formes contre 31 951 au 22 septembre. Les deux entrent
+         au PREMIER temps, parce que `nom_retire('?')` rend False : un
+         gisement sans colonne de statut n'est pas RETIRÉ, il n'est pas
+         QUALIFIÉ, et les deux ne se confondent pas.
+""")
 
         if args.comparer:
             print("\n" + "=" * 78)

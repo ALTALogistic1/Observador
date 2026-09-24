@@ -195,6 +195,34 @@ Formulation retenue : **le nombre de prétendants est une preuve contre l'appari
 
 ---
 
+## 5quinquies. L'application des gains du troisième temps — 24 septembre 2026
+
+**Lu par Alexandre sur les 40 paires des deux rapports** : **137 NEQ à poser**, **141 déjà pris conservés**, **20 refusés en bloc** sur `8879690699`. *La garde des prétendants fait ce qu'on attend d'elle.*
+
+### ✋ Un dossier écarté avant la pose — #3705
+
+`#3705 Ferme Martin Bouchard` était rattaché à **« Éditions Melançon »** par le nom d'**établissement** `« BOUCHARD, MARTIN »`. ⚠️ *Un nom d'établissement désigne une personne ou un lieu, pas une raison sociale* — et `NOM_ETAB` est l'un des **deux gisements sans colonne de statut**, avec `DENOMN_SOC`. **Un dossier écarté se reprend; un NEQ posé à tort coûte une identité.**
+
+**La forme de l'écart** : `--ecarter 3705`, appliqué **APRÈS la résolution des collisions**. *L'appliquer avant libérerait son NEQ pour un autre dossier du lot* — « écarter ce dossier » deviendrait « en faire gagner un autre », ce que personne n'a demandé.
+
+### ⛔ Pourquoi la règle ne se pose PAS sur le gisement
+
+**La question était : écarter le gisement `NOM_ETAB` de la pose, ou écarter au cas par cas ?** *La réponse est déjà dans la section 8, mesurée le 21 septembre et **close*** :
+
+> **« Le gisement de la forme gagnante comme garde-fou — ne sépare pas les bons des faux. »**
+
+**Rouvrir cette piste sur un cas, sans mesure neuve, c'est la reproposer comme neuve** — précisément ce contre quoi le corpus met en garde. ⚠️ *Et la section 8 dit aussi ce que le gisement vaut* : `NOM_ETAB` rend **5 récupérations sur 2 517**, **toutes des entreprises individuelles** — des personnes physiques. **Pour une entreprise individuelle, le nom de la personne EST la raison sociale**, donc ces cinq-là sont justes. *La règle par gisement retirerait des appariements justes pour empêcher un cas dont la faute est ailleurs.*
+
+**L'axe proposé à la place : la GRAPHIE.** `« BOUCHARD, MARTIN »` est la forme inversée `NOM, PRÉNOM`. ⚠️ **C'est une hypothèse née d'UN cas, et elle ne gouverne rien** : `outils/reresolution_neq.py` la COMPTE sur la population entière, à côté du compte du gisement, pour qu'Alexandre tranche sur un nombre. *Elle a déjà été resserrée sur un faux positif trouvé en l'essayant — `« Boulangerie, Patisserie du Coin »` passait.*
+
+⚠️ **Et le fond du défaut n'est ni le gisement ni la graphie** : `nom_retire('?')` rend `False`, donc **les 125 767 formes non qualifiées** *(`DENOMN_SOC` 93 816 + `NOM_ETAB` 31 951, mesurées le 22 septembre)* entrent au **PREMIER temps**, à égalité avec un nom en vigueur. *Un gisement sans colonne de statut n'est pas RETIRÉ, il n'est pas QUALIFIÉ* — **et les deux ne se confondent pas** *(registre D64)*.
+
+### ⏸️ Un cas laissé passer, en le nommant — #782
+
+`#782 Science & Humans` → **`GLOBAL ZEBRA HOLDINGS INC.`**, entré par le **nom anglais** *(`NOM_ETRNG`)*, ville **Toronto**. **Le seul de ce type dans les 40 paires lues.** *Décision d'Alexandre : on le laisse passer.* ⚠️ **Déclencheur de réouverture : un second cas du même type** *(registre D65)*.
+
+---
+
 ## 5ter. Le portrait des restants — le mur a changé de nature
 
 > **Mesuré le 19 septembre 2026** *(`outils/portrait_des_restants.py`)*, sur les **4 673** restants d'alors.

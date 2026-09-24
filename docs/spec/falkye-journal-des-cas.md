@@ -1081,3 +1081,17 @@ La cause *« le NEQ est passé sous la coupe à cinq »* a été rétractée le 
 ⛔ **Et le témoin qu'on lui a ajouté a d'abord pris la mauvaise forme** : dater un document par la date la plus récente qu'il ÉCRIT rendait **2026-10-02** sur le chantier 3+4 — l'archive du 2 octobre, **une date à venir**. *Un document parle aussi du futur; ce qu'il mentionne ne le date pas.*
 
 **Artefact** : les deux sorties du même jour — « 2 documents · 0 cas · 11 renvois » contre « 18 documents · 24 sections de charte · 42 cas · 0 renvoi »; le test `test_il_REFUSE_quand_il_ne_trouve_pas_le_corpus`.
+
+## Cas 51 — Un nom d'établissement désignait une personne, et la règle proposée avait déjà été mesurée *(guide d'ingénierie, « Une unité se tranche avant une valeur »; registre D64)*
+
+`#3705 Ferme Martin Bouchard` était sur le point de recevoir le NEQ de **« Éditions Melançon »**, sur la foi du nom d'**établissement** `« BOUCHARD, MARTIN »`. *Relevé par Alexandre en lisant les 40 paires du rapport, avant l'écriture.*
+
+**Deux réponses se présentaient** : écarter le gisement `NOM_ETAB` de la pose, ou écarter ce dossier-là. ⛔ **La première avait déjà été mesurée et fermée** — section 8 du chantier 3+4, 21 septembre 2026 : *« le gisement de la forme gagnante comme garde-fou **ne sépare pas** les bons des faux »*. **Et la même section dit ce que le gisement vaut** : `NOM_ETAB` rend **5 récupérations sur 2 517, toutes des entreprises individuelles** — *pour lesquelles le nom de la personne EST la raison sociale*, donc ces cinq-là sont justes.
+
+**Ce que ça a révélé.** *La règle qui vient à l'esprit devant un cas a souvent déjà été mesurée sous un autre nom.* **Ici, l'axe proposé était une piste CLOSE, et la reproposer sur un seul exemple l'aurait fait passer pour neuve** — en retirant des appariements justes pour empêcher un cas dont la faute est ailleurs.
+
+⚠️ **Et la faute est ailleurs, en effet** : `nom_retire('?')` rend `False`, donc les **125 767 formes sans colonne de statut** entrent au **premier temps**, à égalité avec un nom en vigueur. *Un gisement sans statut n'est pas RETIRÉ, il n'est pas QUALIFIÉ.*
+
+**L'axe proposé à la place — la GRAPHIE `NOM, PRÉNOM` — ne gouverne rien.** Il est **compté** à côté du gisement sur la population entière, pour que la règle se pose sur un nombre. *Il a été resserré le jour même sur un faux positif trouvé en l'essayant : `« Boulangerie, Patisserie du Coin »` passait.*
+
+**Artefact** : la paire `#3705` dans le rapport de `reresolution_neq`; `outils/reresolution_neq.py::forme_de_personne` et le test qui porte le faux positif; la ligne de la section 8 datée du 21 septembre.
