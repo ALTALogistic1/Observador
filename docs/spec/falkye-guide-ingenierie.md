@@ -390,3 +390,55 @@ symétrie » à un geste voisin — écrire et lire, créer et consulter, calcul
 propre démonstration**, parce que le voisin a ses propres raisons d'exister. *Une mesure justifie un geste
 précis; la cohérence apparente le fait glisser d'un cran, et le cran de trop retire en silence quelque
 chose de légitime.*
+
+## La clôture d'un point — les documents se mettent à jour DANS la même demande de fusion
+
+> **Règle d'Alexandre, 24 septembre 2026.** *« Quand un point se termine, les documents qu'il touche se mettent à jour dans la même demande de fusion. Pas plus tard, pas dans une passe séparée. »*
+
+**Ce qui l'a produite** *(journal, cas 43)* : le corpus du chantier 3+4 s'est arrêté au 17 septembre pendant qu'on travaillait dessus **six jours de plus**, et le tampon a franchi **269 notes**. *Les deux faits étaient visibles séparément et ne se rencontraient nulle part.*
+
+**À la fin de chaque point, cinq gestes, et aucun n'est optionnel :**
+
+1. **Dire quels documents le point touche, AVANT d'écrire, et ce que chacun doit recevoir.** *Une liste faite après coup est une liste de ce qu'on a pensé à toucher.*
+2. **Signaler ce qui devient périmé ailleurs** — une ligne qui disait le contraire, un chiffre dépassé, une question désormais répondue. ⚠️ *Le corpus est la dernière source à porter une erreur qu'on a corrigée ailleurs* **(journal, cas 49)**.
+3. **Inscrire les décisions au registre, tranchées et datées**, et faire passer à ✅ celles qui viennent de se fermer. *Relire le compte du registre fait partie du geste* — la phrase qui existe pour empêcher un compte périmé en a été un.
+4. **Vider les notes du tampon qui concernent ce point**, plutôt que de les reporter.
+5. **Si un document manque pour accueillir le contenu, le DIRE** — au lieu de le ranger au plus proche.
+
+⚠️ **« Aucun document touché » est une réponse valable, et elle se dit.** *Un point qui ne touche rien et un point dont on a oublié la mise à jour se ressemblent exactement, et rien ne les distingue six jours plus tard.*
+
+**Le témoin, et ce qu'il ne dit pas.** `verifier-corpus.py` imprime à chaque passage le nombre de notes en attente **et la date de dernière écriture de chaque document de chantier**, comparée à la note la plus récente du tampon. ⛔ *Sa première forme — dater un document par la date la plus récente qu'il ÉCRIT — a été écartée le jour même : elle rendait le 2 octobre sur le chantier 3+4, **une date à venir**. Un document parle aussi du futur; ce qu'il mentionne ne le date pas.* ⚠️ **Et le témoin retenu dit qu'un document n'a PAS été touché, jamais qu'il a été mis à jour pour de bon** — une retouche d'une virgule suffit à le rendre vert.
+
+## Une règle qui descend d'un niveau change de geste, pas de principe
+
+**Descendre une règle d'une passe par LOT vers une règle qui voit UN cas à la fois ne déplace pas ses gardes** — certaines arrivent dans un monde où une partie de leur décision est **déjà prise**. *La garde des prétendants refusait à TOUS les prétendants dans la passe; dans la résolution, le détenteur porte déjà le NEQ, et le lui retirer serait une écriture qui EFFACE une identité.* **La bonne question n'est pas « la même règle descend-elle ? » mais « que reste-t-il à décider quand elle arrive ? »** *(journal, cas 44; registre D61)*
+
+⚠️ **Une constante qui descend peut perdre son pouvoir de décider sans perdre son nom.** *Le plus dangereux n'est pas qu'elle disparaisse : c'est qu'elle reste écrite au même endroit, avec le même nom, en ne gouvernant plus rien.*
+
+**Et quand une règle perd la population qu'elle lisait, sa TRACE devient son organe de mesure.** *La passe comptait ses prétendants en les regardant; la résolution ne peut compter que ses propres refus consignés.* **Une trace qui sert à compter n'a plus le droit d'être approximative** — sa duplication n'est plus du bruit, c'est un faux chiffre.
+
+⚠️ **Réutiliser une table, c'est hériter de ses leviers.** Avant de ranger un fait nouveau dans une structure existante, regarder **quelles commandes savent déjà agir dessus** — et vérifier qu'aucune ne fait, gratuitement, le contraire de ce qu'on vient de construire. *Un refus journalisé sous le statut `a_examiner` aurait offert, d'un coup de CLI déjà écrit, le moyen exact de défaire la garde.*
+
+**Une garde bâtie contre une INFÉRENCE ne se transpose pas à une AFFIRMATION.** *Les appliquer toutes les deux « par prudence » coûte exactement ce que la prudence devait protéger.*
+
+## Une mesure se lit sur la population qu'elle touche
+
+**Le dénominateur d'une mesure de règle est la population où la règle s'APPLIQUE**, pas celle sur laquelle on l'a lancée. *Un pourcentage calculé sur des dossiers que la règle ne touche pas dit toujours « c'est négligeable », quelle que soit la règle.*
+
+⚠️ **Un dénominateur relu d'une variable à la fin d'un long rapport dépend de tout ce qui a touché ce nom entre-temps.** *Le retenir au moment où on le connaît coûte une ligne* — le relire a coûté un **24 876,9 %**, visible seulement parce qu'il était ridicule. **Un pourcentage plausible ne se serait pas vu** *(journal, cas 48)*.
+
+**Toute règle qui retire de l'information en récupère ailleurs**, parce qu'elle change l'ÉCART autant que le SOMMET. *Une mesure qui ne compte qu'un des deux côtés n'est pas incomplète : elle est orientée.*
+
+⛔ **Et « récupérer » demande toujours PAR QUOI.** *Retenir davantage en VOYANT MOINS n'est pas une amélioration : c'est le défaut qu'on vient de corriger, remis à l'endroit.* **Un gain obtenu par ignorance n'est pas un gain**, et le solde de deux colonnes ne le dira jamais — il faut regarder le mécanisme *(registre D62)*.
+
+**Une mesure qui simule une règle doit chiffrer le cas où la règle ne fait RIEN, et le montrer à celui qui lit.** *Un instrument sans témoin ne se distingue d'un instrument faux que par la confiance qu'on lui porte.* ⚠️ *Le test protège le dépôt; la ligne protège le lecteur du rapport, qui n'a pas la suite sous les yeux.*
+
+⚠️ **Un chemin de SIMULATION qui n'hérite pas d'une règle du produit mesure une règle qui n'existe nulle part** *(journal, cas 47)*. **Et la phrase qui justifie l'exception vieillit sans bruit** : elle était vraie quand elle a été écrite, et elle reste écrite quand elle cesse de l'être.
+
+## Une unité se tranche avant une valeur — et une population vaut mieux qu'une consigne
+
+**Une valeur posée sur une unité qu'on n'a pas nommée n'est pas une échelle : c'est une convention cachée**, et elle se découvre le jour où un cas la traverse. ⚠️ *Et l'unité ne se choisit pas au jugé : elle se choisit sur le **cas qui sépare les candidates*** — celui qui fait dire « ces deux-là doivent être traitées pareil ». *`« L.A. »` se normalise en `« l a »` : trois caractères, deux lettres, deux mots — et c'est la LETTRE qui en fait la même porte que `« LA »` (registre D60).*
+
+**Quand une décision dit « pas ça », la bonne question est : qu'est-ce qui, dans la FORME du code, rend « ça » impossible plutôt qu'interdit ?** *Une consigne se contourne en changeant un argument; une POPULATION ne se contourne qu'en réécrivant une requête* — c'est ce qui rend tenable, sans surveillance, la décision de ne jamais remplacer un NEQ déjà posé *(registre D63)*.
+
+⚠️ **Un décor qui ne peut pas PRODUIRE la forme qu'il teste ne teste rien** *(journal, cas 46)*. **Quand une mesure rend « zéro » sur un décor, la première question n'est pas « la règle est-elle bonne ? » mais « le décor peut-il seulement produire un non-zéro ? »** *Une branche qu'aucun décor n'atteint est du code non testé sous une suite verte.*

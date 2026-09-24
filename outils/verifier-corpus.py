@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 """Vérificateur de cohérence du corpus FALKYE.
 
-À lancer depuis le répertoire qui contient les .md du corpus :
-    cd docs/spec && python3 ../../outils/verifier-corpus.py
+À lancer de n'importe où :
+    python3 outils/verifier-corpus.py
+
+⚠️ **Il trouvait le corpus par le RÉPERTOIRE COURANT jusqu'au 2026-09-24**, et
+lancé d'ailleurs il rendait un vert **vide** : « 2 documents · 0 section de
+charte · 0 cas », plus tous les renvois du tampon déclarés cassés. *La chaîne
+d'intégration faisait `cd docs/spec` et voyait juste; une relecture à la main
+depuis la racine voyait faux, et le chiffre faux a été rapporté plusieurs fois
+comme un état du dépôt.* **Il trouve maintenant le corpus lui-même, et il
+REFUSE plutôt que de rendre un vert quand il ne le trouve pas.**
 
 Il ne juge pas le contenu. Il vérifie ce qui se vérifie mécaniquement :
 les renvois qui pointent vers une cible inexistante, les fichiers cités
@@ -24,7 +32,7 @@ toujours, vide de ce que trois renvois y cherchaient, et ce script ne les
 aurait pas vus. Un déplacement de contenu passe donc sous son radar —
 c'est une relecture humaine qui l'attrape, pas lui.
 """
-import re, glob, sys, pathlib
+import re, subprocess, sys, pathlib
 
 RACINE = pathlib.Path(__file__).resolve().parents[1]
 
@@ -38,9 +46,39 @@ LIMITE = (
     "  partie au guide d'ingénierie, et rien ici ne les aurait vus."
 )
 
-textes = {f: open(f, encoding="utf-8").read() for f in sorted(glob.glob("*.md"))}
-if not textes:
-    sys.exit("Aucun .md dans ce répertoire.")
+def trouver_le_corpus() -> pathlib.Path:
+    """Le répertoire du corpus — **cherché, jamais présumé.**
+
+    ⚠️ *Un vérificateur dont la couverture dépend du répertoire d'où on
+    l'appelle rend deux verdicts différents sur le même dépôt*, et le plus
+    rassurant des deux est celui qui ne regarde rien.
+    """
+    # ⚠️ **Le répertoire courant passe EN PREMIER, et c'est délibéré.** *Un
+    # appel explicite depuis une copie du corpus doit porter sur cette copie* —
+    # c'est ainsi que les tests cassent le vérificateur pour vérifier qu'il
+    # attrape. **Ce qui change le 2026-09-24, c'est le REPLI** : sans corpus
+    # sous le pied, il va le chercher au lieu de rendre un vert vide.
+    for candidat in (pathlib.Path.cwd(), RACINE / "docs" / "spec", RACINE):
+        if (candidat / "charte-falkye.md").exists():
+            return candidat
+    return RACINE / "docs" / "spec"
+
+
+CORPUS = trouver_le_corpus()
+textes = {f.name: f.read_text(encoding="utf-8") for f in sorted(CORPUS.glob("*.md"))}
+
+# ⛔ **LE REFUS.** *Un rapport vert sur un corpus introuvable est pire qu'une
+# erreur : il se lit comme une vérification réussie.* **Les deux documents
+# nommés ici sont ceux dont tout le reste dépend** — la charte porte les
+# sections citées, le journal porte les cas cités.
+MANQUANTS = [nom for nom in ("charte-falkye.md", "falkye-journal-des-cas.md")
+             if nom not in textes]
+if MANQUANTS:
+    sys.exit(
+        f"⛔ REFUS — corpus introuvable dans {CORPUS}.\n"
+        f"   Manque : {', '.join(MANQUANTS)}.\n"
+        "   Ce script ne rend pas un vert sur ce qu'il n'a pas lu."
+    )
 
 def cibles(nom, motif):
     return set(re.findall(motif, textes.get(nom, ""), re.M))
@@ -128,6 +166,54 @@ if TAMPON.exists():
         print(ligne)
         for numero, titre in titres:
             print(f"     {numero} — {titre}")
-        print("   (elles s'écrivent d'un coup à la fin de la tâche; ce fichier se vide alors)")
+        print("   (elles s'écrivent à la fin du POINT qu'elles concernent, dans la")
+        print("    MÊME demande de fusion — voir le guide, « La clôture d'un point »)")
+
+        # --- L'ÂGE DES DOCUMENTS DE CHANTIER ------------------------------
+        #
+        # ⚠️ **Le témoin que la règle du 2026-09-24 réclamait.** *Le chantier
+        # 3+4 s'est arrêté au 17 septembre pendant qu'on travaillait dessus six
+        # jours de plus, et rien ne le disait* — le tampon enflait d'un côté,
+        # le document vieillissait de l'autre, et les deux faits ne se
+        # rencontraient nulle part.
+        #
+        # ⛔ **PREMIÈRE FORME, ÉCARTÉE LE JOUR MÊME** : dater un document par
+        # la date la plus récente qu'il ÉCRIT. *Elle rendait le 2026-10-02 sur
+        # le chantier 3+4* — **l'archive du 2 octobre, une date À VENIR.** Un
+        # document parle aussi du futur; ce qu'il mentionne ne le date pas.
+        #
+        # **La forme retenue : la dernière ÉCRITURE du fichier, par `git`.**
+        # ⚠️ *Sa limite, et elle se dit* : une retouche d'une virgule compte
+        # comme une mise à jour. **Le témoin dit qu'un document N'A PAS été
+        # touché; il ne dit jamais qu'il a été mis à jour pour de bon.**
+        plus_recente = max(dates) if dates else None
+        chantiers = sorted(f for f in textes if f.startswith("falkye-chantier-"))
+        if plus_recente and chantiers:
+            print(f"\n📅 Dernière écriture des documents de chantier, contre la "
+                  f"note la plus récente du tampon ({plus_recente}) :")
+            inconnues = 0
+            for nom in chantiers:
+                try:
+                    vue = subprocess.run(
+                        ["git", "log", "-1", "--format=%cs", "--", str(CORPUS / nom)],
+                        capture_output=True, text=True, cwd=RACINE, timeout=10,
+                    ).stdout.strip()
+                except Exception:
+                    vue = ""
+                if not vue:
+                    inconnues += 1
+                    print(f"     {'? inconnue':<14} {'—':<12} {nom}")
+                    continue
+                retard = "⚠️ en retard" if vue < plus_recente else "✅"
+                print(f"     {retard:<14} {vue:<12} {nom}")
+            if inconnues:
+                print(f"     ⚠️ {inconnues} document(s) sans date : `git` n'a pas")
+                print("        répondu — clone superficiel, ou pas de dépôt ici.")
+                print("        UNE DATE ABSENTE N'EST PAS UNE DATE RÉCENTE.")
+            print("   ⚠️ CE QUE CE TÉMOIN NE DIT PAS. « En retard » ne veut pas")
+            print("      dire « faux » : un chantier à l'arrêt vieillit")
+            print("      normalement. Et une retouche d'une virgule suffit à le")
+            print("      rendre ✅ — il dit qu'un document n'a PAS été touché,")
+            print("      jamais qu'il a été mis à jour pour de bon.")
 
 sys.exit(1 if vus else 0)
