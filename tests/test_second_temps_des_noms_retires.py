@@ -312,3 +312,36 @@ def test_les_pertes_sont_rendues_DOSSIER_PAR_DOSSIER(une_perte, capsys):
     # La troisième forme récupère exactement cette perte-là.
     assert "✅ RÉCUPÈRE un NEQ que le lot élargi lui prenait" in sortie
     assert "retrouverait 1900000001" in sortie
+
+
+def test_le_denominateur_de_la_section_5_est_la_POPULATION(decor, capsys):
+    """⛔ **Le défaut du 2026-09-24, relevé par Alexandre en lisant la sortie.**
+
+    *Une boucle de la section 4 s'appelait `dossiers` et écrasait la POPULATION
+    du même nom.* La section 5 s'en servait comme dénominateur et imprimait
+    **« 6 468   24 876,9 % »** — 6 468 sur les **26** dossiers du dernier NEQ
+    de cette boucle.
+    """
+    assert outil.main(["--pas", "0"]) == 0
+    sortie = capsys.readouterr().out
+    from tests.conftest import compte_de_la_ligne
+
+    ligne = next(ligne for ligne in sortie.splitlines()
+                 if "dossiers où le TROISIÈME TEMPS tire" in ligne)
+    part = ligne.rsplit("%", 1)[0].rsplit(None, 1)[-1].replace(",", ".")
+    assert 0.0 <= float(part) <= 100.0, ligne
+    # Le compte lui-même ne peut pas dépasser la population rejouée.
+    tire = int(compte_de_la_ligne(ligne).replace(" ", "").replace(" ", ""))
+    rejeu = next(ligne for ligne in sortie.splitlines() if "rejeu des DEUX règles" in ligne)
+    assert tire <= int(rejeu.split("sur")[1].split()[0].replace(" ", ""))
+
+
+def test_la_section_4_ne_peut_plus_ECRASER_la_population():
+    """*Vérifié sur le code* — le nom de la boucle, et le dénominateur pris à
+    une variable retenue d'avance plutôt qu'à une liste relue."""
+    import inspect
+
+    source = inspect.getsource(outil.main)
+    assert "dossiers_du_neq = [" in source
+    assert "population = len(dossiers)" in source
+    assert "len(a_tire), population)" in source

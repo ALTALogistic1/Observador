@@ -153,7 +153,45 @@ Formulation retenue : **le nombre de prétendants est une preuve contre l'appari
 
 **Ce qui a été fait de ce chiffre** : la règle du **troisième temps**, tranchée le 23 septembre *(registre **D52**)* — les noms retirés ne sont consultés que si aucun nom en vigueur n'a trouvé l'entreprise. ⚠️ *Elle ne réécrit rien toute seule : les 5 323 gardent leur NEQ tant qu'une reprise ne les rouvre pas (étape 14).*
 
-⚠️ **Et 14 dossiers posés ne sont plus retrouvés par le rejeu d'aujourd'hui.** *Deux causes, qui n'appellent pas la même suite* : **le lot a grandi et le NEQ est passé sous la coupe à cinq**, ou **la porte a disparu**. *La première est la dérive annoncée de l'étape 7 — `req_noms` n'oublie rien.*
+⚠️ **Et 14 dossiers posés ne sont plus retrouvés par le rejeu d'aujourd'hui.** ⛔ **CORRECTION DU 23 SEPTEMBRE** : *cette phrase disait « le NEQ est passé sous la coupe à cinq », et c'était **faux**.* **`neq_retenu` ne lit que `matches[0]` et `matches[1]`** — relever le plafond du lot ne change **aucune** décision, et les paires montraient le NEQ posé aux rangs 2 et 3, bien à l'intérieur de la coupe. *La vraie cause est la **FAMILLE** que la résolution rend aujourd'hui* : **le lot a grandi, un concurrent est arrivé à moins de 8 points, et le dossier est devenu AMBIGU** — ou la porte a disparu. *La première reste la dérive annoncée de l'étape 7 : `req_noms` n'oublie rien.*
+
+---
+
+## 5quater. Les six décisions du 23 septembre — ce qui s'écrit, et ce qui ne s'écrit pas
+
+> **Prises par Alexandre après lecture complète de la sortie de `second_temps_des_noms_retires`.** *Elles ferment le point du troisième temps.*
+
+### 1. ✅ On APPLIQUE la règle des noms retirés, et on pose les NEQ gagnés
+
+*Avec instantané et commande pour défaire, comme les écritures précédentes* — la marche est dans l'en-tête de `outils/reresolution_neq.py`.
+
+⚠️ **Le compte annoncé n'est pas le compte posé.** *La mesure annonçait **278 gains**; la reprise en écrira **moins*** — elle retire en plus les NEQ **déjà PRIS** par un autre dossier *(journalisés, jamais fusionnés)* et ceux que la garde des prétendants refuse.
+
+### 2. ⛔ La TROISIÈME FORME : non *(registre D62)*
+
+**13 dossiers récupérés contre 29 perdus**, sur les 6 468 où le troisième temps tire. ⚠️ **Et le motif n'est pas le solde** : *ce que la troisième forme récupère, elle le retient **en ignorant un concurrent** que le lot élargi avait vu* — **exactement la façon dont l'ancienne règle retenait les 9 pertes.** **Un gain obtenu par ignorance n'est pas un gain.**
+
+*Inscrit pour que la question ne se rouvre pas dans un mois : un nouveau chiffre ne suffira pas, il faudra une mesure de **JUSTESSE** (§13, point 10).*
+
+### 3. ⏸️ Les 35 CHANGEMENTS de NEQ : en suspens *(registre D63)*
+
+*« Poser une identité et en REMPLACER une ne sont pas le même geste. »* ⚠️ **Et plusieurs iraient vers une entreprise RADIÉE** — `#594`, `#1728`, `#4949`. **Ils se reprendront à l'étape de RÉOUVERTURE, avec la règle du statut par-dessus.**
+
+✅ *La garde est **structurelle**, pas une consigne* : `outils/reresolution_neq.py` ne balaie que `Company.neq IS NULL`, et chaque paire porte `neq_avant = None`. **Une reprise ne peut pas remplacer un NEQ**, et un test le verrouille.
+
+### 4. ⏸️ Les 26 dossiers visant `8879690699` restent SANS NEQ
+
+*Comme la garde le prévoit* — **au-delà de deux prétendants, personne ne l'obtient.** **Jusqu'à D27 et D28** *(les entités publiques)*. ⚠️ *C'est le NEQ du fait de 2026-09-17 : CISSS, CIUSSS, CHUM, McGill, Institut de Cardiologie — des organisations réellement distinctes que le registre range sous un seul numéro.*
+
+### 5. ✅ D61 — le DÉTENTEUR garde son NEQ
+
+*« Le produit conserve, il n'efface pas. »* Le nouveau venu reste un dossier séparé, sans NEQ, et le refus est journalisé. ⛔ **Forme écartée : révoquer au-delà de deux** — *elle ferait dépendre la perte d'une identité déjà posée de l'ordre d'arrivée des signaux.*
+
+### 6. ✅ D60 — l'unité de la borne de longueur est **LA LETTRE**
+
+*« C'est la seule qui traite `« LA »` et `« L.A. »` comme la même porte. »* **`« L.A. »` se normalise en `« l a »` — 3 caractères, 2 lettres, 2 mots**, et une borne en caractères retirerait l'une en gardant l'autre. ⬜ **La VALEUR attend la mesure.**
+
+⚠️ **Rien d'autre ne s'écrit** : ni les 35 changements, ni l'élargissement du statut *(D53)*.
 
 ---
 

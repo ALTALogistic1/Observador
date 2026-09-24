@@ -653,3 +653,27 @@ def test_une_forme_de_req_noms_porte_le_gisement_du_chargeur(decor):
     assert not forme.est_la_denomination_elue
     assert (forme.gisement, forme.statut) == ("NOM_ASSUJ", "A")
     assert forme.nom_publie == "16790224 Canada Inc."
+
+
+def test_la_reprise_ne_peut_PAS_remplacer_un_NEQ_deja_pose():
+    """⏸️ **La garde des 35 CHANGEMENTS** *(décision d'Alexandre, 2026-09-23 —
+    registre D63)*.
+
+    *« Poser une identité et en REMPLACER une ne sont pas le même geste. »* Le
+    troisième temps déplacerait le NEQ de **35 dossiers déjà posés**, dont
+    plusieurs vers une entreprise **radiée** (`#594`, `#1728`, `#4949`). **Ils
+    sont en suspens jusqu'à l'étape de réouverture, avec la règle du statut
+    par-dessus.**
+
+    ⚠️ **Et la garde est STRUCTURELLE, pas une consigne** : la passe ne balaie
+    que `Company.neq IS NULL`, et chaque paire porte `neq_avant = None`. *Une
+    consigne se contourne en changeant un argument; une population ne se
+    contourne qu'en réécrivant la requête — ce que ce test rend visible.*
+    """
+    import inspect
+
+    source = inspect.getsource(reresolution_neq.main)
+    assert "select(Company).where(Company.neq.is_(None))" in source
+    assert '"neq_avant": None' in source
+    # ⛔ Aucun chemin d'écriture ne lit un NEQ d'avant NON nul.
+    assert "neq_avant\": company.neq" not in source

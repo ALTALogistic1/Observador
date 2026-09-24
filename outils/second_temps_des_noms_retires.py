@@ -275,10 +275,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.limite:
             requete = requete.limit(args.limite)
         dossiers = list(session.execute(requete).scalars().all())
+        #: ⚠️ **La taille de la population, retenue tout de suite.** *Un nombre
+        #: qu'on relit d'une liste à la fin du rapport dépend de tout ce qui a
+        #: touché ce nom entre-temps.*
+        population = len(dossiers)
         poses = [c for c in dossiers if c.neq]
         restants = [c for c in dossiers if not c.neq]
 
-        print(f"… rejeu des DEUX règles sur {milliers(len(dossiers))} dossiers "
+        print(f"… rejeu des DEUX règles sur {milliers(population)} dossiers "
               f"({milliers(len(poses))} posés, {milliers(len(restants))} restants)",
               flush=True)
 
@@ -294,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         a_tire: list = []          # (company, neq d'aujourd'hui)
         for i, company in enumerate(dossiers, 1):
             if args.pas and i % args.pas == 0:
-                print(f"   … {milliers(i)} / {milliers(len(dossiers))}", flush=True)
+                print(f"   … {milliers(i)} / {milliers(population)}", flush=True)
             avant, apres, matches, journal = les_deux_regles(session, company)
             if journal.get("troisieme_temps"):
                 a_tire.append((company, apres))
@@ -485,10 +489,17 @@ def main(argv: list[str] | None = None) -> int:
         if en_bloc:
             print()
             for neq, k in sorted(en_bloc.items(), key=lambda t: -t[1]):
-                dossiers = [c for c, _a, ap, _m in changent + gagnent if ap == neq]
+                # ⚠️ **`dossiers_du_neq`, PAS `dossiers`.** *Cette boucle
+                # s'appelait `dossiers` jusqu'au 2026-09-24 et écrasait la
+                # POPULATION du même nom* — la section 5 s'en servait ensuite
+                # comme dénominateur et imprimait **24 876,9 %**, parce que le
+                # dernier NEQ de cette boucle en portait 26. **Relevé par
+                # Alexandre en lisant la sortie.**
+                dossiers_du_neq = [c for c, _a, ap, _m in changent + gagnent
+                                   if ap == neq]
                 print(f"      {neq}   {k} dossiers   "
-                      f"{', '.join('#' + str(c.id) for c in dossiers[:8])}")
-                for c in dossiers[:4]:
+                      f"{', '.join('#' + str(c.id) for c in dossiers_du_neq[:8])}")
+                for c in dossiers_du_neq[:4]:
                     print(f"         #{c.id}  {(c.nom_detecte or '')[:60]}")
         print("""
    ⚠️ À TRANCHER AVANT TOUTE INTÉGRATION, que le cas se produise ou non
@@ -529,7 +540,9 @@ def main(argv: list[str] | None = None) -> int:
       premiers n'ont rien retenu, donc les deux formes partagent leur
       premier temps, et `elargir=False` ne coupe pas le troisième.
 """)
-        print(_ligne("dossiers où le TROISIÈME TEMPS tire", len(a_tire), len(dossiers)))
+        # ⚠️ **Le dénominateur est pris ICI, pas relu d'une variable.** *Il
+        # l'était, et une boucle de la section 4 l'avait écrasé.*
+        print(_ligne("dossiers où le TROISIÈME TEMPS tire", len(a_tire), population))
         print("      (c'est là, et seulement là, que les deux formes diffèrent)\n")
         par_forme: Counter = Counter()
         recuperes: list = []

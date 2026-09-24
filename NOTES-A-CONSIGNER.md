@@ -6586,3 +6586,115 @@ l'instrument ment et le reste du tableau ne vaut rien.**
 > **Une mesure qui simule une règle doit chiffrer le cas où la règle ne fait
 > rien, et le montrer à celui qui lit. Un instrument sans témoin ne se
 > distingue d'un instrument faux que par la confiance qu'on lui porte.**
+
+---
+
+## N265 — Une boucle qui réutilise le nom de la population fausse un chiffre trois sections plus loin
+
+- **Notée le** : 2026-09-23
+
+*Relevé par Alexandre en lisant la sortie* : la section 5 imprimait
+**« dossiers où le TROISIÈME TEMPS tire — 6 468   24 876,9 % »**.
+
+**La cause** : la section 4 faisait `dossiers = [c for c, … in changent + gagnent
+if ap == neq]` **dans une boucle**, et écrasait la liste `dossiers` qui portait
+la POPULATION. ⚠️ **La section 5 relisait `len(dossiers)` comme dénominateur —
+et obtenait les 26 du dernier NEQ de la boucle.**
+
+⚠️ **Le chiffre faux était le seul indice.** *Le compte, lui, était juste; rien
+dans le code ne signalait quoi que ce soit; aucun test ne couvrait la ligne.* Et
+**un pourcentage supérieur à 100 est visible — un pourcentage plausible ne
+l'aurait pas été.** *Si la boucle avait fini sur un NEQ à 9 000 dossiers, la
+ligne aurait dit « 71,9 % » et personne n'aurait rien vu.*
+
+**Corrigé deux fois** : la boucle s'appelle `dossiers_du_neq`, et la taille de la
+population est **retenue dans `population` au moment où elle est lue**, pas
+relue d'une liste à la fin du rapport.
+
+> **Un dénominateur relu d'une variable à la fin d'un long rapport dépend de tout
+> ce qui a touché ce nom entre-temps. Le retenir au moment où on le connaît
+> coûte une ligne; le relire coûte un chiffre faux qu'on ne voit que s'il est
+> assez faux pour être ridicule.**
+
+---
+
+## N266 — Un gain obtenu par IGNORANCE n'est pas un gain
+
+- **Notée le** : 2026-09-23
+
+*Décision d'Alexandre sur la troisième forme (registre **D62**)* : **13 dossiers
+récupérés contre 29 perdus** — et **le motif n'est pas le solde**.
+
+⚠️ **Ce que la troisième forme récupère, elle le retient en ignorant un
+concurrent que le lot élargi avait vu.** *C'est exactement la façon dont
+l'ancienne règle retenait les 9 pertes* : un dossier ambigu qu'on résout parce
+qu'on n'a pas regardé.
+
+> **Quand une règle « récupère » des cas, demander PAR QUOI. Retenir davantage en
+> voyant moins n'est pas une amélioration : c'est le défaut qu'on vient de
+> corriger, remis à l'endroit. Et le solde de deux colonnes ne le dira jamais —
+> il faut regarder le mécanisme.**
+
+---
+
+## N267 — Poser une identité et en remplacer une ne sont pas le même geste
+
+- **Notée le** : 2026-09-23
+
+*Décision d'Alexandre sur les 35 changements de NEQ (registre **D63**)* :
+**278 gains s'appliquent, 35 remplacements attendent.** ⚠️ **Et plusieurs
+iraient vers une entreprise RADIÉE** — `#594`, `#1728`, `#4949`.
+
+**Ce qui rend la décision tenable sans surveillance** : *la garde est
+STRUCTURELLE.* `outils/reresolution_neq.py` ne balaie que `Company.neq IS NULL`,
+et chaque paire porte `neq_avant = None`. **Une reprise ne PEUT pas remplacer un
+NEQ.**
+
+> **Une consigne se contourne en changeant un argument; une POPULATION ne se
+> contourne qu'en réécrivant une requête. Quand une décision dit « pas ça », la
+> bonne question est : qu'est-ce qui, dans la forme du code, rend « ça »
+> impossible plutôt qu'interdit ?**
+
+---
+
+## N268 — Une unité se tranche avant une valeur, et elle se tranche par un CAS
+
+- **Notée le** : 2026-09-23
+
+*Décision d'Alexandre sur D60* : **l'unité de la borne de longueur est la
+LETTRE.** *« C'est la seule qui traite `« LA »` et `« L.A. »` comme la même
+porte. »*
+
+⚠️ **Le motif n'est pas une préférence, c'est un CAS** : `« L.A. »` se normalise
+en `« l a »` — **3 caractères, 2 lettres, 2 mots**. *Une borne en caractères
+retirerait l'une des deux portes et garderait l'autre, alors qu'elles ouvrent sur
+la même chose.*
+
+**Les deux autres mesures restent lisibles par `--mesure`** — *pour que la
+décision se relise contre ce qu'elle a écarté, et pas seulement contre
+elle-même.*
+
+> **Une valeur posée sur une unité non décidée est une convention cachée. Et
+> l'unité ne se choisit pas au jugé : elle se choisit sur le cas qui sépare les
+> candidates — celui qui fait dire « ces deux-là doivent être traitées
+> pareil ».**
+
+---
+
+## N269 — Une cause fausse retirée d'un outil survit dans le document
+
+- **Notée le** : 2026-09-23
+
+**La cause « le NEQ est passé sous la coupe à cinq » a été rétractée le 23
+septembre** — `neq_retenu` ne lit que `matches[0]` et `matches[1]`, donc relever
+le plafond du lot **ne change aucune décision**. *Corrigée dans l'outil, dans sa
+sortie et dans ses tests le jour même.*
+
+⛔ **Elle est restée écrite dans la §5bis du chantier 3+4**, sur les 14 dossiers
+que le rejeu ne retrouve plus. *Trouvée quatre jours plus tard, en écrivant une
+autre section du même document.*
+
+> **Rétracter une affirmation dans le code ne la rétracte pas dans le corpus. Un
+> fait faux vit dans autant d'endroits qu'il a été recopié, et la correction doit
+> suivre la même liste — sinon le document devient la dernière source à porter
+> l'erreur, et c'est celle qu'on relira dans six mois.**

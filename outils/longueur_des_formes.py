@@ -7,8 +7,9 @@ LONGUEUR d'une forme du registre au scorage.** *`rapidfuzz.WRatio` rend au moins
 et **deux lettres suffisent** : `« LA »` a scoré **95,0** sur le dossier `#5476`.
 
 ⚠️ **Alexandre ne veut AUCUNE valeur posée pour débloquer.** *« Je la poserai
-avec Claude. »* **Cet outil ne propose donc pas de borne : il rend de quoi en
-poser une** — la distribution des longueurs de la forme GAGNANTE chez les
+avec Claude. »* ✅ **L'UNITÉ, elle, est tranchée depuis le 2026-09-23 : la
+LETTRE** *(registre D60)*. **Cet outil ne propose donc pas de borne : il rend de
+quoi en poser une** — la distribution des longueurs de la forme GAGNANTE chez les
 retenus et chez les restants, ce que chaque borne possible retirerait, et ce que
 le corpus porte déjà de comparable.
 
@@ -51,9 +52,13 @@ TRANCHES = ((1, 2), (3, 3), (4, 5), (6, 9), (10, 19), (20, 10_000))
 
 #: ⚠️ **TROIS façons de mesurer une longueur, et elles ne classent pas pareil.**
 #: *`« L.A. »` se normalise en `« l a »` — **trois caractères, deux lettres, deux
-#: mots**.* **Une borne de 3 retirerait `« LA »` et garderait `« L.A. »`**, qui
-#: est la même porte. *Laquelle compte est une sous-question, et elle se pose
-#: avec Alexandre comme la borne elle-même.*
+#: mots**.*
+#:
+#: ✅ **L'UNITÉ EST TRANCHÉE le 2026-09-23 : LA LETTRE** *(registre D60)*.
+#: *« C'est la seule qui traite `« LA »` et `« L.A. »` comme la même porte. »*
+#: **Une borne en CARACTÈRES retirerait l'une en gardant l'autre.** ⬜ *La VALEUR
+#: attend la mesure.* **Les deux autres mesures restent lisibles par `--mesure`,
+#: pour que la décision se relise contre ce qu'elle a écarté.**
 MESURES = {
     "caracteres": ("caractères de la forme normalisée, espaces compris",
                    lambda forme: len(forme)),
@@ -92,7 +97,7 @@ def forme_gagnante(matches: list) -> str | None:
     return matches[0].forme_normalisee
 
 
-def transformateur_de_borne(borne: int, mesure: str = "caracteres"):
+def transformateur_de_borne(borne: int, mesure: str = "lettres"):
     """Un `transformer_forme` qui EFFACE les formes plus courtes que `borne` —
     *la borne, simulée par le SCOREUR DU PRODUIT.*
 
@@ -100,9 +105,11 @@ def transformateur_de_borne(borne: int, mesure: str = "caracteres"):
     publié : c'est la forme normalisée que le scoreur compare, et borner sur le
     publié bornerait une chaîne que personne ne score.
 
-    ⚠️ **Et `mesure` n'a pas de bonne valeur par défaut** — voir `MESURES` :
-    `« L.A. »` fait trois caractères, deux lettres et deux mots. *`caracteres`
-    est le défaut parce qu'il faut bien en lire un, pas parce qu'il est le bon.*
+    ✅ **`mesure` vaut `lettres` par défaut depuis le 2026-09-23** *(registre
+    D60, tranché par Alexandre)* : `« L.A. »` fait trois caractères, **deux
+    lettres** et deux mots, et la lettre est la seule unité qui en fasse la même
+    porte que `« LA »`. *Les deux autres restent disponibles pour relire la
+    décision contre ce qu'elle a écarté.*
     """
     from falkye.sources.req import _normaliser
 
@@ -119,8 +126,9 @@ def main(argv: list[str] | None = None) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--bornes", type=int, nargs="*", default=list(BORNES_PAR_DEFAUT),
                         help="les bornes à chiffrer (défaut : 1 2 3 4 5 6 8)")
-    parser.add_argument("--mesure", choices=sorted(MESURES), default="caracteres",
-                        help="ce qu'on appelle « longueur » (voir MESURES)")
+    parser.add_argument("--mesure", choices=sorted(MESURES), default="lettres",
+                        help="ce qu'on appelle « longueur » — défaut : la LETTRE, "
+                             "tranchée le 2026-09-23 (registre D60)")
     parser.add_argument("--paires", type=int, default=0, metavar="N",
                         help="montrer N formes gagnantes les plus COURTES")
     parser.add_argument("--limite", type=int, default=None, help="borner (mise au point)")
@@ -267,10 +275,13 @@ def main(argv: list[str] | None = None) -> int:
          « L.A. » se normalise en « l a »
             3 caractères · 2 lettres · 2 mots
 
-      Une borne de 3 CARACTÈRES retirerait « LA » et garderait « L.A. »,
-      qui est la même porte. `--mesure` rend les trois; aucune n'est
-      posée par défaut au sens d'un choix — `caracteres` est lu parce
-      qu'il faut bien en lire un.
+      ✅ TRANCHÉE LE 23 SEPTEMBRE : L'UNITÉ EST LA LETTRE (registre D60).
+      C'est la seule qui traite « LA » et « L.A. » comme la même porte —
+      une borne en CARACTÈRES retirerait l'une en gardant l'autre.
+
+      ⬜ LA VALEUR, ELLE, N'EST PAS POSÉE. `--mesure` garde les deux
+      autres lisibles, pour que la décision se relise contre ce qu'elle
+      a écarté.
 """)
 
         # ---- 3. CE QUE LE CORPUS PORTE DÉJÀ -------------------------------
