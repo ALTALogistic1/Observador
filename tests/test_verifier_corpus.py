@@ -117,3 +117,71 @@ def test_un_renvoi_vers_un_fichier_absent_du_corpus_est_vu(tmp_path):
 
     assert fait.returncode == 1
     assert "falkye-document-qui-nexiste-pas.md" in fait.stdout
+
+
+# --------------------------------------------------------------------------
+# LE REFUS — ajouté le 2026-09-24, sur demande d'Alexandre
+# --------------------------------------------------------------------------
+
+
+def test_il_TROUVE_le_corpus_depuis_la_racine_du_depot():
+    """⛔ **Le défaut du 2026-09-24.** *Le script faisait `glob.glob("*.md")` et
+    ne voyait que le répertoire courant.* Lancé depuis la racine il rendait
+    **« 2 documents · 0 section de charte · 0 cas »** et déclarait cassés tous
+    les renvois du tampon — **un vert vide, rapporté plusieurs fois comme un
+    état du dépôt.**"""
+    rendu = _lancer(RACINE)
+    assert rendu.returncode == 0, rendu.stdout + rendu.stderr
+    assert "0 section de charte" not in rendu.stdout
+    assert "24 sections de charte" in rendu.stdout
+    assert "0 renvoi(s) à corriger" in rendu.stdout
+
+
+def test_il_REFUSE_quand_il_ne_trouve_pas_le_corpus(tmp_path):
+    """⛔ **Cassé volontairement.** *Le script est recopié dans un arbre qui ne
+    porte aucun corpus* — ni sous le pied, ni à `docs/spec`. **Il doit REFUSER,
+    pas passer** : un rapport vert sur un corpus introuvable se lit comme une
+    vérification réussie, ce qui est pire qu'une erreur."""
+    faux_depot = tmp_path / "faux-depot"
+    (faux_depot / "outils").mkdir(parents=True)
+    copie = faux_depot / "outils" / "verifier-corpus.py"
+    copie.write_text(SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+    (faux_depot / "vide").mkdir()
+
+    rendu = subprocess.run(
+        [sys.executable, str(copie)],
+        cwd=faux_depot / "vide", capture_output=True, text=True, check=False,
+    )
+    assert rendu.returncode != 0, rendu.stdout
+    sortie = rendu.stdout + rendu.stderr
+    assert "REFUS" in sortie
+    assert "charte-falkye.md" in sortie
+    assert "falkye-journal-des-cas.md" in sortie
+    # ⛔ Et surtout : il ne prononce AUCUN verdict.
+    assert "renvoi(s) à corriger" not in sortie
+
+
+def test_le_temoin_dit_l_age_des_documents_ET_ce_qu_il_ne_dit_pas():
+    """⚠️ **Le témoin de la règle du 2026-09-24.** *Le tampon enflait d'un côté,
+    les documents vieillissaient de l'autre, et les deux faits ne se
+    rencontraient nulle part.*
+
+    ⛔ *Première forme écartée le jour même* : dater un document par la date la
+    plus récente qu'il ÉCRIT rendait **2026-10-02** sur le chantier 3+4 —
+    l'archive du 2 octobre, **une date à venir.**
+    """
+    rendu = _lancer(RACINE)
+    assert "Dernière écriture des documents de chantier" in rendu.stdout
+    assert "falkye-chantier-3-4-identite-appariement.md" in rendu.stdout
+    # La limite est dans la sortie, pas seulement dans la documentation.
+    assert "CE QUE CE TÉMOIN NE DIT PAS" in rendu.stdout
+    assert "une retouche d'une virgule" in rendu.stdout
+
+
+def test_le_rappel_du_tampon_dit_la_REGLE_de_cloture():
+    """*La phrase « elles s'écrivent d'un coup à la fin de la tâche » disait le
+    contraire de la règle du 2026-09-24* — et elle était la cause écrite des
+    269 notes en attente."""
+    rendu = _lancer(RACINE)
+    assert "d'un coup à la fin de la tâche" not in rendu.stdout
+    assert "MÊME demande de fusion" in rendu.stdout

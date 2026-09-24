@@ -1,25 +1,73 @@
 # Notes à consigner — tampon de travail
 
 **Ce fichier n'est pas un document du corpus.** C'est un tampon : ce qui doit finir
-dans le corpus atterrit ici **au moment où c'est trouvé**, et n'y reste que jusqu'à
-la mise à jour de fin de tâche.
+dans le corpus atterrit ici **au moment où c'est trouvé**, et n'y reste que jusqu'à la
+clôture du point qu'il concerne.
 
-**La règle qu'il sert** *(méthode arrêtée le 11 septembre 2026)*. Le corpus s'écrit
-**à la fin d'une tâche du plan**, en une seule demande de fusion — une entrée écrite
-avec le résultat en main est plus juste qu'une entrée écrite avant, et une demande au
-lieu de cinq allège le transport, qui se porte à la main.
+**La règle qu'il sert vit dans le corpus, pas ici** — `docs/spec/falkye-guide-ingenierie.md`,
+section **« La clôture d'un point »** *(24 septembre 2026)*. **Elle n'est pas recopiée
+dans ce fichier**, pour la raison qui vaut partout ailleurs : *une phrase qui a sa source
+de vérité ailleurs n'a rien à faire là*, et deux copies d'une règle divergent sans que
+rien ne le dise.
 
-**La condition, non négociable.** La mise à jour de fin de tâche porte **l'ensemble**
-des points, pas ce dont on se souvient. *Une note différée qui se perd est pire qu'une
-entrée écrite trop tôt — c'est le cas 15, et c'est exactement ce que cette méthode
-risque de produire si elle est mal tenue.* D'où ce fichier : **rien ne dépend d'un
-souvenir, et une note oubliée se voit parce que le fichier n'est pas vide.** Même
-principe que le journal de repli — un endroit où ce qui risque de se perdre atterrit
-avant d'être traité.
+⛔ **Ce qui était écrit ici jusqu'au 24 septembre 2026, et qui disait le contraire** :
+« le corpus s'écrit à la fin d'une TÂCHE, en une seule demande de fusion », et « le
+fichier se vide en écrivant la mise à jour ». *Cette phrase définissait la « tâche »
+comme l'unité de consignation **sans dire où une tâche finit**, et elle autorisait le
+report* — **c'est la cause écrite des 269 notes en attente au 24 septembre**
+*(journal, cas 43)*.
+
+**La condition, non négociable, elle, ne change pas.** La mise à jour porte
+**l'ensemble** des points, pas ce dont on se souvient. *Une note différée qui se perd
+est pire qu'une entrée écrite trop tôt — c'est le cas 15.* D'où ce fichier : **rien ne
+dépend d'un souvenir, et une note oubliée se voit parce que le fichier n'est pas vide.**
 
 **Trois gestes qui vont ensemble.** *(1)* Chaque note s'annonce en une ligne dans le
-tour où elle est prise. *(2)* Elle s'inscrit ici dans le même tour. *(3)* Le fichier se
-vide en écrivant la mise à jour, jamais avant.
+tour où elle est prise. *(2)* Elle s'inscrit ici dans le même tour. *(3)* Les notes du
+point se versent au corpus **dans la demande de fusion de ce point**, et disparaissent
+d'ici.
+
+---
+
+## Le plan de l'arriéré — 252 notes, sept lots *(arrêté le 24 septembre 2026)*
+
+**Ce qui l'a rendu nécessaire** : la règle de clôture vaut **à partir du 24 septembre**. Les 252 notes qui restent ici sont l'arriéré de points déjà clos, et elles ne se rattrapent pas dans la demande d'un point en cours.
+
+**Comment ils s'exécutent** *(décidé par Alexandre)* : **un lot à la fois, chacun dans sa propre demande de fusion**, après les points d'hypothèses en cours. *Alexandre dit quand lancer le premier.*
+
+| lot | notes | plage | documents visés | ~lignes de tampon |
+|---|---|---|---|---|
+| **A** — sources et connecteurs *(14-15 sept)* | 17 | N1–N17 | `falkye-recommandations-sources.md`, `falkye-sources-spheres-verifiees.md`, `falkye-chantier-2-sante-source.md` | ~320 |
+| **B** — l'import REQ, la mémoire, les deux bases *(16 sept)* | 66 | N18–N87 | `falkye-chantier-29-persistance.md`, `docs/CONCEPTION-TRAITEMENT-ARCHIVE-REQ.md`, guide, journal | ~1 510 |
+| **C** — les gisements et la résolution *(17 sept)* | 53 | N80–N136 | `falkye-chantier-3-4-identite-appariement.md`, guide, journal | ~1 300 |
+| **D** — la pose des NEQ et ses gardes *(18-19 sept)* | 30 | N137–N166 | `falkye-chantier-3-4-…`, guide, journal | ~820 |
+| **E** — les défauts du code de résolution *(20 sept)* | 44 | N167–N210 | `falkye-chantier-3-4-…` §12bis, guide, journal | ~1 310 |
+| **F** — l'adresse et le plan de travail *(21-22 sept)* | 32 | N211–N242 | `falkye-chantier-3-4-…`, `falkye-chantier-22-calibration.md`, guide | ~750 |
+| **G** — le troisième temps, avant la clôture du 23 | 10 | N243–N252 | `falkye-chantier-3-4-…`, guide, journal | ~270 |
+
+⚠️ **Les plages de numéros se chevauchent** *(N80–N87 sont datées du 17 mais numérotées avant N88)* : **le lot se définit par la DATE, pas par le numéro.**
+
+⚠️ **Ce que « ~lignes » mesure** : les lignes **du tampon**, pas ce qui sera écrit. *La plupart de ces notes sont des leçons de méthode* — elles vont au **guide d'ingénierie** et au **journal des cas**, où plusieurs notes se fondent souvent en une section ou un cas. **Le corpus écrit sera plus court que le tampon, et ce n'est pas une perte** : un cas rassemble ce que trois notes avaient vu séparément.
+
+### Ce qui est déjà périmé ou contredit — et comment il est traité
+
+**Ce qui est établi aujourd'hui, par un balayage mécanique** *(une note postérieure qui en nomme une antérieure dans un contexte de correction)* :
+
+| note | nommée par | nature |
+|---|---|---|
+| **N252** | N253 | ⛔ **rétractation réelle** — *« certaines gardes ne peuvent pas descendre » était trop fort*. Déjà annotée dans le tampon, et **le cas 44 porte la version juste** |
+| N12 | N29 | enrichissement — la cause s'est précisée |
+| N33 | N36 | enrichissement |
+| N36 | N38 | enrichissement |
+| N136 | N180 | enrichissement |
+| N154 | N155 | enrichissement |
+| N192 | N202 | enrichissement |
+| N212 | N213 | enrichissement |
+
+⚠️ **Et voici la limite de ce balayage, dite plutôt que tue.** Il attrape une note qui en **nomme** une autre. *Il n'attrape pas une note dont le contenu est devenu faux sans que personne l'ait nommée* — le cas le plus fréquent, et celui du cas 49. **La détermination complète se fait lot par lot, en relisant chaque note contre le corpus du jour.**
+
+**La règle de traitement, pour que rien ne disparaisse en silence** : une note périmée **ne s'écrit pas au corpus**, et **le rapport du lot la NOMME** avec ce qui l'a périmée. *Une note retirée sans mention est indistinguable d'une note oubliée.*
+
 
 **L'exception.** Ce qui risque d'abîmer le produit s'écrit **tout de suite**, sans
 attendre la fin de la tâche. Même test que pour un écart hors plan.
@@ -6328,373 +6376,3 @@ rattachés au MÊME dossier — donc FUSIONNÉS de fait**, ce que la décision d
 FORME**, et la note qui suit dit laquelle.
 
 
----
-
-## N253 — Une garde descend, mais jamais dans la même forme
-
-- **Notée le** : 2026-09-23
-
-*Construite sur demande d'Alexandre, qui l'a placée avant tout le reste : « c'est
-le seul point qui peut abîmer la base ».*
-
-**N252 concluait que certaines gardes ne PEUVENT pas descendre.** ⛔ *Trop fort.*
-Celle-ci est descendue — `PRETENDANTS_MAX_POUR_TRANCHER` vit maintenant dans
-`falkye/resolution.py`, et `outils/pose_du_neq.py` l'emprunte. **Ce qui ne
-pouvait pas descendre, c'est la forme du refus.**
-
-| | la passe par LOT (17 sept.) | la RÉSOLUTION (23 sept.) |
-|---|---|---|
-| ce qu'elle voit | tous les prétendants ensemble | UN dossier à la fois |
-| qui détient le NEQ au moment de décider | **personne** | **quelqu'un, déjà** |
-| le refus | personne ne l'obtient | le NOUVEAU VENU ne l'obtient pas |
-
-**Et c'est une contrainte de SCHÉMA qui dicte la forme, pas un choix de
-conception** : `Company.neq` est **UNIQUE**. *Deux dossiers ne peuvent pas
-porter le même NEQ; le partage n'est pas une issue possible.* **Retirer le NEQ
-au détenteur ne serait pas une garde, ce serait une écriture qui EFFACE une
-identité** — et une garde, par définition, ne peut que RÉDUIRE les écritures.
-
-> **Une règle qui descend d'un lot vers l'unité arrive dans un monde où une
-> partie de sa décision est DÉJÀ PRISE. Elle ne garde donc pas la même forme :
-> elle garde le même principe, et change de geste. Demander « la même règle
-> descend-elle ? » est la mauvaise question; la bonne est « que reste-t-il à
-> décider quand elle arrive ? ».**
-
----
-
-## N254 — Ce qui n'a pas pu descendre : le seuil ne décide plus, il nomme
-
-- **Notée le** : 2026-09-23
-
-**Dans la passe par lot, `PRETENDANTS_MAX_POUR_TRANCHER` DÉCIDE** : au-delà de
-deux prétendants, le NEQ n'est posé sur personne. **Dans la résolution, il ne
-peut plus que NOMMER** — le premier arrivé porte déjà le NEQ, et le rang du
-prétendant n'est qu'écrit au journal, pour rendre ces NEQ-là visibles.
-
-⚠️ **Le dire plutôt que de le combler.** *Combler l'écart demanderait de révoquer
-le NEQ d'un détenteur quand un troisième prétendant se présente* — une écriture
-destructrice, sur une identité déjà posée, déclenchée par l'arrivée d'un signal.
-**C'est une décision d'Alexandre, pas un effet de bord d'une garde.**
-
-> **Une constante qui descend d'un niveau peut perdre son pouvoir de décider sans
-> perdre son nom. Le plus dangereux n'est pas qu'elle disparaisse, c'est qu'elle
-> reste écrite au même endroit avec le même nom, en ne gouvernant plus rien.**
-
----
-
-## N255 — Le journal comme ORGANE DE COMPTAGE, pas comme trace de confort
-
-- **Notée le** : 2026-09-23
-
-**La passe par lot compte ses prétendants en les regardant.** *La résolution ne
-le peut pas : elle les voit un par un, étalés sur des semaines.* **Le seul
-nombre qu'elle puisse produire est celui de ses propres refus déjà consignés** —
-donc `compter_pretendants` lit le journal, et non une variable.
-
-⚠️ **Conséquence directe** : la journalisation devient **idempotente par
-nécessité**, pas par propreté. *Un dossier refusé re-détecté cinquante fois
-écrirait cinquante entrées, et le décompte compterait des SIGNAUX au lieu de
-dossiers* — le nombre qui sert à juger un appariement serait alors le nombre de
-fois qu'une source a publié.
-
-> **Quand une règle perd la population qu'elle lisait, sa trace devient son
-> organe de mesure. Et une trace qui sert à compter n'a plus le droit d'être
-> approximative : sa duplication n'est plus du bruit, c'est un faux chiffre.**
-
----
-
-## N256 — Un identifiant AFFIRMÉ et un identifiant INFÉRÉ ne se gardent pas pareil
-
-- **Notée le** : 2026-09-23
-
-**La garde ne s'applique qu'au NEQ trouvé par le SCOREUR**, jamais à celui qu'une
-source affirme (`RawSignal.neq`). *La garde du 17 septembre est née d'un
-appariement par le nom* — « le nombre de prétendants est une preuve contre
-l'appariement ». **Un NEQ affirmé n'est pas un appariement** : deux graphies sous
-le même NEQ affirmé désignent la même personne morale, et les séparer perdrait
-l'identité que la source donnait.
-
-⚠️ **Posée pour être VUE, pas supposée.** *C'est un choix, et il se renverse :
-si une source affirme mal, la garde ne la rattrapera pas.* Ce serait alors un
-défaut de source, à traiter comme tel — pas à noyer dans une garde d'appariement.
-
-> **Une garde bâtie contre une INFÉRENCE ne se transpose pas automatiquement à
-> une AFFIRMATION. Les appliquer toutes les deux « par prudence » coûte
-> exactement ce que la prudence devait protéger : l'identité que la source
-> donnait gratuitement.**
-
----
-
-## N257 — Journaliser sous un statut qu'aucun levier existant ne sait défaire
-
-- **Notée le** : 2026-09-23
-
-Le refus est consigné dans `journal_diagnostic` avec
-`statut="pretendant_refuse"` — **délibérément pas `"a_examiner"`**. *`falkye
-diagnostic confirmer-fusion` n'agit que sur `a_examiner`, et applique une
-FUSION.* **Un refus journalisé sous ce statut-là aurait offert, d'un coup de CLI
-déjà écrit, le moyen exact de défaire la garde qui venait de séparer les deux
-dossiers.**
-
-> **Réutiliser une table, c'est aussi hériter de ses leviers. Avant de ranger un
-> fait nouveau dans une structure existante, regarder quelles commandes savent
-> déjà agir dessus — et vérifier qu'aucune ne fait, gratuitement, le contraire
-> de ce qu'on vient de construire.**
-
----
-
-## N258 — La cause d'une perte et le remède proposé étaient le MÊME appel
-
-- **Notée le** : 2026-09-23
-
-**`cause_dune_perte` rejouait la résolution avec `elargir=False` pour dire
-laquelle des deux causes fait perdre un NEQ.** *La « troisième forme » qu'Alexandre
-demandait à chiffrer — rejouer le pipeline entier depuis le préfixe — **est
-exactement le même appel.*** **Le diagnostic et le remède étaient la même
-mesure, lue deux fois.**
-
-⚠️ **Et ce n'est pas une coïncidence, c'est une identité** : *le troisième temps
-ne tire que là où les deux premiers n'ont rien retenu*, donc les deux formes
-partagent leur premier temps, et `elargir=False` ne coupe pas le troisième.
-**`elargir=False` rend la troisième forme EXACTEMENT — ce n'est pas une
-approximation, et le dire évite de chiffrer un coût « à peu près ».**
-
-> **Avant d'écrire une mesure pour chiffrer un remède, regarder si l'instrument
-> qui a nommé la cause ne le chiffre pas déjà. Deux appels séparés pour la même
-> question divergent le jour où l'un des deux change de paramètre — et rien ne
-> le dit.**
-
----
-
-## N259 — Mesurer une règle sur la population qu'elle ne touche pas gonfle son dénominateur
-
-- **Notée le** : 2026-09-23
-
-*Premier réflexe pour chiffrer la troisième forme : la rejouer sur les 8 742
-dossiers.* ⛔ **Faux.** `elargir=False` coupe le second temps **partout**, alors
-que la troisième forme ne change rien là où le troisième temps ne tire pas. *La
-mesure aurait porté sur une QUATRIÈME règle que personne n'a proposée* — et son
-dénominateur aurait rendu le coût microscopique par dilution.
-
-**La correction tient dans une clé** : `journal["troisieme_temps"]` dit où les
-deux formes diffèrent, et la mesure ne s'y exécute que là. *Elle coûte aussi un
-appel de moins par dossier.*
-
-> **Le dénominateur d'une mesure de règle, c'est la population où la règle
-> s'applique — pas la population sur laquelle on l'a lancée. Un pourcentage
-> calculé sur des dossiers que la règle ne touche pas dit toujours « c'est
-> négligeable », quelle que soit la règle.**
-
----
-
-## N260 — Un décor qui ne produit pas la forme qu'il teste ne teste rien
-
-- **Notée le** : 2026-09-23
-
-*Le décor des tests du troisième temps ne perdait AUCUN NEQ* — donc la section
-qui rend les pertes n'était jamais exécutée, et aucun test ne le disait.
-**Raison mesurée** : `req_mots` et `req_mots_frequence` étaient vides, donc
-**le second temps ne ramenait jamais rien**, donc le lot ne s'élargissait
-jamais, donc la seule cause de perte observée en production ne pouvait pas
-exister dans le décor.
-
-⚠️ **Le décor reproduisait la RÈGLE, pas la POPULATION** — et c'est la
-population qui produisait le défaut.
-
-> **Une branche qu'un décor n'atteint jamais est du code non testé sous une
-> suite verte. Quand une mesure rend « zéro » sur un décor, la première
-> question n'est pas « la règle est-elle bonne ? » mais « le décor peut-il
-> seulement produire un non-zéro ? ».**
-
----
-
-## N261 — Un chemin de simulation qui ignore une règle confond deux mesures en une
-
-- **Notée le** : 2026-09-23
-
-`_formes_transformees` — le chemin par lequel un outil SIMULE une correction —
-**ignorait `sans_les_retires`**, et c'était écrit noir sur blanc comme un choix
-assumé : *« un outil qui simule une correction ne doit pas hériter d'une règle
-qu'il ne mesure pas ».*
-
-⛔ **Le choix était devenu faux le jour où le troisième temps a existé.**
-*Simuler une borne de longueur par `transformer_forme` aurait, du même geste,
-**réintroduit les 3,2 millions de formes retirées dans le PREMIER temps**.* **La
-mesure aurait attribué à la borne ce que le troisième temps faisait** — deux
-règles dans un seul chiffre, et pas une ligne pour le dire.
-
-*Corrigé avant d'écrire l'outil, pas après l'avoir lu.*
-
-> **Un chemin de simulation qui n'hérite pas d'une règle du produit mesure une
-> règle qui n'existe nulle part. Et la phrase qui justifie l'exception vieillit
-> sans bruit : elle était vraie quand elle a été écrite, et elle reste écrite
-> quand elle cesse de l'être.**
-
----
-
-## N262 — « Longueur » veut dire trois choses, et elles ne classent pas pareil
-
-- **Notée le** : 2026-09-23
-
-*Demande d'Alexandre : de quoi poser une borne de longueur minimale au scorage.*
-**Premier réflexe : compter les caractères.** ⚠️ **`« L.A. »` se normalise en
-`« l a »` — trois caractères, deux lettres, deux mots.** *Une borne de 3
-caractères retirerait `« LA »` et garderait `« L.A. »`, **qui est la même
-porte**.*
-
-**La sous-question se pose donc AVANT la borne**, et l'outil rend les trois
-mesures plutôt que d'en choisir une en silence.
-
-> **Quand on demande une échelle, vérifier d'abord que l'unité est décidée. Une
-> valeur posée sur une unité qu'on n'a pas nommée n'est pas une échelle : c'est
-> une convention cachée, et elle se découvre le jour où un cas la traverse.**
-
----
-
-## N263 — Une borne fait gagner autant qu'elle fait perdre
-
-- **Notée le** : 2026-09-23
-
-*Retirer une forme courte ne fait pas que retirer des appariements* : **elle
-fait aussi tomber un concurrent sous l'écart, donc RÉSOUT un dossier qui était
-ambigu.** ⚠️ **C'est le même mécanisme que le troisième temps** — et le même
-piège : ne compter que les pertes ferait paraître toute borne coûteuse, ne
-compter que les gains la ferait paraître gratuite.
-
-⛔ **Et ni l'un ni l'autre ne dit la JUSTESSE.** *Un appariement gagné par une
-forme de deux lettres est exactement le cas qu'on soupçonne d'être faux.* **Le
-tableau dit combien bouge, jamais dans quel sens ça va** — la mesure de justesse
-(§13, point 10) n'existe toujours pas.
-
-> **Toute règle qui retire de l'information en récupère ailleurs, parce qu'elle
-> change l'ÉCART autant que le SOMMET. Une mesure qui ne compte qu'un des deux
-> côtés n'est pas incomplète : elle est orientée.**
-
----
-
-## N264 — Un témoin dans le tableau, pas seulement dans le test
-
-- **Notée le** : 2026-09-23
-
-**La borne `1` ne retire rien par construction.** *Elle est chiffrée quand
-même, en première ligne du tableau* : **si sa ligne n'est pas à zéro,
-l'instrument ment et le reste du tableau ne vaut rien.**
-
-*Un test le vérifie aussi* — mais le test protège le dépôt, et la ligne protège
-**le lecteur du rapport**, qui n'a pas la suite sous les yeux.
-
-> **Une mesure qui simule une règle doit chiffrer le cas où la règle ne fait
-> rien, et le montrer à celui qui lit. Un instrument sans témoin ne se
-> distingue d'un instrument faux que par la confiance qu'on lui porte.**
-
----
-
-## N265 — Une boucle qui réutilise le nom de la population fausse un chiffre trois sections plus loin
-
-- **Notée le** : 2026-09-23
-
-*Relevé par Alexandre en lisant la sortie* : la section 5 imprimait
-**« dossiers où le TROISIÈME TEMPS tire — 6 468   24 876,9 % »**.
-
-**La cause** : la section 4 faisait `dossiers = [c for c, … in changent + gagnent
-if ap == neq]` **dans une boucle**, et écrasait la liste `dossiers` qui portait
-la POPULATION. ⚠️ **La section 5 relisait `len(dossiers)` comme dénominateur —
-et obtenait les 26 du dernier NEQ de la boucle.**
-
-⚠️ **Le chiffre faux était le seul indice.** *Le compte, lui, était juste; rien
-dans le code ne signalait quoi que ce soit; aucun test ne couvrait la ligne.* Et
-**un pourcentage supérieur à 100 est visible — un pourcentage plausible ne
-l'aurait pas été.** *Si la boucle avait fini sur un NEQ à 9 000 dossiers, la
-ligne aurait dit « 71,9 % » et personne n'aurait rien vu.*
-
-**Corrigé deux fois** : la boucle s'appelle `dossiers_du_neq`, et la taille de la
-population est **retenue dans `population` au moment où elle est lue**, pas
-relue d'une liste à la fin du rapport.
-
-> **Un dénominateur relu d'une variable à la fin d'un long rapport dépend de tout
-> ce qui a touché ce nom entre-temps. Le retenir au moment où on le connaît
-> coûte une ligne; le relire coûte un chiffre faux qu'on ne voit que s'il est
-> assez faux pour être ridicule.**
-
----
-
-## N266 — Un gain obtenu par IGNORANCE n'est pas un gain
-
-- **Notée le** : 2026-09-23
-
-*Décision d'Alexandre sur la troisième forme (registre **D62**)* : **13 dossiers
-récupérés contre 29 perdus** — et **le motif n'est pas le solde**.
-
-⚠️ **Ce que la troisième forme récupère, elle le retient en ignorant un
-concurrent que le lot élargi avait vu.** *C'est exactement la façon dont
-l'ancienne règle retenait les 9 pertes* : un dossier ambigu qu'on résout parce
-qu'on n'a pas regardé.
-
-> **Quand une règle « récupère » des cas, demander PAR QUOI. Retenir davantage en
-> voyant moins n'est pas une amélioration : c'est le défaut qu'on vient de
-> corriger, remis à l'endroit. Et le solde de deux colonnes ne le dira jamais —
-> il faut regarder le mécanisme.**
-
----
-
-## N267 — Poser une identité et en remplacer une ne sont pas le même geste
-
-- **Notée le** : 2026-09-23
-
-*Décision d'Alexandre sur les 35 changements de NEQ (registre **D63**)* :
-**278 gains s'appliquent, 35 remplacements attendent.** ⚠️ **Et plusieurs
-iraient vers une entreprise RADIÉE** — `#594`, `#1728`, `#4949`.
-
-**Ce qui rend la décision tenable sans surveillance** : *la garde est
-STRUCTURELLE.* `outils/reresolution_neq.py` ne balaie que `Company.neq IS NULL`,
-et chaque paire porte `neq_avant = None`. **Une reprise ne PEUT pas remplacer un
-NEQ.**
-
-> **Une consigne se contourne en changeant un argument; une POPULATION ne se
-> contourne qu'en réécrivant une requête. Quand une décision dit « pas ça », la
-> bonne question est : qu'est-ce qui, dans la forme du code, rend « ça »
-> impossible plutôt qu'interdit ?**
-
----
-
-## N268 — Une unité se tranche avant une valeur, et elle se tranche par un CAS
-
-- **Notée le** : 2026-09-23
-
-*Décision d'Alexandre sur D60* : **l'unité de la borne de longueur est la
-LETTRE.** *« C'est la seule qui traite `« LA »` et `« L.A. »` comme la même
-porte. »*
-
-⚠️ **Le motif n'est pas une préférence, c'est un CAS** : `« L.A. »` se normalise
-en `« l a »` — **3 caractères, 2 lettres, 2 mots**. *Une borne en caractères
-retirerait l'une des deux portes et garderait l'autre, alors qu'elles ouvrent sur
-la même chose.*
-
-**Les deux autres mesures restent lisibles par `--mesure`** — *pour que la
-décision se relise contre ce qu'elle a écarté, et pas seulement contre
-elle-même.*
-
-> **Une valeur posée sur une unité non décidée est une convention cachée. Et
-> l'unité ne se choisit pas au jugé : elle se choisit sur le cas qui sépare les
-> candidates — celui qui fait dire « ces deux-là doivent être traitées
-> pareil ».**
-
----
-
-## N269 — Une cause fausse retirée d'un outil survit dans le document
-
-- **Notée le** : 2026-09-23
-
-**La cause « le NEQ est passé sous la coupe à cinq » a été rétractée le 23
-septembre** — `neq_retenu` ne lit que `matches[0]` et `matches[1]`, donc relever
-le plafond du lot **ne change aucune décision**. *Corrigée dans l'outil, dans sa
-sortie et dans ses tests le jour même.*
-
-⛔ **Elle est restée écrite dans la §5bis du chantier 3+4**, sur les 14 dossiers
-que le rejeu ne retrouve plus. *Trouvée quatre jours plus tard, en écrivant une
-autre section du même document.*
-
-> **Rétracter une affirmation dans le code ne la rétracte pas dans le corpus. Un
-> fait faux vit dans autant d'endroits qu'il a été recopié, et la correction doit
-> suivre la même liste — sinon le document devient la dernière source à porter
-> l'erreur, et c'est celle qu'on relira dans six mois.**

@@ -1001,3 +1001,83 @@ constantes nommées.*
 
 **Les deux moitiés de ce cas disent la même chose sous deux angles** : *un instrument est aussi
 exposé que ce qu'il mesure, et il faut lui appliquer la règle qu'il applique.*
+
+## Cas 43 — Le corpus s'arrête pendant qu'on travaille dessus, et le tampon enfle *(guide d'ingénierie, « La clôture d'un point »)*
+
+Du 17 au 23 septembre 2026, six jours de travail sur le chantier 3+4. **Le document du chantier n'a pas bougé pendant ce temps, et le tampon `NOTES-A-CONSIGNER.md` a franchi 269 notes** — la plus ancienne du 14 septembre.
+
+**Les deux faits étaient visibles séparément et ne se rencontraient nulle part.** Le tampon disait combien de notes attendaient; rien ne disait que les documents qu'elles concernaient prenaient du retard au même moment. *Et la phrase écrite dans le tampon lui-même — « elles s'écrivent d'un coup à la fin de la tâche » — autorisait le report : elle définissait la « tâche » comme l'unité de consignation, sans dire où une tâche finit.*
+
+**Ce que ça a révélé.** Une règle de consignation qui nomme son moment (« à la fin de la tâche ») sans que ce moment soit lisible se remet indéfiniment. **Il fallait une unité qui se termine visiblement : le POINT, et sa demande de fusion.**
+
+**Artefact** : le tampon à 269 notes au 24 septembre 2026; la sortie de `verifier-corpus.py` qui les liste; l'historique `git` de `falkye-chantier-3-4-identite-appariement.md`.
+
+## Cas 44 — La garde ne protégeait que les passes par lot, et la production fusionnait en silence *(guide d'ingénierie, « Une règle qui descend d'un niveau change de geste »; registre D61)*
+
+`falkye/resolution.py::resolve_company` cherchait un `Company` **par NEQ** avant d'en créer un. *Plusieurs noms détectés résolus vers le même NEQ étaient donc rattachés au MÊME dossier* — **fusionnés de fait, sans qu'aucune ligne ne le dise**, alors que la décision du 16 septembre 2026 dit *conservation toujours, aucune fusion*.
+
+**La garde existait** — `PRETENDANTS_MAX_POUR_TRANCHER = 2`, écrite le 17 septembre après qu'un seul NEQ eut attiré **26 organisations réellement distinctes** (CISSS, CIUSSS, CHUM, McGill, Institut de Cardiologie). **Elle vivait dans `outils/pose_du_neq.py`** : elle protégeait les passes par lot, jamais la production.
+
+**Ce que ça a révélé.** En descendant dans la résolution, la garde est arrivée dans un monde où **une partie de sa décision était déjà prise** : le détenteur porte déjà le NEQ, et `Company.neq` est `unique=True`. *La passe peut refuser à tous parce qu'elle décide avant que quiconque l'ait; la résolution ne peut refuser qu'au nouveau venu.* **Le seuil, lui, a cessé de décider : il ne fait plus que nommer**, en écrivant le rang au journal.
+
+**Artefact** : `falkye/resolution.py::garde_des_pretendants`; `tests/test_garde_des_pretendants.py`, dont quatre tests tombent quand la garde est éteinte.
+
+## Cas 45 — Le journal d'un refus est l'organe qui le compte *(guide d'ingénierie, « Une règle qui descend d'un niveau change de geste »)*
+
+La passe par lot comptait ses prétendants en les regardant tous ensemble. **La résolution les voit un par un, étalés sur des semaines** : le seul nombre qu'elle puisse produire est celui de ses propres refus déjà consignés.
+
+**Ce que ça a révélé.** La journalisation a cessé d'être une trace de confort. *Un dossier refusé re-détecté cinquante fois écrirait cinquante entrées, et le décompte compterait des SIGNAUX au lieu de dossiers* — le nombre qui sert à juger un appariement serait alors le nombre de fois qu'une source a publié. **L'idempotence est devenue une nécessité arithmétique, pas une propreté.**
+
+**Artefact** : `falkye/resolution.py::compter_pretendants` et `_pretendant_deja_journalise`; le test `test_le_refus_est_IDEMPOTENT`.
+
+## Cas 46 — Le décor ne pouvait pas produire la forme qu'il testait *(guide d'ingénierie, « Une unité se tranche avant une valeur »)*
+
+La mesure du troisième temps rendait **9 pertes** en production. Le décor de ses tests n'en produisait **aucune**, et la section qui les affiche n'était donc jamais exécutée — sous une suite verte.
+
+**La cause, mesurée** : `req_mots` et `req_mots_frequence` étaient vides dans le décor. **Le second temps ne ramenait donc jamais rien**, le lot ne s'élargissait jamais, et la seule cause de perte observée en production ne pouvait pas exister.
+
+**Ce que ça a révélé.** Le décor reproduisait la RÈGLE, pas la POPULATION — **et c'est la population qui produisait le défaut.** *Quand une mesure rend « zéro » sur un décor, la première question n'est pas « la règle est-elle bonne ? » mais « le décor peut-il seulement produire un non-zéro ? »*
+
+**Artefact** : la fixture `une_perte` de `tests/test_second_temps_des_noms_retires.py`, et le test `test_la_perte_est_bien_UNE_PERTE_par_le_LOT` qui vérifie d'abord que le décor produit bien la forme annoncée.
+
+## Cas 47 — Le chemin de simulation n'héritait pas d'une règle du produit *(guide d'ingénierie, « Une mesure se lit sur la population qu'elle touche »)*
+
+`_formes_transformees` — le chemin par lequel un outil SIMULE une correction — **ignorait `sans_les_retires`**, et c'était écrit noir sur blanc comme un choix assumé : *« un outil qui simule une correction ne doit pas hériter d'une règle qu'il ne mesure pas ».*
+
+**Le choix était devenu faux le jour où le troisième temps a existé.** Simuler une borne de longueur par `transformer_forme` aurait, du même geste, **réintroduit 3,2 millions de formes retirées dans le PREMIER temps** — et la mesure aurait attribué à la borne ce que le troisième temps faisait.
+
+**Ce que ça a révélé.** *La phrase qui justifie une exception vieillit sans bruit* : elle était vraie quand elle a été écrite, et elle reste écrite quand elle cesse de l'être. **Trouvé avant d'écrire l'outil, pas après l'avoir lu.**
+
+**Artefact** : `falkye/sources/req.py::_formes_transformees`, paramètre `sans_les_retires` et le commentaire qui porte les deux états.
+
+## Cas 48 — Une boucle réutilise le nom de la population, et fausse un chiffre trois sections plus loin *(guide d'ingénierie, « Une mesure se lit sur la population qu'elle touche »)*
+
+La section 5 de `outils/second_temps_des_noms_retires.py` imprimait : **« dossiers où le TROISIÈME TEMPS tire — 6 468   24 876,9 % »**.
+
+**La cause** : la section 4 faisait `dossiers = [...]` **dans une boucle**, écrasant la liste du même nom qui portait la population. La section 5 relisait `len(dossiers)` comme dénominateur et obtenait les **26** du dernier NEQ de cette boucle.
+
+**Ce que ça a révélé.** *Le chiffre faux était le seul indice* — le compte, lui, était juste; aucun test ne couvrait la ligne. **Et il n'a été vu que parce qu'il était absurde** : si la boucle avait fini sur un NEQ à 9 000 dossiers, la ligne aurait dit « 71,9 % » et personne n'aurait rien remarqué.
+
+**Artefact** : la sortie lue par Alexandre le 23 septembre 2026; le correctif `dossiers_du_neq` et la variable `population`, avec le test qui vérifie que le pourcentage tient entre 0 et 100.
+
+## Cas 49 — Une cause fausse retirée d'un outil survit dans le document *(guide d'ingénierie, « La clôture d'un point »)*
+
+La cause *« le NEQ est passé sous la coupe à cinq »* a été rétractée le 23 septembre 2026 au matin — `neq_retenu` ne lit que `matches[0]` et `matches[1]`, donc **relever le plafond du lot ne change aucune décision**. Corrigée le jour même dans l'outil, dans sa sortie et dans ses tests.
+
+⛔ **Elle est restée écrite dans la section 5bis du chantier 3+4**, sur les 14 dossiers que le rejeu ne retrouve plus. *Trouvée le lendemain, en écrivant une autre section du même document.*
+
+**Ce que ça a révélé.** Rétracter une affirmation dans le code ne la rétracte pas dans le corpus. **Un fait faux vit dans autant d'endroits qu'il a été recopié, et le document devient la dernière source à le porter** — c'est-à-dire celle qu'on relira dans six mois. *C'est le geste 2 de la clôture d'un point.*
+
+**Artefact** : la section 5bis du chantier 3+4, avant et après le 23 septembre 2026.
+
+## Cas 50 — Le vérificateur rendait un vert vide hors de son répertoire *(guide d'ingénierie, « La clôture d'un point »)*
+
+`outils/verifier-corpus.py` trouvait le corpus par `glob.glob("*.md")` — **le répertoire courant**. La chaîne d'intégration faisait `cd docs/spec` et voyait juste. **Lancé depuis la racine du dépôt, il rendait « 2 documents · 0 section de charte · 0 cas » et déclarait cassés les onze renvois du tampon.**
+
+*Ce chiffre a été rapporté plusieurs fois comme un état du dépôt — « 11 renvois préexistants » — alors que le corpus était propre et l'avait toujours été.*
+
+**Ce que ça a révélé.** Un vérificateur dont la couverture dépend du répertoire d'appel rend **deux verdicts différents sur le même dépôt**, et le plus rassurant des deux est celui qui ne regarde rien. **Il refuse désormais quand il ne trouve ni charte ni journal** : un rapport vert sur un corpus introuvable se lit comme une vérification réussie, ce qui est pire qu'une erreur.
+
+⛔ **Et le témoin qu'on lui a ajouté a d'abord pris la mauvaise forme** : dater un document par la date la plus récente qu'il ÉCRIT rendait **2026-10-02** sur le chantier 3+4 — l'archive du 2 octobre, **une date à venir**. *Un document parle aussi du futur; ce qu'il mentionne ne le date pas.*
+
+**Artefact** : les deux sorties du même jour — « 2 documents · 0 cas · 11 renvois » contre « 18 documents · 24 sections de charte · 42 cas · 0 renvoi »; le test `test_il_REFUSE_quand_il_ne_trouve_pas_le_corpus`.
